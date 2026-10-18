@@ -146,9 +146,10 @@ type        = Name
 
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
-<DataElement>         = Atom | Primitive | Nil | Data
-(* nil (no value: a rest's pitch) and a list inside data ('[60 64], a
-   chord's pitches), so a stream of values reads back as it prints *)
+<DataElement>         = Atom | Primitive | Nil | Data | Keyword
+(* nil (no value: a rest's pitch), a list inside data ('[60 64], a
+   chord's pitches) and a keyword (:accent, :Sea), so a stream of values
+   reads back as it prints *)
 Nil                   = <'nil'>
 <Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
 <Primitive>           = SignedRatio | SignedFloat | SignedInt

@@ -88,3 +88,12 @@
     (is (every? all ["kernel" "tool" "music" "pitch" "duration"]))
     (doseq [[ns m] all [w {:keys [effect source]}] m :when (not source)]
       (is (re-find #"\)\s\s\S" (str effect)) (str ns "/" w " has no description: " effect)))))
+
+(deftest a-shared-seed-reads-one-run
+  (let [a (top "^{ @seed:7 @len:8 } pitch/walk")]
+    (is (= a (top "^{ @seed:7 @len:8 } pitch/walk")) "one seed, one run")
+    (is (not= a (top "^{ @seed:8 @len:8 } pitch/walk")) "another seed, another")
+    (let [rises #(map (fn [[x y]] (compare y x)) (partition 2 1 (map read-string (re-seq #"[\d.]+" %))))]
+      (is (every? (fn [[p v]] (or (zero? p) (= p v))) (map vector (rises a) (rises (top "^{ @seed:7 @len:8 } volume/walk"))))
+          "pitch and volume of one walk move together (pitch in whole steps, so it may hold where volume moves)"))))
+

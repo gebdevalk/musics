@@ -535,11 +535,15 @@
   (testing "Strings"
     (is (not (insta/failure? (gp/parse-string (fixture "data-strings.mus"))))))
 
-  (testing "Keywords"
-    (is (insta/failure? (gp/parse-string "'[:piano :forte]"))))
+  (testing "Keywords, beside other values too"
+    (let [data (fn [text] (:children (some #(when (= :DATA (:type %)) %)
+                                             (vals (:tree (gp/parse-domain-string text))))))]
+      (is (= [:piano :forte] (data "'[:piano :forte]")))
+      (is (= [40 :Sea 73] (data "'[40 :Sea 73]")))))
 
-  (testing "Mixed data types"
-    (is (insta/failure? (gp/parse-string (fixture "data-mixed-with-string.mus")))))
+  (testing "Mixed data types are refused when walked"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes"
+                          (gp/parse-domain-string (fixture "data-mixed-with-string.mus")))))
 
   (testing "Empty data"
     (is (not (insta/failure? (gp/parse-string "'[]")))))
@@ -745,6 +749,12 @@
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)))
     (is (= {:instrument 123} (:overrides (last (:children s)))) "camelCase for a name of several words"))
+  (let [{:keys [tree]} (gp/parse-domain-string "[!i:Sea c c2\\i:Vib]")
+        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)) "a short name, as the table writes it")
+    (is (= {:instrument 11} (:overrides (last (:children s)))) "Vib the vibraphone"))
+  (is (= [58 36] (map :program (filter #(= :DRUM (:type %)) (mapcat :children (vals (:tree (gp/parse-domain-string "[x8\\vib x8\\bd1]")))))))
+      "vib the vibraslap: drums keep their own short names")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a General MIDI instrument"
                         (gp/parse-domain-string "[!i:nonsense c]"))))
 

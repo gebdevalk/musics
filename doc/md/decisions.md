@@ -1427,3 +1427,28 @@ number or point source is also `instrument/walk`, `instrument/lorenz`,
 ... (`@instrument-palette:(40 73 seashore)`). The bridges give
 programs, never names, so what `+instrument` and `\i:` take needs no
 second spelling.
+
+## 2026-10-18 — streams back onto a line; short names; a shared seed
+
+mu could make volume, articulation and instrument streams (the plural
+readers, `volume/euclid`, `instrument/walk`) but not put them on a
+line. `with-volumes`, `with-articulations` and `with-instruments` do,
+a value per note in written order, the line keeping its form; a rest
+takes none, as a generated stream has none for it (so `x dup volumes
+with-volumes` is `x` only when `x` has no rests -- the readers keep a
+rest's nil, which `zip` needs). Articulations and instrument names are
+keywords in data (`'[:accent :staccato]`, `'[40 :Sea 73]`); a keyword
+may stand beside numbers, since it is never taken for one, and prints
+as itself so a stream reads back. Bare names stay out of data: `e`
+would be a pitch or a name.
+
+An instrument's short name (`Sea`, `EP1`) is written as
+`gm-sound-set` writes it, capitalized, because several match a drum's
+short name ignoring case (`Vib` the vibraphone, `vib` the vibraslap,
+which drums already read).
+
+Two half products of one random source read one run when they share a
+seed, `@seed:7` in their settings -- chosen over a name (`:as`, as trees
+have) because mu runs each word on its own and a seed says exactly what
+is shared. `markov-gen`'s `:seed` param, its opening notes, became
+`:opening` so `@seed` means one thing.

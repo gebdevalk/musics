@@ -58,8 +58,9 @@
                         (let [ends (endings-of alt) k (count ends)]
                           (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
                                        (range n))))))
-    (v/material? x) (let [{:keys [repo base]} x]
-                      (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
+    (v/material? x) (let [{:keys [repo base]} x
+                          data? (= :DATA (:type (v/node x)))]
+                      (mapv (fn [k] (if (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value repo base k) k))
                             (remove instruction? (:children (v/node x)))))
     (leaf? x)       [x]
     (sequential? x) x

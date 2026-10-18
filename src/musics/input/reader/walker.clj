@@ -308,7 +308,7 @@
    instrument is a number or one of those names."
   [v]
   (or (data/program-of v)
-      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127 or a name, seashore, birdTweet, electricPiano1")
+      (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127, a name (seashore, birdTweet) or a short name (Sea, EP1)")
                       {:instrument v}))))
 
 (defn- modifier-value
@@ -1341,7 +1341,9 @@
    not a {:type :X :val v} wrapper, same reason those do."
   [state type children]
   (let [val   (first children)
-        state (check-data-element-type! state type)]
+        ;; a keyword is a name, never mistaken for a number, so it may
+        ;; stand beside other values ('[40 :Sea 73])
+        state (if (= type :keyword) state (check-data-element-type! state type))]
     (case type
       :int     (flat/append-child state (Integer/parseInt val))
       :float   (flat/append-child state (Double/parseDouble val))

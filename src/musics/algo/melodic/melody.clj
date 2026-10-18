@@ -68,11 +68,11 @@
   "A melody of `length` notes walked through a markov-train model."
   {:algo {:short :markov-gen :in [:model] :out :pitch
           :params {:length length-spec
-                   :seed {:type :any :default nil :doc "the opening notes, nil = random"}}}}
-  [model length & {:keys [seed]}]
+                   :opening {:type :any :default nil :doc "the opening notes, nil = random"}}}}
+  [model length & {:keys [opening]}]
   (let [{:keys [order transitions]} model
-        seed (or seed (first (rand/shuffle (keys transitions))))]
-    (loop [melody (vec seed) state seed]
+        opening (or opening (first (rand/shuffle (keys transitions))))]
+    (loop [melody (vec opening) state opening]
       (if (>= (count melody) length)
         (vec (take length melody))
         (if-let [choices (seq (get transitions state))]

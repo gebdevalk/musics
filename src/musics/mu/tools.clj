@@ -502,6 +502,47 @@
   (word! "music" many (str "( line -- stream )  each note's " one ", as a stream: x durations x pitches zip is x again")
          (each-note many f)))
 
+;; -- a stream onto a line: volumes, articulations, instruments -----------------
+
+(defn- each-onto
+  "A word ( line stream -- line ): (f note value) for each note of the
+   line in written order, the stream's values in turn; a rest takes
+   none, as a generated stream has none for it (volume/euclid), and
+   notes past the stream's end stay as they are. The line keeps its
+   form: repeats, loops and nested lines."
+  [word f]
+  (fn [s]
+    (need s 2 word)
+    (let [vs (peek s) x (peek (pop s))]
+      (when-not (or (mt/leaf? x) (v/material? x))
+        (e/mu-error (str word ":") "puts a stream onto a line or a note, got" (p/show x)))
+      (let [cur (volatile! (seq (mt/elements (streamed vs))))
+            put (fn [l]
+                  (if (= :REST (:type l))
+                    l
+                    (if-let [[v & more] @cur] (do (vreset! cur more) (if (nil? v) l (f l v))) l)))]
+        (conj (pop (pop s)) (mt/map-leaves put x))))))
+
+(defn- set-articulation [l a]
+  (if-let [{:keys [duration dynamic]} (data/articulations (keyword a))]
+    (cond-> (assoc l :dynamic dynamic) (and duration (not= :DRUM (:type l))) (assoc :articulation duration))
+    (e/mu-error "with-articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
+
+(defn- set-instrument [l i]
+  (if (= :DRUM (:type l))
+    (assoc l :program (or (when (number? i) (int i)) (data/resolve-drum (name i))
+                          (e/mu-error "with-instruments:" (pr-str i) "is not a drum")))
+    (assoc-in l [:overrides :instrument]
+              (or (when (number? i) (int i)) (data/program-of i)
+                  (e/mu-error "with-instruments:" (pr-str i) "is not a program or General MIDI name")))))
+
+(word! "music" "with-volumes" "( line volumes -- line )  each note's own volume (0-100) from the stream in turn; rests take none: [c d e] volume/euclid with-volumes"
+       (each-onto "with-volumes" #(assoc-in %1 [:overrides :volume] %2)))
+(word! "music" "with-articulations" "( line articulations -- line )  each note's articulation (:accent, :staccato …) from the stream in turn; rests take none"
+       (each-onto "with-articulations" set-articulation))
+(word! "music" "with-instruments" "( line instruments -- line )  each note's instrument (a program, a General MIDI name or short name; a drum's key) from the stream in turn; rests take none"
+       (each-onto "with-instruments" set-instrument))
+
 (word! "music" "note?" "( leaf -- flag )  true for a note with one pitch" (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %))))))
 (word! "music" "chord?" "( leaf -- flag )  true for a chord" (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %))))))
 (word! "music" "rest?" "( leaf -- flag )  true for a rest" (one-note "rest?" nil #(= :REST (:type %))))

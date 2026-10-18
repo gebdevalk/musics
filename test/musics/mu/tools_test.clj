@@ -435,3 +435,15 @@
 
 (deftest a-setting-at-a-bar-line-opens-the-next-bar
   (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))
+
+(deftest a-stream-onto-a-line
+  (is (= "[C4/4\\volume:90 r D4\\volume:50 E4]" (top "[c r d e] '[90 50] with-volumes")) "rests take none; past the stream's end as written")
+  (is (= "[C4/4-> D4-. E4]" (top "[c d e] '[:accent :staccato] with-articulations")))
+  (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations with-articulations")) "what articulations reads, written back")
+  (is (= "[C4/4\\instrument:40 D4\\instrument:122 E4\\instrument:73]" (top "[c d e] '[40 :Sea 73] with-instruments"))
+      "programs, names and short names, a keyword beside numbers")
+  (is (= "[x8\\42 x\\49]" (top "[x8\\bd1 x8\\sna] '[:hhc 49] with-instruments")) "a drum takes a drum's key or short name")
+  (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "[c d] [~] '[90 40] [~] with-volumes")) "the line keeps its form")
+  (is (re-find #"not an articulation" (top "[c d] '[:nonsense] with-articulations")))
+  (is (= "'[nil :accent]" (top "'[nil :accent]")) "keywords in data read back as they print"))
+

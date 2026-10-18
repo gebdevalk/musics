@@ -255,7 +255,10 @@ is `x` again. The algos are words by what they deliver
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
 result), a `^{ @k:5 }` on top as its settings (then
-`:ROOT`'s, then the defaults). Playback: `>`
+`:ROOT`'s, then the defaults; `@seed:7` runs it on that seed, so two
+words with one seed read one run), and `with-volumes`/
+`with-articulations`/`with-instruments` put such a stream back onto a
+line, a value per note. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Every sign
@@ -1340,7 +1343,7 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list) |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're

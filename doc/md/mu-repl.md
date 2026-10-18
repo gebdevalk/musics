@@ -293,7 +293,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments`; back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -533,6 +533,14 @@ duration/euclid                          → '[3/16 3/16 1/8]
   duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
   several inputs must repeat by the same count. A repeat inside a line
   is written out, a loop inside refused.
+- **A shared seed**: `@seed:7` in the settings runs the algo on that
+  random seed, so two words with one seed and one source read the same
+  run: `^{ @seed:7 } pitch/walk` and `^{ @seed:7 } volume/walk` rise and
+  fall together.
+- **Onto a line**: `[c d e f] volume/euclid with-volumes` gives each
+  note the next volume (rests take none); `with-articulations` takes
+  `'[:accent :staccato]`, `with-instruments` programs and names
+  (`'[40 :Sea 73]`).
 - **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
   (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the

@@ -39,7 +39,7 @@ the result immediately.
 | `[ ]` | `Sequence` | a musical sequence: its elements one after another |
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
-| `'[ ]` | `Data` | a data container of plain values; `nil` is no value and a `'[ ]` inside is a list (`'[60 nil '[60 64]]`) |
+| `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
 | `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
@@ -206,6 +206,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!vol:80 !pan:-0.5 c4]               % key:value, any context key
 [!i:40 c4]                           % an instrument (a MIDI program)
 [!i:seashore c1 d\i:birdTweet]       % or its General MIDI name, camelCase
+[!i:Sea c1 d\i:Vib]                  % or its short name, capitalized as in the table
 [!i:40,73,0 c4 d]                    % several: each note played by all three
 [c4\i:40,73 d]                       % on one note: c by two instruments, d as before
 [!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale

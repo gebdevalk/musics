@@ -73,4 +73,4 @@
   ;; notes always form the state it continues from (60 64 never appears).
   (let [model (a/markov-train [60 62 64] 2)]
     (is (= [60 62 64 60 62 64 60 62 64 60]
-           (a/markov-generate model 10 :seed [60 62])))))
+           (a/markov-generate model 10 :opening [60 62])))))
