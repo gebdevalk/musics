@@ -292,7 +292,7 @@
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
-(word! "play" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); under a context on top, if given"
+(word! "play" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); named music ([bass: …]) replaces only its own voice; under a context on top, if given"
        (fn [s]
          (need s 1 "play")
          (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -331,7 +331,35 @@
 (word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "play" "stop" "( -- )  stop everything that plays; Alt+." (fn [s] (mt/stop-all!) s))
+(word! "play" "stop" "( [voice] -- )  stop everything that plays (Alt+.), or with a voice's id on top only that voice: :bass stop"
+       (fn [s]
+         (if (keyword? (peek s))
+           (do (mt/stop-voice! (peek s)) (pop s))
+           (do (mt/stop-all!) s))))
+
+(defn- voice-arg [s word]
+  (need s 1 word)
+  (let [id (peek s)]
+    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id, :bass or :TAA -- voices lists them"))
+    (when-not (engine/voice-at id) (e/mu-error (str word ":") (pr-str id) "isn't playing -- voices lists what plays"))
+    id))
+
+(word! "play" "voices" "( -- )  what plays: each voice's id, its material, and whether it is hushed or soloed"
+       (fn [s]
+         (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)]
+           (if (empty? vs)
+             (println "nothing plays")
+             (doseq [[id {:keys [x]}] (sort-by key vs)
+                     :let [shown (p/show x)
+                           mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
+               (println (str (pr-str id) "  " (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))
+         s))
+(word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
+       (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
+(word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
+       (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))
+(word! "play" "solo" "( voice -- )  only this voice sounds, the others keeping their place; again and all sound"
+       (fn [s] (engine/solo! (voice-arg s "solo")) (pop s)))
 (defn toggle-pause!
   "Pause what plays, or resume it if paused. Says which: \"paused\",
    \"resumed\" or \"nothing plays\"."

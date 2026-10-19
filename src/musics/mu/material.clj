@@ -268,27 +268,45 @@
   (let [now (into {} @(repo/registry))]
     (assoc (v/->Material id now) :base now)))
 
-(def ^:private ends
-  "The section ids whose :exit ends a pass of what mu plays: each played
-   value's own id, and a repeat's body, which exits every pass."
-  (atom #{}))
+(def ^:private voices
+  "Voice id -> {:x :ctx :ends}: what each voice mu started plays (as
+   given) and the section ids whose :exit ends a pass of it -- its own
+   id, and a repeat's body, which exits every pass."
+  (atom {}))
 
 (def ^:private staged
-  "The conductor keys a staged >> waits on, [k phase] each."
-  (atom []))
+  "target -> {:keys [[k phase] ...] :action id}: a >> waiting for its
+   boundary, per voice name (or ::all for one replacing everything)."
+  (atom {}))
 
 (defn cancel-staged!
-  "Forget a >> still waiting for its boundary."
-  []
-  (doseq [[k phase] @staged] (conductor/unschedule! k phase))
-  (reset! staged []))
+  "Forget a >> still waiting for its boundary: one target's, or all."
+  ([] (doseq [t (keys @staged)] (cancel-staged! t)))
+  ([target]
+   (when-let [{:keys [keys action]} (get @staged target)]
+     (doseq [[k phase] keys] (conductor/unschedule! k phase))
+     (conductor/unregister-action! action)
+     (swap! staged dissoc target))))
 
 (defn- ends-of [mat]
   (let [node (v/node mat)]
     (cond-> #{(:id mat)} (d/iterator? node) (conj (:id (:source node))))))
 
+(defn voice-name
+  "The voice a value plays as: its own name ([bass: c d] is :bass), a
+   repeat's or loop's that of the line it repeats ([bass: c d] [~]); nil
+   when it has none -- then the engine gives it an id (:TAA …)."
+  [mat]
+  (let [named #(let [id (:id %)] (when (and (keyword? id) (not (p/auto-id? id))) id))]
+    (or (named mat)
+        (when (repetition? mat)
+          (let [body (nth (repeat-parts mat) 2)]
+            (or (named body)
+                ;; a repeat holds its music in a line of its own (as-line)
+                (let [[x & more] (elements body)] (when (and x (not more) (v/material? x)) (named x)))))))))
+
 (defn- prepared
-  "[engine form] for playing x, under a context if given, without
+  "[engine form mat] for playing x, under a context if given, without
    storing either: the engine reads a repo of what is stored plus their
    own nodes."
   [x ctx]
@@ -304,49 +322,85 @@
    something playing (an audition) stops with what plays."}
   stoppers (atom {}))
 
+(defn live-voices
+  "Voice id -> {:x :ctx :ends} of the voices mu started that still play."
+  []
+  (into {} (filter (fn [[id _]] (engine/voice-at id))) @voices))
+
+(defn- keep! [id x ctx mat]
+  (when (keyword? id) (swap! voices assoc id {:x x :ctx ctx :ends (ends-of mat)}))
+  id)
+
 (defn play!
-  "Play x, under a context if given, without storing either. Stops
-   everything playing first; with join? true, x joins what is playing
-   instead. A staged >> still waiting is forgotten."
+  "Play x, under a context if given, without storing either; its voice
+   id back. Named music ([bass: …]) replaces only its own voice, or adds
+   it. Otherwise everything playing stops first, or with join? true x
+   joins it under an id of its own."
   [x ctx & [join?]]
-  (cancel-staged!)
   (reset! last-played x)
-  (let [[eng form mat] (prepared x ctx)]
+  (let [[eng form mat] (prepared x ctx)
+        name (voice-name mat)]
     (reg/log! :play)
-    (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
     (binding [engine/*engine* eng]
-      ((if join? engine/play-add engine/play) form))))
+      (cond
+        name  (do (cancel-staged! name) (engine/play-at! eng [name] form) (keep! name x ctx mat))
+        join? (keep! (engine/play-add form) x ctx mat)
+        :else (do (cancel-staged!) (reset! voices {}) (keep! (engine/play form) x ctx mat))))))
 
 (defn stop-all!
   "Stop what plays, a staged >> and whatever stoppers hold."
   []
   (cancel-staged!)
+  (reset! voices {})
   (doseq [f (vals @stoppers)] (f))
   (when engine/*engine* (m/stop!)))
 
+(defn stop-voice!
+  "Stop only the voice id."
+  [id]
+  (when-not (engine/voice-at id) (e/mu-error "stop:" (pr-str id) "isn't playing -- voices lists what plays"))
+  (cancel-staged! id)
+  (swap! voices dissoc id)
+  (engine/stop-voice! id))
+
+(defn playing
+  "What the voice id plays, as it was given."
+  [id]
+  (or (:x (get (live-voices) id))
+      (e/mu-error "playing:" (pr-str id) "isn't a voice mu plays -- voices lists them")))
+
 (defn stage!
-  "Play x in place of what plays, from the next boundary: with count
-   (1-4) the next bar line of that strength (| … ||||), else the end of
-   what plays or of its repeat's current pass -- through the conductor,
-   starting exactly when the boundary is due. With join? true x joins
-   what plays there instead. Plays at once when nothing plays."
+  "Play x from the next boundary: with count (1-4) the next bar line of
+   that strength (| … ||||), else the end of a pass -- of its own voice
+   when named music replaces it, else of everything mu plays -- through
+   the conductor, starting exactly when the boundary is due. Named
+   music replaces only its voice; otherwise x replaces everything, or
+   with join? true joins it. Plays at once when nothing plays."
   [x ctx count & [join?]]
-  (if-not (engine/busy?)
-    (play! x ctx)
-    (let [[eng form mat] (prepared x ctx)
-          ks     (if count [[[:mark count] :enter]] (mapv (fn [id] [id :exit]) @ends))
-          action (keyword "mu" (str (gensym "staged")))]
-      (cancel-staged!)
-      (conductor/register-action!
-       action
-       (fn [event]
-         (cancel-staged!)
-         (conductor/unregister-action! action)
-         (if join? (swap! ends into (ends-of mat)) (reset! ends (ends-of mat)))
-         (engine/play-from! eng (or (:at event) (System/nanoTime)) form join?)))
-      (doseq [[k phase] ks] (conductor/schedule! k phase action))
-      (reset! staged ks)
-      (reg/log! :play))))
+  (let [live (live-voices)]
+    (if-not (engine/busy?)
+      (play! x ctx join?)
+      (let [[eng form mat] (prepared x ctx)
+            name   (voice-name mat)
+            ends   (if-let [v (and name (get live name))] (:ends v) (into #{} (mapcat :ends) (vals live)))
+            ks     (if (or count (empty? ends)) [[[:mark (or count 1)] :enter]] (mapv (fn [id] [id :exit]) ends))
+            target (or name (if join? (keyword "mu" (str (gensym "join"))) ::all))
+            action (keyword "mu" (str (gensym "staged")))]
+        (cancel-staged! target)
+        (conductor/register-action!
+         action
+         (fn [event]
+           (cancel-staged! target)
+           (let [at (or (:at event) (System/nanoTime))]
+             (binding [engine/*engine* eng]
+               (if name
+                 (do (engine/play-at! eng [name] form at) (keep! name x ctx mat))
+                 (let [id (engine/play-from! eng at form join?)]
+                   (when-not join? (reset! voices {}))
+                   (keep! id x ctx mat)))))))
+        (doseq [[k phase] ks] (conductor/schedule! k phase action))
+        (swap! staged assoc target {:keys ks :action action})
+        (reg/log! :play)))))
 
 ;; -- written out, barred ----------------------------------------------------
 

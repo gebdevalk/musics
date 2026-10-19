@@ -9,6 +9,8 @@
             [musics.conductor :as conductor]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
+            [musics.mu.tools]
+            [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
@@ -271,4 +273,55 @@
 (deftest see-shows-effect-then-description
   (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see")))
   (is (= (out "\"dup\" see") (out "'dup see")) "a quoted name too")
-  (is (str/starts-with? (out "'play/stop see") "play/stop ( -- )") "qualified"))
+  (is (str/starts-with? (out "'play/stop see") "play/stop ( [voice] -- )") "qualified"))
+
+(deftest named-music-is-its-own-voice
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (let [ids #(set (keys (mt/live-voices)))]
+          (run "[bass: !tempo:60 c1 d1] >")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (is (= #{:bass :mel} (ids)) "named music adds or replaces its own voice, not the others")
+          (run "[bass: !tempo:60 g1 a1] >")
+          (is (= #{:bass :mel} (ids)) "replacing :bass leaves :mel")
+          (is (= "[bass: !tempo:60 G3/1 A3]" (p/show (first (:ok (run ":bass playing"))))) "playing gives what it plays")
+          (run ":bass hush")
+          (is (= #{[:bass]} (:hushed (engine/hushed))) "hushed, still a voice")
+          (is (= #{:bass :mel} (ids)))
+          (run ":bass hush")
+          (run ":mel solo")
+          (is (= [:mel] (:solo (engine/hushed))))
+          (run ":mel solo")
+          (is (nil? (:solo (engine/hushed))) "solo again and all sound")
+          (run ":mel stop")
+          (is (= #{:bass} (ids)) "stop one voice")
+          (is (re-find #"isn't playing" (:error (run ":mel playing"))))
+          (run "[!tempo:60 c1] >+")
+          (is (= 2 (count (ids))) "unnamed music joining gets an engine id")
+          (is (some #(re-matches #"T[A-Z]{2}" (name %)) (ids)))
+          (run "[!tempo:60 c1] >")
+          (is (= 1 (count (ids))) "unnamed > stops everything")
+          (run "[bass: !tempo:60 c1 d1] [~] >")
+          (is (contains? (ids) :bass) "a loop plays as the line it repeats")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (run "[bass: !tempo:60 g1] >>")
+          (is (= [[:bass :exit]] (filter #(= :bass (first %)) (keys (conductor/scheduled))))
+              ">> on a named voice waits for that voice's own pass")
+          (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
+        (finally (mt/stop-all!))))))
+
+(deftest a-named-voice-changes-at-its-own-boundary
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (binding [engine/*engine* eng]
+        (try
+          (run "[bass: !tempo:240 c16 d] [~] >")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (run "[bass: !tempo:240 g16 a] [~] >>")
+          (is (= "[bass: !tempo:240 C4/16 D4]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "not yet")
+          (Thread/sleep 400)
+          (is (= "[bass: !tempo:240 G3/16 A3]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "changed at the end of its pass")
+          (is (contains? (mt/live-voices) :mel) ":mel plays on")
+          (finally (mt/stop-all!)))))))
+

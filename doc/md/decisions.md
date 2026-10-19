@@ -1470,3 +1470,20 @@ channel's program: `!kit:` (by name, `drum-kits`, or number), which the
 engine and `render` send on channel 10 when it changes. Short
 instrument names are read in any case: they only ever meet instrument
 names, so `vib` is the vibraphone, and as a drum the vibraslap.
+
+## 2026-10-19 — named music is a voice
+
+The engine could replace one voice (`play-change`), but mu dropped the
+ids `play` returned and had only words for everything: `>` replaced
+all, `>>` waited for the end of all, `stop` stopped all. A voice is now
+named by the music's own name -- `[bass: c d e]` plays as `:bass` --
+rather than by a word or a setting, since the name is already written
+and a keyword addresses it (`:bass stop`). Named music replaces only
+its voice and follows the play words' timing (`>` now, `>>` at its own
+boundary: each voice keeps the ids that end its pass; a bar line is
+the next of any voice, as marks aren't per voice); a name is one voice,
+so `>+` on it is `>`. A loop or repeat plays as the line it repeats.
+Unnamed music keeps its meaning (`>` stops all, `>+` joins under
+`:TAA` …). `hush` and `solo` silence in the engine at the note-on, so
+a hushed voice keeps its place and comes back in time. `play-change`,
+`play-at!` and `stop-voice!` share one `replace-voice!` under the lock.
