@@ -222,7 +222,7 @@ plays C♯ and `f` F♯ in D major.
 [!Meter:3/4 c2 d2 e2] [[]]        → [!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]
 ```
 
-A meter is `!M:` (also `!Meter:`): a fraction (`!M:6/8`), additive
+A meter is `!M:` (also `!Meter:`, `!meter:`): a fraction (`!M:6/8`), additive
 groups in quotes (`!M:"7/8(2+2+3)"`), or the factors of its pulses,
 each an eighth: `!M:223` is 2 x 2 x 3 eighths, a 12/8 heard as four
 dotted quarters, `!M:232` the same bar as six quarters, `!M:2232/16`
@@ -246,7 +246,9 @@ it; a ramp (`!vol<`) ends with its measure.
 ## 7. Dynamics, tempo, instruments: contexts
 
 A context `^{ … }` holds settings, written as in a `.mus` file
-(`!tempo:60`, `!ff`, `!i:73`). `with` puts music under one.
+(`!tempo:60`, `!ff`, `!i:73`). `with` puts music under one. A tempo
+names its beat as a note value: `!T:8=120` (eighths), `!T:4.=80` and
+`!T:2.=60` (dotted quarters and halves), `!T:3/8=80` as a fraction.
 
 | Word | Stack | Does |
 |---|---|---|

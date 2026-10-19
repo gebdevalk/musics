@@ -1292,8 +1292,8 @@ numerator), or as the factors of its pulses, indispensability's own
 form: `!M:223` is 2×2×3 eighths (12/8, `subdivisions` `[2 2 3]`),
 `!M:232` the same length grouped otherwise, `!M:2232/16` sixteenths --
 two or more digits, each 2, 3, 5 or 7, an eighth's pulse unless `/n`
-(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` alias
-also works. Both forms reach the context
+(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` and `:meter` aliases
+also work. Both forms reach the context
 correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
@@ -1535,8 +1535,8 @@ redundant text at all — a `VarRef`'s own stored body is opaque to that
 check, so that case relies on the grammar's own tolerance instead.
 
 Tempo takes either a bare BPM (`!tempo:120`, quarter note implied) or a
-LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, or an
-explicit ratio note-value, `!tempo:3/8=120` for a dotted-quarter). The
+LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, a
+dotted one, `!tempo:4.=120`, or a ratio, `!tempo:3/8=120`). The
 walker (`walker.clj`'s `walk-assignment` `:TempoMark` case)
 converts a `TempoMark` to the quarter-note-equivalent BPM `resolve.clj`'s
 tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,

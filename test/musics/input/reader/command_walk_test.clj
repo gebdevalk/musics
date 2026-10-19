@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest is testing are]]
             [musics.input.grammar-parser :as gp]
             [musics.domain.context :as c]
-            [musics.domain :as d]))
+            [musics.domain :as d]
+            [musics.common.music-elements :as el]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -681,6 +682,15 @@
     (let [seq-c (first-token "[!tempo:3/8=120 c4]")
           ctx   (:context seq-c)]
       (is (= 180 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+
+(deftest tempo-mark-dotted-note-value
+  (testing "!T:4.=80 is a dotted quarter at 80, 120 quarters; !T:2.=60 180"
+    (is (= 120 (c/ctx-value-chain [(:context (first-token "[!T:4.=80 c4]")) root-ctx] :Tempo 0.0)))
+    (is (= 180 (c/ctx-value-chain [(:context (first-token "[!T:2.=60 c4]")) root-ctx] :Tempo 0.0)))
+    (is (= 105 (c/ctx-value-chain [(:context (first-token "[!T:4..=60 c4]")) root-ctx] :Tempo 0.0)) "double dotted")))
+
+(deftest meter-lowercase-alias
+  (is (= (el/parse-meter-str "6/8") (c/ctx-value-chain [(:context (first-token "[!meter:6/8 c8]")) root-ctx] :Meter 0.0))))
 
 (deftest tempo-Tempo-and-T-aliases-canonicalize
   (testing "!Tempo:130 and !T:140 both read back under the same :Tempo key

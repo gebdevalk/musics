@@ -214,6 +214,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
 [!tempo:3/8=90 c4]                   % note value = BPM (a dotted quarter at 90)
+[!tempo:4.=90 c4]                    % the same, the note value dotted
 [!allegro !marciaModerato c4]        % named tempo markings
 [!Meter:7/8 c4]                      % a meter
 [!Meter:"7/8(2+2+3)" c4]             % a meter with explicit grouping
@@ -233,7 +234,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 ```
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
-short aliases (see `musics.common.context-keys`). A `TempoMark` (`3/8=90`) is
+short aliases (see `musics.common.context-keys`). A `TempoMark` (`3/8=90`, `4.=90`) is
 converted to quarter-note BPM when parsed. Only an instrument takes a list
 (`!i:40,73`, or `\i:40,73` on one note): the note sounds once per
 instrument, each instrument on its own MIDI channel. The full list of named

@@ -1611,3 +1611,10 @@ either). The other way -- `with-*` taking a rest's value and dropping
 it -- would have made a generated stream lose one at every rest.
 `pitches` and `durations` keep a rest's value, since `zip` rebuilds the
 rests from them.
+
+## 2026-10-19 — dotted tempo marks; `meter` for Meter
+
+A tempo's beat is written as a note is (`!T:4.=80`, `!T:2.=60`), dots
+on the value as LilyPond's `\tempo 4. = 80` has them; the fraction
+(`3/8=80`) stays for any other beat. `!meter:` is an alias of `:Meter`,
+beside `!M:`, as `!key:` is of `:Key` (`!tempo:` already was of `:Tempo`).
