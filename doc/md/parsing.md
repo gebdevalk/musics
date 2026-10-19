@@ -224,6 +224,9 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!straight !shuffle c8 d]            % 0.5 straight; !shuffle 2/3, a triplet feel
 [!laidBack c16 d e f]                % weak places a little late (!groove:0.5)
 [!groove:-0.3 c16 d e f]             % pushed: a little early
+[!accent:metric c8 d e f g a b c]    % each note weighed by its level in the bar (by the meter)
+[!accent:barlow c8 d e f g a b c]    % by Barlow's finer ranking, every pulse its own weight
+[!accent:agogic !accentDepth:1 c16 d8 e4]   % or by its length; how much, 0..1 (0.5)
 [!left !center !right c4]            % panning
 [!/mf c4]                            % invalidate: clear a value set here
 [partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth

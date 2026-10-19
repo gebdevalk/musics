@@ -1571,3 +1571,30 @@ is ranked (three groups: Barlow's table for 3), the rest by their place
 in their own group, ties to the stronger group. `additive?` asks that
 now, not merely whether a meter has groups, since a factor meter
 (`!M:223`) has them too.
+
+## 2026-10-19 — accents as a setting
+
+Metric accents could be heard only through an algo word (`volume/euclid
+with-volumes`), with its settings. `!accent:metric` weighs every note as
+heard, like swing and groove: its velocity scaled by its weight in the
+bar (the same metric weights the groove reads, so a factor or additive
+meter is heard), `!accent:agogic` by its length; `!accentDepth:` how
+much, the weakest note losing and the strongest gaining up to half its
+velocity at 1. Multiplying the velocity, rather than replacing it with
+a volume, keeps a note's own dynamic and accent: they are heard, with
+the meter's accent over them. Drums too.
+
+## 2026-10-19 — metric accents by level
+
+`!accent:metric` first weighed a note by Barlow's indispensability,
+which gives every pulse its own rank: a smooth slope, in which the
+starts of `232`'s pairs overlapped its strongest off-beats, so the
+grouping was hard to hear. It weighs by level in the meter's grid now
+(`metric-levels`): the downbeat, then each division, every pulse of one
+level alike, each level a clear step -- an additive meter's group starts
+one level, their insides below. Barlow's ranking stays as
+`!accent:barlow`, for its finer differences, and is still what the
+groove and the algos' probabilities read.
+At depth 1 the weakest note lost half its velocity and the strongest
+gained half: too pronounced. Depth 1 is a quarter each way now, the
+default 0.5 an eighth.
