@@ -438,10 +438,11 @@
   "f of every note of x, as a stream: a repeat or a loop around it kept
    (a loop's notes as a loop of their values, printed as '[ … ] [~]), a
    repeat with endings written out."
-  [word f x]
+  [word f rests? x]
   (if-let [[body n] (mt/repeat-of x)]
-    (mt/repeated (read-notes word f body) n)
-    (apply list (map f (mt/played-leaves (finite! word x))))))
+    (mt/repeated (read-notes word f rests? body) n)
+    (apply list (map f (cond->> (mt/played-leaves (finite! word x))
+                         (not rests?) (remove #(= :REST (:type %))))))))
 
 (defn- one-note
   "A word ( note -- value ): f of the note, chord, rest or drum on top.
@@ -459,13 +460,14 @@
 (defn- each-note
   "A word ( line -- stream ): f of every note of a line (or of one note,
    or a stream of them), as a stream -- the line taken apart, ready for
-   zip."
-  [word f]
+   zip. Without rests? a rest gives no value, as with-volumes and the
+   others take none for it."
+  [word f rests?]
   (fn [s]
     (need s 1 word)
     (let [x (peek s)]
       (if (or (mt/leaf? x) (v/material? x) (sequential? x))
-        (conj (pop s) (read-notes word f x))
+        (conj (pop s) (read-notes word f rests? x))
         (e/mu-error (str word ":") "reads a line, got" (p/show x))))))
 
 (def ^:private articulation-order
@@ -500,16 +502,19 @@
   [x]
   (when (= :DRUM (:type x)) (:program x)))
 
-(doseq [[one many f what]
-        [["pitch" "pitches" note-pitch "the pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum"]
-         ["duration" "durations" :duration "the length, in whole notes"]
-         ["volume" "volumes" #(get-in % [:overrides :volume]) "its own volume (c4\\f, c4\\vol:90), else nil"]
-         ["articulation" "articulations" articulation-name "its articulation (:staccato, :accent …), else nil"]
-         ["instrument" "instruments" instrument-of "its own instrument (c4\\i:40); nil for a drum or none"]
-         ["drum" "drums" drum-of "a drum's key (x8\\38: 38); nil for a note"]]]
+(doseq [[one many f rests? what]
+        [["pitch" "pitches" note-pitch true "the pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum"]
+         ["duration" "durations" :duration true "the length, in whole notes"]
+         ["volume" "volumes" #(get-in % [:overrides :volume]) false "its own volume (c4\\f, c4\\vol:90), else nil"]
+         ["articulation" "articulations" articulation-name false "its articulation (:staccato, :accent …), else nil"]
+         ["instrument" "instruments" instrument-of false "its own instrument (c4\\i:40); nil for a drum or none"]
+         ["drum" "drums" drum-of false "a drum's key (x8\\38: 38); nil for a note"]]]
   (word! "music" one (str "( note -- value )  " what "; for a line, " many) (one-note one many f))
-  (word! "music" many (str "( line -- stream )  each note's " one ", as a stream: x durations x pitches zip is x again")
-         (each-note many f)))
+  (word! "music" many (str "( line -- stream )  each note's " one ", as a stream"
+                           (if rests?
+                             ", a rest's too: x durations x pitches zip is x again"
+                             (str ", rests left out: x " many " with-" many " is x again")))
+         (each-note many f rests?)))
 
 ;; -- a stream onto a line: volumes, articulations, instruments -----------------
 

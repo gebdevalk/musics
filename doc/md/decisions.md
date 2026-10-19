@@ -1598,3 +1598,16 @@ groove and the algos' probabilities read.
 At depth 1 the weakest note lost half its velocity and the strongest
 gained half: too pronounced. Depth 1 is a quarter each way now, the
 default 0.5 an eighth.
+
+## 2026-10-19 — volumes, articulations, instruments, drums leave rests out
+
+`x dup volumes with-volumes` gave the notes the wrong values when `x`
+had rests: the reader gave a rest nil, `with-volumes` takes a value per
+note, so every value after a rest moved one note on. The readers of
+what only a note carries (`volumes`, `articulations`, `instruments`,
+`drums`) now leave rests out, a value per note, matching the `with-*`
+words and the algo streams (`volume/euclid` has no value for a rest
+either). The other way -- `with-*` taking a rest's value and dropping
+it -- would have made a generated stream lose one at every rest.
+`pitches` and `durations` keep a rest's value, since `zip` rebuilds the
+rests from them.

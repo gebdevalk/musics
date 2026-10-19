@@ -404,7 +404,8 @@ stream (a list).
 | `duration` | `durations` | the length, in whole notes |
 | `volume` | `volumes` | its own volume (`c4\f`, `c4\vol:90`), else nil |
 | `articulation` | `articulations` | its articulation (`:accent`, `:staccato` …), else nil |
-| `instrument` | `instruments` | its own instrument (`c4\i:40`), a drum's key, else nil |
+| `instrument` | `instruments` | its own instrument (`c4\i:40`), else nil (a drum has none) |
+| `drum` | `drums` | a drum's key (`x8\38`: 38), else nil |
 
 `note?`, `chord?`, `rest?` and `drum?` tell what one note is.
 
@@ -434,8 +435,14 @@ durations and pitches back together:
 [c8 <e g>4 r8 d] durations       → '[1/8 1/4 1/8 1/8]
 [c8 <e g>4 r8 d] pitches         → '[60 '[64 67] nil 62]
 [c d\vol:90 e] volumes           → '[nil 90 nil]
+[c\vol:30 r d\vol:90] volumes    → '[30 90]
 '[/4 /8 /8] '[60 62 64] zip      → [C4/4 D4/8 E4]
 ```
+
+`pitches` and `durations` give a rest's too (nil, its length), which
+`zip` needs; `volumes`, `articulations`, `instruments` and `drums` leave
+rests out, a value per note, as `with-volumes` and the others take them
+(section 15).
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in

@@ -293,7 +293,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` `drums`; back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` `with-drums`, and `as-drums` (notes made drums) |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (rests left out); back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` `with-drums`, and `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
