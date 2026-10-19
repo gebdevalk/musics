@@ -204,8 +204,8 @@
     (let [by-voice (group-by :path (filter #(= :note (:kind %)) (take 40 evs)))
           p        #(map (comp first :pitches) (by-voice %))]
       ;; hand-built loops carry no pitch sums, so branches keep written order
-      (is (= [60 72 72] (take 3 (p [:TAA :TAA]))) "the melody voice crossed :m's exit and moved")
-      (is (= [48 48 48] (take 3 (p [:TAA :TAB]))) "the bass voice never did"))))
+      (is (= [60 72 72] (take 3 (p [:TA :TA]))) "the melody voice crossed :m's exit and moved")
+      (is (= [48 48 48] (take 3 (p [:TA :TB]))) "the bass voice never did"))))
 
 (deftest schedule-tx-moves-every-voice-crossing-the-same-bar
   ;; a :bar id is shared by every voice: both cross bar 2, both move
@@ -306,12 +306,12 @@
         claims (:channel-claims eng)
         _      (dotimes [i 15] (#'engine/claim-channel! claims [i {}]))
         claims-before @claims
-        [channel fresh?] (#'engine/channel-for! eng [:TAA] :a-16th-distinct-timbre {})]
+        [channel fresh?] (#'engine/channel-for! eng [:TA] :a-16th-distinct-timbre {})]
     (is (nil? channel) "no MIDI channel assigned -- send-midi-on!/off! already treat nil as silent")
     (is (false? fresh?))
     (is (= claims-before @claims)
         "an exhausted voice's own claim attempt must not disturb the 15 real claims")
-    (is (nil? (get @(:voice-channels eng) [:TAA]))
+    (is (nil? (get @(:voice-channels eng) [:TA]))
         "nothing recorded for the voice, so its next note tries to claim again")))
 
 (deftest channel-for-self-heals-once-a-channel-frees-up
@@ -319,15 +319,15 @@
         claims    (:channel-claims eng)
         used-keys (mapv (fn [i] [i {}]) (range 15))
         _         (doseq [k used-keys] (#'engine/claim-channel! claims k))
-        exhausted (#'engine/channel-for! eng [:TAA] :still-locked-out {})]
+        exhausted (#'engine/channel-for! eng [:TA] :still-locked-out {})]
     (is (nil? (first exhausted)) "pool is genuinely full, first attempt goes silent")
     ;; free up one of the 15 real claims (as if that voice finished/moved on)
     (#'engine/release-channel! claims (ffirst used-keys))
-    (let [[channel fresh?] (#'engine/channel-for! eng [:TAA] :still-locked-out {})]
+    (let [[channel fresh?] (#'engine/channel-for! eng [:TA] :still-locked-out {})]
       (is (some? channel)
           "the exhausted voice's very next note retries claiming and succeeds now that a channel is free")
       (is (true? fresh?))
-      (is (= [channel [:still-locked-out {}]] (get @(:voice-channels eng) [:TAA]))))))
+      (is (= [channel [:still-locked-out {}]] (get @(:voice-channels eng) [:TA]))))))
 
 ;; ============================================================
 ;; display -- greedy, synchronous realization (no core.async, no engine)
@@ -606,7 +606,7 @@
     (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (try
-          (is (= :TAA (deref (future (engine/play (cycle [:verse]))) 5000 :timeout))
+          (is (= :TA (deref (future (engine/play (cycle [:verse]))) 5000 :timeout))
               "validation checks only a prefix of an uncounted seq")
           (is (thrown-with-msg? clojure.lang.ExceptionInfo #"No part found for id :bogus"
                 (engine/play (cycle [:verse :bogus]))))
@@ -715,14 +715,14 @@
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro2 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play :verse :algo ::retro2)]
-          (is (= :TAA id) "the first minted track id, deterministically")
+          (is (= :TA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
               "the voice is registered synchronously, before play returns")
           (is (= ::retro2 (:algo (engine/voice-at eng id)))
               "the algorithm is baked onto the voice before its first node runs"))))))
 
 (deftest play-with-no-algo-marker-picks-up-a-prepared-assignment-and-keeps-it
-  ;; play always mints the SAME id (:TAA) right after its own flush.
+  ;; play always mints the SAME id (:TA) right after its own flush.
   ;; assign-algo! prepares a path ahead of any mint (writes into
   ;; :algo-prepared, never touched by play's own flush); an untagged
   ;; play/play-add call that mints into that path picks the prepared
@@ -743,12 +743,12 @@
     (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro2c (fn [nodes _ctx _voice] nodes))
-        (engine/assign-algo! eng [:TAA] ::retro2c)
+        (engine/assign-algo! eng [:TA] ::retro2c)
         (engine/play :verse)
-        (is (= ::retro2c (:algo (engine/voice-at eng :TAA)))
-            "an untagged mint into :TAA picks up the prepared name")
+        (is (= ::retro2c (:algo (engine/voice-at eng :TA)))
+            "an untagged mint into :TA picks up the prepared name")
         (engine/play :verse)
-        (is (= ::retro2c (:algo (engine/voice-at eng :TAA)))
+        (is (= ::retro2c (:algo (engine/voice-at eng :TA)))
             "a SECOND untagged mint (after play's own flush) still picks it up --
              a prep entry isn't consumed, only explicitly changed/cleared")))))
 
@@ -770,12 +770,12 @@
       (binding [engine/*engine* eng]
         (engine/play [:verse])
         (is (= {} (engine/algo-assignments eng))
-            "[:verse] is ordinary play material -- no :algo tag, so no entry is written and :TAA stays identity")))))
+            "[:verse] is ordinary play material -- no :algo tag, so no entry is written and :TA stays identity")))))
 
 (deftest play-flushes-everything-first
   ;; A voice already registered anywhere (even at a path play never
   ;; touches directly) is gone after play runs; and since the flush
-  ;; always runs first, a solo call deterministically lands on :TAA --
+  ;; always runs first, a solo call deterministically lands on :TA --
   ;; there is never anything left over from a PRIOR play call to skip.
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
@@ -788,7 +788,7 @@
       (binding [engine/*engine* eng]
         (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
         (let [id (engine/play :verse)]
-          (is (= :TAA id) "the flush ran before minting, so :TAA was free")
+          (is (= :TA id) "the flush ran before minting, so :TA was free")
           (is (nil? (get @(:voices eng) [:some-other-path]))
               "whatever was already registered got wiped, same as play's own flush"))))))
 
@@ -808,7 +808,7 @@
       (binding [engine/*engine* eng]
         (wall/build-algo! ::retro3 (fn [nodes _ctx _voice] nodes))
         (let [id (engine/play-add :verse :algo ::retro3)]
-          (is (= :TAA id) "the first minted track id, deterministically")
+          (is (= :TA id) "the first minted track id, deterministically")
           (is (some? (engine/voice-at eng id))
               "the voice is registered synchronously, before play-add returns")
           (is (= ::retro3 (:algo (engine/voice-at eng id)))
@@ -817,7 +817,7 @@
 (deftest play-add-does-not-flush-other-voices
   ;; The opposite of play's own flush test: whatever's already
   ;; registered survives a play-add call untouched, and a SECOND
-  ;; play-add call (unlike a second play call) does NOT reuse :TAA,
+  ;; play-add call (unlike a second play call) does NOT reuse :TA,
   ;; since the first one is still occupying it.
   (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
@@ -831,8 +831,8 @@
         (swap! (:voices eng) assoc [:some-other-path] {:birth-token :sentinel})
         (let [id1 (engine/play-add :verse)
               id2 (engine/play-add :verse)]
-          (is (= :TAA id1))
-          (is (= :TAB id2) "TAA is still occupied by the first voice, so a fresh id is minted")
+          (is (= :TA id1))
+          (is (= :TB id2) "TA is still occupied by the first voice, so a fresh id is minted")
           (is (some? (get @(:voices eng) [:some-other-path]))
               "the unrelated voice was never touched"))))))
 
@@ -878,11 +878,11 @@
               lo-event (deref lo-p 2000 :timeout)]
           (is (not= :timeout hi-event) "the :high section's :enter fired")
           (is (not= :timeout lo-event) "the :low section's :enter fired")
-          (is (= [:TAA :TAB] (:path (:voice hi-event)))
+          (is (= [:TA :TB] (:path (:voice hi-event)))
               "higher pitch, listed FIRST, still gets the LATER track id --
-               nested under :TAA, play's own minted top-level id for this call")
-          (is (= [:TAA :TAA] (:path (:voice lo-event)))
-              "lower pitch, listed SECOND, gets :TAA -- the lowest"))))))
+               nested under :TA, play's own minted top-level id for this call")
+          (is (= [:TA :TA] (:path (:voice lo-event)))
+              "lower pitch, listed SECOND, gets :TA -- the lowest"))))))
 
 ;; ============================================================
 ;; New play-arg mini-language -- []=seq/#{}=par, [Form :algo Name] tags,
@@ -911,11 +911,11 @@
         (wall/build-algo! ::hi-algo (fn [nodes _ctx _voice] nodes))
         (wall/build-algo! ::lo-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play #{[:high :algo ::hi-algo] [:low :algo ::lo-algo]})]
-          (is (= #{:TAA :TAB} ids) "one flat id per branch, no wrapping parent")
-          (is (= ::lo-algo (:algo (engine/voice-at eng :TAA)))
-              "lowest pitch lands on :TAA, and keeps ITS OWN tag -- :low's, not :high's")
-          (is (= ::hi-algo (:algo (engine/voice-at eng :TAB)))
-              "highest pitch lands on :TAB, with ITS OWN tag"))))))
+          (is (= #{:TA :TB} ids) "one flat id per branch, no wrapping parent")
+          (is (= ::lo-algo (:algo (engine/voice-at eng :TA)))
+              "lowest pitch lands on :TA, and keeps ITS OWN tag -- :low's, not :high's")
+          (is (= ::hi-algo (:algo (engine/voice-at eng :TB)))
+              "highest pitch lands on :TB, with ITS OWN tag"))))))
 
 ;; ============================================================
 ;; par -- a #{}-equivalent that also accepts the same Form more than
@@ -957,7 +957,7 @@
     (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (let [ids (engine/play (compose/par :verse :verse))]
-          (is (= #{:TAA :TAB} ids)
+          (is (= #{:TA :TB} ids)
               "two genuinely distinct voices minted, both playing the SAME
                underlying :verse content, at two different track ids"))))))
 
@@ -981,20 +981,20 @@
         (wall/build-algo! ::same-algo (fn [nodes _ctx _voice] nodes))
         (let [ids (engine/play (compose/par [:verse :algo ::same-algo]
                                             [:verse :algo ::same-algo]))]
-          (is (= #{:TAA :TAB} ids) "two distinct voices, not collapsed into one")
-          (is (= ::same-algo (:algo (engine/voice-at eng :TAA))))
-          (is (= ::same-algo (:algo (engine/voice-at eng :TAB)))
+          (is (= #{:TA :TB} ids) "two distinct voices, not collapsed into one")
+          (is (= ::same-algo (:algo (engine/voice-at eng :TA))))
+          (is (= ::same-algo (:algo (engine/voice-at eng :TB)))
               "both really did get the identical algo -- the whole point"))))))
 
 (deftest nested-par-flattens-away-its-own-wrapping-voice
-  ;; #{:melody #{:a :b}} -> #{:TAA #{:TAB :TAC}} -- the nested #{}
+  ;; #{:melody #{:a :b}} -> #{:TA #{:TB :TC}} -- the nested #{}
   ;; branch has nothing of its own to play (immediately just another
   ;; #{}), so it never gets an intermediate wrapping voice: its own
   ;; children pull ids from the SAME shared, occupancy-checked pool the
   ;; outer level does, not an independent range under a wasted parent.
   ;; melody (a measurable pitch) always ranks ahead of the nested #{}
   ;; (unmeasurable -- form-pitch-source sorts a group last), regardless
-  ;; of melody's own raw pitch value -- that's why melody lands on :TAA
+  ;; of melody's own raw pitch value -- that's why melody lands on :TA
   ;; even though 80 > both a's and b's pitches.
   (let [mk     (fn [id pitch]
                  (let [c0 {:type :SEQ :id id :context (c/context)
@@ -1013,10 +1013,10 @@
     (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (let [ids (engine/play #{:melody #{:a :b}})]
-          (is (= #{:TAA #{:TAB :TAC}} ids)
+          (is (= #{:TA #{:TB :TC}} ids)
               "every voice/track gets an id, not subparts -- no id spent on
                the nested #{}'s own wrapping")
-          (is (every? #(some? (engine/voice-at eng %)) [:TAA :TAB :TAC])
+          (is (every? #(some? (engine/voice-at eng %)) [:TA :TB :TC])
               "all three ids are real, independently addressable top-level voices"))))))
 
 (deftest tagged-vector-member-pushes-then-restores-to-the-enclosing-algo
@@ -1082,7 +1082,7 @@
       (let [mark-n (fn [name n] (wall/build-algo! name (fn [nodes _ctx _voice] (map #(assoc % :marked n) nodes))))]
         (mark-n ::marked-5 5)
         (engine/play :verse :algo ::marked-5)
-        (let [resolved (wall/algo (:algo (engine/voice-at eng [:TAA])))]
+        (let [resolved (wall/algo (:algo (engine/voice-at eng [:TA])))]
           (is (fn? resolved) "the tag resolved to a real, built fn")
           (is (= [{:marked 5}] (resolved [{}] [] nil))
               "the factory's own args (5) were actually baked into the built wall fn"))))))
@@ -1183,7 +1183,7 @@
           "a rejected :algo tag never wipes eng's :voices registry, same
            invariant a rejected id already has -- validate-algo-name! runs
            before play's own pre-fn")
-      (is (nil? (engine/voice-at eng [:TAA]))
+      (is (nil? (engine/voice-at eng [:TA]))
           "no voice was ever minted for a call that never actually played"))))
 
 (deftest assign-algo-directly-still-degrades-silently-to-identity
@@ -1198,10 +1198,10 @@
   ;; tag instead.
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (binding [engine/*engine* eng]
-      (engine/assign-algo! eng [:TAA] ::yet-another-unregistered-name)
-      (is (= ::yet-another-unregistered-name (get @(:algo-prepared eng) [:TAA]))
+      (engine/assign-algo! eng [:TA] ::yet-another-unregistered-name)
+      (is (= ::yet-another-unregistered-name (get @(:algo-prepared eng) [:TA]))
           "the bare Name is stored as-is, whether or not it currently resolves")
-      (is (= [{:n 1}] (wall/apply-algo (wall/algo (get @(:algo-prepared eng) [:TAA])) [] nil [{:n 1}]))
+      (is (= [{:n 1}] (wall/apply-algo (wall/algo (get @(:algo-prepared eng) [:TA])) [] nil [{:n 1}]))
           "but applying it right now is the identity"))))
 
 (deftest sq-parallel-metadata-still-wins-over-a-plain-untagged-vector
@@ -1259,7 +1259,7 @@
         (engine/play ::lookahead-e2e-verse)
         (is (map? (deref done 2000 :timeout))
             "played through both nested bars to the verse's own :exit")
-        (is (= [:TAA] (:path (:voice (deref bar3 100 :timeout))))
+        (is (= [:TA] (:path (:voice (deref bar3 100 :timeout))))
             "8 quarters in 4/4 carried the voice into bar 3")))))
 
 (deftest a-seq-after-a-par-continues-where-the-longest-branch-ended

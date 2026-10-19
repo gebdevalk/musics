@@ -468,7 +468,7 @@
    #{}-mirroring return shape).
    Returns the id/path this voice was registered under -- a single
    keyword, or (recursively) a #{} of ids for a #{} Form, e.g. (play
-   #{:melody :bass}) -> #{:TAA :TAB} -- pass any of these straight back
+   #{:melody :bass}) -> #{:TA :TB} -- pass any of these straight back
    into assign-algo!/voice-at/play-change/play-add to keep controlling
    that specific voice."
   [& args]
@@ -587,12 +587,12 @@
 
 (defn display
   "Which voice (play form) would give which material, printed as musics
-   text: one line per top-level voice, labelled as play names it (TAA,
-   TAB, ...), every { } branch with its own voice, an :algo where it
+   text: one line per top-level voice, labelled as play names it (TA,
+   TB, ...), every { } branch with its own voice, an :algo where it
    applies. No time, nothing transformed -- display-timed has onsets.
      (display #{:melody [:bass :algo :walk]})
-     TAA  [melody: C5/4 D5/4 ... ]
-     TAB :algo :walk  [bass: C3/2 ... ]"
+     TA  [melody: C5/4 D5/4 ... ]
+     TB :algo :walk  [bass: C3/2 ... ]"
   [form & opts]
   (println (apply compose/display (repo/registry) form opts)))
 
@@ -1515,7 +1515,7 @@
 
 (defn play-add
   "Like play, but never flushes -- joins whatever's already sounding,
-   at one or more freshly-minted short track ids (:TAA, :TAB, ... :TZZ),
+   at one or more freshly-minted short track ids (:TA, :TB, ... :TZ),
    instead of replacing everything (see play for 'replace'; see
    play-change to supersede one chosen path by hand instead of
    auto-picking one). Same single-Form-plus-optional-trailing-:algo

@@ -15,7 +15,7 @@
             [musics.mu.value :as v]
             [musics.repo :as repo]))
 
-(defn- auto-id?
+(defn auto-id?
   "An id the walker assigned (s1, p2, c1 …), not one that was written."
   [id]
   (boolean (re-matches #"(?:[a-z]|repeat|tremolo|transpose|reverse|decorated)[0-9]+" (name id))))

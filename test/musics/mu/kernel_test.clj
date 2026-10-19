@@ -9,6 +9,8 @@
             [musics.conductor :as conductor]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
+            [musics.mu.tools]
+            [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
@@ -45,7 +47,7 @@
   (is (= [3] (:ok (run "2.7 round"))))
   (is (re-find #"add: needs two numbers" (:error (run "1 \"x\" add"))))
   (is (re-find #"\+: is musical; on numbers write add" (:error (run "1 2 +"))))
-  (is (re-find #"<: isn't a word; to compare numbers write lt" (:error (run "1 1 <")))))
+  (is (re-find #"compare numbers write lt" (:error (run "1 1.5 <")))))
 
 (deftest comparisons-and-control
   (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
@@ -271,4 +273,83 @@
 (deftest see-shows-effect-then-description
   (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see")))
   (is (= (out "\"dup\" see") (out "'dup see")) "a quoted name too")
-  (is (str/starts-with? (out "'play/stop see") "play/stop ( -- )") "qualified"))
+  (is (str/starts-with? (out "'play/stop see") "play/stop ( [voice] -- )") "qualified"))
+
+(deftest named-music-is-its-own-voice
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (let [ids #(set (keys (mt/live-voices)))]
+          (run "[bass: !tempo:60 c1 d1] >")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (is (= #{:bass :mel} (ids)) "named music adds or replaces its own voice, not the others")
+          (run "[bass: !tempo:60 g1 a1] >")
+          (is (= #{:bass :mel} (ids)) "replacing :bass leaves :mel")
+          (is (= "[bass: !tempo:60 G3/1 A3]" (p/show (first (:ok (run ":bass playing"))))) "playing gives what it plays")
+          (run ":bass hush")
+          (is (= #{[:bass]} (:hushed (engine/hushed))) "hushed, still a voice")
+          (is (= #{:bass :mel} (ids)))
+          (run ":bass hush")
+          (run ":mel solo")
+          (is (= [:mel] (:solo (engine/hushed))))
+          (run ":mel solo")
+          (is (nil? (:solo (engine/hushed))) "solo again and all sound")
+          (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass <"))))) "< is playing")
+          (is (re-find #":bass .*\[bass:" (out "<<")) "<< is voices")
+          (is (re-find #"no voice 4" (:error (run "4 <"))) "< on a number is an index; past the voices an error")
+          (run ":mel stop")
+          (is (= #{:bass} (ids)) "stop one voice")
+          (is (re-find #"isn't playing" (:error (run ":mel playing"))))
+          (run "[!tempo:60 c1] >+")
+          (is (= 2 (count (ids))) "unnamed music joining gets an engine id")
+          (is (some #(re-matches #"T[A-Z]" (name %)) (ids)))
+          (run "[!tempo:60 c1] >")
+          (is (= 1 (count (ids))) "unnamed > stops everything")
+          (run "[bass: !tempo:60 c1 d1] [~] >")
+          (is (contains? (ids) :bass) "a loop plays as the line it repeats")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (run "[bass: !tempo:60 g1] >>")
+          (is (= [[:bass :exit]] (filter #(= :bass (first %)) (keys (conductor/scheduled))))
+              ">> on a named voice waits for that voice's own pass")
+          (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
+        (finally (mt/stop-all!))))))
+
+(deftest a-named-voice-changes-at-its-own-boundary
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (binding [engine/*engine* eng]
+        (try
+          (run "[bass: !tempo:240 c16 d] [~] >")
+          (run "[mel: !tempo:60 e1 f1] >")
+          (run "[bass: !tempo:240 g16 a] [~] >>")
+          (is (= "[bass: !tempo:240 C4/16 D4]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "not yet")
+          (Thread/sleep 400)
+          (is (= "[bass: !tempo:240 G3/16 A3]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "changed at the end of its pass")
+          (is (contains? (mt/live-voices) :mel) ":mel plays on")
+          (finally (mt/stop-all!)))))))
+
+(deftest voices-by-index-low-to-high-drums-from-0-down
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (run "[!tempo:60 C5/1 D5] >")
+        (run "[!tempo:60 C3/1 D3] >+")
+        (run "[!tempo:60 E4/1 F4] >+")
+        (run "[!tempo:60 x1 x1] >+")
+        (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "1 <"))))) "1 the lowest")
+        (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "3 <"))))) "n the highest")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums")
+        (run "2 hush")
+        (is (= 1 (count (:hushed (engine/hushed)))) "an index wherever a voice goes")
+        (run "[!tempo:60 C6/1] 1 >")
+        (is (= "[!tempo:60 C6/1]" (p/show (first (:ok (run "3 <"))))) "x 1 > plays as voice 1, which is now the highest")
+        (is (re-find #"(?m)^0 :" (out "<<")) "<< numbers them, drums 0")
+        (run "[!tempo:60 x1\\hhc x1] >+")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums with the lowest key (35, a plain x)")
+        (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 <"))))) "-1 the next (42)")
+        (is (re-find #"(?m)^-1 :" (out "<<")) "<< numbers them, drums 0, -1 …")
+        (run "0 stop")
+        (run "-0 stop")
+        (is (re-find #"no drum voice" (:error (run "0 <"))))
+        (finally (mt/stop-all!))))))
+

@@ -639,7 +639,7 @@
    keyed by the repo container id a naive reading of playing-ids might
    suggest. Confirmed live (a real bug, not a hypothetical): a played
    container's own id (:testMelody) is never itself a registered voice
-   path -- play/play-add always mint a fresh :TAA/:TAB/... path, so
+   path -- play/play-add always mint a fresh :TA/:TB/... path, so
    voice-at only ever resolves a real path, never the id material was
    played FROM (that's what playing-ids, tracked completely separately
    via :active-voices, is for). Built from musics.engine/live-algos
@@ -1055,7 +1055,7 @@
 (defn play-builder-play-change!
   "(play-change path Form), superseding only whichever voice is
    currently registered at :change-path -- see musics.core/play-change.
-   path is typed free-form (e.g. \"TAA\", whatever play/play-add last
+   path is typed free-form (e.g. \"TA\", whatever play/play-add last
    returned) -- there's no public way to enumerate every live voice
    path to pick from instead, only look one up once you already have
    it (voice-at)."
@@ -1067,7 +1067,7 @@
       (swap! *state assoc-in [:play-builder :message] "Add at least one id first.")
 
       (empty? path-text)
-      (swap! *state assoc-in [:play-builder :message] "Type a target path first, e.g. TAA.")
+      (swap! *state assoc-in [:play-builder :message] "Type a target path first, e.g. TA.")
 
       :else
       (let [path (keyword path-text)
@@ -1240,7 +1240,7 @@
         path-text (str/trim (or assign-path ""))
         algo-text (str/trim (or assign-algo ""))]
     (if (empty? path-text)
-      (swap! *state assoc-in [:wall :message] "Type a target path first, e.g. TAA.")
+      (swap! *state assoc-in [:wall :message] "Type a target path first, e.g. TA.")
       (let [path (keyword path-text)
             algo (when (seq algo-text) (keyword algo-text))]
         (m/assign-algo! path algo)

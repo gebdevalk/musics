@@ -71,6 +71,8 @@
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
     :channel-claims (atom {})           ; channel -> {:key [program cc] :refcount}
     :drum-kit       (atom nil)          ; the kit last sent on the drum channel
+    :hushed         (atom #{})          ; top paths sounding nothing, keeping their place
+    :solo           (atom nil)          ; nil, or the one top path that sounds
     :voice-channels (atom {})}))        ; [path layer] -> [channel key]
 
 (defn set-engine!
@@ -190,10 +192,21 @@
    sender thread -- it must hand work off, as echo's fn does (mu's ask)."}
   finished (atom nil))
 
+(declare sound!)
+
 (defn- note-on!
   "Sound e: a drum on its channel, a note on its program's channel --
    once per program when :program is a vector (!i:40,73), each a layer
    with its own channel. box keeps what sounded, for the note-off."
+  [eng top {:keys [e box] :as action}]
+  (if (or (contains? @(:hushed eng) top) (some-> @(:solo eng) (not= top)))
+    (do (vreset! box [])
+        (when (contains? @(:voices eng) (:path e))
+          (swap! (:voices eng) update (:path e) assoc :t (:t e) :beat (:beat e))))
+    (sound! eng top action)))
+
+(defn- sound!
+  "note-on! for a voice that isn't hushed or soloed away."
   [eng top {:keys [e box]}]
   (let [progs (:program e)
         layers (if (= :drum (:kind e))
@@ -415,6 +428,8 @@
    (locking (:lock eng)
      (drop-all! eng)
      (reset! (:drum-kit eng) nil)       ; sent again on the next drum
+     (reset! (:hushed eng) #{})
+     (reset! (:solo eng) nil)
      (reset! (:state eng) :stopped))
    nil))
 
@@ -538,7 +553,7 @@
 
 (defn- next-track-id [eng]
   (or (some #(when-not (occupied? eng %) %) (compose/track-ids))
-      (throw (ex-info "play: no free track id left (all 676 :TAA..:TZZ in use)" {}))))
+      (throw (ex-info "play: no free track id left (all :TA..:TZ and :TAA..:TZZ in use)" {}))))
 
 (defn- mint!
   "Start form's top-level voices; its id, or for a #{}/(par ...) a set
@@ -569,7 +584,7 @@
 
 (defn play
   "Play one Form, replacing whatever is playing -- (play Form) or
-   (play Form :algo Name). Returns the voice's id (:TAA), or for a #{} /
+   (play Form :algo Name). Returns the voice's id (:TA), or for a #{} /
    (par ...) at the top a set of ids, nested as written.
 
      keyword           a committed part: :verse
@@ -606,24 +621,68 @@
   ([] (busy? *engine*))
   ([eng] (boolean (and eng (or (seq @(:streams eng)) (seq @(:voices eng)))))))
 
+(defn- replace-voice!
+  "Replace the voice at path on eng with form (none: just stop it), its
+   :t 0 at origin."
+  [eng path form algo origin]
+  (locking (:lock eng)
+    (drop-voice! eng path)
+    (if form
+      (do (start-voice! eng path form algo (or origin (origin-now eng)))
+          (when-not (= :paused @(:state eng)) (reset! (:state eng) :playing))
+          (ensure-running! eng))
+      (swap! (:hushed eng) disj path)))
+  path)
+
 (defn play-change
   "Replace only the voice at path with args (played one after another),
    optionally ending in :algo Name; no args just stops that voice.
-     (play-change :TAB :chorus)
+     (play-change :TB :chorus)
      (play-change :myTrack :verse :algo :bright)"
   [path & args]
   (let [eng        *engine*
-        path       (->path path)
         [args algo] (split-change-args args)]
     (validate-args! eng args)
     (validate-algo-name! algo)
-    (locking (:lock eng)
-      (drop-voice! eng path)
-      (when (seq args)
-        (start-voice! eng path (vec args) algo (origin-now eng)))
-      (when-not (= :paused @(:state eng)) (reset! (:state eng) :playing))
-      (ensure-running! eng))
+    (replace-voice! eng (->path path) (when (seq args) (vec args)) algo nil)
     nil))
+
+(defn play-at!
+  "Play form as the voice at path on eng, replacing only that voice (or
+   adding it), its :t 0 at origin (System/nanoTime; now when nil)."
+  ([eng path form] (play-at! eng path form nil))
+  ([eng path form origin]
+   (validate-args! eng [form])
+   (replace-voice! eng (->path path) form nil origin)))
+
+(defn stop-voice!
+  "Stop only the voice at path on eng; the others go on."
+  ([path] (stop-voice! *engine* path))
+  ([eng path] (when eng (replace-voice! eng (->path path) nil nil nil))))
+
+(defn hush!
+  "Silence the voice at path, or let it sound again: it keeps its place."
+  ([path] (hush! *engine* path))
+  ([eng path]
+   (when eng
+     (let [path (->path path)]
+       (swap! (:hushed eng) #(if (contains? % path) (disj % path) (conj % path)))
+       (contains? @(:hushed eng) path)))))
+
+(defn solo!
+  "Let only the voice at path sound, the others keeping their place; again
+   (or nil) and every voice sounds."
+  ([path] (solo! *engine* path))
+  ([eng path]
+   (when eng
+     (let [path (some-> path ->path)]
+       (swap! (:solo eng) #(when (and path (not= % path)) path))
+       @(:solo eng)))))
+
+(defn hushed
+  "{:hushed #{paths} :solo path-or-nil}."
+  ([] (hushed *engine*))
+  ([eng] (if eng {:hushed @(:hushed eng) :solo @(:solo eng)} {:hushed #{} :solo nil})))
 
 (defn warm-up!
   "Play n near-silent notes (MIDI velocity 1, pitch 1) of note-ms each

@@ -62,8 +62,11 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
 | `x \| >>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
 | `>>+` or `play-next+` | join at the next boundary |
-| `stop` | stop everything (or Alt+., even mid-typing) |
+| `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
+| `voices` or `<<` | what plays: each voice's id and its music |
+| `:bass playing` or `:bass <` | the music the voice `:bass` plays, onto the stack |
+| `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
 `>` plays now, `>>` at the next boundary; a `+` joins what plays
 instead of replacing it.
@@ -72,6 +75,31 @@ instead of replacing it.
 [c d e f g] >
 [c d e f g] [~] >        loop it until stop
 [e f g a b] >>           takes over at the end of the current pass
+```
+
+Music with a name plays as a voice of that name, and playing it again
+replaces only that voice, the others going on:
+
+```
+[bass: c2 g] [~] >           the voice :bass
+[mel: e8 f g a] [~] >        a second voice, :mel; :bass goes on
+[bass: f2 c] [~] >>          :bass changes at the end of its pass
+:mel hush                    silence :mel, keeping its place
+:mel hush                    and back
+```
+
+Music without a name is no voice of its own: `>` stops everything,
+`>+` adds it under an id the engine gives (`:TA` …), shown by
+`voices`.
+
+Voices also go by index, low to high: `1` the lowest voice, `2` the
+next …, and the drum voices from `0` down (`0`, `-1` …, lowest drum key
+first). An index or id on top of a play word plays as that voice:
+
+```
+1 <                  what the lowest voice plays
+3 < 12 + 3 >>        voice 3 an octave up, at its boundary
+0 hush               silence the drums
 ```
 
 `echo` prints each note as it sounds; `echo` again stops it.
