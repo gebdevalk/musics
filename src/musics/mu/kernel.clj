@@ -443,7 +443,7 @@
   [vals keep?]
   (let [fmt (fn [k x]
               (cond
-                (instance? musics.common.music_elements.Key x) (str "!key:" (el/key->str x))
+                (instance? musics.common.music_elements.Key x) (str "!K:" (el/key->str x))
                 (instance? musics.common.music_elements.Meter x) (str "!Meter:" (el/meter->str x))
                 (number? x) (str "!" k ":" (if (ratio? x) x (pr-str x)))
                 (keyword? x) (str "!" k ":" (name x))

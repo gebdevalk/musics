@@ -308,7 +308,7 @@
   (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a line's own key")
   (is (= "C.major" (top "[c d e] key")) "else the defaults'")
   (is (= "C.major" (top "c4 key")) "the key a note was written in")
-  (is (= "[!key:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
+  (is (= "[!K:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
 
 (deftest every-key-a-tonic-can-name
   (doseq [k ["C#.major" "C&.major" "G#.minor" "D#.minor" "A#.minor"]]

@@ -623,7 +623,7 @@
        (fn [s]
          (need s 2 "with")
          (let [ctx (peek s) x (peek (pop s))
-               ctx (if (key? ctx) (mt/read-text (str "^{ !key:" (el/key->str ctx) " }")) ctx)]
+               ctx (if (key? ctx) (mt/read-text (str "^{ !K:" (el/key->str ctx) " }")) ctx)]
            (when-not (= :CONTEXT (mt/kind ctx)) (e/mu-error "with: needs a context ^{ … } on top"))
            (conj (pop (pop s))
                  (with-settings x (str/join " " (map :raw (:children (v/node ctx)))))))))
