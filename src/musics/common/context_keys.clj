@@ -45,8 +45,8 @@
       :quantity :delay :aliases [:D] :category :world)
 (reg! :Form :str "Form/section markers"
       :default' "" :aliases [:F] :category :world)
-(reg! :Key :str "Tonic key name"
-      :default' "C" :aliases [:K] :category :world)
+(reg! :Key :any "Key: tonic and scale (!K:D.major)"
+      :default' (el/key :C :major) :aliases [:K :key :k] :category :world)
 (reg! :Meter :meter "Time signature"
       :default' (el/parse-meter-str "4/4") :aliases [:M] :category :world)
 (reg! :Orchestration :str "Orchestration preset name"
@@ -79,8 +79,6 @@
       :quantity :humanization :aliases [:h])
 (reg! :instrument :int "MIDI program number"
       :quantity :instrument :aliases [:i :timbre :program :prog])
-(reg! :key :any "Resolved Key object"
-      :default' (el/key :C :major) :aliases [:k])
 (reg! :micro :float "Micro-timing offset in seconds"
       :quantity :micro :aliases [:m])
 (reg! :octave :int "Octave shift"

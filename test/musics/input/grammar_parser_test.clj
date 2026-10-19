@@ -715,7 +715,7 @@
   (let [key-of (fn [text]
                  (let [{:keys [tree]} (gp/parse-domain-string text)
                        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-                   (some-> (c/ctx-value-chain [(:context s)] :key 0) el/key->str)))]
+                   (some-> (c/ctx-value-chain [(:context s)] :Key 0) el/key->str)))]
     (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
     (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
     (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
@@ -804,3 +804,11 @@
   (testing "a context referenced in a line carries its @ params along"
     (let [{:keys [tree]} (gp/parse-domain-string "^{set: @k:5} [s: :set c4]")]
       (is (= 5 (c/ctx-value-chain [(:context (get tree :s))] "@k" 0))))))
+
+(deftest a-meter-as-its-factors
+  (let [meter-of (fn [text] (let [{:keys [tree]} (gp/parse-domain-string text)
+                                  s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+                              (c/ctx-value-chain [(:context s)] :Meter 0)))]
+    (is (= [12 8 [2 2 3]] ((juxt :num :den :subdivisions) (meter-of "[!M:223 c8]"))))
+    (is (= [4 4 [2 2]] ((juxt :num :den :subdivisions) (meter-of "[!M:22/4 c4]"))))))
+

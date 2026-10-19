@@ -97,12 +97,11 @@
 (defn compound? [{:keys [den num subdivisions]}]
   (and (nil? subdivisions) (#{8 16 32} den) (zero? (mod num 3)) (not= num 3)))
 
-(defn additive? [{:keys [subdivisions]}] (some? subdivisions))
-
 (defn meter->str [{:keys [num den subdivisions]}]
-  (if subdivisions
-    (str num "/" den "(" (str/join "+" subdivisions) ")")
-    (str num "/" den)))
+  (cond
+    (nil? subdivisions)                    (str num "/" den)
+    (= num (reduce + subdivisions))        (str num "/" den "(" (str/join "+" subdivisions) ")")
+    :else                                  (str (str/join subdivisions) (when (not= den 8) (str "/" den)))))
 
 (defn meter->lilypond [{:keys [num den]}] (str "\\time " num "/" den))
 
@@ -153,9 +152,31 @@
     (conj (vec (prime-factors-ascending (quot num 3))) 3)
     (vec (prime-factors-ascending num))))
 
+(declare parse-meter-str*)
+
+(defn- factor-meter
+  "\"223\", \"2232/16\": a meter as the factors of its pulses, as
+   indispensability takes them -- 2 x 2 x 3 pulses, each an eighth unless
+   /n says otherwise -- or nil when s isn't one: two or more digits, each
+   2, 3, 5 or 7 (a single digit means the same either way, 3/4 is three
+   quarters)."
+  [s]
+  (when-let [[_ digits den] (re-matches #"([2357]{2,}|[2357])(?:/(\d+))?" s)]
+    (when (or (> (count digits) 1) (nil? den))
+      (let [fs (mapv #(Character/digit (char %) 10) digits)]
+        (->Meter (reduce * fs) (if den (Integer/parseInt den) 8) fs)))))
+
 (defn parse-meter-str
   "Parse \"N/D\" or \"N/D(a+b+c)\" (the format meter->str prints) into a
-   Meter. Throws if the additive groups (when given) don't sum to N."
+   Meter -- or the factors of its pulses, \"223\" (12/8, its
+   subdivisions [2 2 3]) or \"22/4\" (4/4): two or more digits, each 2,
+   3, 5 or 7, an eighth's pulse unless /n is given. Throws if the
+   additive groups (when given) don't sum to N."
+  [s]
+  (or (factor-meter s)
+      (parse-meter-str* s)))
+
+(defn- parse-meter-str*
   [s]
   (let [[_ num-str den-str _ groups-str]
         (re-matches #"(\d+)/(\d+)(\((\d+(?:\+\d+)*)\))?" s)]
@@ -178,27 +199,76 @@
 ;; there so it has one canonical home instead of a second copy living
 ;; here) -- this just wires a Meter's own num/den/subdivisions into it.
 
+(defn additive?
+  "Does meter carry additive groups (7/8(2+2+3)), not the factors of its
+   pulses? Groups summing to the numerator whose product doesn't (4/4(2+2)
+   is both, and read as factors, as Barlow does)."
+  [{:keys [num subdivisions]}]
+  (boolean (and subdivisions (= num (reduce + subdivisions)) (not= num (reduce * subdivisions)))))
+
+(defn- size-ranks
+  "Indispensability ranks of a flat group of n pulses: Barlow's over n's
+   prime factors when they are 2, 3, 5 or 7, else the downbeat first and
+   the rest in order."
+  [n]
+  (let [fs (prime-factors-ascending n)]
+    (cond
+      (= n 1)                    [0]
+      (every? #{2 3 5 7} fs)     (indisp/indispensability fs)
+      :else                      (vec (cons (dec n) (range (dec n)))))))
+
+(defn- ranks-by
+  "Ranks 0..n-1 of positions 0..n-1, ordered by (score p) ascending."
+  [n score]
+  (let [order (sort-by score (range n))]
+    (reduce (fn [v [r p]] (assoc v p r)) (vec (repeat n 0)) (map-indexed vector order))))
+
+(defn- additive-ranks
+  "Ranks of the pulses of additive groups ([2 2 3]): the groups' starts
+   strongest, ranked among themselves as a group of k pulses is; then the
+   rest by their place in their own group, ties to the stronger group."
+  [groups]
+  (let [k      (count groups)
+        grank  (size-ranks k)
+        place  (vec (mapcat (fn [i g] (map (fn [j] [i j g]) (range g))) (range) groups))]
+    (ranks-by (count place)
+              (fn [p] (let [[i j g] (place p)]
+                        (if (zero? j)
+                          [1 (grank i) 0]
+                          [0 (get (size-ranks g) j) (grank i)]))))))
+
+(defn meter-indispensability
+  "Barlow indispensability for a Meter, one rank per pulse of its
+   denominator -- its subdivisions as factors (12/8 [2 2 3], or the
+   conventional default, see default-subdivisions), or, additive
+   (7/8(2+2+3)), the groups' starts strongest (additive-ranks)."
+  [{:keys [num den subdivisions] :as meter}]
+  (if (additive? meter)
+    (additive-ranks subdivisions)
+    (indisp/indispensability (or subdivisions (default-subdivisions num den)))))
+
 (def metric-weights
   "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),
-   Barlow's indispensability at the pulse's resolution; nil when the bar
-   isn't a whole number of pulses or its factors aren't 2, 3, 5 or 7.
-   Memoized: a meter and a pulse give one table."
+   Barlow's indispensability at the pulse's resolution -- an additive
+   meter's groups heard (meter-indispensability), finer pulses below
+   their beat; nil when the bar isn't a whole number of pulses, or a
+   factor meter's factors aren't 2, 3, 5 or 7. Memoized: a meter and a
+   pulse give one table."
   (memoize
-   (fn [{:keys [num den subdivisions]} pulse]
+   (fn [{:keys [num den subdivisions] :as meter} pulse]
      (let [n   (/ (/ num den) pulse)
            per (when (integer? n) (/ n num))]
        (when (and (integer? per) (pos? per))
-         (let [base (if (and subdivisions (= num (reduce * subdivisions))) subdivisions (default-subdivisions num den))
-               fs   (vec (concat base (default-subdivisions per 4)))]
-           (when (and (seq fs) (every? #{2 3 5 7} fs))
-             (indisp/normalized-indispensability fs))))))))
-
-(defn meter-indispensability
-  "Barlow indispensability for a Meter -- uses its own explicit
-   subdivisions if given, otherwise the conventional default (see
-   default-subdivisions)."
-  [{:keys [num den subdivisions]}]
-  (indisp/indispensability (or subdivisions (default-subdivisions num den))))
+         (if (additive? meter)
+           (let [base (meter-indispensability meter)
+                 sub  (size-ranks per)
+                 rs   (ranks-by n (fn [p] (let [b (quot p per) j (rem p per)]
+                                            (if (zero? j) [1 (base b) 0] [0 (sub j) (base b)]))))]
+             (indisp/normalize-weights rs))
+           (let [base (if (and subdivisions (= num (reduce * subdivisions))) subdivisions (default-subdivisions num den))
+                 fs   (vec (concat base (default-subdivisions per 4)))]
+             (when (and (seq fs) (every? #{2 3 5 7} fs))
+               (indisp/normalized-indispensability fs)))))))))
 
 ;; ============================================================
 ;; 3. PITCH NAMES (pitch_names.py)

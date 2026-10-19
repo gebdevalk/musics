@@ -1196,7 +1196,7 @@
    on an intermediate container in between. The same class of bug the
    Leaf-level ctx-chain project fixed for playback, left open here."
   [x]
-  (ctx-value x :key 0.0))
+  (ctx-value x :Key 0.0))
 
 (defn tonal-transpose
   "material, transposed by steps SCALE DEGREES (diatonic transposition,
@@ -1283,7 +1283,7 @@
    (let [material (map (d/transpose semitones) (sq source))
          new-key  (transpose-key (active-key source) semitones)
          ctx      (c/context)]
-     (c/ctx-append ctx :key 0.0 new-key :fixed)
+     (c/ctx-append ctx :Key 0.0 new-key :fixed)
      (repo/commit-node! id {:type :SEQ :id id :context ctx :children (vec material)})
      id)))
 

@@ -410,8 +410,11 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 Partial = <'partial'> ws Duration
 
 BangConst     = <'!'> Name
-KeyAssignment = <'!key:'> KeySpec
-(* Assignment excludes the literal name "key" via AssignName, same
+KeyAssignment = <'!'> KeyName <':'> KeySpec
+(* the key's names: K, its canonical one (capital, as T and M are for
+   Tempo and Meter), Key, key and k *)
+KeyName       = 'Key' | 'key' | 'K' | 'k'
+(* Assignment excludes the key's names via AssignName, same
    negative-lookahead pattern VarName uses to exclude reserved words
    above -- instaparse's ambiguity resolution between this rule and
    KeyAssignment is not reliable declaration order, so !key:<tonic> is
@@ -420,7 +423,7 @@ KeyAssignment = <'!key:'> KeySpec
 Assignment    = <'!'> AssignName Ramp
               | <'!'> AssignName <':'> Value RampMark?
 
-AssignName = #'(?!key\b)[a-zA-Z][a-zA-Z0-9_]*'
+AssignName = #'(?!(?:Key|key|K|k)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* AlgoAssignment: an algo's param, @name:value, where ! sets the music.
    It lives in the same context as the music's keys, under its own name

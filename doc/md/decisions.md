@@ -1531,3 +1531,43 @@ opened Fluidsynth, which needs qsynth, a virtual MIDI port and an ALSA
 connection set up first. Gervill, the JVM's own synthesizer, needs
 nothing, so it is the default now; `(connect :fluidsynth)` (mu:
 `fluidsynth`) picks the external one.
+
+## 2026-10-19 — the key is K
+
+The key had two entries in the context-key registry: `:key`, the Key
+playback reads (alias `k`, though only the literal `!key:` reached the
+rule that makes a Key), and `:Key`, a tonic name as text (alias `K`)
+nothing read -- so `!K:D.major` and `!k:D.major` were silently
+ignored. The significant keys are capitals, `Tempo` `T`, `Key` `K` and
+`Meter` `M`: the key's context name is now `:Key`, with `K`, `key` and
+`k` its names, all read by `KeyAssignment` (which writes back the name
+as written); the text entry is gone. Contexts saved by `write`/
+`persist-session` before hold the key under `"key"` and lose it on load.
+
+## 2026-10-19 — a meter as the factors of its pulses
+
+A meter can be written as the factors indispensability takes: `!M:223`
+is 2 x 2 x 3 pulses (12/8), `!M:232` the same bar grouped otherwise,
+which weighs its pulses differently (the accents and the groove read
+it). A pulse is an eighth unless `/n` says (`!M:2232/16`, `!M:22/4`) --
+one rule, written as a meter's denominator, chosen over reading it off
+the last digit (compound when it is 3). Two or more digits, each 2, 3,
+5 or 7, are factors; a single digit means the same either way (`3/4` is
+three quarters), and an ordinary meter with another digit (`12/8`,
+`9/8`) reads as before. A real 22/4 or 35/16 can't be written with
+digits then -- the quoted `"N/D(…)"` form still can.
+
+## 2026-10-19 — indispensability for an additive meter
+
+Barlow's indispensability is defined for a meter whose pulses are the
+product of factors. An additive meter's groups (`7/8(2+2+3)`) were
+handed to it as if they were factors, giving ranks for 12 pulses
+(`meter-indispensability`); the metric weights the accents and groove
+read fell back to a flat 7, ignoring the grouping. Now an additive
+meter -- groups that sum to the numerator but whose product doesn't,
+so `4/4(2+2)`, both, stays factors -- ranks its groups' starts above
+every other pulse, the starts among themselves as a group of k pulses
+is ranked (three groups: Barlow's table for 3), the rest by their place
+in their own group, ties to the stronger group. `additive?` asks that
+now, not merely whether a meter has groups, since a factor meter
+(`!M:223`) has them too.

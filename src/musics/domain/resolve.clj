@@ -163,9 +163,9 @@
    ornaments, so both see the pitch that sounds."
   [part ctx-chain structural-time]
   (if-let [from (:key part)]
-    (let [{to :key acc :accidentals}
+    (let [{to :Key acc :accidentals}
           (c/sample-many (chain-links part ctx-chain structural-time)
-                         {:key nil :accidentals :implied} structural-time)]
+                         {:Key nil :accidentals :implied} structural-time)]
       (if (or (nil? to) (= acc :explicit) (= from to))
         part
         (let [shift (:key-shift part 0)
@@ -241,7 +241,7 @@
 (def played-keys
   "Every context key playback reads -- the one answer to 'does setting
    this change what's heard'; the GUI shows sliders for these only."
-  (into #{:articulation :key :accidentals :kit} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
+  (into #{:articulation :Key :accidentals :kit} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit

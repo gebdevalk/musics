@@ -1263,7 +1263,9 @@ silent misinterpretation.
 ### `\time`/`\tempo`/`\key`
 
 Not part of the grammar. `!Meter:`/`!tempo:`/`!key:` (`Assignment`/
-`KeyAssignment`) are the only spelling for any of these — see
+`KeyAssignment`) are the only spelling for any of these (the three
+significant keys are capitals: `Tempo` `T`, `Key` `K` -- also `key`,
+`k` -- and `Meter` `M`; the key's context name is `:Key`) — see
 `doc/md/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
 `\time`/`\tempo`/`\key` spelling was dropped rather than kept as an
 alternative. `VarName`'s own reserved-word exclusion list is just the
@@ -1284,9 +1286,14 @@ guessing a grouping (real practice groups them in genuinely
 piece/convention-dependent ways) — write the explicit form if you want a
 specific feel.
 
-Set it via `!Meter:N/D` (bare ratio -- e.g. `!Meter:7/8`) or
+Set it via `!Meter:N/D` (bare ratio -- e.g. `!Meter:7/8`),
 `!Meter:"N/D(a+b+c)"` (quoted, additive grouping, groups must sum to the
-numerator) — the `:M` alias also works. Both forms reach the context
+numerator), or as the factors of its pulses, indispensability's own
+form: `!M:223` is 2×2×3 eighths (12/8, `subdivisions` `[2 2 3]`),
+`!M:232` the same length grouped otherwise, `!M:2232/16` sixteenths --
+two or more digits, each 2, 3, 5 or 7, an eighth's pulse unless `/n`
+(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` alias
+also works. Both forms reach the context
 correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
@@ -1301,9 +1308,14 @@ as the pulse index itself. 2 and 3's rotated tables happen to reduce to the
 identity permutation (their reference tables are pure rotations); 5 and 7
 don't, which is the actual substance of the theory, not a rounding
 artifact — verified against known-correct reference tables, not derived
-from scratch. `musics/common/music_elements.clj`'s `meter-indispensability` just
+from scratch. `musics/common/music_elements.clj`'s `meter-indispensability`
 wires a `Meter`'s own `num`/`den`/`subdivisions` into it (`(or subdivisions
-(default-subdivisions num den))`), so `musics.common.music-elements` requires
+(default-subdivisions num den))`) -- for an additive meter (`7/8(2+2+3)`,
+`additive?`: groups that sum to the numerator but don't multiply to it)
+it ranks the groups' starts first, among themselves as a group of k
+pulses is, then the rest by their place in their own group
+(`additive-ranks`), and `metric-weights` (the accents', the groove's)
+follows it -- so `musics.common.music-elements` requires
 `musics.algo.indispensability` rather than keeping a second copy of the
 algorithm itself — the earlier standalone `musics/algo/` port of this same theory
 (`psi`/`psi-fractions`, from pymusics' `indispensability.py`) turned out to
