@@ -237,6 +237,44 @@
                           [1 (grank i) 0]
                           [0 (get (size-ranks g) j) (grank i)]))))))
 
+(defn- factor-levels
+  "The level of each of the prod(fs) pulses of a grid that divides by fs:
+   0 the downbeat, 1 the first division (the half bar of [2 ..]), and so
+   on to (count fs), the finest."
+  [fs]
+  (let [n       (reduce * 1 fs)
+        strides (reductions quot n fs)]
+    (vec (for [p (range n)] (count (take-while #(not (zero? (mod p %))) strides))))))
+
+(def metric-levels
+  "Each pulse position's weight in a bar of meter by its level in the
+   meter's grid (0..1, the downbeat 1): every pulse of one level alike,
+   each level a clear step -- an additive meter's group starts one level,
+   their insides below. nil when the bar isn't a whole number of pulses.
+   Memoized: a meter and a pulse give one table."
+  (memoize
+   (fn [{:keys [num den subdivisions] :as meter} pulse]
+     (let [n   (/ (/ num den) pulse)
+           per (when (integer? n) (/ n num))]
+       (when (and (integer? per) (pos? per))
+         (let [sub    (factor-levels (prime-factors-ascending per))
+               base   (if (additive? meter)
+                        (vec (mapcat (fn [i g] (let [inner (factor-levels (prime-factors-ascending g))]
+                                                 (map (fn [j] (cond (and (zero? i) (zero? j)) 0
+                                                                    (zero? j) 1
+                                                                    :else (inc (inner j))))
+                                                      (range g))))
+                                     (range) subdivisions))
+                        (factor-levels (if (and subdivisions (= num (reduce * subdivisions)))
+                                         subdivisions
+                                         (default-subdivisions num den))))
+               deep   (inc (apply max 0 base))
+               levels (vec (for [p (range n)]
+                             (let [b (quot p per) j (rem p per)]
+                               (if (zero? j) (base b) (+ deep (dec (sub j)))))))
+               top    (apply max 1 levels)]
+           (mapv #(- 1.0 (/ % (double top))) levels)))))))
+
 (defn meter-indispensability
   "Barlow indispensability for a Meter, one rank per pulse of its
    denominator -- its subdivisions as factors (12/8 [2 2 3], or the

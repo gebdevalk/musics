@@ -1583,3 +1583,15 @@ much, the weakest note losing and the strongest gaining up to half its
 velocity at 1. Multiplying the velocity, rather than replacing it with
 a volume, keeps a note's own dynamic and accent: they are heard, with
 the meter's accent over them. Drums too.
+
+## 2026-10-19 — metric accents by level
+
+`!accent:metric` first weighed a note by Barlow's indispensability,
+which gives every pulse its own rank: a smooth slope, in which the
+starts of `232`'s pairs overlapped its strongest off-beats, so the
+grouping was hard to hear. It weighs by level in the meter's grid now
+(`metric-levels`): the downbeat, then each division, every pulse of one
+level alike, each level a clear step -- an additive meter's group starts
+one level, their insides below. Barlow's ranking stays as
+`!accent:barlow`, for its finer differences, and is still what the
+groove and the algos' probabilities read.

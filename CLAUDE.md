@@ -1685,9 +1685,11 @@ pushes it (-) by the weakness of its place in the bar -- the meter's
 weight at a sixteenth's resolution (`musics.common.music-elements/
 metric-weights`, Barlow's) -- up to a 32nd at 1.0, so the downbeat
 stays; `!laidBack` is 0.5, `!pushed` -0.5. `:accent` weighs each note's
-velocity as heard: `!accent:metric` by its place in the bar (the
-meter's weight at a sixteenth, as the groove reads it, so `!M:223`
-and `!M:232` sound different), `!accent:agogic` by its length, the
+velocity as heard: `!accent:metric` by its level in the meter's grid
+at a sixteenth (`musics.common.music-elements/metric-levels`: each level
+a clear step, every pulse of a level alike, so `!M:223` and `!M:232`
+sound different), `!accent:barlow` by Barlow's finer ranking (the
+groove's `metric-weights`), `!accent:agogic` by its length, the
 weakest losing and the strongest gaining up to half the velocity at
 `!accentDepth:1` (0.5 by default); drums too. `musics.events/felt`
 applies swing, then groove, then the accent.

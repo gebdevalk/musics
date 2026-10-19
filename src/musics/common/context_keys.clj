@@ -93,7 +93,7 @@
       :quantity :swing :aliases [:s])
 (reg! :kit :int "Drum kit: the drum channel's program (0 standard, 25 tr808, 40 brush)"
       :quantity :kit)
-(reg! :accent :keyword "Accents heard: metric (by place in the bar), agogic (by length), none"
+(reg! :accent :keyword "Accents heard: metric (by level in the bar), barlow (by Barlow's ranking), agogic (by length), none"
       :default' nil)
 (reg! :accentDepth :float "How much !accent: weighs, 0..1"
       :quantity :accent-depth)

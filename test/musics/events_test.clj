@@ -437,6 +437,14 @@
     (is (= (first met) (apply max met)) "metric: the downbeat loudest")
     (is (> (nth met 4) (nth met 1)) "beat 3 above an off-beat")
     (is (apply < ago) "agogic: the longer, the louder"))
+  (parse! "[a232: !tempo:60 !M:232 !accent:metric c8 c c c c c c c c c c c]")
+  (let [v (mapv :velocity (filter #(= :note (:kind %)) (ev/events (repo/registry) :a232)))]
+    (is (= (v 2) (v 4) (v 8) (v 10)) "232 by level: every pair starts alike")
+    (is (apply = (map v [1 3 5 7 9 11])) "every off-beat alike")
+    (is (> (v 2) (v 1)) "a pair's start above its off-beat"))
+  (parse! "[ab: !tempo:60 !M:232 !accent:barlow c8 c c c c c c c c c c c]")
+  (let [v (mapv :velocity (filter #(= :note (:kind %)) (ev/events (repo/registry) :ab)))]
+    (is (not= (v 2) (v 4)) "barlow: a finer ranking, every pulse its own"))
   (parse! "[ad: !tempo:60 !accent:metric x8 x x x]")
   (let [vs (mapv :velocity (filter #(= :drum (:kind %)) (ev/events (repo/registry) :ad)))]
     (is (> (first vs) (second vs)) "drums too")))

@@ -146,19 +146,23 @@
 
 (defn- accented
   "midi with its accent heard: under !accent:metric its velocity weighed
-   by its place in the bar (the meter's weight at a sixteenth, as the
-   groove reads it), under !accent:agogic by its length (a sixteenth the
-   least, a bar the most) -- the weakest note losing, the strongest
-   gaining, up to half its velocity at !accentDepth:1."
+   by its level in the meter's grid at a sixteenth (el/metric-levels:
+   each level a clear step, so a grouping is heard), under !accent:barlow
+   by Barlow's finer ranking (the groove's weights), under !accent:agogic
+   by its length (a sixteenth the least, a bar the most) -- the weakest
+   note losing, the strongest gaining, up to half its velocity at
+   !accentDepth:1."
   [midi pos dur]
   (let [kind (some-> (:accent midi) keyword)]
-    (if (or (not (#{:metric :agogic} kind)) (not (pos? dur)) (zero? (:velocity midi 0)))
+    (if (or (not (#{:metric :barlow :agogic} kind)) (not (pos? dur)) (zero? (:velocity midi 0)))
       midi
       (let [meter (or (:meter midi) (el/make-meter 4 4))
-            w     (if (= kind :metric)
-                    (if-let [ws (el/metric-weights meter 1/16)]
+            w     (if (= kind :agogic)
+                    nil
+                    (if-let [ws ((if (= kind :metric) el/metric-levels el/metric-weights) meter 1/16)]
                       (nth ws (mod (long (Math/floor (* pos 16))) (count ws)))
-                      0.5)
+                      0.5))
+            w     (or w
                     (let [n (max 2 (* 16 (el/meter-bar-length meter)))]
                       (-> (/ (Math/log (max 1.0 (* 16.0 dur))) (Math/log n)) (max 0.0) (min 1.0))))
             depth (-> (double (or (:accent-depth midi) 0.5)) (max 0.0) (min 1.0))]
