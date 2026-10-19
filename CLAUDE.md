@@ -1286,9 +1286,14 @@ guessing a grouping (real practice groups them in genuinely
 piece/convention-dependent ways) — write the explicit form if you want a
 specific feel.
 
-Set it via `!Meter:N/D` (bare ratio -- e.g. `!Meter:7/8`) or
+Set it via `!Meter:N/D` (bare ratio -- e.g. `!Meter:7/8`),
 `!Meter:"N/D(a+b+c)"` (quoted, additive grouping, groups must sum to the
-numerator) — the `:M` alias also works. Both forms reach the context
+numerator), or as the factors of its pulses, indispensability's own
+form: `!M:223` is 2×2×3 eighths (12/8, `subdivisions` `[2 2 3]`),
+`!M:232` the same length grouped otherwise, `!M:2232/16` sixteenths --
+two or more digits, each 2, 3, 5 or 7, an eighth's pulse unless `/n`
+(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` alias
+also works. Both forms reach the context
 correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.

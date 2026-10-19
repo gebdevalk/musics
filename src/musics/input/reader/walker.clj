@@ -1013,7 +1013,7 @@
             state')
 
           :SignedInt
-          (let [parsed-val (Integer/parseInt val)
+          (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) (Integer/parseInt val))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]

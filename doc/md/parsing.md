@@ -217,6 +217,8 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!allegro !marciaModerato c4]        % named tempo markings
 [!Meter:7/8 c4]                      % a meter
 [!Meter:"7/8(2+2+3)" c4]             % a meter with explicit grouping
+[!M:223 c8]                          % a meter as the factors of its pulses: 2x2x3 eighths (12/8)
+[!M:232 c8]                          % the same length grouped otherwise; !M:2232/16 sixteenths
 [!swing c8 d e f]                    % swung eighths, the off-beat late (0.6)
 [!swing:0.7 !swingUnit:16 c16 d e f] % the long note's share of a pair; sixteenths
 [!straight !shuffle c8 d]            % 0.5 straight; !shuffle 2/3, a triplet feel

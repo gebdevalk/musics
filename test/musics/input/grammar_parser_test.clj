@@ -804,3 +804,11 @@
   (testing "a context referenced in a line carries its @ params along"
     (let [{:keys [tree]} (gp/parse-domain-string "^{set: @k:5} [s: :set c4]")]
       (is (= 5 (c/ctx-value-chain [(:context (get tree :s))] "@k" 0))))))
+
+(deftest a-meter-as-its-factors
+  (let [meter-of (fn [text] (let [{:keys [tree]} (gp/parse-domain-string text)
+                                  s (some #(when (= :SEQ (:type %)) %) (vals tree))]
+                              (c/ctx-value-chain [(:context s)] :Meter 0)))]
+    (is (= [12 8 [2 2 3]] ((juxt :num :den :subdivisions) (meter-of "[!M:223 c8]"))))
+    (is (= [4 4 [2 2]] ((juxt :num :den :subdivisions) (meter-of "[!M:22/4 c4]"))))))
+

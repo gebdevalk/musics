@@ -100,9 +100,10 @@
 (defn additive? [{:keys [subdivisions]}] (some? subdivisions))
 
 (defn meter->str [{:keys [num den subdivisions]}]
-  (if subdivisions
-    (str num "/" den "(" (str/join "+" subdivisions) ")")
-    (str num "/" den)))
+  (cond
+    (nil? subdivisions)                    (str num "/" den)
+    (= num (reduce + subdivisions))        (str num "/" den "(" (str/join "+" subdivisions) ")")
+    :else                                  (str (str/join subdivisions) (when (not= den 8) (str "/" den)))))
 
 (defn meter->lilypond [{:keys [num den]}] (str "\\time " num "/" den))
 
@@ -153,9 +154,31 @@
     (conj (vec (prime-factors-ascending (quot num 3))) 3)
     (vec (prime-factors-ascending num))))
 
+(declare parse-meter-str*)
+
+(defn- factor-meter
+  "\"223\", \"2232/16\": a meter as the factors of its pulses, as
+   indispensability takes them -- 2 x 2 x 3 pulses, each an eighth unless
+   /n says otherwise -- or nil when s isn't one: two or more digits, each
+   2, 3, 5 or 7 (a single digit means the same either way, 3/4 is three
+   quarters)."
+  [s]
+  (when-let [[_ digits den] (re-matches #"([2357]{2,}|[2357])(?:/(\d+))?" s)]
+    (when (or (> (count digits) 1) (nil? den))
+      (let [fs (mapv #(Character/digit (char %) 10) digits)]
+        (->Meter (reduce * fs) (if den (Integer/parseInt den) 8) fs)))))
+
 (defn parse-meter-str
   "Parse \"N/D\" or \"N/D(a+b+c)\" (the format meter->str prints) into a
-   Meter. Throws if the additive groups (when given) don't sum to N."
+   Meter -- or the factors of its pulses, \"223\" (12/8, its
+   subdivisions [2 2 3]) or \"22/4\" (4/4): two or more digits, each 2,
+   3, 5 or 7, an eighth's pulse unless /n is given. Throws if the
+   additive groups (when given) don't sum to N."
+  [s]
+  (or (factor-meter s)
+      (parse-meter-str* s)))
+
+(defn- parse-meter-str*
   [s]
   (let [[_ num-str den-str _ groups-str]
         (re-matches #"(\d+)/(\d+)(\((\d+(?:\+\d+)*)\))?" s)]

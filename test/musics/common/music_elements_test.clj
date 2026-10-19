@@ -58,6 +58,16 @@
   (doseq [s ["4/4" "3/4" "6/8" "7/8(2+2+3)" "5/8(3+2)"]]
     (is (= s (el/meter->str (el/parse-meter-str s))))))
 
+(deftest parse-meter-str-takes-the-factors-of-its-pulses
+  (is (= [12 8 [2 2 3]] ((juxt :num :den :subdivisions) (el/parse-meter-str "223"))) "an eighth's pulse by default")
+  (is (= [12 8 [2 3 2]] ((juxt :num :den :subdivisions) (el/parse-meter-str "232"))) "the same length, grouped otherwise")
+  (is (= [24 16 [2 2 3 2]] ((juxt :num :den :subdivisions) (el/parse-meter-str "2232/16"))) "/n the pulse")
+  (is (= [4 4] ((juxt :num :den) (el/parse-meter-str "22/4"))))
+  (is (= [12 8 nil] ((juxt :num :den :subdivisions) (el/parse-meter-str "12/8"))) "a 1 in it: an ordinary meter")
+  (is (= "223" (el/meter->str (el/parse-meter-str "223"))) "prints back")
+  (is (not= (el/metric-weights (el/parse-meter-str "223") 1/8) (el/metric-weights (el/parse-meter-str "232") 1/8))
+      "the grouping weighs the pulses"))
+
 (deftest parse-meter-str-rejects-mismatched-subdivisions
   (is (thrown? clojure.lang.ExceptionInfo (el/parse-meter-str "7/8(2+2+2)"))))
 

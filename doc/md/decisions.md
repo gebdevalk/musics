@@ -1543,3 +1543,16 @@ ignored. The significant keys are capitals, `Tempo` `T`, `Key` `K` and
 `k` its names, all read by `KeyAssignment` (which writes back the name
 as written); the text entry is gone. Contexts saved by `write`/
 `persist-session` before hold the key under `"key"` and lose it on load.
+
+## 2026-10-19 — a meter as the factors of its pulses
+
+A meter can be written as the factors indispensability takes: `!M:223`
+is 2 x 2 x 3 pulses (12/8), `!M:232` the same bar grouped otherwise,
+which weighs its pulses differently (the accents and the groove read
+it). A pulse is an eighth unless `/n` says (`!M:2232/16`, `!M:22/4`) --
+one rule, written as a meter's denominator, chosen over reading it off
+the last digit (compound when it is 3). Two or more digits, each 2, 3,
+5 or 7, are factors; a single digit means the same either way (`3/4` is
+three quarters), and an ordinary meter with another digit (`12/8`,
+`9/8`) reads as before. A real 22/4 or 35/16 can't be written with
+digits then -- the quoted `"N/D(…)"` form still can.
