@@ -150,8 +150,8 @@
    each level a clear step, so a grouping is heard), under !accent:barlow
    by Barlow's finer ranking (the groove's weights), under !accent:agogic
    by its length (a sixteenth the least, a bar the most) -- the weakest
-   note losing, the strongest gaining, up to half its velocity at
-   !accentDepth:1."
+   note losing, the strongest gaining, up to a quarter of its velocity
+   at !accentDepth:1."
   [midi pos dur]
   (let [kind (some-> (:accent midi) keyword)]
     (if (or (not (#{:metric :barlow :agogic} kind)) (not (pos? dur)) (zero? (:velocity midi 0)))
@@ -166,7 +166,7 @@
                     (let [n (max 2 (* 16 (el/meter-bar-length meter)))]
                       (-> (/ (Math/log (max 1.0 (* 16.0 dur))) (Math/log n)) (max 0.0) (min 1.0))))
             depth (-> (double (or (:accent-depth midi) 0.5)) (max 0.0) (min 1.0))]
-        (update midi :velocity #(-> (* % (+ 1.0 (* depth (- w 0.5)))) Math/round (max 1) (min 127) int))))))
+        (update midi :velocity #(-> (* % (+ 1.0 (* depth 0.5 (- w 0.5)))) Math/round (max 1) (min 127) int))))))
 
 (defn- felt
   "midi as heard: its swing and its groove folded into :micro and

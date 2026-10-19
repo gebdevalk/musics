@@ -50,7 +50,7 @@
    :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}
    :quant-strength {:type :double :min 0.0  :max 1.0   :default 1.0 :scale :linear :doc "quantization strength"}
    :swing          {:type :double :min 0.5  :max 0.75  :default 0.5 :scale :linear :doc "the long note's share of a swung pair: 0.5 straight, 0.6 jazz swing, 2/3 a triplet shuffle, 0.75 dotted"}
-   :accent-depth   {:type :double :min 0.0  :max 1.0   :default 0.5 :scale :linear :doc "how much !accent: weighs: the weakest note loses, the strongest gains, up to half its velocity at 1.0"}
+   :accent-depth   {:type :double :min 0.0  :max 1.0   :default 0.5 :scale :linear :doc "how much !accent: weighs: the weakest note loses, the strongest gains, up to a quarter of its velocity at 1.0"}
    :groove         {:type :double :min -1.0 :max 1.0   :default 0.0 :scale :linear :doc "laid back (+) or pushed (-): the weaker a note's place in the bar, the further it moves, up to a 32nd"}
    :swing-unit     {:type :ratio  :min 1/64 :max 1     :default 1/8 :scale :log    :doc "the note value swung, in pairs: 1/8 eighths, 1/16 sixteenths"}
    :window         {:type :int    :min 0    :max 64    :default 0   :scale :linear :doc "algorithmic window size"}})

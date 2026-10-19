@@ -1595,3 +1595,6 @@ level alike, each level a clear step -- an additive meter's group starts
 one level, their insides below. Barlow's ranking stays as
 `!accent:barlow`, for its finer differences, and is still what the
 groove and the algos' probabilities read.
+At depth 1 the weakest note lost half its velocity and the strongest
+gained half: too pronounced. Depth 1 is a quarter each way now, the
+default 0.5 an eighth.
