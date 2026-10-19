@@ -92,6 +92,16 @@ Music without a name is no voice of its own: `>` stops everything,
 `>+` adds it under an id the engine gives (`:TAA` …), shown by
 `voices`.
 
+Voices also go by register: `soprano`, `alto`, `tenor` and `bass` give
+the id of the voice that is highest, next highest, next lowest and
+lowest now. A voice's id on top of a play word plays as that voice:
+
+```
+soprano <                     what the top voice plays
+soprano < 12 + soprano >>     the soprano an octave up, at its boundary
+bass hush                     silence the lowest voice
+```
+
 `echo` prints each note as it sounds; `echo` again stops it.
 
 ## 3. Putting music together

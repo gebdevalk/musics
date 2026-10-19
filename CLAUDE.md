@@ -271,7 +271,10 @@ is a voice of that name (`[bass: c d] >`, a loop of it too): playing it
 replaces only that voice (`>` now, `>>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
 everything or joins under an engine id. `voices` (`<<`), `:bass stop`,
-`:bass playing` (`:bass <`), `:bass hush`, `:bass solo` (`engine/stop-voice!`,
+`:bass playing` (`:bass <`), `:bass hush`, `:bass solo`; `soprano`/
+`alto`/`tenor`/`bass` give the voice in that role by mean pitch
+(`musics.mu.material/roles`), and a voice's id on top of a play word is
+the voice to play as (`soprano < 12 + soprano >>`) (`engine/stop-voice!`,
 `hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Every sign
 has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, `+` `up`, `*` `stretch`, ...). Printing is isomorphic to

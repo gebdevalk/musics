@@ -295,7 +295,7 @@
           (run ":mel solo")
           (is (nil? (:solo (engine/hushed))) "solo again and all sound")
           (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass <"))))) "< is playing")
-          (is (re-find #":bass  \[bass:" (out "<<")) "<< is voices")
+          (is (re-find #":bass .*\[bass:" (out "<<")) "<< is voices")
           (is (re-find #"compare numbers write lt" (:error (run "3 4 <"))) "< on numbers points to lt")
           (run ":mel stop")
           (is (= #{:bass} (ids)) "stop one voice")
@@ -327,4 +327,24 @@
           (is (= "[bass: !tempo:240 G3/16 A3]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "changed at the end of its pass")
           (is (contains? (mt/live-voices) :mel) ":mel plays on")
           (finally (mt/stop-all!)))))))
+
+(deftest voices-take-roles-by-pitch
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (run "[!tempo:60 C5/1 D5] >")
+        (run "[!tempo:60 C3/1 D3] >+")
+        (is (= #{:soprano :bass} (set (keys (mt/roles)))) "two voices: soprano and bass")
+        (run "[!tempo:60 E4/1 F4] >+")
+        (run "[!tempo:60 G3/1 A3] >+")
+        (run "[!tempo:60 x1 x1] >+")
+        (let [rs (mt/roles)]
+          (is (= #{:soprano :alto :tenor :bass} (set (keys rs))) "four with pitch; the drums have none")
+          (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "soprano <"))))) "soprano: the highest")
+          (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "bass <"))))) "bass: the lowest")
+          (run "[!tempo:60 C6/1] alto >")
+          (is (= "[!tempo:60 C6/1]" (p/show (mt/playing (:alto rs)))) "x alto > plays as the alto's voice")
+          (is (= (:alto rs) (:soprano (mt/roles))) "and, higher now, it is the soprano"))
+        (is (re-find #"\(soprano\)" (out "<<")) "<< shows the roles")
+        (finally (mt/stop-all!))))))
 

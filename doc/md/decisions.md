@@ -1490,3 +1490,16 @@ a hushed voice keeps its place and comes back in time. `play-change`,
 Short forms: `<<` for `voices`, `<` for `playing` (the mirror of `>`;
 on numbers it still points to `lt`). `..` stays the range: stopping a
 voice with it was considered and dropped, one sign two meanings.
+
+## 2026-10-19 — voices by register: soprano, alto, tenor, bass
+
+Engine ids (`:TAA` …) follow the order voices start, not their pitch.
+The voice types are offered as roles beside the ids: ranked by the mean
+pitch of what each voice plays, highest soprano, lowest bass, next
+highest alto, next lowest tenor -- chosen over fixed choir ranges, which
+could leave no soprano or two altos, while a rank always finds one. The
+roles are words (`soprano <`), not keywords, so `:bass` is only ever a
+name and `bass` only ever the role. Ids aren't renamed as the ranking
+changes: a role is read each time it is used. To alter a voice
+without its name, a play word takes a voice's id on top as the voice to
+play as (`soprano < 12 + soprano >>`).

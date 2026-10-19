@@ -292,34 +292,43 @@
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
-(word! "play" "play" "( material [^{ }] -- )  play it now, stopping what plays (also >); named music ([bass: …]) replaces only its own voice; under a context on top, if given"
-       (fn [s]
-         (need s 1 "play")
-         (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
-           (need s 1 "play")
-           (mt/play! (peek s) ctx)
-           (pop s))))
+(defn- target-of
+  "[voice-id stack]: a voice's id on top (:bass, soprano) is the voice to
+   play as; else nil."
+  [s]
+  (if (keyword? (peek s)) [(peek s) (pop s)] [nil s]))
 
-(word! "play" "play+" "( material [^{ }] -- )  play it now, joining what plays (also >+)"
+(word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given"
        (fn [s]
-         (need s 1 "play+")
-         (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+         (let [[target s] (target-of s)]
+           (need s 1 "play")
+           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+             (need s 1 "play")
+             (mt/play! (peek s) ctx false target)
+             (pop s)))))
+
+(word! "play" "play+" "( material [^{ }] [voice] -- )  play it now, joining what plays (also >+)"
+       (fn [s]
+         (let [[target s] (target-of s)]
            (need s 1 "play+")
-           (mt/play! (peek s) ctx true)
-           (pop s))))
+           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+             (need s 1 "play+")
+             (mt/play! (peek s) ctx true target)
+             (pop s)))))
 
 (word! "play" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "play" "play"])))
 (word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "play" "play+"])))
 
 (defn- staged-word
-  "( material [^{ }] [|…||||] -- ): stage! from the next boundary."
+  "( material [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
   [word join?]
   (fn [s]
-    (let [[n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
+    (let [[target s] (target-of s)
+          [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
       (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
         (need s 1 word)
-        (mt/stage! (peek s) ctx n join?)
+        (mt/stage! (peek s) ctx n join? target)
         (pop s)))))
 
 (word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
@@ -346,16 +355,24 @@
 
 (word! "play" "voices" "( -- )  what plays: each voice's id, its material, and whether it is hushed or soloed"
        (fn [s]
-         (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)]
+         (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)
+               role-of (into {} (map (fn [[r id]] [id (name r)])) (mt/roles))]
            (if (empty? vs)
              (println "nothing plays")
              (doseq [[id {:keys [x]}] (sort-by key vs)
                      :let [shown (p/show x)
                            mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
-               (println (str (pr-str id) "  " (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))
+               (println (str (pr-str id) (some->> (role-of id) (str " (") (#(str % ")"))) "  "
+                             (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
        (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
+(doseq [[role w] [[:soprano "soprano"] [:alto "alto"] [:tenor "tenor"] [:bass "bass"]]]
+  (word! "play" w (str "( -- voice )  the id of the voice that is the " w " now, by mean pitch among what plays: " w " <, " w " hush, x " w " >>")
+         (fn [s]
+           (conj s (or (get (mt/roles) role)
+                       (e/mu-error (str w ":") "no voice is the" w "now -- voices lists what plays"))))))
+
 (word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (:fn (get-in @e/state [:ns "play" "voices"])))
 (word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass <; numbers compare with lt"
        (fn [s]

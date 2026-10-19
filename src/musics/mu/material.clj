@@ -327,19 +327,41 @@
   []
   (into {} (filter (fn [[id _]] (engine/voice-at id))) @voices))
 
+(defn mean-pitch
+  "x's mean pitch (a note's, or a line's as written), nil without pitch."
+  [x]
+  (d/mean-pitch (if (leaf? x) x (v/node (->material x)))))
+
+(defn roles
+  "role -> voice id among what mu plays, by mean pitch: the highest
+   :soprano, the lowest :bass, the next highest :alto and the next
+   lowest :tenor -- as there are voices for them (two: soprano and bass;
+   three: and alto). A voice without pitch (drums) has none."
+  []
+  (let [ranked (->> (live-voices)
+                    (keep (fn [[id {:keys [x]}]] (when-let [m (mean-pitch x)] [id m])))
+                    (sort-by (fn [[id m]] [(- m) (str id)]))
+                    (mapv first))
+        n      (count ranked)]
+    (cond-> {}
+      (pos? n)  (assoc :soprano (ranked 0))
+      (> n 1)   (assoc :bass (ranked (dec n)))
+      (> n 2)   (assoc :alto (ranked 1))
+      (> n 3)   (assoc :tenor (ranked (- n 2))))))
+
 (defn- keep! [id x ctx mat]
   (when (keyword? id) (swap! voices assoc id {:x x :ctx ctx :ends (ends-of mat)}))
   id)
 
 (defn play!
   "Play x, under a context if given, without storing either; its voice
-   id back. Named music ([bass: …]) replaces only its own voice, or adds
-   it. Otherwise everything playing stops first, or with join? true x
-   joins it under an id of its own."
-  [x ctx & [join?]]
+   id back. Played as a voice -- target, else its own name ([bass: …]) --
+   it replaces only that voice, or adds it. Otherwise everything playing
+   stops first, or with join? true x joins it under an id of its own."
+  [x ctx & [join? target]]
   (reset! last-played x)
   (let [[eng form mat] (prepared x ctx)
-        name (voice-name mat)]
+        name (or target (voice-name mat))]
     (reg/log! :play)
     (binding [engine/*engine* eng]
       (cond
@@ -376,12 +398,12 @@
    the conductor, starting exactly when the boundary is due. Named
    music replaces only its voice; otherwise x replaces everything, or
    with join? true joins it. Plays at once when nothing plays."
-  [x ctx count & [join?]]
+  [x ctx count & [join? target]]
   (let [live (live-voices)]
     (if-not (engine/busy?)
-      (play! x ctx join?)
+      (play! x ctx join? target)
       (let [[eng form mat] (prepared x ctx)
-            name   (voice-name mat)
+            name   (or target (voice-name mat))
             ends   (if-let [v (and name (get live name))] (:ends v) (into #{} (mapcat :ends) (vals live)))
             ks     (if (or count (empty? ends)) [[[:mark (or count 1)] :enter]] (mapv (fn [id] [id :exit]) ends))
             target (or name (if join? (keyword "mu" (str (gensym "join"))) ::all))
