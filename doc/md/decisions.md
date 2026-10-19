@@ -1502,4 +1502,8 @@ roles are words (`soprano <`), not keywords, so `:bass` is only ever a
 name and `bass` only ever the role. Ids aren't renamed as the ranking
 changes: a role is read each time it is used. To alter a voice
 without its name, a play word takes a voice's id on top as the voice to
-play as (`soprano < 12 + soprano >>`).
+play as (`soprano < 12 + soprano >>`). An index addresses a voice the
+same way, 1 the lowest with pitch up to n, 0 the one without (drums:
+they have no place in a pitch order, and 0 keeps them out of the
+count); several drum voices make 0 ambiguous, refused. So a number on
+`<` is an index now; comparing still points to `lt` for a fraction.

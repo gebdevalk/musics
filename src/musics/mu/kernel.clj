@@ -293,14 +293,16 @@
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
 
 (defn- target-of
-  "[voice-id stack]: a voice's id on top (:bass, soprano) is the voice to
-   play as; else nil."
-  [s]
-  (if (keyword? (peek s)) [(peek s) (pop s)] [nil s]))
+  "[voice-id stack]: a voice's id (:bass, soprano) or index (1 the
+   lowest) on top is the voice to play as; else nil."
+  [s word]
+  (if (or (keyword? (peek s)) (integer? (peek s)))
+    [(mt/voice-id word (peek s)) (pop s)]
+    [nil s]))
 
 (word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given"
        (fn [s]
-         (let [[target s] (target-of s)]
+         (let [[target s] (target-of s "play")]
            (need s 1 "play")
            (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
              (need s 1 "play")
@@ -309,7 +311,7 @@
 
 (word! "play" "play+" "( material [^{ }] [voice] -- )  play it now, joining what plays (also >+)"
        (fn [s]
-         (let [[target s] (target-of s)]
+         (let [[target s] (target-of s "play+")]
            (need s 1 "play+")
            (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
              (need s 1 "play+")
@@ -323,7 +325,7 @@
   "( material [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
   [word join?]
   (fn [s]
-    (let [[target s] (target-of s)
+    (let [[target s] (target-of s word)
           [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
       (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
@@ -340,16 +342,16 @@
 (word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "play" "stop" "( [voice] -- )  stop everything that plays (Alt+.), or with a voice's id on top only that voice: :bass stop"
+(word! "play" "stop" "( [voice] -- )  stop everything that plays (Alt+.), or with a voice's id or index on top only that voice: :bass stop, 1 stop"
        (fn [s]
-         (if (keyword? (peek s))
-           (do (mt/stop-voice! (peek s)) (pop s))
+         (if (or (keyword? (peek s)) (integer? (peek s)))
+           (do (mt/stop-voice! (mt/voice-id "stop" (peek s))) (pop s))
            (do (mt/stop-all!) s))))
 
 (defn- voice-arg [s word]
   (need s 1 word)
-  (let [id (peek s)]
-    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id, :bass or :TAA -- voices lists them"))
+  (let [id (mt/voice-id word (peek s))]
+    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id or index, :bass, :TAA or 1 (the lowest) -- voices lists them"))
     (when-not (engine/voice-at id) (e/mu-error (str word ":") (pr-str id) "isn't playing -- voices lists what plays"))
     id))
 
@@ -359,10 +361,12 @@
                role-of (into {} (map (fn [[r id]] [id (name r)])) (mt/roles))]
            (if (empty? vs)
              (println "nothing plays")
-             (doseq [[id {:keys [x]}] (sort-by key vs)
-                     :let [shown (p/show x)
+             (doseq [[i id] (let [[pitched drums] (mt/ranked)]
+                              (concat (map (fn [id] [0 id]) drums) (map-indexed (fn [i id] [(inc i) id]) pitched)))
+                     :let [{:keys [x]} (get vs id)
+                           shown (p/show x)
                            mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
-               (println (str (pr-str id) (some->> (role-of id) (str " (") (#(str % ")"))) "  "
+               (println (str i " " (pr-str id) (some->> (role-of id) (str " (") (#(str % ")"))) "  "
                              (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
@@ -374,9 +378,10 @@
                        (e/mu-error (str w ":") "no voice is the" w "now -- voices lists what plays"))))))
 
 (word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (:fn (get-in @e/state [:ns "play" "voices"])))
-(word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass <; numbers compare with lt"
+(word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass < or 1 < (the lowest); to compare numbers write lt"
        (fn [s]
-         (when (number? (peek s)) (e/mu-error "<: takes a voice's id (:bass <); to compare numbers write lt"))
+         (when (and (number? (peek s)) (not (integer? (peek s))))
+           (e/mu-error "<: takes a voice's id or index (:bass <, 1 <); to compare numbers write lt"))
          ((:fn (get-in @e/state [:ns "play" "playing"])) s)))
 (word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
        (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))

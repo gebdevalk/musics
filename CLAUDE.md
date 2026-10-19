@@ -273,8 +273,10 @@ others going on (`musics.engine/play-at!`); unnamed music stops
 everything or joins under an engine id. `voices` (`<<`), `:bass stop`,
 `:bass playing` (`:bass <`), `:bass hush`, `:bass solo`; `soprano`/
 `alto`/`tenor`/`bass` give the voice in that role by mean pitch
-(`musics.mu.material/roles`), and a voice's id on top of a play word is
-the voice to play as (`soprano < 12 + soprano >>`) (`engine/stop-voice!`,
+(`musics.mu.material/roles`), an index addresses a voice too (1 the
+lowest with pitch .. n, 0 the drums: `mt/voice-id`), and a voice's id or
+index on top of a play word is the voice to play as (`soprano < 12 +
+soprano >>`) (`engine/stop-voice!`,
 `hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Every sign
 has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, `+` `up`, `*` `stretch`, ...). Printing is isomorphic to

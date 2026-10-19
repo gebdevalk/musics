@@ -102,6 +102,9 @@ soprano < 12 + soprano >>     the soprano an octave up, at its boundary
 bass hush                     silence the lowest voice
 ```
 
+Or by index, low to high: `1` the lowest voice, `2` the next … and `0`
+the drums. `1 <`, `3 hush`, `0 stop`, `x 2 >>`; `<<` numbers them.
+
 `echo` prints each note as it sounds; `echo` again stops it.
 
 ## 3. Putting music together

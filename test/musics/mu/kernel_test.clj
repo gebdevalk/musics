@@ -47,7 +47,7 @@
   (is (= [3] (:ok (run "2.7 round"))))
   (is (re-find #"add: needs two numbers" (:error (run "1 \"x\" add"))))
   (is (re-find #"\+: is musical; on numbers write add" (:error (run "1 2 +"))))
-  (is (re-find #"<: takes a voice's id.*to compare numbers write lt" (:error (run "1 1 <")))))
+  (is (re-find #"compare numbers write lt" (:error (run "1 1.5 <")))))
 
 (deftest comparisons-and-control
   (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
@@ -296,7 +296,7 @@
           (is (nil? (:solo (engine/hushed))) "solo again and all sound")
           (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass <"))))) "< is playing")
           (is (re-find #":bass .*\[bass:" (out "<<")) "<< is voices")
-          (is (re-find #"compare numbers write lt" (:error (run "3 4 <"))) "< on numbers points to lt")
+          (is (re-find #"no voice 4" (:error (run "4 <"))) "< on a number is an index; past the voices an error")
           (run ":mel stop")
           (is (= #{:bass} (ids)) "stop one voice")
           (is (re-find #"isn't playing" (:error (run ":mel playing"))))
@@ -346,5 +346,25 @@
           (is (= "[!tempo:60 C6/1]" (p/show (mt/playing (:alto rs)))) "x alto > plays as the alto's voice")
           (is (= (:alto rs) (:soprano (mt/roles))) "and, higher now, it is the soprano"))
         (is (re-find #"\(soprano\)" (out "<<")) "<< shows the roles")
+        (finally (mt/stop-all!))))))
+
+(deftest voices-by-index-low-to-high-drums-at-0
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (run "[!tempo:60 C5/1 D5] >")
+        (run "[!tempo:60 C3/1 D3] >+")
+        (run "[!tempo:60 E4/1 F4] >+")
+        (run "[!tempo:60 x1 x1] >+")
+        (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "1 <"))))) "1 the lowest")
+        (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "3 <"))))) "n the highest")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums")
+        (run "2 hush")
+        (is (= 1 (count (:hushed (engine/hushed)))) "an index wherever a voice goes")
+        (run "[!tempo:60 C6/1] 1 >")
+        (is (= "[!tempo:60 C6/1]" (p/show (first (:ok (run "3 <"))))) "x 1 > plays as voice 1, which is now the highest")
+        (is (re-find #"(?m)^0 :" (out "<<")) "<< numbers them, drums 0")
+        (run "0 stop")
+        (is (re-find #"no voice without pitch" (:error (run "0 <"))))
         (finally (mt/stop-all!))))))
 

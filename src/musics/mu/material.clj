@@ -332,6 +332,29 @@
   [x]
   (d/mean-pitch (if (leaf? x) x (v/node (->material x)))))
 
+(defn ranked
+  "[pitched unpitched]: the voice ids mu plays with pitch, lowest mean
+   pitch first -- index 1..n -- and those without (drums), index 0."
+  []
+  (let [ms (map (fn [[id {:keys [x]}]] [id (mean-pitch x)]) (live-voices))]
+    [(mapv first (sort-by (fn [[id m]] [m (str id)]) (filter second ms)))
+     (vec (sort-by str (map first (remove second ms))))]))
+
+(defn voice-id
+  "A voice's id from what addresses it: its id, or its index -- 1 the
+   lowest voice with pitch, n the highest, 0 the one without (drums)."
+  [word x]
+  (if (integer? x)
+    (let [[pitched drums] (ranked)]
+      (if (zero? x)
+        (case (count drums)
+          0 (e/mu-error (str word ":") "no voice without pitch (drums) plays -- 0 is theirs")
+          1 (first drums)
+          (e/mu-error (str word ":") "several voices without pitch play --" (str/join " " (map pr-str drums)) "-- use their ids"))
+        (or (get pitched (dec x))
+            (e/mu-error (str word ":") "no voice" x "--" (count pitched) "with pitch play, 1 the lowest; voices lists them"))))
+    x))
+
 (defn roles
   "role -> voice id among what mu plays, by mean pitch: the highest
    :soprano, the lowest :bass, the next highest :alto and the next

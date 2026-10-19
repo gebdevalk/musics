@@ -400,6 +400,10 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `soprano <`, `bass hush`, and -- a voice's id on top of a play word
   being the voice to play as -- `soprano < 5 + soprano >>` alters the
   soprano at its boundary, whatever its name. `<<` shows each role.
+- **Voices by index**: wherever a voice's id goes, its index does too,
+  by the same mean pitch: `1` the lowest voice with pitch, `n` the
+  highest, `0` the voice without (drums; with several, use their ids).
+  `1 <`, `2 hush`, `0 stop`, `x 1 >>`; `<<` lists them by index.
 
 ### Arithmetic on material, accessors
 
