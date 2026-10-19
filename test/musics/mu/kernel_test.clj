@@ -47,7 +47,7 @@
   (is (= [3] (:ok (run "2.7 round"))))
   (is (re-find #"add: needs two numbers" (:error (run "1 \"x\" add"))))
   (is (re-find #"\+: is musical; on numbers write add" (:error (run "1 2 +"))))
-  (is (re-find #"<: isn't a word; to compare numbers write lt" (:error (run "1 1 <")))))
+  (is (re-find #"<: takes a voice's id.*to compare numbers write lt" (:error (run "1 1 <")))))
 
 (deftest comparisons-and-control
   (is (= [true false true true] (:ok (run "1 2 lt  1 2 eq  1 1 eq  2 2 ge"))))
@@ -294,6 +294,9 @@
           (is (= [:mel] (:solo (engine/hushed))))
           (run ":mel solo")
           (is (nil? (:solo (engine/hushed))) "solo again and all sound")
+          (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass <"))))) "< is playing")
+          (is (re-find #":bass  \[bass:" (out "<<")) "<< is voices")
+          (is (re-find #"compare numbers write lt" (:error (run "3 4 <"))) "< on numbers points to lt")
           (run ":mel stop")
           (is (= #{:bass} (ids)) "stop one voice")
           (is (re-find #"isn't playing" (:error (run ":mel playing"))))

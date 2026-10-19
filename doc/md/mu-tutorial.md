@@ -64,8 +64,8 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
-| `voices` | what plays: each voice's id and its music |
-| `:bass playing` | the music the voice `:bass` plays, onto the stack |
+| `voices` or `<<` | what plays: each voice's id and its music |
+| `:bass playing` or `:bass <` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
 `>` plays now, `>>` at the next boundary; a `+` joins what plays

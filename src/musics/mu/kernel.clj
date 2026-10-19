@@ -234,7 +234,7 @@
 (word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
        (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
 
-(doseq [[w num] [["<" "lt"] ["<=" "le"] [">=" "ge"]]]
+(doseq [[w num] [["<=" "le"] [">=" "ge"]]]
   (word! "kernel" w (str "( -- )  not a word: compare numbers with " num)
          (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" num))))
 
@@ -356,6 +356,11 @@
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
        (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
+(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (:fn (get-in @e/state [:ns "play" "voices"])))
+(word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass <; numbers compare with lt"
+       (fn [s]
+         (when (number? (peek s)) (e/mu-error "<: takes a voice's id (:bass <); to compare numbers write lt"))
+         ((:fn (get-in @e/state [:ns "play" "playing"])) s)))
 (word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
        (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))
 (word! "play" "solo" "( voice -- )  only this voice sounds, the others keeping their place; again and all sound"

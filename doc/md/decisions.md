@@ -1487,3 +1487,6 @@ Unnamed music keeps its meaning (`>` stops all, `>+` joins under
 `:TAA` …). `hush` and `solo` silence in the engine at the note-on, so
 a hushed voice keeps its place and comes back in time. `play-change`,
 `play-at!` and `stop-voice!` share one `replace-voice!` under the lock.
+Short forms: `<<` for `voices`, `<` for `playing` (the mirror of `>`;
+on numbers it still points to `lt`). `..` stays the range: stopping a
+voice with it was considered and dropped, one sign two meanings.

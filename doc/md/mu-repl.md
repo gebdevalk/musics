@@ -250,7 +250,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` |
-| **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices`, `playing`, `hush`, `solo` |
+| **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<`, `playing` or `<`, `hush`, `solo` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
@@ -388,8 +388,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `x | >>`, is the next one of any voice). A name is one voice, so `>+`
   on it is `>`. Unnamed music stops everything (`>`) or joins under an
   id the engine gives (`>+`, `:TAA` …). `voices` lists what plays, with
-  its id; `:bass stop` stops one voice, `:bass playing` puts what it
-  plays on the stack (`:bass playing 5 + >>`), `:bass hush` silences it
+  its id (`<<` for short); `:bass stop` stops one voice, `:bass playing`
+  (`:bass <`) puts what it plays on the stack (`:bass < 5 + >>`), `:bass hush` silences it
   and `:bass solo` lets only it sound -- both keeping its place, again
   to undo.
 
