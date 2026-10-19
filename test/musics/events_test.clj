@@ -127,7 +127,7 @@
 (deftest a-top-level-set-mints-top-level-voices-lowest-first
   (parse! "[hi: c'4 ]")
   (parse! "[lo: C3 ]")
-  (is (= {[:TAA] [[48]] [:TAB] [[72]]}
+  (is (= {[:TA] [[48]] [:TB] [[72]]}
          (update-vals (group-by :path (notes (m/events #{:hi :lo}))) #(map :pitches %)))))
 
 (deftest render-writes-what-events-says

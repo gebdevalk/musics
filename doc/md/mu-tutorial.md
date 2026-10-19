@@ -89,7 +89,7 @@ replaces only that voice, the others going on:
 ```
 
 Music without a name is no voice of its own: `>` stops everything,
-`>+` adds it under an id the engine gives (`:TAA` …), shown by
+`>+` adds it under an id the engine gives (`:TA` …), shown by
 `voices`.
 
 Voices also go by register: `soprano`, `alto`, `tenor` and `bass` give

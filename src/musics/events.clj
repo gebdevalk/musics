@@ -7,7 +7,7 @@
 
    Every event carries :t (seconds from the start), :beat (structural
    time, whole notes, exact) and :path (the voice, as play would name it:
-   [:TAA], [:TAA :TAB], ...), plus by :kind
+   [:TA], [:TA :TB], ...), plus by :kind
 
      :note :drum :rest  musics.domain.resolve/resolve-event's MidiEvent
                         (:pitches :velocity :dur-secs :dur-played
@@ -347,11 +347,11 @@
 
 (defn voice-events
   "One top-level voice's lazy stream -- form walked as the voice at path
-   (default [:TAA]) with algo, from :t 0 -- every voice it forks
+   (default [:TA]) with algo, from :t 0 -- every voice it forks
    included. cutover (st id phase) -> st', if given, sees every
    boundary as it is computed: a section's :enter/:exit (id its id), a
    bar (id its number, :enter), a mark (id [:mark count n], :enter)."
-  [repo form & {:keys [path algo cutover] :or {path [:TAA]}}]
+  [repo form & {:keys [path algo cutover] :or {path [:TA]}}]
   (let [repo  (compose/live-repo repo)
         chain (if-let [root (:context (get repo :ROOT))] [root] [])
         st    {:repo repo :path path :algo algo :cutover cutover

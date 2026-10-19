@@ -168,19 +168,20 @@
 (def ^:private track-letters "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 (defn track-ids
-  "Every short track id -- T + two uppercase letters, :TAA :TAB ..
-   :TZZ, 676 total -- in a fixed order. Two independent consumers share
+  "Every short track id -- T + an uppercase letter, :TA :TB .. :TZ, then
+   (past 26) T + two, :TAA .. :TZZ -- in a fixed order. Two independent consumers share
    this one alphabet: play/play-add mint TOP-level ids from it (checked
    against eng's :voices for occupancy, see next-track-id), and rank-segments
    hands out PATH SEGMENTS from it per :PAR fork (unique only within
    that fork's own sibling list, not globally -- the full path is what
    :voices/:algo-prepared actually key on)."
   []
-  (for [a track-letters b track-letters] (keyword (str "T" a b))))
+  (concat (for [a track-letters] (keyword (str "T" a)))
+          (for [a track-letters b track-letters] (keyword (str "T" a b)))))
 
 (defn rank-segments
   "items (any seq -- real container children, or play-arg forms) -> a
-   vector of :TAA/:TAB/... segments, one per item, in the SAME order as
+   vector of :TA/:TB/... segments, one per item, in the SAME order as
    items itself. Computed by pairing each item with its own original
    index, sorting ascending by [(pitch-of item) index] (index breaks a
    tie deterministically, by original left-to-right position, rather
@@ -489,7 +490,7 @@
    no reliable order of its own to just mapv over the way a literal,
    ordered [:par ...] vector used to provide for free. Ranking here
    keeps display showing voices in the same order play would actually
-   assign them to :TAA/:TAB/..., not an arbitrary hash order."
+   assign them to :TA/:TB/..., not an arbitrary hash order."
   [repo forms ctx-chain clock structural]
   (let [ranked (->> (map-indexed vector forms)
                     (sort-by (fn [[i f]] [(mean-pitch-rank (form-pitch-source (live-repo repo) f)) i])))
@@ -597,7 +598,7 @@
 (declare show-form)
 
 (defn- labelled
-  "Branches as \"TAA [...]  TAB :algo :x [...]\" inside { }."
+  "Branches as \"TA [...]  TB :algo :x [...]\" inside { }."
   [id segs algos texts]
   (str "{" (when id (str (name id) ":")) " "
        (str/join "  " (map (fn [seg a t] (str (name seg) (when a (str " :algo " a)) " " t))

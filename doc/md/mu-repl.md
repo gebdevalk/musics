@@ -387,7 +387,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   now, `[bass: g a] >>` at the end of `:bass`'s own pass (a bar line,
   `x | >>`, is the next one of any voice). A name is one voice, so `>+`
   on it is `>`. Unnamed music stops everything (`>`) or joins under an
-  id the engine gives (`>+`, `:TAA` …). `voices` lists what plays, with
+  id the engine gives (`>+`, `:TA` …). `voices` lists what plays, with
   its id (`<<` for short); `:bass stop` stops one voice, `:bass playing`
   (`:bass <`) puts what it plays on the stack (`:bass < 5 + >>`), `:bass hush` silences it
   and `:bass solo` lets only it sound -- both keeping its place, again

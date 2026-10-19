@@ -344,7 +344,7 @@
     :play [["(t/live! :up5 up5 up5-tctx)" "a transform only binds the name"]
            ["(m/parse \"[verse: c4 e4 g4]\")" ""]
            ["(m/play :verse :algo :up5)" "the verse, a fourth higher"]]
-    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (m/sq :verse)) nil {:path [:TAA]})"]]}
+    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (m/sq :verse)) nil {:path [:TA]})"]]}
 
    {:group "Material"}
    {:title "Generated notes become committed musics text"
@@ -637,7 +637,7 @@
        "<div class=\"sl\"><span class=\"lab\">root</span><span class=\"v\">60</span><span>24</span><span class=\"track\"><i style=\"left:50%\"></i></span><span>96</span></div>"
        "<div>intervals  <span class=\"mono\">[0 2 4 7 9]</span></div>"
        "<div class=\"sl\"><span class=\"lab\">pulse</span><span class=\"v\">0.063</span><span>0.016</span><span class=\"track\"><i style=\"left:1%\"></i></span><span>4.000</span></div></div>"
-       "<div class=\"panel\"><b>Assign (prepares the NEXT mint at path)</b><span class=\"mono\">TAA</span> &nbsp; <span class=\"mono\">riff</span> &nbsp;<span class=\"btn\">Assign</span></div>"
+       "<div class=\"panel\"><b>Assign (prepares the NEXT mint at path)</b><span class=\"mono\">TA</span> &nbsp; <span class=\"mono\">riff</span> &nbsp;<span class=\"btn\">Assign</span></div>"
        "<span class=\"btn\">Close</span></div></div>\n"
 
        "<h2>9. Limits worth knowing</h2>\n<ul>\n"

@@ -295,7 +295,7 @@
 (defn voice-name
   "The voice a value plays as: its own name ([bass: c d] is :bass), a
    repeat's or loop's that of the line it repeats ([bass: c d] [~]); nil
-   when it has none -- then the engine gives it an id (:TAA …)."
+   when it has none -- then the engine gives it an id (:TA …)."
   [mat]
   (let [named #(let [id (:id %)] (when (and (keyword? id) (not (p/auto-id? id))) id))]
     (or (named mat)

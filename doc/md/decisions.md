@@ -1507,3 +1507,10 @@ same way, 1 the lowest with pitch up to n, 0 the one without (drums:
 they have no place in a pitch order, and 0 keeps them out of the
 count); several drum voices make 0 ambiguous, refused. So a number on
 `<` is an index now; comparing still points to `lt` for a fraction.
+
+## 2026-10-19 — track ids :TA .. :TZ
+
+A voice's engine id was T and two letters (`:TAA` .. `:TZZ`, 676), more
+than a session plays and longer to type at mu's prompt (`:TAA <`). They
+are T and one letter now, `:TA` .. `:TZ`; past 26 -- a parallel of more
+than 26 parts -- they go on with two letters, so nothing runs out.

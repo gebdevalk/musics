@@ -124,7 +124,7 @@ the clock and queues what it reads by time.
 - **Sequence and parallel.** A `:SEQ`'s children play one after another
   in the same voice; a `:PAR` forks one voice per child, and whatever
   follows it starts when its longest branch ends.
-- **Addresses.** Every voice has a path (`[:TAA]`, `[:TAA :TAB]`, …) in
+- **Addresses.** Every voice has a path (`[:TA]`, `[:TA :TB]`, …) in
   the engine's `:voices` map. `play` clears everything and mints fresh
   track ids; `play-add` mints ids next to what's playing; `play-change`
   replaces only the voice at a path you name. The children of a `:PAR`

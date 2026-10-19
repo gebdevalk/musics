@@ -868,9 +868,9 @@
        (parse! "[verse: c4 d4]")
        (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
        (m/play :verse :algo ::persist-bare)
-       (is (= ::persist-bare (:algo (m/voice-at [:TAA])))
+       (is (= ::persist-bare (:algo (m/voice-at [:TA])))
            "sanity: the assignment is really there before we persist it")
-       (is (= {[:TAA] ::persist-bare} (engine/live-algos))
+       (is (= {[:TA] ::persist-bare} (engine/live-algos))
            "and that's exactly what persist-session itself reads to build its
             snapshot -- engine/live-algos, not the (empty here) prep table")
        (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
@@ -883,7 +883,7 @@
              ;; matches restore-session's own documented contract.
              (m/build-algo! ::persist-bare (fn [nodes _ctx _voice] (reverse nodes)))
              (with-out-str (m/restore-session (.getPath tmp)))
-             (is (= ::persist-bare (get (m/algo-assignments) [:TAA]))
+             (is (= ::persist-bare (get (m/algo-assignments) [:TA]))
                  "the composer-typed Name survives the round-trip -- write/load
                   alone would have silently dropped this entirely"))
            (finally (io/delete-file tmp true)))))))
@@ -899,7 +899,7 @@
          (parse! "[verse: c4 d4]")
          (build-persist-factory!)
          (m/play :verse :algo ::persist-built)
-         (is (= {[:TAA] ::persist-built} (engine/live-algos))
+         (is (= {[:TA] ::persist-built} (engine/live-algos))
              "sanity: persist-session's own data source has it before we persist")
          (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
            (try
@@ -909,10 +909,10 @@
              (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
                (build-persist-factory!)
                (with-out-str (m/restore-session (.getPath tmp)))
-               (is (= ::persist-built (get (m/algo-assignments) [:TAA]))
+               (is (= ::persist-built (get (m/algo-assignments) [:TA]))
                    "just a bare Name, same as any other assignment -- nothing
                     args-shaped left to round-trip")
-               (let [resolved (wall/algo (get @(:algo-prepared engine/*engine*) [:TAA]))]
+               (let [resolved (wall/algo (get @(:algo-prepared engine/*engine*) [:TA]))]
                  (is (= [{:marked 5}] (resolved [{}] [] nil))
                      "restored assignment resolves to a REAL, correctly-built
                       wall fn, not just a name that happens to print back correctly")))
@@ -962,7 +962,7 @@
                (is (some? engine/*engine*)
                    "restore-session minted its own engine to have somewhere
                     to replay a non-empty algo-assignments table")
-               (is (= ::persist-needs-engine (get (m/algo-assignments) [:TAA])))
+               (is (= ::persist-needs-engine (get (m/algo-assignments) [:TA])))
                (finally (alter-var-root #'engine/*engine* (constantly prior-engine)))))
            (finally (io/delete-file tmp true)))))))
 
@@ -986,10 +986,10 @@
              ;; whether or not it currently resolves.
              (with-out-str (m/restore-session (.getPath tmp)))
              (is (= ::persist-forgotten
-                    (get @(:algo-prepared engine/*engine*) [:TAA]))
+                    (get @(:algo-prepared engine/*engine*) [:TA]))
                  "restore-session still stores the composer-typed Name as-is,
                   not silently clearing the path back to unassigned")
-             (is (nil? (wall/algo (get @(:algo-prepared engine/*engine*) [:TAA])))
+             (is (nil? (wall/algo (get @(:algo-prepared engine/*engine*) [:TA])))
                  "that Name resolves to nothing yet, so it plays unchanged"))
            (finally (io/delete-file tmp true)))))))
 

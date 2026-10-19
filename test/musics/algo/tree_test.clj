@@ -287,20 +287,20 @@
   (let [tctx (t/tctx (transpose :nodes) {:semitones 7})]
     (is (= :up7 (t/live! :up7 (transpose :nodes) tctx)) "a transform only binds the name")
     (let [f   (wall/algo :up7)
-          out (f [(d/leaf :n1 nil 1/4 [60]) (d/rest* :r nil 1/4)] nil {:path [:TAA]})]
+          out (f [(d/leaf :n1 nil 1/4 [60]) (d/rest* :r nil 1/4)] nil {:path [:TA]})]
       (is (= [[67] nil] (map :pitches out)))
-      (is (= out (f out nil {:path [:TAA]})) "already-transformed notes pass through"))))
+      (is (= out (f out nil {:path [:TA]})) "already-transformed notes pass through"))))
 
 (deftest a-live-tree-reads-the-music-it-plays-in
   (let [music (doto (c/context) (c/ctx-append "@semitones" 0 5 :fixed) (c/ctx-append "@root" 0 72 :fixed))]
     (t/live! :up (transpose :nodes) (t/tctx (transpose :nodes)))
-    (is (= [[65]] (map :pitches ((wall/algo :up) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TAA]})))
+    (is (= [[65]] (map :pitches ((wall/algo :up) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TA]})))
         "a setting the tctx leaves comes from the music")
     (t/live! :up7 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 7}))
-    (is (= [[67]] (map :pitches ((wall/algo :up7) [(d/leaf :n1 nil 1/4 [60])] [[music 0]] {:path [:TAA]})))
+    (is (= [[67]] (map :pitches ((wall/algo :up7) [(d/leaf :n1 nil 1/4 [60])] [[music 0]] {:path [:TA]})))
         "what the tctx sets comes first (a voice's chain holds [ctx offset] links)")
     (#'live/bind! :mel (t/as-node melody) (t/tctx melody))
-    (is (<= 72 (first (:pitches (first ((wall/algo :mel) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TAB]})))))
+    (is (<= 72 (first (:pitches (first ((wall/algo :mel) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TB]})))))
         "a generating tree too")))
 
 (deftest the-wall-window-offers-a-control-per-live-param

@@ -126,8 +126,8 @@
         (engine/play #{[:melody :melody] :bass})
         (is (= true (deref done 4000 :timeout)))))
     (let [by-voice (group-by first @sent)
-          melody   (map second (by-voice [:TAB]))
-          bass     (map second (by-voice [:TAA]))]
+          melody   (map second (by-voice [:TB]))
+          bass     (map second (by-voice [:TA]))]
       (is (= [60 62 64 65 55 53 52 50] melody)
           "pass 1 the original (the commit didn't reach it), pass 2 the rewrite")
       (is (= [48 36] bass) "the bass, which never crosses melody's exit, is untouched")))))

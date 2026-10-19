@@ -102,7 +102,7 @@ bridges structural boundaries (section enter/exit, bar crossings,
 author-placed `|`/`||`/`|||`/`||||` marks) to named, schedulable
 actions; every voice carries its own material/`:algo`/bar count/clock
 in its own `musics.events` stream, addressed by its own real path
-(`:TAA`, `:TAB`, ...) — its material a snapshot of the repo taken when
+(`:TA`, `:TB`, ...) — its material a snapshot of the repo taken when
 it starts, so a later commit never glitches a voice already
 mid-performance; `musics.engine` performs every voice's stream from one
 sender thread, a lookahead (100 ms) ahead;
@@ -470,7 +470,7 @@ container's children (`musics.events/walk-par`), or a `#{...}` play-arg
 group handed to `play`/`play-add`/etc. (`walk-form-par`, and
 `musics.engine/mint!` for a
 bare top-level `#{}` — see below) — labels its own children
-`:TAA`/`:TAB`/`...` by ASCENDING MEAN PITCH, lowest pitch getting the
+`:TA`/`:TB`/`...` by ASCENDING MEAN PITCH, lowest pitch getting the
 lowest id ("lowest voice lands in slot 0", the mixing-desk convention
 this project has always used for `:PAR` ordering). `rank-segments`
 (`musics.compose`) backs `walk-par`/`walk-form-par`; `mint!` inlines the
@@ -555,7 +555,7 @@ the same one-Form discipline every nested level already has —
 `:algo`-at-a-fixed-position discipline `tagged-form?` uses one level
 down). `mint!` recursively starts a real, addressable top-level
 voice (`start-voice!`, with a free short track id —
-`next-track-id`/`track-ids`, `:TAA`..`:TZZ`) for every part of
+`next-track-id`/`track-ids`, `:TA`..`:TZ`) for every part of
 `Form` that isn't itself an immediate `#{}` — a `#{}` branch whose own
 content is IMMEDIATELY just another `#{}`, with nothing else of its own
 to play, never gets an intermediate wrapping voice for that fact alone;
@@ -564,13 +564,13 @@ the exact same shared, occupancy-checked pool the outer level does, not
 an independent range — "every voice/track gets an id, not subparts."
 The return value mirrors this exactly: a single id for a plain Form, or
 (recursively) a `#{}` of ids for a `#{}` Form, matching wherever `#{}`
-was actually written — `(play #{:melody :bass})` -> `#{:TAA :TAB}`,
-`(play #{:melody #{:a :b}})` -> `#{:TAA #{:TAB :TAC}}` — every entry a
+was actually written — `(play #{:melody :bass})` -> `#{:TA :TB}`,
+`(play #{:melody #{:a :b}})` -> `#{:TA #{:TB :TC}}` — every entry a
 real, directly usable top-level path on its own, no reconstruction
 needed. Both still return straight-back-into-`voice-at`/
 `play-change`/`play-add`-usable ids/paths.
 `play` flushes EVERYTHING first, same as it always has — a solo call
-deterministically lands on `:TAA`, since nothing else survives the
+deterministically lands on `:TA`, since nothing else survives the
 flush; `play-add` never flushes, same as it always has — joining what's
 already there means a later call has to skip whatever's already
 occupying an earlier id. A voice's own `:algo` is baked in once at mint

@@ -357,7 +357,7 @@
    musics.gui.state/start-voice-poll!) but are genuinely DIFFERENT key
    spaces -- confirmed live, not assumed: a played container's own id
    is never itself a registered voice path (play/play-add always mint
-   a fresh :TAA/:TAB/... path), so this shows them as two separate
+   a fresh :TA/:TB/... path), so this shows them as two separate
    lists rather than trying to line them up id-by-id. waiting-ids is
    every other committed top-level id. Purely informational (no watch!/
    play here) -- use the Play Builder to act on one; its own Play
@@ -733,7 +733,7 @@
             {:children
              [(ui/text-field
                 {:text change-path
-                 :prompt "target path, e.g. TAA"
+                 :prompt "target path, e.g. TA"
                  :on-text-changed {:event/type :set-play-builder-change-path}})
               (ui/button {:text "Play Change (supersede)" :on-action {:event/type :play-builder-play-change}})]})
           (ui/label {:text (or message "")})
@@ -788,7 +788,7 @@
                          :children
                          [(ui/button-row
                             {:children
-                             [(ui/text-field {:text assign-path :prompt "target path, e.g. TAA"
+                             [(ui/text-field {:text assign-path :prompt "target path, e.g. TA"
                                               :on-text-changed {:event/type :set-wall-assign-path}})
                               (ui/text-field {:text assign-algo :prompt "algo name (blank clears)"
                                               :on-text-changed {:event/type :set-wall-assign-algo}})

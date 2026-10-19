@@ -228,15 +228,15 @@ history to pin against, only "now":
 ```clojure
 (m/connect)                        ;; open MIDI, wire up the engine (once)
 (m/play :verse)                    ;; single part -- returns a short
-                                    ;; track id, e.g. :TAA
+                                    ;; track id, e.g. :TA
 (m/play [:verse1 :verse2])         ;; sequentially -- [] is ALWAYS
                                     ;; sequential, same [ ] Sequence
                                     ;; brackets you'd write in text
 (m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel
                                     ;; (the text notation writes it { }),
                                     ;; forked onto separate MIDI channels, each
-                                    ;; voice labeled :TAA/:TAB/... by
-                                    ;; ASCENDING MEAN PITCH (lowest -> :TAA)
+                                    ;; voice labeled :TA/:TB/... by
+                                    ;; ASCENDING MEAN PITCH (lowest -> :TA)
 (m/stop!)                          ;; halt
 (m/pause!) (m/resume!)             ;; a sounding note is held in place,
                                     ;; not re-triggered, across pause/resume
@@ -254,7 +254,7 @@ context-refs.
 
 `play` always flushes everything -- every voice anywhere, at any path,
 however it got there -- and starts fresh, registering the new voice(s)
-under auto-picked short track id(s) (`:TAA`, `:TAB`, ... `:TZZ`) instead
+under auto-picked short track id(s) (`:TA`, `:TB`, ... `:TZ`) instead
 of an explicit path. `play-add` shares the exact same mini-language and
 also mints id(s), but never flushes -- it JOINS what's already sounding
 instead of replacing it. `play-change` is the third, narrower variant:
@@ -280,7 +280,7 @@ runs:
 ```
 
 The return value mirrors wherever `#{}` was actually written, recursively
--- `(m/play #{:melody :bass})` -> `#{:TAA :TAB}`, every id a real,
+-- `(m/play #{:melody :bass})` -> `#{:TA :TB}`, every id a real,
 directly usable top-level path on its own.
 
 A voice's own algorithm is baked in ONCE, at the moment it's minted --

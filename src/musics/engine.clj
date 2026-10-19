@@ -553,7 +553,7 @@
 
 (defn- next-track-id [eng]
   (or (some #(when-not (occupied? eng %) %) (compose/track-ids))
-      (throw (ex-info "play: no free track id left (all 676 :TAA..:TZZ in use)" {}))))
+      (throw (ex-info "play: no free track id left (all :TA..:TZ and :TAA..:TZZ in use)" {}))))
 
 (defn- mint!
   "Start form's top-level voices; its id, or for a #{}/(par ...) a set
@@ -584,7 +584,7 @@
 
 (defn play
   "Play one Form, replacing whatever is playing -- (play Form) or
-   (play Form :algo Name). Returns the voice's id (:TAA), or for a #{} /
+   (play Form :algo Name). Returns the voice's id (:TA), or for a #{} /
    (par ...) at the top a set of ids, nested as written.
 
      keyword           a committed part: :verse
@@ -637,7 +637,7 @@
 (defn play-change
   "Replace only the voice at path with args (played one after another),
    optionally ending in :algo Name; no args just stops that voice.
-     (play-change :TAB :chorus)
+     (play-change :TB :chorus)
      (play-change :myTrack :verse :algo :bright)"
   [path & args]
   (let [eng        *engine*

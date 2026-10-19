@@ -302,7 +302,7 @@
           (is (re-find #"isn't playing" (:error (run ":mel playing"))))
           (run "[!tempo:60 c1] >+")
           (is (= 2 (count (ids))) "unnamed music joining gets an engine id")
-          (is (some #(re-matches #"T[A-Z]{2}" (name %)) (ids)))
+          (is (some #(re-matches #"T[A-Z]" (name %)) (ids)))
           (run "[!tempo:60 c1] >")
           (is (= 1 (count (ids))) "unnamed > stops everything")
           (run "[bass: !tempo:60 c1 d1] [~] >")

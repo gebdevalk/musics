@@ -351,7 +351,7 @@
 (defn- voice-arg [s word]
   (need s 1 word)
   (let [id (mt/voice-id word (peek s))]
-    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id or index, :bass, :TAA or 1 (the lowest) -- voices lists them"))
+    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id or index, :bass, :TA or 1 (the lowest) -- voices lists them"))
     (when-not (engine/voice-at id) (e/mu-error (str word ":") (pr-str id) "isn't playing -- voices lists what plays"))
     id))
 
