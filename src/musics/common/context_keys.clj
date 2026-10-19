@@ -93,6 +93,10 @@
       :quantity :swing :aliases [:s])
 (reg! :kit :int "Drum kit: the drum channel's program (0 standard, 25 tr808, 40 brush)"
       :quantity :kit)
+(reg! :accent :keyword "Accents heard: metric (by place in the bar), agogic (by length), none"
+      :default' nil)
+(reg! :accentDepth :float "How much !accent: weighs, 0..1"
+      :quantity :accent-depth)
 (reg! :groove :float "Laid back (+) or pushed (-), by the weakness of a note's place in the bar"
       :quantity :groove)
 (reg! :swingUnit :ratio "The note value swung, in pairs (8 or 1/8: eighths)"

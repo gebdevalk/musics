@@ -231,6 +231,7 @@
   {:Tempo (dflt :tempo) :volume (dflt :volume) :Meter nil :Partial nil
    :micro (dflt :micro) :humanization (dflt :humanization)
    :swing (dflt :swing) :swingUnit (dflt :swing-unit) :groove (dflt :groove)
+   :accent nil :accentDepth (dflt :accent-depth)
    :durScale (dflt :ratio)})
 
 (def ^:private leaf-keys+defaults
@@ -303,7 +304,7 @@
 (defn- resolve-leaf
   [{:keys [part chain-links]} channel onset structural-time]
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
-                micro humanization swing swingUnit groove]}
+                micro humanization swing swingUnit groove accent accentDepth]}
         (resolve-common part chain-links structural-time leaf-keys+defaults)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (if (vector? instrument) (mapv int instrument) (int instrument))
@@ -329,7 +330,9 @@
      :humanization  humanization
      :swing         swing
      :swing-unit    swingUnit
-     :groove        groove}))
+     :groove        groove
+     :accent        accent
+     :accent-depth  accentDepth}))
 
 (defn- resolve-rest
   [{:keys [part chain-links]} onset structural-time]
@@ -351,7 +354,7 @@
 
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
-  (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit groove kit]}
+  (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit groove kit accent accentDepth]}
         (resolve-common part chain-links structural-time {:kit (dflt :kit)})]
     {:onset      onset
      :channel    drum-channel
@@ -368,7 +371,9 @@
      :humanization  humanization
      :swing         swing
      :swing-unit    swingUnit
-     :groove        groove}))
+     :groove        groove
+     :accent        accent
+     :accent-depth  accentDepth}))
 
 (defn resolve-event
   "Actualize a raw event {:part p :ctx-chain chain} into a MidiEvent map.

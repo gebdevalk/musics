@@ -254,7 +254,10 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 strict triplet feel of blues and rock (2/3 and 1/3), `!swing:0.75`
 harder still (dotted), `!straight` (0.5) not at all, and
 `!swingUnit:16` swings sixteenths instead. Only what you hear moves:
-the line prints and counts its bars as written. `!laidBack` and
+the line prints and counts its bars as written. `!accent:metric` makes
+the strong beats of the bar louder and the weak ones softer, by the
+meter (try `!M:223` against `!M:232`); `!accent:agogic` the long notes;
+`!accentDepth:1` makes it stronger. `!laidBack` and
 `!pushed` (or `!groove:` from -1 to 1) move the weaker notes a little
 late or early, the downbeat staying where it is.
 

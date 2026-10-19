@@ -1571,3 +1571,15 @@ is ranked (three groups: Barlow's table for 3), the rest by their place
 in their own group, ties to the stronger group. `additive?` asks that
 now, not merely whether a meter has groups, since a factor meter
 (`!M:223`) has them too.
+
+## 2026-10-19 — accents as a setting
+
+Metric accents could be heard only through an algo word (`volume/euclid
+with-volumes`), with its settings. `!accent:metric` weighs every note as
+heard, like swing and groove: its velocity scaled by its weight in the
+bar (the same metric weights the groove reads, so a factor or additive
+meter is heard), `!accent:agogic` by its length; `!accentDepth:` how
+much, the weakest note losing and the strongest gaining up to half its
+velocity at 1. Multiplying the velocity, rather than replacing it with
+a volume, keeps a note's own dynamic and accent: they are heard, with
+the meter's accent over them. Drums too.
