@@ -167,7 +167,7 @@
   (let [mode (or (c/ctx-value-chain chain :accidentals t) :implied)]
     (if (= mode :explicit)
       (el/key :C :major)
-      (or (c/ctx-value-chain chain :key t) (el/key :C :major)))))
+      (or (c/ctx-value-chain chain :Key t) (el/key :C :major)))))
 
 (defn- resolve-pitch-from-tree
   "Resolve one written note against the walk's own running :last-pitch
@@ -1105,17 +1105,18 @@
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)
-        key-val  (when key-node (second key-node))]
+        key-val  (when key-node (second key-node))
+        written  (or (some-> (find-child children :KeyName) second) "key")]
     (if key-val
       (let [ctx    (flat/current-context state)
             ks     (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
-            obj    {:type :assignment :key :key :val key-val :raw (str "!key:" key-val)}
+            obj    {:type :assignment :key :Key :val key-val :raw (str "!" written ":" key-val)}
             t      (duration state)
             state' (flat/append-child state obj)]
         (when-not ks
-          (throw (ex-info (str "!key:" key-val " names no key -- write a tonic, # or & and a scale: !key:B&.minor, !key:F#.dorian")
+          (throw (ex-info (str "!" written ":" key-val " names no key -- write a tonic, # or & and a scale: !K:B&.minor, !K:F#.dorian")
                           {:key key-val})))
-        (c/ctx-append ctx :key t ks :fixed)
+        (c/ctx-append ctx :Key t ks :fixed)
         state')
       state)))
 

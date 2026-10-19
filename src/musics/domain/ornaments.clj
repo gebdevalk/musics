@@ -264,7 +264,7 @@
             ;; value-chain never did). Passing {:key nil} as the sole
             ;; key+default keeps the exact same "nothing found -> nil"
             ;; contract ctx-value-chain always had.
-            ks    (:key (c/sample-many chain {:key nil} 0.0))]
+            ks    (:Key (c/sample-many chain {:Key nil} 0.0))]
         (if-let [f (get ornament-map name)]
           (carry-tie (f leaf ks) leaf)
           [leaf]))

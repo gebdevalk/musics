@@ -210,7 +210,7 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 [!kit:brush x8\sna x\hhc]            % the drum kit: standard room power electronic tr808 jazz brush orchestra sfx, or a number
 [!i:40,73,0 c4 d]                    % several: each note played by all three
 [c4\i:40,73 d]                       % on one note: c by two instruments, d as before
-[!key:C.major !key:F#.dorian c4]     % a key: a tonic, # or &, and a scale
+[!K:C.major !K:F#.dorian c4]         % a key: a tonic, # or &, and a scale (!K:, also !Key: !key: !k:)
 [!key:B&.minor !key:d.harmonic-minor c4]
 [!tempo:120 c4]                      % tempo in BPM (a quarter note)
 [!tempo:3/8=90 c4]                   % note value = BPM (a dotted quarter at 90)

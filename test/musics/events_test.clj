@@ -417,3 +417,13 @@
     (is (< plain accent) "an accented drum is louder")
     (is (< plain loud) "and one with its own volume")))
 
+(deftest the-key-by-any-of-its-names
+  (doseq [n ["K" "Key" "key" "k"]]
+    (parse! (str "[kx" n ": !" n ":D.major c d e f]"))
+    (is (= [61 62 64 66] (map (comp first :pitches) (notes (ev/events (repo/registry) (keyword (str "kx" n))))))
+        (str "!" n ":D.major sets the key")))
+  (parse! "^{kd: !K:D.major}")
+  (parse! "[k0: c d e f]")
+  (is (= [61 62 64 66] (map (comp first :pitches) (notes (ev/events (repo/registry) [:kd :k0]))))
+      "and as an override in front of the music"))
+

@@ -1531,3 +1531,15 @@ opened Fluidsynth, which needs qsynth, a virtual MIDI port and an ALSA
 connection set up first. Gervill, the JVM's own synthesizer, needs
 nothing, so it is the default now; `(connect :fluidsynth)` (mu:
 `fluidsynth`) picks the external one.
+
+## 2026-10-19 — the key is K
+
+The key had two entries in the context-key registry: `:key`, the Key
+playback reads (alias `k`, though only the literal `!key:` reached the
+rule that makes a Key), and `:Key`, a tonic name as text (alias `K`)
+nothing read -- so `!K:D.major` and `!k:D.major` were silently
+ignored. The significant keys are capitals, `Tempo` `T`, `Key` `K` and
+`Meter` `M`: the key's context name is now `:Key`, with `K`, `key` and
+`k` its names, all read by `KeyAssignment` (which writes back the name
+as written); the text entry is gone. Contexts saved by `write`/
+`persist-session` before hold the key under `"key"` and lose it on load.

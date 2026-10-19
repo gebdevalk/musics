@@ -603,7 +603,7 @@
            (conj (pop s)
                  (cond
                    (mt/leaf? x) (or (:key x) (e/mu-error "key: this note has no written key (written under !acc:explicit, or not written at all)"))
-                   (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :key 0)
+                   (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :Key 0)
                    :else (e/mu-error "key: needs a note or a line, got" (p/show x)))))))
 
 (defn- with-settings

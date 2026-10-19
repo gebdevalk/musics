@@ -330,7 +330,7 @@
 
 (deftest a-param-can-follow-the-music
   (let [music (c/context)]
-    (c/ctx-append music :key 0 (el/parse-key "D.major") :fixed)
+    (c/ctx-append music :Key 0 (el/parse-key "D.major") :fixed)
     (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
     (swap! (:envelopes-atom music) assoc "@key" "C.major")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")

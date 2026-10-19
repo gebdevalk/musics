@@ -1263,7 +1263,9 @@ silent misinterpretation.
 ### `\time`/`\tempo`/`\key`
 
 Not part of the grammar. `!Meter:`/`!tempo:`/`!key:` (`Assignment`/
-`KeyAssignment`) are the only spelling for any of these — see
+`KeyAssignment`) are the only spelling for any of these (the three
+significant keys are capitals: `Tempo` `T`, `Key` `K` -- also `key`,
+`k` -- and `Meter` `M`; the key's context name is `:Key`) — see
 `doc/md/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
 `\time`/`\tempo`/`\key` spelling was dropped rather than kept as an
 alternative. `VarName`'s own reserved-word exclusion list is just the

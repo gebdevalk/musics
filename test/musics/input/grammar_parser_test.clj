@@ -715,7 +715,7 @@
   (let [key-of (fn [text]
                  (let [{:keys [tree]} (gp/parse-domain-string text)
                        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-                   (some-> (c/ctx-value-chain [(:context s)] :key 0) el/key->str)))]
+                   (some-> (c/ctx-value-chain [(:context s)] :Key 0) el/key->str)))]
     (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
     (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
     (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
