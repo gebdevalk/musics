@@ -105,10 +105,21 @@
       (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
       (.bind ^KeyMap main (Reference. name) k))))
 
+(def header
+  "What mu shows when it starts: the words that drive the engine."
+  (str/join "\n"
+            ["mu -- bye or Ctrl+D to leave; \"word\" see explains a word, words lists them"
+             "  play    x >  now     x >>  at the next boundary (x | >> at the next |)     x >+  x >>+  joining"
+             "          stop (Alt+.)     pause (Alt+,; again resumes)     echo  print each note"
+             "  voices  <<  list     :bass <  what it plays     :bass stop   :bass hush   :bass solo"
+             "          [bass: …] > replaces only :bass; 1..n the voices low to high, 0 -1 … the drums"
+             "  synth   gervill   fluidsynth   soundfonts   n soundfont"
+             "  rate    Alt+j dislike  Alt+k meh  Alt+l like     Alt+J prev  Alt+K again  Alt+L next"]))
+
 (defn repl
   "Run mu until bye or Ctrl+D."
   []
-  (println "mu -- bye or Ctrl+D to leave")
+  (println header)
   (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
                             (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
     (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))

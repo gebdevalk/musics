@@ -1,4 +1,11 @@
 #_:clj-kondo/ignore
+;; user exists before this file loads, with all of clojure.core referred;
+;; musics.core's own reverse, load, shuffle, find and repeat take their
+;; place below, so they are unmapped first -- no warning each at start-up
+(when (find-ns 'user)
+  (doseq [s '[reverse load shuffle find repeat]] (ns-unmap 'user s)))
+
+#_:clj-kondo/ignore
 (ns user
   "REPL entry point -- exists purely so `lein repl` (:init-ns user, see
    project.clj) starts with every musics command unqualified: (parse ...),
@@ -32,6 +39,7 @@
 
    mu's words are aliased mu (musics.mu.words): (mu/retrograde x),
    (mu/R x), (mu/times x 3), (mu/mu \"[c d e]\") -- mu at the REPL."
+  (:refer-clojure :exclude [reverse load shuffle find repeat])
   (:require [musics.core :refer :all]
             [musics.algo.random.core :as core]
             [musics.algo.random :as rnd]
