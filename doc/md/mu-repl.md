@@ -392,18 +392,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`:bass <`) puts what it plays on the stack (`:bass < 5 + >>`), `:bass hush` silences it
   and `:bass solo` lets only it sound -- both keeping its place, again
   to undo.
-- **Voices by register**: `soprano`, `alto`, `tenor` and `bass` are
-  words giving the id of the voice in that role now, ranked by the mean
-  pitch of what each plays: the highest is soprano, the lowest bass, the
-  next highest alto, the next lowest tenor (two voices: soprano and
-  bass; three: alto too). A voice without pitch (drums) has none. So
-  `soprano <`, `bass hush`, and -- a voice's id on top of a play word
-  being the voice to play as -- `soprano < 5 + soprano >>` alters the
-  soprano at its boundary, whatever its name. `<<` shows each role.
 - **Voices by index**: wherever a voice's id goes, its index does too,
-  by the same mean pitch: `1` the lowest voice with pitch, `n` the
-  highest, `0` the voice without (drums; with several, use their ids).
-  `1 <`, `2 hush`, `0 stop`, `x 1 >>`; `<<` lists them by index.
+  by the mean pitch of what each plays: `1` the lowest voice with pitch,
+  `n` the highest; the voices without pitch (drums) from `0` down, `0`
+  the one with the lowest drum key, `-1` the next. `1 <`, `2 hush`,
+  `0 stop`, `x 1 >>` (a voice's id or index on top of a play word is
+  the voice to play as: `3 < 12 + 3 >>`); `<<` lists them by index.
 
 ### Arithmetic on material, accessors
 

@@ -328,27 +328,7 @@
           (is (contains? (mt/live-voices) :mel) ":mel plays on")
           (finally (mt/stop-all!)))))))
 
-(deftest voices-take-roles-by-pitch
-  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
-      (try
-        (run "[!tempo:60 C5/1 D5] >")
-        (run "[!tempo:60 C3/1 D3] >+")
-        (is (= #{:soprano :bass} (set (keys (mt/roles)))) "two voices: soprano and bass")
-        (run "[!tempo:60 E4/1 F4] >+")
-        (run "[!tempo:60 G3/1 A3] >+")
-        (run "[!tempo:60 x1 x1] >+")
-        (let [rs (mt/roles)]
-          (is (= #{:soprano :alto :tenor :bass} (set (keys rs))) "four with pitch; the drums have none")
-          (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "soprano <"))))) "soprano: the highest")
-          (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "bass <"))))) "bass: the lowest")
-          (run "[!tempo:60 C6/1] alto >")
-          (is (= "[!tempo:60 C6/1]" (p/show (mt/playing (:alto rs)))) "x alto > plays as the alto's voice")
-          (is (= (:alto rs) (:soprano (mt/roles))) "and, higher now, it is the soprano"))
-        (is (re-find #"\(soprano\)" (out "<<")) "<< shows the roles")
-        (finally (mt/stop-all!))))))
-
-(deftest voices-by-index-low-to-high-drums-at-0
+(deftest voices-by-index-low-to-high-drums-from-0-down
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [m/receiver (atom :silent)]
       (try
@@ -364,7 +344,12 @@
         (run "[!tempo:60 C6/1] 1 >")
         (is (= "[!tempo:60 C6/1]" (p/show (first (:ok (run "3 <"))))) "x 1 > plays as voice 1, which is now the highest")
         (is (re-find #"(?m)^0 :" (out "<<")) "<< numbers them, drums 0")
+        (run "[!tempo:60 x1\\hhc x1] >+")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums with the lowest key (35, a plain x)")
+        (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 <"))))) "-1 the next (42)")
+        (is (re-find #"(?m)^-1 :" (out "<<")) "<< numbers them, drums 0, -1 …")
         (run "0 stop")
-        (is (re-find #"no voice without pitch" (:error (run "0 <"))))
+        (run "-0 stop")
+        (is (re-find #"no drum voice" (:error (run "0 <"))))
         (finally (mt/stop-all!))))))
 

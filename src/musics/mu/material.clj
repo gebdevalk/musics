@@ -332,45 +332,40 @@
   [x]
   (d/mean-pitch (if (leaf? x) x (v/node (->material x)))))
 
+(defn- lowest-drum
+  "The lowest drum key x plays, nil when it plays no drum."
+  [x]
+  (let [ks (volatile! [])]
+    (doall (map-leaves #(do (when (= :DRUM (:type %))
+                              ;; no key plays 35, as musics.domain.resolve plays it
+                              (let [k (:program %)] (vswap! ks into (map (fnil identity 35) (if (vector? k) k [k])))))
+                            %)
+                       (->material x)))
+    (some->> (seq @ks) (apply min))))
+
 (defn ranked
-  "[pitched unpitched]: the voice ids mu plays with pitch, lowest mean
-   pitch first -- index 1..n -- and those without (drums), index 0."
+  "[pitched drums]: the voice ids mu plays with pitch, lowest mean pitch
+   first -- index 1..n -- and those without (drums), lowest drum key
+   first -- index 0, -1, -2 …"
   []
-  (let [ms (map (fn [[id {:keys [x]}]] [id (mean-pitch x)]) (live-voices))]
+  (let [ms (map (fn [[id {:keys [x]}]] [id (mean-pitch x) x]) (live-voices))]
     [(mapv first (sort-by (fn [[id m]] [m (str id)]) (filter second ms)))
-     (vec (sort-by str (map first (remove second ms))))]))
+     (mapv first (sort-by (fn [[id _ x]] [(or (lowest-drum x) 128) (str id)]) (remove second ms)))]))
 
 (defn voice-id
   "A voice's id from what addresses it: its id, or its index -- 1 the
-   lowest voice with pitch, n the highest, 0 the one without (drums)."
+   lowest voice with pitch, n the highest; 0 the drum voice with the
+   lowest drum key, -1 the next, …"
   [word x]
   (if (integer? x)
     (let [[pitched drums] (ranked)]
-      (if (zero? x)
-        (case (count drums)
-          0 (e/mu-error (str word ":") "no voice without pitch (drums) plays -- 0 is theirs")
-          1 (first drums)
-          (e/mu-error (str word ":") "several voices without pitch play --" (str/join " " (map pr-str drums)) "-- use their ids"))
+      (if (pos? x)
         (or (get pitched (dec x))
-            (e/mu-error (str word ":") "no voice" x "--" (count pitched) "with pitch play, 1 the lowest; voices lists them"))))
+            (e/mu-error (str word ":") "no voice" x "--" (count pitched) "with pitch play, 1 the lowest; voices lists them"))
+        (or (get drums (- x))
+            (e/mu-error (str word ":") "no drum voice" x "--"
+                        (if (seq drums) (str (count drums) " play, 0 to " (- 1 (count drums))) "none plays")))))
     x))
-
-(defn roles
-  "role -> voice id among what mu plays, by mean pitch: the highest
-   :soprano, the lowest :bass, the next highest :alto and the next
-   lowest :tenor -- as there are voices for them (two: soprano and bass;
-   three: and alto). A voice without pitch (drums) has none."
-  []
-  (let [ranked (->> (live-voices)
-                    (keep (fn [[id {:keys [x]}]] (when-let [m (mean-pitch x)] [id m])))
-                    (sort-by (fn [[id m]] [(- m) (str id)]))
-                    (mapv first))
-        n      (count ranked)]
-    (cond-> {}
-      (pos? n)  (assoc :soprano (ranked 0))
-      (> n 1)   (assoc :bass (ranked (dec n)))
-      (> n 2)   (assoc :alto (ranked 1))
-      (> n 3)   (assoc :tenor (ranked (- n 2))))))
 
 (defn- keep! [id x ctx mat]
   (when (keyword? id) (swap! voices assoc id {:x x :ctx ctx :ends (ends-of mat)}))

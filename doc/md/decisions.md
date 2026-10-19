@@ -1514,3 +1514,12 @@ A voice's engine id was T and two letters (`:TAA` .. `:TZZ`, 676), more
 than a session plays and longer to type at mu's prompt (`:TAA <`). They
 are T and one letter now, `:TA` .. `:TZ`; past 26 -- a parallel of more
 than 26 parts -- they go on with two letters, so nothing runs out.
+
+## 2026-10-19 — voices by index; the roles removed
+
+The register roles (`soprano`, `alto`, `tenor`, `bass`) were built and
+taken out the same day: an index by mean pitch says the same more
+simply and goes past four voices (`1` the lowest with pitch .. `n`).
+Drum voices have no pitch to rank, so they count from `0` down, ordered
+by their lowest drum key (a plain `x` plays 35): `0` the kick, `-1` the
+hi-hat -- rather than one `0` refusing when several drum voices play.
