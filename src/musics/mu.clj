@@ -80,6 +80,9 @@
       (.parser (mu-parser))
       ;; ! is an instruction (!mf), not a history event
       (.option LineReader$Option/DISABLE_EVENT_EXPANSION true)
+      ;; an input beginning with a space (pasted text, often) is kept in
+      ;; the history like any other -- JLine leaves it out by default
+      (.option LineReader$Option/HISTORY_IGNORE_SPACE false)
       (.variable LineReader/HISTORY_FILE history)
       (.build)))
 
