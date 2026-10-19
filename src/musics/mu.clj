@@ -108,15 +108,16 @@
 (def header
   "What mu shows when it starts: the words that drive the engine."
   (str/join "\n"
-            ["gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
-             "'x >' plays immediately, 'x >>' at the next boundary, 'x | >>' at the next |,"
-             "'x >+' joins now and 'x >>+' joins at the boundary"
-             "'[id: …] >' replaces only :id"
-             "stop (Alt+.), pause (Alt+,; again resumes)"
-             "echo prints each note"
-             "voices or << lists the playing voices: 1..n low to high, 0 -1 … the drums"
-             "':id <' gives what :id plays; :id stop, :id hush, :id solo"
-             "bye or Ctrl+D leaves"]))
+            ["start    gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
+             "play     'x >' plays immediately, 'x >>' at the next boundary, 'x | >>' at the next |"
+             "         'x >+' joins now and 'x >>+' joins at the boundary"
+             "         '[id: …] >' replaces only :id"
+             "stop     Alt+."
+             "pause    Alt+, (again resumes)"
+             "echo     prints each note"
+             "voices   'voices' or '<<' lists the playing voices: 1..n low to high, 0 -1 … the drums"
+             "         ':id <' gives what :id plays; :id stop, :id hush, :id solo"
+             "leave    bye or Ctrl+D"]))
 
 (defn repl
   "Run mu until bye or Ctrl+D."
