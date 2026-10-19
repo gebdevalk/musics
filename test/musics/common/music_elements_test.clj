@@ -106,8 +106,21 @@
     (is (= (indisp/indispensability [2 2 3]) (el/meter-indispensability m)))))
 
 (deftest meter-indispensability-honors-explicit-subdivisions
-  (let [m (el/make-meter 7 8 [2 2 3])]
-    (is (= (indisp/indispensability [2 2 3]) (el/meter-indispensability m)))))
+  (let [m (el/make-meter 12 8 [2 3 2])]
+    (is (= (indisp/indispensability [2 3 2]) (el/meter-indispensability m))) "factors, grouped as written"))
+
+(deftest an-additive-meter-ranks-its-groups-starts-first
+  (let [ranks (el/meter-indispensability (el/make-meter 7 8 [2 2 3]))]
+    (is (= 7 (count ranks)) "one rank per pulse of the 7, not the 12 of 2 x 2 x 3")
+    (is (= #{6 5 4} (set (map ranks [0 2 4]))) "the groups' starts strongest")
+    (is (= [6 2 4 0 5 1 3] ranks)))
+  (is (not= (el/meter-indispensability (el/make-meter 7 8 [2 2 3]))
+            (el/meter-indispensability (el/make-meter 7 8 [3 2 2])))
+      "the grouping decides")
+  (let [ws (el/metric-weights (el/make-meter 7 8 [2 2 3]) 1/16)]
+    (is (= 14 (count ws)))
+    (is (every? #(> (ws (* 2 %)) (apply max (map ws (range 1 14 2)))) [0 2 4])
+        "at sixteenths a group's start still outweighs every off-eighth")))
 
 (deftest pitch-names
   (is (= 60 (el/name->pitch (el/pitch->name 60))))

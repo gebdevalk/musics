@@ -1556,3 +1556,18 @@ the last digit (compound when it is 3). Two or more digits, each 2, 3,
 three quarters), and an ordinary meter with another digit (`12/8`,
 `9/8`) reads as before. A real 22/4 or 35/16 can't be written with
 digits then -- the quoted `"N/D(…)"` form still can.
+
+## 2026-10-19 — indispensability for an additive meter
+
+Barlow's indispensability is defined for a meter whose pulses are the
+product of factors. An additive meter's groups (`7/8(2+2+3)`) were
+handed to it as if they were factors, giving ranks for 12 pulses
+(`meter-indispensability`); the metric weights the accents and groove
+read fell back to a flat 7, ignoring the grouping. Now an additive
+meter -- groups that sum to the numerator but whose product doesn't,
+so `4/4(2+2)`, both, stays factors -- ranks its groups' starts above
+every other pulse, the starts among themselves as a group of k pulses
+is ranked (three groups: Barlow's table for 3), the rest by their place
+in their own group, ties to the stronger group. `additive?` asks that
+now, not merely whether a meter has groups, since a factor meter
+(`!M:223`) has them too.

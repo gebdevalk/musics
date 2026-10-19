@@ -1308,9 +1308,14 @@ as the pulse index itself. 2 and 3's rotated tables happen to reduce to the
 identity permutation (their reference tables are pure rotations); 5 and 7
 don't, which is the actual substance of the theory, not a rounding
 artifact — verified against known-correct reference tables, not derived
-from scratch. `musics/common/music_elements.clj`'s `meter-indispensability` just
+from scratch. `musics/common/music_elements.clj`'s `meter-indispensability`
 wires a `Meter`'s own `num`/`den`/`subdivisions` into it (`(or subdivisions
-(default-subdivisions num den))`), so `musics.common.music-elements` requires
+(default-subdivisions num den))`) -- for an additive meter (`7/8(2+2+3)`,
+`additive?`: groups that sum to the numerator but don't multiply to it)
+it ranks the groups' starts first, among themselves as a group of k
+pulses is, then the rest by their place in their own group
+(`additive-ranks`), and `metric-weights` (the accents', the groove's)
+follows it -- so `musics.common.music-elements` requires
 `musics.algo.indispensability` rather than keeping a second copy of the
 algorithm itself — the earlier standalone `musics/algo/` port of this same theory
 (`psi`/`psi-fractions`, from pymusics' `indispensability.py`) turned out to
