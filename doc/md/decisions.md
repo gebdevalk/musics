@@ -1523,3 +1523,11 @@ simply and goes past four voices (`1` the lowest with pitch .. `n`).
 Drum voices have no pitch to rank, so they count from `0` down, ordered
 by their lowest drum key (a plain `x` plays 35): `0` the kick, `-1` the
 hi-hat -- rather than one `0` refusing when several drum voices play.
+
+## 2026-10-19 — Gervill is the default synthesizer
+
+`(connect)` -- what mu does when it plays with nothing connected --
+opened Fluidsynth, which needs qsynth, a virtual MIDI port and an ALSA
+connection set up first. Gervill, the JVM's own synthesizer, needs
+nothing, so it is the default now; `(connect :fluidsynth)` (mu:
+`fluidsynth`) picks the external one.

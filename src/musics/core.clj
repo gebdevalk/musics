@@ -253,16 +253,16 @@
    call's voices play a snapshot of whatever's currently committed (see
    musics.engine's own docstring). Safe to call more than once: it stops
    what plays and re-binds *engine*.
-   (connect)                    Fluidsynth, through VirMIDI (doc/md/setup.md)
-   (connect :fluidsynth)        the same
-   (connect :gervill)           Java's own synthesizer, with FluidR3_GM
-                                (musics.midi.gervill/default-soundfonts)
+   (connect)                    Gervill, Java's own synthesizer, with
+                                FluidR3_GM (musics.midi.gervill/default-soundfonts)
+   (connect :gervill)           the same
+   (connect :fluidsynth)        Fluidsynth, through VirMIDI (doc/md/setup.md)
    (connect :gervill \"x.sf2\")  with that soundfont; :latency-ms n after
                                 it sets Gervill's buffer (default 30)
    Blocks briefly (~1/3s) on a near-silent warm-up burst first -- see
    engine/warm-up! -- to avoid an audio crackle on the very first real
    note of the session."
-  ([] (connect :fluidsynth))
+  ([] (connect :gervill))
   ([output & [soundfont & {:keys [latency-ms] :or {latency-ms 30}}]]
    (when-not (#{:fluidsynth :gervill} output)
      (throw (ex-info (str "connect: " (pr-str output) " -- :fluidsynth or :gervill") {:output output})))

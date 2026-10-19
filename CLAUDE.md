@@ -171,9 +171,11 @@ lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # (the real domain model, which stayed :domain)
 ```
 
-Audio playback requires system setup (Fluidsynth + qsynth + a virtual MIDI
-port) — see `doc/md/setup.md` and `scripts/setup.sh` / `scripts/reconnect.sh`.
-None of that is needed to parse text into the domain model or run tests.
+Audio plays through Gervill, the JVM's own synthesizer, by default
+(`(connect)`, nothing to set up); Fluidsynth (`(connect :fluidsynth)`)
+needs qsynth and a virtual MIDI port — see `doc/md/setup.md` and
+`scripts/setup.sh` / `scripts/reconnect.sh`. Neither is needed to parse
+text into the domain model or run tests.
 
 ## Architecture
 

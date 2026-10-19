@@ -2,10 +2,10 @@
 
 Sound comes from one of two synthesizers:
 
-- **Fluidsynth**, through qsynth and a virtual MIDI port: `(m/connect)`.
-  The setup below.
-- **Gervill**, Java's own synthesizer: `(m/connect :gervill)`. No setup
-  at all; see "Gervill" below.
+- **Gervill**, Java's own synthesizer, the default: `(m/connect)`, or
+  playing with nothing connected. No setup at all; see "Gervill" below.
+- **Fluidsynth**, through qsynth and a virtual MIDI port:
+  `(m/connect :fluidsynth)`. The setup below.
 
 Parsing, composing and the tests need neither.
 
@@ -18,13 +18,13 @@ thin *Emergency GM sound set*, so musics loads
 fluid-soundfont-gm`), else `default-GM.sf2`.
 
 ```clojure
-(m/connect :gervill)                        ; FluidR3_GM
+(m/connect)                                 ; Gervill with FluidR3_GM, as (m/connect :gervill)
 (m/connect :gervill "~/Music/sf/Grandpno.sf2")
 (m/connect :gervill nil :latency-ms 60)     ; a larger buffer, if it crackles
 (m/soundfonts)                              ; the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf
 (m/soundfont 3)                             ; swap to the 4th of them; what plays goes on
 (m/soundfont "~/Music/sf/Crysrhod.sf2")
-(m/connect)                                 ; back to Fluidsynth
+(m/connect :fluidsynth)                     ; Fluidsynth instead
 ```
 
 In mu: `gervill`, `fluidsynth`, `soundfonts`, `3 soundfont`,
