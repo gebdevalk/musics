@@ -368,7 +368,8 @@
              (println "nothing plays")
              (let [[pitched drums] (mt/ranked)
                    n (count pitched)]
-               (doseq [[i id] (concat (reverse (map-indexed (fn [i id] [(- i) id]) drums)) (map-indexed (fn [i id] [(inc i) id]) pitched))
+               (doseq [[i id] (concat (reverse (map-indexed (fn [i id] [(inc i) id]) pitched)) ; the highest on top, as in a score
+                                      (map-indexed (fn [i id] [(- i) id]) drums))
                        :let [{:keys [x]} (get vs id)
                              shown (p/show x)
                              label (cond (<= i 0) "drums" (= i 1) "lowest" (= i n) "highest" :else "")

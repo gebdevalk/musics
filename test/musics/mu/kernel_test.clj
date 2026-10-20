@@ -354,6 +354,7 @@
         (run "[!tempo:60 x1\\hhc x1] >+")
         (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums with the lowest key (35, a plain x)")
         (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 <"))))) "-1 the next (42)")
+        (is (= ["3" "2" "1" "0" "-1"] (map #(re-find #"-?\d+" %) (str/split-lines (out "<<")))) "the highest on top, down to the drums")
         (is (re-find #"(?m)^-1 drums +:" (out "<<")) "<< numbers them, drums 0, -1 …")
         (run "0 stop")
         (run "-0 stop")
