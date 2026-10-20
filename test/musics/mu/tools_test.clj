@@ -241,7 +241,7 @@
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] mirror")))
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] inversion")) "inversion is [I]")
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")
-  (is (= "[!K:F.major F4/4 D#4 C#4 B&3]" (top "[c4 d e g] [I] 5 +")) "I5")
+  (is (= "[!K:F.major F4/4 E&4 D&4 B&3]" (top "[c4 d e g] [I] 5 +")) "I5")
   (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [RI]")) "inverted around the first note, then backwards")
   (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [I]")) "chords mirror, rests stay"))
 
@@ -348,7 +348,9 @@
   (is (= "[C&4/4 B#3]" (top "[C&4 B#3]")) "the octave is the letter's")
   (is (= "<B&3 D4 F4>4" (top "<b& d f>4")) "a chord's pitches as written")
   (is (= "<G&4 B&4 D&5>2" (top "<e& g b&>2 3 +")) "moved, it keeps to flats")
-  (is (= "[!K:D&.major D&4/4 E&4 F4]" (top "[c d e] 1 +")) "else sharps"))
+  (is (= "[!K:D&.major D&4/4 E&4 F4]" (top "[c d e] 1 +")) "moved with its key")
+  (is (= "[!K:F.major C4/4 C#4]" (top "[!K:F.major c c#]")) "written as written")
+  (is (= "[!K:F.major C4/4 Bn3 A&3]" (top "[!K:F.major c c# e] [I]")) "a flat key spells what lies outside it with flats"))
 
 (deftest selection-by-a-quotation
   (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 lt ) filter")))

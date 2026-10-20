@@ -174,7 +174,7 @@ on the line as a whole.
 [c e g] [M]                → [G#4/4 E4 C#4]
 [c e g b] [R]              → [B4/4 G4 E4 C4]
 [c e g] [I]                → [C4/4 G#3 F3]
-[c e g] [I] 5 +            → [!K:F.major F4/4 C#4 B&3]       I5
+[c e g] [I] 5 +            → [!K:F.major F4/4 D&4 B&3]       I5
 [c d e g] [RI]             → [F3/4 G#3 A#3 C4]
 ```
 
