@@ -999,9 +999,11 @@
           :TempoMark
           (let [note-node   (second val-node)
                 bpm-node    (nth val-node 2)
-                note-dur    (if (tag? note-node :Ratio)
-                              (let [[n d] (str/split (second note-node) #"/")]
-                                (/ (Integer/parseInt n) (Integer/parseInt d)))
+                note-dur    (case (first note-node)
+                              :Ratio      (let [[n d] (str/split (second note-node) #"/")]
+                                            (/ (Integer/parseInt n) (Integer/parseInt d)))
+                              :DottedNote (let [[_ n dots] (re-matches #"(\d+)(\.+)" (second note-node))]
+                                            (* (/ 1 (Integer/parseInt n)) (- 2 (/ 1 (bit-shift-left 1 (count dots))))))
                               (Integer/parseInt (second note-node)))
                 bpm         (Integer/parseInt (second bpm-node))
                 parsed-val  (el/tempo->quarter-bpm (el/tempo note-dur bpm))

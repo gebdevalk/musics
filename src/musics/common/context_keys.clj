@@ -48,7 +48,7 @@
 (reg! :Key :any "Key: tonic and scale (!K:D.major)"
       :default' (el/key :C :major) :aliases [:K :key :k] :category :world)
 (reg! :Meter :meter "Time signature"
-      :default' (el/parse-meter-str "4/4") :aliases [:M] :category :world)
+      :default' (el/parse-meter-str "4/4") :aliases [:M :meter] :category :world)
 (reg! :Orchestration :str "Orchestration preset name"
       :default' "" :aliases [:O] :category :world)
 (reg! :QuantMode :str "Quantization mode"

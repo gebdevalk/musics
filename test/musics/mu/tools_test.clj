@@ -66,7 +66,7 @@
   (testing "it reads back as itself"
     (doseq [t ["[a b] 3 times [c] volta" "[a b c d] 3 times [c2 b a] [a4] volta" "[: c d :] [e] [f] volta"]]
       (let [shown (top t)] (is (= shown (top shown)) t))))
-  (is (= "repeat 3 [B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
+  (is (= "repeat 3 [!K:D.major B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
   (is (= "[E4/4 repeat 2 [B3 A3] C4]" (top "[c repeat 2 [a b] e] retrograde"))
       "an element of a line, its body backwards")
@@ -78,7 +78,7 @@
 (deftest vary-writes-the-passes-out
   (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 times [c] volta '( retrograde ) vary"))
       "every pass the quotation of the body as written, each followed by its ending")
-  (is (= "[[B3/4 C#4] [B3 C#4] [B3 C#4]]" (top "[a b] 3 times '( 2 + ) vary")) "no endings")
+  (is (= "[[!K:D.major B3/4 C#4] [!K:D.major B3 C#4] [!K:D.major B3 C#4]]" (top "[a b] 3 times '( 2 + ) vary")) "no endings")
   (is (= "[[3:1(A3/4 B3)] [C4] [3:1(A3 B3)] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
       "* too: each pass scaled, the endings not")
   (let [shown (top "[a b] 2 times [c] volta '( 1/3 * ) vary")]
@@ -157,7 +157,7 @@
   (is (= "[!ff repeat 2 [C4/4 D4]]" (top "[c d] 2 times ^{ !ff } with")) "a repeat is wrapped"))
 
 (deftest meaning-tools
-  (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
+  (is (= "[!K:D.major D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
   (is (= "[C4/2 D4]" (top "[c d] 2 *"))))
 
 (deftest every-sign-has-a-twin
@@ -167,9 +167,10 @@
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
                              ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
-                             ["[%]" "rotate" "[c d e] 1"] ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"]
-                             ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"] ["[M]" "mirror" "[c d e g]"]]]
+                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
+  (is (str/ends-with? (:effect (e/lookup @e/state "+")) "(also up)") "each twin named once in the help")
+  (is (str/ends-with? (:effect (e/lookup @e/state "up")) "a key moves up too (also +)"))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
@@ -213,8 +214,8 @@
   (is (= "alternate [[C4/4 D4] [E4 F4]]" (top "ALT [[c d] [e f]]")) "the text's alternate, short ALT"))
 
 (deftest the-texts-words
-  (is (= "[F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
-  (is (= "[D4/4 E4]" (top "[c d] c d transpose")) "or by the interval between two notes")
+  (is (= "[!K:F.major F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
+  (is (= "[!K:D.major D4/4 E4]" (top "[c d] c d transpose")) "or by the interval between two notes")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "[c d e] 1 rotating")) "rotating: the text's rotate n [ … ]")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
   (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
@@ -240,7 +241,7 @@
   (is (= "[F#4/4 E4 D4 B3]" (top "[c4 d e g] mirror")))
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] inversion")) "inversion is [I]")
   (is (= "[C4/4 A#3 G#3 F3]" (top "[c4 d e g] [I]")) "[I]: around the first note, which stays")
-  (is (= "[F4/4 D#4 C#4 A#3]" (top "[c4 d e g] [I] 5 +")) "I5")
+  (is (= "[!K:F.major F4/4 D#4 C#4 B&3]" (top "[c4 d e g] [I] 5 +")) "I5")
   (is (= "[F3/4 G#3 A#3 C4]" (top "[c4 d e g] [RI]")) "inverted around the first note, then backwards")
   (is (= "[C4/4 <G#3 F3> r A#3]" (top "[c4 <e g> r d] [I]")) "chords mirror, rests stay"))
 
@@ -308,7 +309,7 @@
   (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a line's own key")
   (is (= "C.major" (top "[c d e] key")) "else the defaults'")
   (is (= "C.major" (top "c4 key")) "the key a note was written in")
-  (is (= "[!key:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
+  (is (= "[!K:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
 
 (deftest every-key-a-tonic-can-name
   (doseq [k ["C#.major" "C&.major" "G#.minor" "D#.minor" "A#.minor"]]
@@ -347,7 +348,7 @@
   (is (= "[C&4/4 B#3]" (top "[C&4 B#3]")) "the octave is the letter's")
   (is (= "<B&3 D4 F4>4" (top "<b& d f>4")) "a chord's pitches as written")
   (is (= "<G&4 B&4 D&5>2" (top "<e& g b&>2 3 +")) "moved, it keeps to flats")
-  (is (= "[C#4/4 D#4 F4]" (top "[c d e] 1 +")) "else sharps"))
+  (is (= "[!K:D&.major D&4/4 E&4 F4]" (top "[c d e] 1 +")) "else sharps"))
 
 (deftest selection-by-a-quotation
   (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 lt ) filter")))
@@ -383,6 +384,8 @@
   (is (= "'[60 '[64 67] nil 62]" (top "[c8 <e g>4 r8 d] pitches")))
   (is (= "'[nil 90 nil]" (top "[c d\\vol:90 e] volumes")))
   (is (= "'[nil :accent]" (top "[c d->] articulations")))
+  (is (= "'[30 90]" (top "[c\\vol:30 r d\\vol:90] volumes")) "a rest gives no volume")
+  (is (= "'[60 nil 62]" (top "[c r d] pitches")) "a rest's pitch is nil, for zip")
   (is (= "'[40 nil]" (top "[c\\i:40 x\\38] instruments")) "a drum has no instrument")
   (is (= "'[nil 38]" (top "[c\\i:40 x\\38] drums")) "its key is a drum's")
   (is (= "[C4/8 <E4 G4>4 r8 D4]" (top "[c8 <e g>4 r8 d] dup durations swap pitches zip")) "x durations x pitches zip is x")
@@ -442,6 +445,7 @@
   (is (= "[C4/4\\volume:90 r D4\\volume:50 E4]" (top "[c r d e] '[90 50] with-volumes")) "rests take none; past the stream's end as written")
   (is (= "[C4/4-> D4-. E4]" (top "[c d e] '[:accent :staccato] with-articulations")))
   (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations with-articulations")) "what articulations reads, written back")
+  (is (= "[C4/8\\volume:30 r D4\\volume:90 r E4\\volume:50]" (top "[c8\\vol:30 r d\\vol:90 r e\\vol:50] dup volumes with-volumes")) "rests too")
   (is (= "[C4/4\\instrument:40 D4\\instrument:122 E4\\instrument:73]" (top "[c d e] '[40 :Sea 73] with-instruments"))
       "programs, names and short names, a keyword beside numbers")
   (is (= "[x8\\42 x\\49]" (top "[x8\\bd1 x8\\sna] '[:hhc 49] with-drums")) "a drum takes a drum's key or short name")

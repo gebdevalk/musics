@@ -12,6 +12,7 @@
             [musics.mu.eval :as e]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
+            [musics.common.music-elements :as el]
             [musics.mu.value :as v]
             [musics.registries :as reg]
             [musics.repo :as repo]))
@@ -123,7 +124,8 @@
   "x as a line: itself if it is one, else a line holding it (a shuffle
    [ … ] too, whose order is its own)."
   [x]
-  (let [m (->material x)] (if (and (= :SEQ (kind m)) (not (:shuffle (v/node m))) (not (:rotate (v/node m))) (not (:choose (v/node m))) (not (:alternate (v/node m)))) m (line [x]))))
+  (let [m (->material x)]
+    (if (and (= :SEQ (kind m)) (not-any? (v/node m) [:shuffle :rotate :choose :alternate])) m (line [x]))))
 
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
@@ -228,20 +230,79 @@
                                 (when (pos? k) [(as-line (nth endings (d/ending-for k n i)))])))
                   (range n)))))
 
-(defn map-leaves
-  "x with f applied to every leaf, at any depth, keeping its form; a bar
-   line, no leaf, stays as it is."
-  [f x]
+(defn map-nodes
+  "x with f applied to every leaf and g to every instruction, at any
+   depth, keeping its form: nesting, repeats, instructions, a shuffle's
+   or rotate's mark. The value's nodes are changed and read back as
+   text, so what is baked on them (lengths, pitch sums) is computed
+   anew; a bar line, no leaf, stays as it is."
+  [f g x]
   (cond
     (leaf? x)       (f x)
     (or (d/bar? x) (d/jump? x)) x
-    (repetition? x) (let [[t n body alt bars] (repeat-parts x)]
-                      (read-repeat t n (map-leaves f body) (some->> alt (map-leaves f)) bars))
     (v/material? x) (if (= :DATA (kind x))
                       x
-                      (rebuild x (map #(map-leaves f %) (elements x))))
-    (sequential? x) (map #(map-leaves f %) x)
+                      (let [repo (volatile! (:repo x))
+                            node (fn node [n]
+                                   (cond
+                                     (keyword? n)        (do (when-let [m (get @repo n)] (vswap! repo assoc n (node m))) n)
+                                     (leaf? n)           (f n)
+                                     (instruction? n)    (g n)
+                                     (d/iterator? n)     (cond-> (update n :source node)
+                                                           (get-in n [:params :alternative]) (update-in [:params :alternative] node))
+                                     (= :DATA (:type n)) n
+                                     (:children n)       (update n :children #(mapv node %))
+                                     :else               n))
+                            top  (node (v/node x))]
+                        (read-text (p/show (v/->Material (:id x) (assoc @repo (:id x) top))))))
+    (sequential? x) (map #(map-nodes f g %) x)
     :else (e/mu-error "not material:" (p/show x))))
+
+(defn map-leaves
+  "x with f applied to every leaf, at any depth, keeping its form (see
+   map-nodes)."
+  [f x]
+  (map-nodes f identity x))
+
+(defn- with-key
+  "x with a !K: at the start of its line (a repeat's body, a { }), the
+   key it is in there -- its own, else its context's (the defaults') --
+   unless one is written there already."
+  [x]
+  (let [put (fn [n]
+              (if (some #(and (instruction? %) (= :Key (:key %))) (take-while instruction? (:children n)))
+                n
+                (let [k (c/ctx-value-chain (keep :context [n (repo/current :ROOT)]) :Key 0)]
+                  (update n :children #(into [{:type :assignment :key :Key :val (el/key->str k) :raw (str "!K:" (el/key->str k))}] %)))))
+        {:keys [repo id]} x
+        n (get repo id)]
+    (cond
+      (#{:SEQ :PAR} (:type n)) (assoc-in x [:repo id] (put n))
+      (d/iterator? n)          (let [src (:source n)]
+                                 (if (keyword? src)
+                                   (update-in x [:repo src] put)
+                                   (assoc-in x [:repo id :source] (put src))))
+      :else x)))
+
+(defn transposed
+  "x moved by n semitones, its key with it: every note, a chord's root,
+   the key each note was written in, every !K: and -- at the start of
+   its line -- the key it is in (not for whole octaves, the same key),
+   so its notes stay degrees of their key wherever it plays. A drum
+   stays."
+  [x n]
+  (let [shift (fn [k] (el/transpose-key k n))]
+    (map-nodes (fn [l]
+                 (if (and (= :LEAF (:type l)) (seq (:pitches l)))
+                   (cond-> (update l :pitches #(mapv (partial + n) %))
+                     (:key l)      (update :key shift)
+                     (:key-root l) (update :key-root + n))
+                   l))
+               (fn [i]
+                 (if-let [k (and (= :Key (:key i)) (el/parse-key (str (:val i))))]
+                   (let [k' (el/key->str (shift k))] (assoc i :val k' :raw (str "!K:" k')))
+                   i))
+               (if (and (v/material? x) (not (zero? (mod n 12)))) (with-key x) x))))
 
 ;; -- the repo -------------------------------------------------------------
 
@@ -327,21 +388,40 @@
   []
   (into {} (filter (fn [[id _]] (engine/voice-at id))) @voices))
 
-(defn mean-pitch
-  "x's mean pitch (a note's, or a line's as written), nil without pitch."
+(defn leaves
+  "x's leaves as written, at any depth -- a repeat's body and endings
+   once, a loop's once -- without rebuilding anything: for looking at
+   them, not changing them (map-leaves)."
   [x]
-  (d/mean-pitch (if (leaf? x) x (v/node (->material x)))))
+  (letfn [(walk [repo n]
+            (cond
+              (keyword? n)      (walk repo (get repo n))
+              (leaf? n)         [n]
+              (d/iterator? n)   (concat (walk repo (:source n)) (some->> (get-in n [:params :alternative]) (walk repo)))
+              (= :DATA (:type n)) nil
+              (map? n)          (mapcat #(walk repo %) (:children n))
+              :else             nil))]
+    (cond
+      (leaf? x)       [x]
+      (v/material? x) (walk (:repo x) (v/node x))
+      (sequential? x) (mapcat leaves (if-let [[body] (:mu/repeat (meta x))] [body] x))
+      :else           nil)))
+
+(defn mean-pitch
+  "x's mean pitch (a note's, a line's, a repeat's or loop's as written),
+   nil without pitch."
+  [x]
+  (let [ps (mapcat :pitches (leaves x))]
+    (when (seq ps) (/ (reduce + ps) (count ps)))))
 
 (defn- lowest-drum
   "The lowest drum key x plays, nil when it plays no drum."
   [x]
-  (let [ks (volatile! [])]
-    (doall (map-leaves #(do (when (= :DRUM (:type %))
-                              ;; no key plays 35, as musics.domain.resolve plays it
-                              (let [k (:program %)] (vswap! ks into (map (fnil identity 35) (if (vector? k) k [k])))))
-                            %)
-                       (->material x)))
-    (some->> (seq @ks) (apply min))))
+  (some->> (seq (for [l (leaves x) :when (= :DRUM (:type l))
+                      ;; no key plays 35, as musics.domain.resolve plays it
+                      k (let [k (:program l)] (if (vector? k) k [k]))]
+                  (or k 35)))
+           (apply min)))
 
 (defn ranked
   "[pitched drums]: the voice ids mu plays with pitch, lowest mean pitch
@@ -415,15 +495,17 @@
    when named music replaces it, else of everything mu plays -- through
    the conductor, starting exactly when the boundary is due. Named
    music replaces only its voice; otherwise x replaces everything, or
-   with join? true joins it. Plays at once when nothing plays."
+   with join? true joins it. Plays at once when nothing plays, or when
+   no boundary is known: no count, and none of what plays started by mu
+   (an audition, a voice from Clojure)."
   [x ctx count & [join? target]]
   (let [live (live-voices)]
-    (if-not (engine/busy?)
+    (if (or (not (engine/busy?)) (and (nil? count) (empty? live)))
       (play! x ctx join? target)
       (let [[eng form mat] (prepared x ctx)
             name   (or target (voice-name mat))
             ends   (if-let [v (and name (get live name))] (:ends v) (into #{} (mapcat :ends) (vals live)))
-            ks     (if (or count (empty? ends)) [[[:mark (or count 1)] :enter]] (mapv (fn [id] [id :exit]) ends))
+            ks     (if count [[[:mark count] :enter]] (mapv (fn [id] [id :exit]) ends))
             target (or name (if join? (keyword "mu" (str (gensym "join"))) ::all))
             action (keyword "mu" (str (gensym "staged")))]
         (cancel-staged! target)

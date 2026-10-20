@@ -86,17 +86,23 @@
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
            (if f (e/call s q) s))))
 
+(defn- finite
+  "xs, refused if it is an endless stream: word would never end."
+  [word xs]
+  (when (:mu/endless (meta xs)) (e/mu-error (str word ":") "an endless stream never ends -- take some first"))
+  xs)
+
 (word! "kernel" "each" "( things q -- … )  run q on each element in turn"
        (fn [s]
          (need s 2 "each")
-         (let [q (peek s) xs (mt/elements (peek (pop s)))]
+         (let [q (peek s) xs (finite "each" (mt/elements (peek (pop s))))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
 (word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( add ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
-           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (mt/elements xs)))))
+           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (finite "reduce" (mt/elements xs))))))
 
 ;; -- printing -------------------------------------------------------------
 
@@ -176,7 +182,7 @@
 (defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
 
 (defn- on-material
-  "A word ( material n -- material' ): g n on every leaf. On two numbers
+  "A word ( material n -- material' ): (g n material). On two numbers
    it points to the numeric word (+ add, - sub, * mul, / div)."
   [word g check]
   (fn [s]
@@ -187,10 +193,7 @@
         (e/mu-error (str word ":") "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} word))
         (not (and (musical? x) (number? n)))
         (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
-        :else (do (check n) (conj (pop (pop s)) (mt/map-leaves (partial g n) x)))))))
-
-(defn- transpose-leaf [n leaf]
-  (if (seq (:pitches leaf)) (update leaf :pitches #(mapv (partial + n) %)) leaf))
+        :else (do (check n) (conj (pop (pop s)) (g n x)))))))
 
 (defn- whole! [word n] (when-not (integer? n) (e/mu-error (str word ":") "transposes by a whole number of semitones, got" n)))
 (defn- positive! [word n] (when-not (pos? n) (e/mu-error (str word ":") "needs a positive factor, got" n)))
@@ -205,19 +208,19 @@
         (conj (pop (pop s)) (el/transpose-key k (* sign n)))
         (f s)))))
 
-(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
-       (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
-(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
-       (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
+(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones, its key with it (!K: at the start of its line): [c e g] 7 +; a key moves up too"
+       (or-key (on-material "+" (fn [n x] (mt/transposed x n)) (partial whole! "+")) 1))
+(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones, its key with it: [c e g] 12 -"
+       (or-key (on-material "-" (fn [n x] (mt/transposed x (- n))) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
 (word! "music" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
-       (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
+       (on-material "*" (fn [f x] (mt/map-leaves #(scale-duration % f) x)) (partial positive! "*")))
 (word! "music" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
-       (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
+       (on-material "/" (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) (partial positive! "/")))
 
 (defn- hairpin [word dir]
   (fn [s]
@@ -297,7 +300,10 @@
    is the voice to play as; else nil."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
-    [(mt/voice-id word (peek s)) (pop s)]
+    (do (when (and (keyword? (peek s)) (= 1 (count s)))
+          (e/mu-error (str word ":") (pr-str (peek s)) "on top is the voice to play as, and needs music under it;"
+                      "to play what is stored as" (pr-str (peek s)) "fetch it first:" (pr-str (peek s)) "R@ >"))
+        [(mt/voice-id word (peek s)) (pop s)])
     [nil s]))
 
 (word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given"
@@ -318,8 +324,8 @@
              (mt/play! (peek s) ctx true target)
              (pop s)))))
 
-(word! "play" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "play" "play"])))
-(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "play" "play+"])))
+(word! "play" ">" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
+(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
   "( material [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
@@ -370,12 +376,12 @@
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
        (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
-(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (:fn (get-in @e/state [:ns "play" "voices"])))
+(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (e/same-as "play" "voices"))
 (word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass < or 1 < (the lowest); to compare numbers write lt"
        (fn [s]
          (when (and (number? (peek s)) (not (integer? (peek s))))
            (e/mu-error "<: takes a voice's id or index (:bass <, 1 <); to compare numbers write lt"))
-         ((:fn (get-in @e/state [:ns "play" "playing"])) s)))
+         ((e/same-as "play" "playing") s)))
 (word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
        (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))
 (word! "play" "solo" "( voice -- )  only this voice sounds, the others keeping their place; again and all sound"
@@ -443,8 +449,8 @@
   [vals keep?]
   (let [fmt (fn [k x]
               (cond
-                (instance? musics.common.music_elements.Key x) (str "!key:" (el/key->str x))
-                (instance? musics.common.music_elements.Meter x) (str "!Meter:" (el/meter->str x))
+                (instance? musics.common.music_elements.Key x) (str "!K:" (el/key->str x))
+                (instance? musics.common.music_elements.Meter x) (str "!M:" (el/meter->str x))
                 (number? x) (str "!" k ":" (if (ratio? x) x (pr-str x)))
                 (keyword? x) (str "!" k ":" (name x))
                 :else nil))]

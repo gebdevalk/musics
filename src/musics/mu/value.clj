@@ -32,12 +32,13 @@
   (or (instance? Quotation x) (fn? x)))
 
 (def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
-(def ^:private composite-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate})
+(def ^:private literal-tags
+  (into leaf-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
   [node]
-  (and (vector? node) (contains? (into leaf-tags composite-tags) (first node))))
+  (and (vector? node) (contains? literal-tags (first node))))
 
 (defn leaf? [x] (and (map? x) (contains? #{:LEAF :REST :DRUM} (:type x))))
 
@@ -116,10 +117,10 @@
   "Every id reachable from id in repo, id included."
   [repo id]
   (loop [todo [id] seen #{}]
-    (if-let [k (first todo)]
+    (if-let [k (peek todo)]
       (if (seen k)
-        (recur (rest todo) seen)
-        (recur (concat (rest todo) (refs (get repo k))) (conj seen k)))
+        (recur (pop todo) seen)
+        (recur (into (pop todo) (refs (get repo k))) (conj seen k)))
       seen)))
 
 (defn own-nodes

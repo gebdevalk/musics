@@ -1598,3 +1598,68 @@ groove and the algos' probabilities read.
 At depth 1 the weakest note lost half its velocity and the strongest
 gained half: too pronounced. Depth 1 is a quarter each way now, the
 default 0.5 an eighth.
+
+## 2026-10-19 — volumes, articulations, instruments, drums leave rests out
+
+`x dup volumes with-volumes` gave the notes the wrong values when `x`
+had rests: the reader gave a rest nil, `with-volumes` takes a value per
+note, so every value after a rest moved one note on. The readers of
+what only a note carries (`volumes`, `articulations`, `instruments`,
+`drums`) now leave rests out, a value per note, matching the `with-*`
+words and the algo streams (`volume/euclid` has no value for a rest
+either). The other way -- `with-*` taking a rest's value and dropping
+it -- would have made a generated stream lose one at every rest.
+`pitches` and `durations` keep a rest's value, since `zip` rebuilds the
+rests from them.
+
+## 2026-10-19 — dotted tempo marks; `meter` for Meter
+
+A tempo's beat is written as a note is (`!T:4.=80`, `!T:2.=60`), dots
+on the value as LilyPond's `\tempo 4. = 80` has them; the fraction
+(`3/8=80`) stays for any other beat. `!meter:` is an alias of `:Meter`,
+beside `!M:`, as `!key:` is of `:Key` (`!tempo:` already was of `:Tempo`).
+
+## 2026-10-20 — mu review fixes
+
+A review of `src/musics/mu/` found: a repeat or loop had no mean pitch
+(`d/mean-pitch` reads a container's baked sums, and an iterator's
+source is an id), so a playing loop ranked among the drums -- mu now
+walks a value's leaves itself (`material/leaves`, also what `[M]`/`[I]`
+and the drum ranking read, instead of rebuilding the value through
+`map-leaves`); `reachable` overflowed past a few thousand parts
+(nested `concat`); `>>` with only voices mu didn't start waited for a
+`|` that might never come, and now plays at once; `each`/`reduce`
+refuse an endless stream; a word calling itself without end is an
+error, not the end of mu; `:motif >` says to fetch with `R@`; the
+aliases (`>`, `..`, `[+]`, the twins) look their word up when they run,
+so a redefinition reaches them; `defaults` writes `!M:`.
+
+## 2026-10-20 — moving music moves its key
+
+mu's values pass through printing and reading, and the text has no way
+to say "written in C, moved up a semitone": `[c d e f] 1 +` was
+`[C#4 D#4 F4 F#4]` read as written in C, so under another playing key
+the F (e moved) was re-keyed onto F# beside the real F#. `+`, `-` and
+`transpose` now write the moved key at the start of the line (its own
+`!K:` moved, else the key its context gives; a `{ }`'s, a repeat's
+body), and every `!K:` inside moves too, so the notes are degrees of
+their own key wherever they play -- the line's own key wins over a
+`with` key, as any line's does. Whole octaves leave the key alone.
+The alternative, printing a moved run as `transpose n ( … )` to keep
+the text's `:key-shift`, would show the command instead of the notes.
+Changing a value's leaves (`map-leaves`) now changes its nodes and
+reads them back, so instructions inside a line (`[c !f d] 1 +`) and a
+`shuffle`/`rotate` mark survive; it rebuilt from the elements and the
+leading instructions before, dropping the rest.
+
+## 2026-10-20 — `( … )`, a group
+
+`( … )` runs what is inside and gathers what it leaves into one line,
+`| … seq` in brackets: so a word after it reaches all of it --
+`( [c d] 2 times [e] [f] volta ) 1 +` moves a repeat and its endings
+under one key, where on the bare repeat only the body's line could
+carry it. It mirrors the text's `( )`, which holds what a command
+changes now (`transpose 1 ( … )`). A quotation, `'( … )`, stays code
+held: making every word that takes music run one was the other way,
+heavier for the same result. Bare parentheses meant nothing in mu
+before; a definition's stack effect has its `--`.

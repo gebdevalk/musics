@@ -461,7 +461,8 @@ IntList = SignedInt (<','> SignedInt)+
    a bare Int note-value N means 1/N, an explicit Ratio is taken as-is).
    Only meaningful for the tempo-family keys, but parses as a generic
    Value so any assignment could in principle use it. *)
-TempoMark = (Int | Ratio) <'='> Int
+TempoMark = (Int | DottedNote | Ratio) <'='> Int
+DottedNote = #'[0-9]+\.+'
 
 (* ── Ramp ───────────────────────────────────────────────── *)
 (*

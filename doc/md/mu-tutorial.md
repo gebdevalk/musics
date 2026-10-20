@@ -109,6 +109,7 @@ first). An index or id on top of a play word plays as that voice:
 | Word | Stack | Does |
 |---|---|---|
 | `seq`, or `[2]` `[3]` … (`line`) | `( \| … -- line )` or `( a … -- line )` | one after another |
+| `( … )` | `( -- line )` | what runs inside, gathered into one line, as `\| … seq` |
 | `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
 | `[+]` | `( a b -- line )` | two lines joined into one |
 | `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
@@ -118,7 +119,8 @@ first). An index or id on top of a play word plays as that voice:
 The pairs differ in what they take and what they make of it:
 
 - `seq` and `par` gather **everything above a `|` mark**, as many as
-  you like, each staying an element of its own.
+  you like, each staying an element of its own. `( … )` is `| … seq` in
+  brackets: what runs inside, gathered into a line.
 - `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
   …, each staying an element (a part) of its own.
 - `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
@@ -129,6 +131,7 @@ The pairs differ in what they take and what they make of it:
 
 ```
 | c d e seq             → [C4/4 D4 E4]
+( c d e )               → [C4/4 D4 E4]
 | [c d] [e f] seq       → [[C4/4 D4] [E4 F4]]       two lines, one after the other
 [c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
 [c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
@@ -141,6 +144,10 @@ The pairs differ in what they take and what they make of it:
 [c d e f] 2 [H]         → [C4/4 D4]
 c e g <>                → <C4 E4 G4>4
 ```
+
+A group makes one line of what would be several values, so the next word
+reaches all of it: `( [c d] 2 repeat [e] [f] volta ) 1 +` moves the repeat
+and its endings together, under one key.
 
 Both `seq` results play the same four notes; the first keeps the two
 lines apart, so a word can still treat them as two (`[R]` swaps the
@@ -161,15 +168,20 @@ on the line as a whole.
 | `[M]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |
 
 ```
-[c e g] 7 +                → [G4/4 B4 D5]
+[c e g] 7 +                → [!K:G.major G4/4 B4 D5]
 [c e g] 12 -               → [C3/4 E3 G3]
-[c e g] c d transpose      → [D4/4 F#4 A4]
+[c e g] c d transpose      → [!K:D.major D4/4 F#4 A4]
 [c e g] [M]                → [G#4/4 E4 C#4]
 [c e g b] [R]              → [B4/4 G4 E4 C4]
 [c e g] [I]                → [C4/4 G#3 F3]
-[c e g] [I] 5 +            → [F4/4 C#4 A#3]       I5
+[c e g] [I] 5 +            → [!K:F.major F4/4 C#4 B&3]       I5
 [c d e g] [RI]             → [F3/4 G#3 A#3 C4]
 ```
+
+Moving music moves its key with it: `+`, `-` and `transpose` write the
+moved key at the start of the line (its own `!K:` moved, else the one
+it is in), so the notes stay what they were in their key and play so
+under any other; whole octaves leave the key alone.
 
 These are the serial row forms: R, I and RI, transposed with `+` (I5 is
 `[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a line
@@ -177,7 +189,9 @@ holding one bar's rest.
 
 ## 5. Keys
 
-A key is a value too: write it as `!key:` does, a tonic and a scale.
+A key is a value too: write it as `!K:` does, a tonic and a scale
+(`!K:` is the key's name, like `!T:` the tempo's and `!M:` the meter's;
+`!Key:`, `!key:` and `!k:` mean the same).
 
 | Word | Stack | Does |
 |---|---|---|
@@ -193,8 +207,8 @@ D.major tonic                   → D4/4
 D.major scale                   → [D4/4 E4 F#4 G4 A4 B4 C#5]
 '[0 1 2 3 4] D.major degrees    → [D4/4 E4 F#4 G4 A4]
 D.major 2 +                     → E.major
-[!key:D.major c d e] key        → D.major
-[c d e f g] D.major with        → [!key:D.major C#4/4 D4 E4 F#4 G4]
+[!K:D.major c d e] key          → D.major
+[c d e f g] D.major with        → [!K:D.major C#4/4 D4 E4 F#4 G4]
 ```
 
 The last one is worth a second look: notes written in C major (the
@@ -220,6 +234,19 @@ plays C♯ and `f` F♯ in D major.
 [!Meter:3/4 c2 d2 e2] [[]]        → [!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]
 ```
 
+A meter is `!M:` (also `!Meter:`, `!meter:`): a fraction (`!M:6/8`), additive
+groups in quotes (`!M:"7/8(2+2+3)"`), or the factors of its pulses,
+each an eighth: `!M:223` is 2 x 2 x 3 eighths, a 12/8 heard as four
+dotted quarters, `!M:232` the same bar as six quarters, `!M:2232/16`
+in sixteenths. The grouping is what the accents and the groove hear
+(section 7).
+
+```
+[!M:6/8 c4. d8 e f g4.] [||]             → [!M:6/8 C4/4. D4/8 E4 F4 | G4/4.]
+[!M:223 c4. d e f g a b c] [||]          → [!M:223 C4/4. D4 E4 F4 | G4 A4 B4 C5]
+[!M:"7/8(2+2+3)" c4 d e8 f g a b] [||]   → [!M:"7/8(2+2+3)" C4/4 D4 E4/8 F4 G4 | A4 B4]
+```
+
 In the `[||]` example the `d2` doesn't fit in what is left of the first bar
 (a quarter), so `[||]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
@@ -231,7 +258,9 @@ it; a ramp (`!vol<`) ends with its measure.
 ## 7. Dynamics, tempo, instruments: contexts
 
 A context `^{ … }` holds settings, written as in a `.mus` file
-(`!tempo:60`, `!ff`, `!i:73`). `with` puts music under one.
+(`!tempo:60`, `!ff`, `!i:73`). `with` puts music under one. A tempo
+names its beat as a note value: `!T:8=120` (eighths), `!T:4.=80` and
+`!T:2.=60` (dotted quarters and halves), `!T:3/8=80` as a fraction.
 
 | Word | Stack | Does |
 |---|---|---|
@@ -249,18 +278,7 @@ A context `^{ … }` holds settings, written as in a `.mus` file
 [c8 d e f] ^{ !swing } with               → [!swing C4/8 D4 E4 F4]
 ```
 
-`!swing` swings the eighths as jazz does: of each pair the first lasts
-0.6, the second starts late and lasts the rest. `!shuffle` is the
-strict triplet feel of blues and rock (2/3 and 1/3), `!swing:0.75`
-harder still (dotted), `!straight` (0.5) not at all, and
-`!swingUnit:16` swings sixteenths instead. Only what you hear moves:
-the line prints and counts its bars as written. `!accent:metric` makes
-the strong beats of the bar louder and the weak ones softer, by the
-meter (try `!M:223` against `!M:232`); `!accent:barlow` ranks every
-pulse finer, by Barlow; `!accent:agogic` the long notes;
-`!accentDepth:1` makes it stronger. `!laidBack` and
-`!pushed` (or `!groove:` from -1 to 1) move the weaker notes a little
-late or early, the downbeat staying where it is.
+`!swing` and the other settings of feel are below, in "Feel".
 
 `with` writes the settings at the start of the line, in front of the
 line's own. Of two settings for the same thing, the later one counts,
@@ -295,6 +313,33 @@ Inside a line, from where it is written, nested lines included:
 The difference in one sentence: `with` changes the music (its result
 is a new line, stored or played later), a context before `>` or in
 front of notes is how that music is played here, and so it wins.
+
+### Feel: swing, groove, accents
+
+These settings change only what you hear: the line prints, and counts
+its bars, as written, so a swung part stays in step with a straight one.
+
+| Setting | Does |
+|---|---|
+| `!swing` | swings the eighths as jazz does: of each pair the first lasts 0.6, the second starts late |
+| `!shuffle` | the strict triplet feel of blues and rock, 2/3 and 1/3 |
+| `!swing:0.7`, `!straight` | any ratio from 0.5 (straight) to 0.75 (dotted) |
+| `!swingUnit:16` | swings sixteenths instead of eighths |
+| `!laidBack`, `!pushed`, `!groove:-1..1` | the weaker a note's place in the bar, the later (or earlier) it comes, the downbeat staying |
+| `!accent:metric` | the strong places of the bar louder, the weak ones softer, by the meter's levels |
+| `!accent:barlow` | the same by Barlow's finer ranking, every place its own weight |
+| `!accent:agogic` | the longer notes louder |
+| `!accentDepth:0..1` | how much the accent weighs (0.5) |
+
+```
+[!shuffle c8 d e f g a b c] [~] >
+[!laidBack c16 d e f g a b c d e f g a b c d] [~] >
+[!M:223 !accent:metric c8 c c c c c c c c c c c] [~] >
+[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] >>
+```
+
+The last two are the same twelve eighths: `223` is heard as four
+groups of three, `232` as six groups of two.
 
 ## 8. Repeats
 
@@ -373,7 +418,8 @@ stream (a list).
 | `duration` | `durations` | the length, in whole notes |
 | `volume` | `volumes` | its own volume (`c4\f`, `c4\vol:90`), else nil |
 | `articulation` | `articulations` | its articulation (`:accent`, `:staccato` …), else nil |
-| `instrument` | `instruments` | its own instrument (`c4\i:40`), a drum's key, else nil |
+| `instrument` | `instruments` | its own instrument (`c4\i:40`), else nil (a drum has none) |
+| `drum` | `drums` | a drum's key (`x8\38`: 38), else nil |
 
 `note?`, `chord?`, `rest?` and `drum?` tell what one note is.
 
@@ -403,8 +449,14 @@ durations and pitches back together:
 [c8 <e g>4 r8 d] durations       → '[1/8 1/4 1/8 1/8]
 [c8 <e g>4 r8 d] pitches         → '[60 '[64 67] nil 62]
 [c d\vol:90 e] volumes           → '[nil 90 nil]
+[c\vol:30 r d\vol:90] volumes    → '[30 90]
 '[/4 /8 /8] '[60 62 64] zip      → [C4/4 D4/8 E4]
 ```
+
+`pitches` and `durations` give a rest's too (nil, its length), which
+`zip` needs; `volumes`, `articulations`, `instruments` and `drums` leave
+rests out, a value per note, as `with-volumes` and the others take them
+(section 15).
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in
@@ -463,15 +515,41 @@ several steps.
 
 ## 12. Instruments and drums
 
-An instrument is a General MIDI program (`\i:40` is a violin), set on
-a note or for a whole line; a list plays several at once. A drum is
-`x` with its key or name; a bare `x` repeats the last one.
+An instrument is a General MIDI program, by number (`\i:40` is a
+violin), by name (`!i:seashore`, `\i:birdTweet`) or by its short name
+(`!i:sea`, `\i:vib`), set on a note or for a whole line; a list plays
+several at once. A drum is `x` with its key or name; a bare `x`
+repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
+`power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`
+(what you get depends on the soundfont).
 
 ```
 [!i:40,73 c d e]                    violin and flute in unison
 [x8\36 x x\38 x]                    kick, kick, snare, snare
 x8\kick,clap                        → x8\36,39   one stroke, two sounds
+[!kit:brush x8\sna x x x]           snares with brushes
 ```
+
+Instruments and drums are two worlds: an instrument is a program and
+its notes are pitches; a drum is a key of the kit, the key choosing the
+sound. So the words keep them apart:
+
+| Word | Stack | Does |
+|---|---|---|
+| `instruments` | `( line -- stream )` | each note's own program; nil for a drum |
+| `drums` | `( line -- stream )` | each drum's key; nil for a note |
+| `with-instruments` | `( line programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
+| `with-drums` | `( line keys -- line )` | each drum's sound in turn; a note is refused |
+| `as-drums` | `( line keys -- line )` | each note made a drum, keeping its length, volume and accent |
+
+```
+[c d e] '[40 :sea 73] with-instruments  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
+[x8\bd1 x8\sna] '[:hhc :cr1] with-drums → [x8\42 x\49]
+[c8 d e f] '[:kick :hhc :sna :hhc] as-drums → [x8\36 x\42 x\38 x\42]
+```
+
+Names in a stream are keywords (`:sea`, `:kick`); numbers and names
+can stand side by side.
 
 | Word | Stack | Does |
 |---|---|---|
@@ -498,9 +576,9 @@ and play it, or rate them (section 16).
 
 ```
 'motif [c e g] :=
-\motif 5 +              → [F4/4 A4 C5]
+\motif 5 +              → [!K:F.major F4/4 A4 C5]
 [c d e] :mel R!         → :mel
-:mel R@ 7 +             → [G4/4 A4 B4]
+:mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
 ```
 
 ## 14. One tree: the color-talea
@@ -637,6 +715,26 @@ The tresillo's three notes against four pitches line up again after
 twelve: the melody keeps landing on another beat, the color-talea of
 section 14 written with an algo.
 
+A volume, articulation or instrument stream goes back onto a line with
+`with-volumes`, `with-articulations` or `with-instruments`, a value per
+note in turn (rests take none). With eight beats among eight eighths,
+`volume/euclid` gives the meter's accents:
+
+```
+[c8 d e f g a b c] ^{ @k:8 @n:8 @volume-pulse:1/8 @volume-lo:50 @volume-hi:80 } volume/euclid with-volumes
+    → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
+```
+
+A random algo runs differently each time. `@seed:7` in its settings
+runs it on that seed, so two words with one seed and one source read
+the same run -- a walk heard as pitch and as volume, rising and
+falling together:
+
+```
+^{ @seed:7 @len:6 } pitch/walk     → '[48 48 48 53 60 60]
+^{ @seed:7 @len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+```
+
 ## 16. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`):
@@ -682,15 +780,16 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
 | `{+}` `beside` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- line )` |
-| `[M]` `mirror`, `[R]` `retrograde`, `[I]` `invert`, `[RI]` `retrograde-inversion` | `( x -- x )` |
+| `[M]` `mirror`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
 | `[:]` `repeats` | `( x -- [: x :] )` |
 | `[\|\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/`, `up` `down` `stretch` `shrink` | `( x n -- x )` |
 | `cresc` `dim` | `( x volume -- x )` |
-| `pitch` `duration` `volume` `articulation` `instrument` | `( note -- value )` |
-| `pitches` `durations` `volumes` `articulations` `instruments` | `( line -- stream )` |
+| `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
+| `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
+| `with-volumes` `with-articulations` `with-instruments` `with-drums` `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |

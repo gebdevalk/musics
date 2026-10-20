@@ -33,6 +33,7 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered into one line (`\| … seq`) |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
@@ -293,7 +294,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` `volumes` `articulations` `instruments` `drums`; back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` `with-drums`, and `as-drums` (notes made drums) |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (rests left out); back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` `with-drums`, and `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -375,7 +376,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   what plays when it reaches its end, or the end of its repeat's
   current pass; `x | >>` … `x |||| >>` at the next bar line of that
   strength. The new material starts when the boundary is due, so it
-  lands in time; with nothing playing it plays at once. `>>+` waits the
+  lands in time; with nothing playing, or only what mu didn't start (an audition, a voice
+  from Clojure), whose passes it can't see, it plays at once. `>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time for each voice it
   replaces: a later `>>` or `>>+` for it replaces it; `>`, `>+` and
@@ -426,7 +428,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 
 | On material | Means | Example |
 |---|---|---|
-| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
+| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones, the key with it (`!K:` at the start of the line: its own moved, else the one it is in; not for whole octaves) | `c4 2 +` gives `D4/4`; `[c d] 2 +` `[!K:D.major D4/4 E4]`; `[c d e] 12 -` an octave down |
 | `*`, `/` (`stretch`, `shrink`) | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cresc`, `dim` | crescendo, diminuendo across the material, to a volume 0-100 | `[c d e f] 90 cresc` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |

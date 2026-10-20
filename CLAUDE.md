@@ -232,7 +232,8 @@ means in a `.mus` file. A literal becomes a value without entering the
 repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
-element (`+` transposes every note), the same symbol in brackets on
+element (`+` transposes every note, writing the moved key, `!K:`, at
+the start of the line), the same symbol in brackets on
 the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
@@ -283,7 +284,8 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, `+` `up`, `*` `stretch`, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
-`'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
+`'( … )` quotations, `( … )` a group (run now, what it leaves
+gathered into a line, `| … seq`); `musics.mu.kernel` and `musics.mu.tools` hold the
 words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
@@ -1292,8 +1294,8 @@ numerator), or as the factors of its pulses, indispensability's own
 form: `!M:223` is 2×2×3 eighths (12/8, `subdivisions` `[2 2 3]`),
 `!M:232` the same length grouped otherwise, `!M:2232/16` sixteenths --
 two or more digits, each 2, 3, 5 or 7, an eighth's pulse unless `/n`
-(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` alias
-also works. Both forms reach the context
+(`el/parse-meter-str`, which `meter->str` prints back) — the `:M` and `:meter` aliases
+also work. Both forms reach the context
 correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
@@ -1535,8 +1537,8 @@ redundant text at all — a `VarRef`'s own stored body is opaque to that
 check, so that case relies on the grammar's own tolerance instead.
 
 Tempo takes either a bare BPM (`!tempo:120`, quarter note implied) or a
-LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, or an
-explicit ratio note-value, `!tempo:3/8=120` for a dotted-quarter). The
+LilyPond-style `TempoMark` — note-value `=` BPM (`!tempo:4=120`, a
+dotted one, `!tempo:4.=120`, or a ratio, `!tempo:3/8=120`). The
 walker (`walker.clj`'s `walk-assignment` `:TempoMark` case)
 converts a `TempoMark` to the quarter-note-equivalent BPM `resolve.clj`'s
 tempo sampling expects (`el/tempo->quarter-bpm`, e.g. `8=120` → `60`,
