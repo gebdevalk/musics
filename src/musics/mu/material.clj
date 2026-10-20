@@ -123,7 +123,8 @@
   "x as a line: itself if it is one, else a line holding it (a shuffle
    [ … ] too, whose order is its own)."
   [x]
-  (let [m (->material x)] (if (and (= :SEQ (kind m)) (not (:shuffle (v/node m))) (not (:rotate (v/node m))) (not (:choose (v/node m))) (not (:alternate (v/node m)))) m (line [x]))))
+  (let [m (->material x)]
+    (if (and (= :SEQ (kind m)) (not-any? (v/node m) [:shuffle :rotate :choose :alternate])) m (line [x]))))
 
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
@@ -327,21 +328,40 @@
   []
   (into {} (filter (fn [[id _]] (engine/voice-at id))) @voices))
 
-(defn mean-pitch
-  "x's mean pitch (a note's, or a line's as written), nil without pitch."
+(defn leaves
+  "x's leaves as written, at any depth -- a repeat's body and endings
+   once, a loop's once -- without rebuilding anything: for looking at
+   them, not changing them (map-leaves)."
   [x]
-  (d/mean-pitch (if (leaf? x) x (v/node (->material x)))))
+  (letfn [(walk [repo n]
+            (cond
+              (keyword? n)      (walk repo (get repo n))
+              (leaf? n)         [n]
+              (d/iterator? n)   (concat (walk repo (:source n)) (some->> (get-in n [:params :alternative]) (walk repo)))
+              (= :DATA (:type n)) nil
+              (map? n)          (mapcat #(walk repo %) (:children n))
+              :else             nil))]
+    (cond
+      (leaf? x)       [x]
+      (v/material? x) (walk (:repo x) (v/node x))
+      (sequential? x) (mapcat leaves (if-let [[body] (:mu/repeat (meta x))] [body] x))
+      :else           nil)))
+
+(defn mean-pitch
+  "x's mean pitch (a note's, a line's, a repeat's or loop's as written),
+   nil without pitch."
+  [x]
+  (let [ps (mapcat :pitches (leaves x))]
+    (when (seq ps) (/ (reduce + ps) (count ps)))))
 
 (defn- lowest-drum
   "The lowest drum key x plays, nil when it plays no drum."
   [x]
-  (let [ks (volatile! [])]
-    (doall (map-leaves #(do (when (= :DRUM (:type %))
-                              ;; no key plays 35, as musics.domain.resolve plays it
-                              (let [k (:program %)] (vswap! ks into (map (fnil identity 35) (if (vector? k) k [k])))))
-                            %)
-                       (->material x)))
-    (some->> (seq @ks) (apply min))))
+  (some->> (seq (for [l (leaves x) :when (= :DRUM (:type l))
+                      ;; no key plays 35, as musics.domain.resolve plays it
+                      k (let [k (:program l)] (if (vector? k) k [k]))]
+                  (or k 35)))
+           (apply min)))
 
 (defn ranked
   "[pitched drums]: the voice ids mu plays with pitch, lowest mean pitch
@@ -415,15 +435,17 @@
    when named music replaces it, else of everything mu plays -- through
    the conductor, starting exactly when the boundary is due. Named
    music replaces only its voice; otherwise x replaces everything, or
-   with join? true joins it. Plays at once when nothing plays."
+   with join? true joins it. Plays at once when nothing plays, or when
+   no boundary is known: no count, and none of what plays started by mu
+   (an audition, a voice from Clojure)."
   [x ctx count & [join? target]]
   (let [live (live-voices)]
-    (if-not (engine/busy?)
+    (if (or (not (engine/busy?)) (and (nil? count) (empty? live)))
       (play! x ctx join? target)
       (let [[eng form mat] (prepared x ctx)
             name   (or target (voice-name mat))
             ends   (if-let [v (and name (get live name))] (:ends v) (into #{} (mapcat :ends) (vals live)))
-            ks     (if (or count (empty? ends)) [[[:mark (or count 1)] :enter]] (mapv (fn [id] [id :exit]) ends))
+            ks     (if count [[[:mark count] :enter]] (mapv (fn [id] [id :exit]) ends))
             target (or name (if join? (keyword "mu" (str (gensym "join"))) ::all))
             action (keyword "mu" (str (gensym "staged")))]
         (cancel-staged! target)

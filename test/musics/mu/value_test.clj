@@ -49,3 +49,8 @@
     (is (= (set (keys repo)) #{:ROOT}) "the given repo is untouched (a value)")
     (is (contains? (:repo (first values)) (:id (first values))))
     (is (pos? (get auto-ids :SEQ 0)) "the auto ids advance")))
+
+(deftest reachable-holds-many-parts
+  (let [ids  (map #(keyword (str "b" %)) (range 20000))
+        repo (assoc (zipmap ids (repeat {:type :SEQ :children []})) :a {:type :SEQ :children (vec ids)})]
+    (is (= 20001 (count (v/reachable repo :a))) "no stack overflow")))

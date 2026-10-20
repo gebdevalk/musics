@@ -86,17 +86,23 @@
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
            (if f (e/call s q) s))))
 
+(defn- finite
+  "xs, refused if it is an endless stream: word would never end."
+  [word xs]
+  (when (:mu/endless (meta xs)) (e/mu-error (str word ":") "an endless stream never ends -- take some first"))
+  xs)
+
 (word! "kernel" "each" "( things q -- … )  run q on each element in turn"
        (fn [s]
          (need s 2 "each")
-         (let [q (peek s) xs (mt/elements (peek (pop s)))]
+         (let [q (peek s) xs (finite "each" (mt/elements (peek (pop s))))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
 (word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( add ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
-           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (mt/elements xs)))))
+           (reduce (fn [st x] (e/call (conj st x) q)) (conj (subvec s 0 (- n 3)) init) (finite "reduce" (mt/elements xs))))))
 
 ;; -- printing -------------------------------------------------------------
 
@@ -297,7 +303,10 @@
    is the voice to play as; else nil."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
-    [(mt/voice-id word (peek s)) (pop s)]
+    (do (when (and (keyword? (peek s)) (= 1 (count s)))
+          (e/mu-error (str word ":") (pr-str (peek s)) "on top is the voice to play as, and needs music under it;"
+                      "to play what is stored as" (pr-str (peek s)) "fetch it first:" (pr-str (peek s)) "R@ >"))
+        [(mt/voice-id word (peek s)) (pop s)])
     [nil s]))
 
 (word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given"
@@ -318,8 +327,8 @@
              (mt/play! (peek s) ctx true target)
              (pop s)))))
 
-(word! "play" ">" "( material [^{ }] -- )  play" (:fn (get-in @e/state [:ns "play" "play"])))
-(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (:fn (get-in @e/state [:ns "play" "play+"])))
+(word! "play" ">" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
+(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
   "( material [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
@@ -370,12 +379,12 @@
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
        (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
-(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (:fn (get-in @e/state [:ns "play" "voices"])))
+(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (e/same-as "play" "voices"))
 (word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass < or 1 < (the lowest); to compare numbers write lt"
        (fn [s]
          (when (and (number? (peek s)) (not (integer? (peek s))))
            (e/mu-error "<: takes a voice's id or index (:bass <, 1 <); to compare numbers write lt"))
-         ((:fn (get-in @e/state [:ns "play" "playing"])) s)))
+         ((e/same-as "play" "playing") s)))
 (word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
        (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))
 (word! "play" "solo" "( voice -- )  only this voice sounds, the others keeping their place; again and all sound"
@@ -444,7 +453,7 @@
   (let [fmt (fn [k x]
               (cond
                 (instance? musics.common.music_elements.Key x) (str "!K:" (el/key->str x))
-                (instance? musics.common.music_elements.Meter x) (str "!Meter:" (el/meter->str x))
+                (instance? musics.common.music_elements.Meter x) (str "!M:" (el/meter->str x))
                 (number? x) (str "!" k ":" (if (ratio? x) x (pr-str x)))
                 (keyword? x) (str "!" k ":" (name x))
                 :else nil))]

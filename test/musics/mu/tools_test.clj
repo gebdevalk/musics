@@ -167,9 +167,10 @@
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
                              ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
-                             ["[%]" "rotate" "[c d e] 1"] ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"]
-                             ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"] ["[M]" "mirror" "[c d e g]"]]]
+                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
+  (is (str/ends-with? (:effect (e/lookup @e/state "+")) "(also up)") "each twin named once in the help")
+  (is (str/ends-with? (:effect (e/lookup @e/state "up")) "7 + (also +)"))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")

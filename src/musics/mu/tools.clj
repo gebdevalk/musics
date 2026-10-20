@@ -77,7 +77,7 @@
            (when-not (and (number? a) (number? b)) (e/mu-error "range: needs two numbers"))
            (conj (pop (pop s)) (range a b)))))
 
-(word! "tool" ".." "( a b -- stream )  range" (:fn (get-in @e/state [:ns "tool" "range"])))
+(word! "tool" ".." "( a b -- stream )  range" (e/same-as "tool" "range"))
 
 (word! "tool" "iterate" "( x q -- endless )  x, then q of x, then q of that, forever: 1 '( 2 add ) iterate 4 take"
        (fn [s]
@@ -186,8 +186,8 @@
          (let [b (peek s) a (peek (pop s))]
            (conj (pop (pop s)) (reshape a #(concat % (mt/elements b)))))))
 
-(word! "tool" "[+]" "( a b -- a then b )  the two joined into one, as then" (:fn (get-in @e/state [:ns "tool" "then"])))
-(word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (:fn (get-in @e/state [:ns "tool" "rotate"])))
+(word! "tool" "[+]" "( a b -- a then b )  the two joined into one, as then" (e/same-as "tool" "then"))
+(word! "tool" "[%]" "( x n -- x' )  rotated by n, wrapping around, as rotate" (e/same-as "tool" "rotate"))
 (word! "tool" "rotating" "( x n -- part )  rotate n [ x ]: rotated n places further each time it plays, as written the first time ([c d e] 1 rotating [~] rotates every pass; [%] rotates now)"
        (fn [s]
          (let [n (count-arg s "rotating") s (pop s)]
@@ -200,7 +200,7 @@
          (let [x (peek s)]
            (if (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x))))
              (conj (pop s) (mt/read-text (str "shuffle " (p/show (mt/as-line x)))))
-             ((:fn (get-in @e/state [:ns "tool" "shuffle"])) s)))))
+             ((e/same-as "tool" "shuffle") s)))))
 
 (word! "tool" "interleave" "( a b -- a b alternating )  the elements of a and b, alternating"
        (fn [s]
@@ -680,10 +680,7 @@
                                             (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
                                           (peek out))))))))
 
-(defn- pitches-of [x]
-  (let [ps (volatile! [])]
-    (doall (mt/map-leaves #(do (vswap! ps into (:pitches %)) %) x))
-    @ps))
+(defn- pitches-of [x] (vec (mapcat :pitches (mt/leaves x))))
 
 (defn- invert-around
   "x mirrored through d/invert around (axis pitches), unchanged when it
@@ -851,7 +848,7 @@
   (fn [s]
     (need s 1 sign)
     (let [counted? (and (integer? (peek s)) (> (count s) 1) (not (number? (peek (pop s)))))]
-      ((:fn (get-in @e/state [:ns "tool" tool])) (if counted? s (conj s 1))))))
+      ((e/same-as "tool" tool) (if counted? s (conj s 1))))))
 
 (word! "tool" "[H]" "( x [n] -- head )  the first n elements, 1 without a count: [c d e f] [H] gives [c], [c d e f] 2 [H] gives [c d]"
        (counted "[H]" "take"))
@@ -864,7 +861,7 @@
   "Define word name in ns as the sign word already defined in sign-ns."
   [ns name sign-ns sign]
   (let [{:keys [fn effect]} (get-in @e/state [:ns sign-ns sign])]
-    (word! ns name (str effect " (also " sign ")") fn)
+    (word! ns name (str effect " (also " sign ")") (e/same-as sign-ns sign))
     (word! sign-ns sign (str effect " (also " name ")") fn)))
 
 (doseq [[ns name sign-ns sign]
@@ -883,10 +880,6 @@
          ["music" "together"             "music" "{n}"]
          ["music" "beside"               "music" "{+}"]
          ["music" "chord"                "music" "<>"]
-         ["music" "up"                   "music" "+"]
-         ["music" "down"                 "music" "-"]
-         ["music" "stretch"              "music" "*"]
-         ["music" "shrink"               "music" "/"]
          ["music" "up"                   "music" "+"]
          ["music" "down"                 "music" "-"]
          ["music" "stretch"              "music" "*"]

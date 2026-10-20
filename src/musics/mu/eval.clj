@@ -66,6 +66,12 @@
   [ns name effect f]
   (define! ns name {:fn f :effect effect}))
 
+(defn same-as
+  "A word's fn that runs the word ns/name, looked up when it runs: an
+   alias (> for play) that follows a redefinition of what it names."
+  [ns name]
+  (fn [stack] ((:fn (get-in @state [:ns ns name])) stack)))
+
 (defn need
   "Assert the stack holds at least n items for word."
   [stack n word]
@@ -279,7 +285,9 @@
    {:error message} -- after which the stack is empty. Nothing is
    printed: as in Forth, only words that print do."
   [text]
-  (let [r (try (read-input text) (catch Exception e {:error (.getMessage e)}))]
+  (let [r (try (read-input text)
+               (catch StackOverflowError _ {:error "the stack of calls overflowed reading this"})
+               (catch Exception e {:error (.getMessage e)}))]
     (cond
       (:incomplete r) r
       (:error r)      (do (swap! state assoc :stack []) r)
@@ -292,6 +300,9 @@
           (when (:mu/bye (ex-data e)) (throw e))
           (swap! state assoc :stack [])
           {:error (.getMessage e)})
+        (catch StackOverflowError _
+          (swap! state assoc :stack [])
+          {:error "the stack of calls overflowed -- a word calling itself without end?"})
         (catch Exception e
           (swap! state assoc :stack [])
           {:error (str (.getSimpleName (class e)) ": " (.getMessage e))})))))

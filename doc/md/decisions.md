@@ -1618,3 +1618,18 @@ A tempo's beat is written as a note is (`!T:4.=80`, `!T:2.=60`), dots
 on the value as LilyPond's `\tempo 4. = 80` has them; the fraction
 (`3/8=80`) stays for any other beat. `!meter:` is an alias of `:Meter`,
 beside `!M:`, as `!key:` is of `:Key` (`!tempo:` already was of `:Tempo`).
+
+## 2026-10-20 — mu review fixes
+
+A review of `src/musics/mu/` found: a repeat or loop had no mean pitch
+(`d/mean-pitch` reads a container's baked sums, and an iterator's
+source is an id), so a playing loop ranked among the drums -- mu now
+walks a value's leaves itself (`material/leaves`, also what `[M]`/`[I]`
+and the drum ranking read, instead of rebuilding the value through
+`map-leaves`); `reachable` overflowed past a few thousand parts
+(nested `concat`); `>>` with only voices mu didn't start waited for a
+`|` that might never come, and now plays at once; `each`/`reduce`
+refuse an endless stream; a word calling itself without end is an
+error, not the end of mu; `:motif >` says to fetch with `R@`; the
+aliases (`>`, `..`, `[+]`, the twins) look their word up when they run,
+so a redefinition reaches them; `defaults` writes `!M:`.

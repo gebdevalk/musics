@@ -351,5 +351,29 @@
         (run "0 stop")
         (run "-0 stop")
         (is (re-find #"no drum voice" (:error (run "0 <"))))
+        (run "[!tempo:60 C2/1 D2] [~] >+")
+        (run "[!tempo:60 C7/1 D7] 2 repeat >+")
+        (is (re-find #"C2/1" (p/show (first (:ok (run "1 <"))))) "a loop ranks by its pitch")
+        (is (re-find #"C7/1" (p/show (first (:ok (run "5 <"))))) "a repeat too, not among the drums")
         (finally (mt/stop-all!))))))
+
+(deftest a-name-on-top-of-play-is-a-voice
+  (is (re-find #":motif R@ >" (:error (run ":motif >"))) "the hint to fetch what is stored"))
+
+(deftest staged-play-with-no-boundary-plays-at-once
+  (let [eng (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (binding [engine/*engine* eng]
+        (try
+          (mt/stop-all!)
+          (engine/play [(first (:ids (m/parse "[!tempo:60 c1 d1]")))])
+          (run "[e f] >>")
+          (is (empty? (conductor/scheduled)) "mu knows no pass of what plays: no wait for a | that may never come")
+          (is (= 1 (count (mt/live-voices))))
+          (finally (mt/stop-all!)))))))
+
+(deftest endless-each-and-runaway-words
+  (is (re-find #"each: an endless stream" (:error (run "'[1 2] [~] '( pop ) each"))))
+  (is (re-find #"reduce: an endless stream" (:error (run "'[1 2] [~] 0 '( add ) reduce"))))
+  (is (re-find #"overflowed" (:error (run ": loop ( -- ) loop ; loop"))) "a word calling itself ends in an error, not a crash"))
 

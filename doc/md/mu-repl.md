@@ -375,7 +375,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   what plays when it reaches its end, or the end of its repeat's
   current pass; `x | >>` … `x |||| >>` at the next bar line of that
   strength. The new material starts when the boundary is due, so it
-  lands in time; with nothing playing it plays at once. `>>+` waits the
+  lands in time; with nothing playing, or only what mu didn't start (an audition, a voice
+  from Clojure), whose passes it can't see, it plays at once. `>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time for each voice it
   replaces: a later `>>` or `>>+` for it replaces it; `>`, `>+` and
