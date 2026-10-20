@@ -526,7 +526,10 @@ violin), by name (`!i:seashore`, `\i:birdTweet`) or by its short name
 (`!i:sea`, `\i:vib`), or the start of a name that can only mean one
 (`!i:trump`, `!i:pizz`), set on a note or for a whole line; `"viol"
 find-instrument`, `"cr" find-drum` and `"s" find-kit` list what a
-start of a name can mean (`""` all of them); a list plays
+start of a name can mean (`""` all of them), and Tab completes a name
+as you write it -- after `!i:` or `\i:`, a drum's `x8\` or `!kit:` --
+filling in the one it can be, or listing them with their program or key
+(a second Tab moves through the list); a list plays
 several at once. A drum is `x` with its key or name; a bare `x`
 repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
 `power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`

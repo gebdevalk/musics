@@ -11,9 +11,10 @@
             [musics.mu.kernel :as kernel]
             [musics.mu.material :as mt]
             [musics.mu.tools]
-            [musics.mu.algos])
+            [musics.mu.algos]
+            [musics.mu.complete :as complete])
   (:import (org.jline.keymap KeyMap)
-           (org.jline.reader EndOfFileException EOFError LineReader LineReader$Option
+           (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)
            (org.jline.reader.impl DefaultParser)
            (org.jline.terminal TerminalBuilder)))
@@ -69,6 +70,17 @@
               (proxy-super parse line cursor ctx))))
     (.setEscapeChars (char-array 0))))
 
+(defn- completer
+  "Tab completes the instrument, drum or kit name being written
+   (musics.mu.complete): one candidate is filled in, several listed with
+   their program or key, and a second Tab moves through them."
+  []
+  (reify Completer
+    (complete [_ _ line candidates]
+      (let [word (subs (.word line) 0 (.wordCursor line))]
+        (doseq [{:keys [value display descr]} (complete/candidates word)]
+          (.add candidates (Candidate. value display nil descr nil nil true)))))))
+
 (defn- line-reader
   "A JLine reader for mu on terminal, its history kept in history (a
    java.nio Path)."
@@ -78,6 +90,11 @@
   (-> (LineReaderBuilder/builder)
       (.terminal terminal)
       (.parser (mu-parser))
+      (.completer (completer))
+      ;; !i:Viol completes as !i:viol does; a second Tab opens a menu
+      ;; of the candidates under the prompt
+      (.option LineReader$Option/CASE_INSENSITIVE true)
+      (.option LineReader$Option/AUTO_MENU_LIST true)
       ;; ! is an instruction (!mf), not a history event
       (.option LineReader$Option/DISABLE_EVENT_EXPANSION true)
       ;; an input beginning with a space (pasted text, often) is kept in
