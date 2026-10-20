@@ -202,13 +202,18 @@
       [l 0]
       [(some #(when (= (mod (inc pc) 12) (data/diatonic-pcs %)) %) data/letter-order) -1])))
 
+(defn- flat-key?
+  "Does ks write flats (F major, D minor, B& major), not sharps?"
+  [ks]
+  (boolean (and ks (some #(neg? (el/key-letter-offset ks %)) data/letter-order))))
+
 (defn spell-pitch
   "midi as absolute pitch text (\"B&4/\"): as token wrote it, else as
    the key ks implies, else with a flat when the note was written with
-   flats (flat?), else a sharp (pitch->mus)."
+   flats (flat?) or ks writes flats, else a sharp (pitch->mus)."
   ([midi token ks] (spell-pitch midi token ks false))
   ([midi token ks flat?]
-   (let [[l a] (or (written-spelling token midi) (key-spelling ks midi) (when flat? (flat-spelling midi))
+   (let [[l a] (or (written-spelling token midi) (key-spelling ks midi) (when (or flat? (flat-key? ks)) (flat-spelling midi))
                    (let [{:keys [letter accidental]} (midi->spelling midi)]
                      [(Character/toLowerCase (char (first (str letter)))) (if (= "#" (str accidental)) 1 0)]))
          text  (spelled l a midi)]

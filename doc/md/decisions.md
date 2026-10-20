@@ -1663,3 +1663,11 @@ changes now (`transpose 1 ( … )`). A quotation, `'( … )`, stays code
 held: making every word that takes music run one was the other way,
 heavier for the same result. Bare parentheses meant nothing in mu
 before; a definition's stack effect has its `--`.
+
+## 2026-10-20 — flat keys spell with flats
+
+A note outside the key that wasn't written that way (moved, inverted,
+generated) was spelled with a sharp unless the note had been written
+with flats: `[c e g] [I] 5 +` printed `C#4` in F major. A key that
+writes flats (one of its letters flatted: F major, D minor) now spells
+such notes as flats too (`D&4`); a note as written keeps its spelling.
