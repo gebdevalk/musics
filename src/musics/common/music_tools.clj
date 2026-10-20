@@ -43,19 +43,6 @@
     :else (/ 1 (Long/parseLong s))))
 
 
-(defn smart-get
-  "Look up a value by unique prefix of a keyword key.
-   (smart-get {:tempo 120 :timbre 42} :te) => 120
-   (smart-get {:tempo 120 :timbre 42} :t)  => throws (ambiguous)"
-  [m prefix]
-  (let [s (name prefix)
-        matches (filter #(str/starts-with? (name %) s) (keys m))]
-    (case (count matches)
-      0 nil
-      1 (get m (first matches))
-      (throw (ex-info (str "Ambiguous prefix: " s)
-                      {:prefix s :matches (mapv name matches)})))))
-
 (comment
   (gcd 48 18)          ;; => 6
   (lcm 4 6)            ;; => 12

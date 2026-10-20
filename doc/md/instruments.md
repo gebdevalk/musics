@@ -1,6 +1,6 @@
 # Instruments and drums
 
-Every General MIDI instrument by program, name and short name, and the drums and kits. An instrument is set for a line with `!i:` or for one note with `\i:`, by any of the three: `!i:32`, `!i:acousticBass` and `!i:acbs` are the same. A short name reads in any case. A list plays several at once (`!i:40,73`).
+Every General MIDI instrument by program, name and short name, and the drums and kits. An instrument is set for a line with `!i:` or for one note with `\i:`, by any of the three: `!i:32`, `!i:acousticBass` and `!i:acbs` are the same. A name reads in any case, and the start of one finds it when it can only mean one instrument (`!i:trump`, `!i:pizz`, `!i:glock`); one that could mean several is an error naming them (`viol`: viola or violin). A list plays several at once (`!i:40,73`).
 
 ## Instruments
 
@@ -214,7 +214,7 @@ Every General MIDI instrument by program, name and short name, and the drums and
 
 ## Drums
 
-A drum is `x` with its key of the kit or its name: `x8\36`, `x8\kick`, `x8\bd1`; a bare `x` repeats the last one, and a list sounds several at once (`x8\kick,clap`). Drum short names are their own: `vib` is the vibraslap here, the vibraphone as an instrument.
+A drum is `x` with its key of the kit or its name: `x8\36`, `x8\kick`, `x8\bd1`; a bare `x` repeats the last one, and a list sounds several at once (`x8\kick,clap`). Drum names, kit names too, are found from their start the same way (`x8\cow`, `x8\closed`, `!kit:elec`). Drum short names are their own: `vib` is the vibraslap here, the vibraphone as an instrument.
 
 | key | drum | short | also |
 |---:|---|---|---|

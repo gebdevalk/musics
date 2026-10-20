@@ -1781,7 +1781,10 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   linear. `(quantity :pitch {:doc ..})` returns a spec with overrides, for
   algo metadata. The rest is reference data ported from an earlier Python
   implementation (pitch names, note lengths, dynamics, scales, drum name
-  → MIDI, …).
+  → MIDI, …). Instruments, drums and kits are found by name, short name
+  or the start of one that can only mean one (`program-of`/`resolve-drum`/
+  `kit-of` through `smart-get`: `trump`, `cow`, `elec`; an ambiguous start
+  throws, naming the candidates).
 - `musics/common/context_keys.clj` — the context-key registry (`!key:` names,
   aliases, types): `reg!` takes each key's range, default and scale from
   a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,

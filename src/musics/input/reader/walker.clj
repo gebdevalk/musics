@@ -311,6 +311,14 @@
       (throw (ex-info (str "'" v "' is not a General MIDI instrument -- a program number 0-127, a name (seashore, birdTweet) or a short name (sea, ep1)")
                       {:instrument v}))))
 
+(defn- drum-key!
+  "The key of the kit a drum's name gives, or a clear error: a drum is a
+   key 35-81 or one of its names."
+  [v]
+  (or (data/resolve-drum v)
+      (throw (ex-info (str "'" v "' is not a drum -- a key of the kit (36), a name (kick, hihat) or a short name (bd1, hhc)")
+                      {:drum v}))))
+
 (defn- kit-program!
   "The program a drum kit's name gives, or a clear error."
   [v]
@@ -1327,7 +1335,7 @@
         art      (extract-articulation children)
         overrides (extract-overrides children)
         drum-mod (find-child children :DrumMod)
-        dkeys    (mapv #(data/resolve-drum (second %)) (rest drum-mod))
+        dkeys    (mapv #(drum-key! (second %)) (rest drum-mod))
         prog     (if drum-mod
                    (reset! (:last-drum state) (if (next dkeys) dkeys (first dkeys)))
                    @(:last-drum state))

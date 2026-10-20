@@ -202,6 +202,39 @@
    79 {:name "Open Cuica"         :abbr "cuo"  :group "Percussion"}
    80 {:name "Mute Triangle"      :abbr "trim" :group "Percussion"}
    81 {:name "Open Triangle"      :abbr "trio" :group "Percussion"}})
+(defn- or-list
+  "\"a\", \"a or b\", \"a, b or c\"."
+  [xs]
+  (if (next xs) (str (str/join ", " (butlast xs)) " or " (last xs)) (str (first xs))))
+
+(defn smart-get
+  "The value m holds under k, or else under the keys k begins: a prefix
+   finds what it can only mean (:te finds :tempo's value, pizz the
+   pizzicato strings). Keys and k are compared through norm (name by
+   default: (smart-get m k #(str/lower-case (name %))) ignores case).
+   No match is nil; a prefix of keys holding different values throws,
+   naming one key for each: 'viol' could be viola or violin."
+  ([m k] (smart-get m k name))
+  ([m k norm]
+   (let [s     (norm k)
+         exact (first (filter #(= s (norm (key %))) m))]
+     (if exact
+       (val exact)
+       (let [hits (filter #(str/starts-with? (norm (key %)) s) m)
+             by-v (group-by val hits)]
+         (case (count by-v)
+           0 nil
+           1 (val (first hits))
+           (let [names (sort (for [[_ es] by-v] (name (key (apply max-key (comp count name key) es)))))]
+             (throw (ex-info (str "'" (name k) "' could be " (or-list names))
+                             {:prefix (name k) :matches (vec names)})))))))))
+
+(defn- loose
+  "A name as names are compared: any case, no - _ or space (birdTweet,
+   bird-tweet and Bird Tweet are one)."
+  [x]
+  (str/replace (str/lower-case (name x)) #"[-_ ]" ""))
+
 ;; Drum name -> MIDI note lookup (user-facing names)
 (def drum-name->midi
   (merge
@@ -224,13 +257,20 @@
     "claves"  75,
     "whistle" 71}))
 
+(def ^:private drum-names
+  "Every name a drum goes by: short (bd1), alias (kick) and General MIDI
+   name (Acoustic Bass Drum)."
+  (merge drum-name->midi (into {} (for [[k {:keys [name]}] drums] [name k]))))
+
 (defn resolve-drum
-  "Resolve a drum name or integer string to a MIDI note number.
-   Returns the MIDI note or nil if unknown."
+  "Resolve a drum name or integer string to a MIDI note number: a name
+   in any case, or the start of one that can only mean one drum (cow,
+   closed, splash); nil if unknown, an error naming the drums an
+   ambiguous start could be (cr: Crash Cymbal 1 or Crash Cymbal 2)."
   [name]
   (if (re-matches #"\d+" name)
     (Integer/parseInt name)
-    (get drum-name->midi (str/lower-case name))))
+    (smart-get drum-names name loose)))
 
 
 ;; ============================================================
@@ -317,20 +357,24 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
-(def ^:private abbr->program
-  (into {} (map (fn [[_ v]] [(str/lower-case (:abbr v)) (:prog v)]) gm-sound-set)))
+(def ^:private instrument-names
+  "Every name an instrument goes by: its General MIDI name, camelCase as
+   musics text writes it (birdTweet), and its short name (brd)."
+  (into {} (concat (for [[k v] gm-sound-set]
+                     [(let [[a & r] (str/split (name k) #"-")] (apply str a (map str/capitalize r))) (:prog v)])
+                   (for [[_ v] gm-sound-set] [(str/lower-case (:abbr v)) (:prog v)]))))
 
 (defn program-of
   "The MIDI program a General MIDI name gives (seashore, :bird-tweet, or
    camelCase as musics text writes it, birdTweet, electricPiano1), or its
-   short name (sea, acgd, ep1; any case), else nil. Only instruments:
-   a drum's short names are drums' (resolve-drum), never these -- vib
-   here is the vibraphone, as a drum the vibraslap."
+   short name (sea, acgd, ep1), in any case -- or the start of a name
+   that can only mean one instrument (trump, pizz, glock); else nil. A
+   start that could be several throws, naming them (viol: viola or
+   violin). Only instruments: a drum's names are drums' (resolve-drum),
+   never these -- vib here is the vibraphone, as a drum the vibraslap."
   [x]
   (when (or (keyword? x) (string? x))
-    (let [n (name x)
-          s (-> n (str/replace #"([a-z])([A-Z0-9])" "$1-$2") str/lower-case)]
-      (or (abbr->program (str/lower-case n)) (:prog (get gm-sound-set (keyword s)))))))
+    (smart-get instrument-names x loose)))
 
 (def drum-kits
   "Drum kits by name: the program a program change on the drum channel
@@ -340,9 +384,10 @@
    "jazz" 32 "brush" 40 "orchestra" 48 "sfx" 56})
 
 (defn kit-of
-  "The program a drum kit's name gives (brush, tr808; any case), else nil."
+  "The program a drum kit's name gives (brush, tr808; any case), or the
+   start of one that can only mean one kit (elec, orch), else nil."
   [x]
-  (when (or (keyword? x) (string? x)) (get drum-kits (str/lower-case (name x)))))
+  (when (or (keyword? x) (string? x)) (smart-get drum-kits x loose)))
 
 ;; ============================================================
 ;; 7. TIME SIGNATURES

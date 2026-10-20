@@ -523,7 +523,8 @@ several steps.
 
 An instrument is a General MIDI program, by number (`\i:40` is a
 violin), by name (`!i:seashore`, `\i:birdTweet`) or by its short name
-(`!i:sea`, `\i:vib`), set on a note or for a whole line; a list plays
+(`!i:sea`, `\i:vib`), or the start of a name that can only mean one
+(`!i:trump`, `!i:pizz`), set on a note or for a whole line; a list plays
 several at once. A drum is `x` with its key or name; a bare `x`
 repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
 `power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`
