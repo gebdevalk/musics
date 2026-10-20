@@ -64,7 +64,7 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
-| `voices` or `<<` | what plays: each voice's id and its music |
+| `voices` or `<<` | what plays: each voice's index (`1 lowest` … `highest`, `0 drums` …), id and music |
 | `:bass playing` or `:bass <` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
@@ -325,7 +325,7 @@ its bars, as written, so a swung part stays in step with a straight one.
 | `!shuffle` | the strict triplet feel of blues and rock, 2/3 and 1/3 |
 | `!swing:0.7`, `!straight` | any ratio from 0.5 (straight) to 0.75 (dotted) |
 | `!swingUnit:16` | swings sixteenths instead of eighths |
-| `!laidBack`, `!pushed`, `!groove:-1..1` | the weaker a note's place in the bar, the later (or earlier) it comes, the downbeat staying |
+| `!laidBack`, `!pushed`, `!groove:-1..1` | the weaker a note's place in the bar, the later (or earlier) it comes, up to a 32nd, the downbeat staying; live, a note comes at most 100 ms early (at `!groove:-1` below about `!T:75`) |
 | `!accent:metric` | the strong places of the bar louder, the weak ones softer, by the meter's levels |
 | `!accent:barlow` | the same by Barlow's finer ranking, every place its own weight |
 | `!accent:agogic` | the longer notes louder |

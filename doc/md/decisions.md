@@ -1671,3 +1671,13 @@ generated) was spelled with a sharp unless the note had been written
 with flats: `[c e g] [I] 5 +` printed `C#4` in F major. A key that
 writes flats (one of its letters flatted: F major, D minor) now spells
 such notes as flats too (`D&4`); a note as written keeps its spelling.
+
+## 2026-10-20 — a pushed groove is capped live
+
+`!groove:-1` moves the weakest notes up to a 32nd early; at slow
+tempos that is more than the engine's 100 ms lookahead (150 ms at
+`!T:50`), so live those notes come 100 ms early, as any negative
+`:micro` does, and `render` plays them exactly. Reading each stream
+further ahead by the largest push was the fix considered; left, since
+it delays every live change for an effect heard only in slow, strongly
+pushed music.

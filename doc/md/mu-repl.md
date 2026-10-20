@@ -399,7 +399,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `n` the highest; the voices without pitch (drums) from `0` down, `0`
   the one with the lowest drum key, `-1` the next. `1 <`, `2 hush`,
   `0 stop`, `x 1 >>` (a voice's id or index on top of a play word is
-  the voice to play as: `3 < 12 + 3 >>`); `<<` lists them by index.
+  the voice to play as: `3 < 12 + 3 >>`); `<<` lists them by index, marking the drums, the lowest and the highest.
 
 ### Arithmetic on material, accessors
 

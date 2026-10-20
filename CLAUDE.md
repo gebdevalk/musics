@@ -1686,7 +1686,7 @@ the voice's `:t`, its bars and signals stay straight, and engine and
 pushes it (-) by the weakness of its place in the bar -- the meter's
 weight at a sixteenth's resolution (`musics.common.music-elements/
 metric-weights`, Barlow's) -- up to a 32nd at 1.0, so the downbeat
-stays; `!laidBack` is 0.5, `!pushed` -0.5. `:accent` weighs each note's
+stays (live, a push is capped at the lookahead, like `:micro`); `!laidBack` is 0.5, `!pushed` -0.5. `:accent` weighs each note's
 velocity as heard: `!accent:metric` by its level in the meter's grid
 at a sixteenth (`musics.common.music-elements/metric-levels`: each level
 a clear step, every pulse of a level alike, so `!M:223` and `!M:232`
