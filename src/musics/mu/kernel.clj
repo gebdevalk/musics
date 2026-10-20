@@ -376,7 +376,7 @@
                        :let [{:keys [x]} (get vs id)
                              shown (p/show x)
                              label (cond (<= i 0) "drums" (= i 1) "lowest" (= i n) "highest" :else "")
-                             mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
+                             mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)" :else "")]]
                  (println (format row i label (pr-str id)
                                   (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark))))))
          s))

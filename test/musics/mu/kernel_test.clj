@@ -352,6 +352,7 @@
         (is (re-find #"(?m)^1 lowest +:" (out "<<")) "1 the lowest")
         (is (re-find #"(?m)^3 highest +:" (out "<<")) "n the highest")
         (is (apply = (map #(str/index-of % "[") (str/split-lines (out "<<")))) "the columns aligned")
+        (is (not (str/includes? (out "<<") "null")) "nothing after a voice that is neither hushed nor soloed")
         (run "[!tempo:60 x1\\hhc x1] >+")
         (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <"))))) "0 the drums with the lowest key (35, a plain x)")
         (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 <"))))) "-1 the next (42)")
