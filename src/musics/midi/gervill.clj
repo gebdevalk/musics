@@ -63,14 +63,30 @@
 (defn- initial-soundfont [soundfont]
   (or soundfont (some #(when (.isFile (io/file %)) %) default-soundfonts)))
 
+(defn- within
+  "(f) on another thread, its result if it ends within ms, else the
+   error msg; undo runs once f ends after all."
+  [ms msg f undo]
+  (let [run (future (f))]
+    (try
+      (let [r (deref run ms ::late)]
+        (when (= ::late r)
+          (future (try @run (undo) (catch Exception _)))
+          (throw (ex-info msg {:ms ms})))
+        r)
+      (catch java.util.concurrent.ExecutionException e (throw (.getCause e))))))
+
 (defn open
   "A Gervill synthesizer playing to the speakers, latency-ms of buffer
    (default 30), with soundfont loaded (else the first of
-   default-soundfonts). Its receiver: (.getReceiver synth)."
+   default-soundfonts). Its receiver: (.getReceiver synth). An output
+   that doesn't open within 5 s (a Bluetooth speaker asleep) is an
+   error, not a wait without end."
   [& {:keys [soundfont latency-ms] :or {latency-ms 30}}]
   (let [sf    (initial-soundfont soundfont)
         synth ^AudioSynthesizer (MidiSystem/getSynthesizer)]
-    (.open synth nil (info latency-ms sf))
+    (within 5000 "the sound output didn't open within 5 s: is it asleep or gone (a Bluetooth speaker)? wpctl status lists the outputs"
+            #(.open synth nil (info latency-ms sf)) #(.close synth))
     (when sf (load-soundfont! synth sf))
     synth))
 

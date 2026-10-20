@@ -1836,7 +1836,9 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   engine as VirMIDI's does; `(soundfont path-or-n)`/`(soundfonts)` load
   any `.sf2` (mu: `gervill` `fluidsynth` `soundfont` `soundfonts`).
   Its 30 ms latency needs `:jvm-opts`' `--add-exports
-  java.desktop/com.sun.media.sound`. `open-stream` renders into an
+  java.desktop/com.sun.media.sound`. An output that doesn't open
+  within 5 s (a Bluetooth speaker asleep) is an error, not a wait
+  without end. `open-stream` renders into an
   `AudioInputStream` instead of the speakers (its tests).
 - `musics/midi/file.clj` / `musics/midi/live.clj` — the two MIDI
   OUTPUT backends (file-based `aplaymidi` playback vs. live Fluidsynth via
