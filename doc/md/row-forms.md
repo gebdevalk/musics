@@ -1,17 +1,10 @@
-# Row forms in mu and the grammar (proposal, parked)
+# Row forms
 
-A proposal, not built. Discussed 2026-10-15; parked to return to mu
-first. Branch: `grammar`.
+The serial row forms, in mu and in `.mus` text alike. Why they are
+spelled this way: doc/md/decisions.md, "mu and the text, one
+vocabulary" (2026-10-17).
 
-## The idea
-
-mu's vocabulary is succinct; some of it could be used in `.mus` text
-too. The candidates are the transforms of fixed meaning, not the stack,
-quotations, selection or session words (`dup`, `'( )`, `filter`, `R!`)
--- programming in text was removed on purpose (`@[ ]`, decisions.md).
-The first to take over: the serial row forms.
-
-## Row forms
+## The forms
 
 | Letter | Name | Does |
 |---|---|---|
@@ -19,57 +12,49 @@ The first to take over: the serial row forms.
 | R | retrograde | backwards |
 | I | inversion | every interval mirrored around the first note |
 | RI | retrograde inversion | the inversion, backwards |
+| M | mirror | the inversion around the mean pitch, keeping the register |
 
 German: G, K (Krebs), U (Umkehrung), KU. Latin (canon): rectus,
 inversus, cancrizans.
 
 - With transposition, IR adds nothing: it is RI transposed by twice the
   first-to-last interval. Hence 48 forms (4 x 12), not 60.
-- The inversion axis (first note or mean) adds nothing either: the two
-  differ by a transposition. Around the mean R and I commute.
+- The inversion's axis (first note or mean) adds nothing either: the
+  two differ by a transposition. Around the mean, R and I commute.
 - Not modulo 12: with octaves, +12 is another line.
 
-## Decided
+## In mu
 
-- Words `[R]` `[I]` `[RI]`, standing apart (not glued to the bracket),
-  in mu and in text alike, acting on what comes before them:
-  `[c d e f] [RI]`, `:row [I]`.
-- No number in the word. Transposition stays as it is: mu `x [I] 5 +`
-  is I5; text `transpose`. `[P]` is not needed.
-- `[R]` exactly is the word; `[ R ]` (spaces) is a line with a bar's
-  rest, as are `[R1]`, `[R*2]`, `[r1]`. mu never prints `[R]`. `[C]` is
-  a note, so not C for crab; `[K]`/`[U]` are free but were not chosen.
-- mu's `[<]` `[^]` `[^<]` `[<^]` are dropped. `[-]` (inversion around
-  the mean, keeping the register) stays.
-- Kept as a node, not applied while parsing: something like
-  `{:type :FORM :form :RI :source ...}` among the children, as `[: :]`
-  is an Iterator; `musics.events`/`display-timed` realize it, its
-  duration is the source's, the printers write `<source> [RI]` back. In
-  mu `x [RI]` gives the node; `[!]` writes it out.
+Words on the line on top, applied now:
 
-## Open before building
+| Word | Twin | Example |
+|---|---|---|
+| `[R]` | `retrograde` | `[c d e f] [R]` → `[F4/4 E4 D4 C4]` |
+| `[I]` | `inversion` | `[c d e f] [I]` → `[C4/4 A#3 G#3 G3]` |
+| `[RI]` | `retrograde-inversion` | `[c d e f] [RI]` → `[G3/4 G#3 A#3 C4]` |
+| `[M]` | `mirror` | `[c d e f] [M]` → `[F#4/4 E4 D4 C#4]` |
 
-The four bugs found in mu's crab and inversion (2026-10-15) are fixed
-(2026-10-17): a tie turns round with its notes; what a line's own
-instructions change is written into the notes as overrides, so a
-crescendo plays as a diminuendo; a natural the key would alter prints
-with `n` (`Cn4` in D major), so an inversion keeps it; a line with jumps
-is refused by `[R]`. `[R]` also reverses nested lines, parallels' parts
-and repeats' bodies, as the text's `reverse` does.
+Transposed with `+`: `x [I] 5 +` is I5. `[R]` exactly is the word;
+`[ R ]`, `[R1]` or `[R*2]` is a line with a bar's rest. In Clojure:
+`(mu/R x)`, `(mu/I x)`, `(mu/RI x)`, `(mu/M x)`.
 
-Settled and built (2026-10-17, "mu and the text, one vocabulary" in
-doc/md/decisions.md): the text writes the forms as commands with a body,
-not as words after a part -- `retrograde`/`R`, `inversion`/`I`,
-`retrograde-inversion`/`RI`, `mirror`/`M` ( … ), an optional number
-transposing the result (`I 5 ( … )`); `reverse` became `retrograde`;
-`R` alone stays a bar's rest. So the `{ [c] [R] }` trap and a word that
-looks back never arise; dynamics and ties turn round with the notes;
-the next relative note follows the last written one. The LilyPond
-importer reads `\retrograde` and `\inversion` as these forms.
+## In text
 
-## Other transforms as text, later
+Commands with a `( )` body, changed while parsing; an optional number
+transposes the result:
 
-Built (2026-10-17): `shuffle [ … ]` and `rotate n [ … ]`, made by mu's
-`[?]`/`shuffling` and `rotating`, change each time they play;
-`shuffle ( … )` and `rotate n ( … )` once, now. `[[]]`, `[/]`, `[|]` reshape a line into several and
-stay mu words.
+```
+retrograde ( c d e f )          R ( … )
+inversion ( c d e f )           I ( … )      I 5 ( … ) is I5
+retrograde-inversion ( … )      RI ( … )
+mirror ( … )                    M ( … )
+```
+
+`R` alone stays a bar's rest. The forms reach into nested lines,
+parallels (keeping their parts' order), referenced parts (changed as a
+copy) and repeats' bodies. The retrograde turns ties and dynamics round
+with the notes, writing what the body's instructions change into each
+note; it refuses jumps and a repeat with `volta` endings.
+
+The LilyPond importer reads `\retrograde` and `\inversion` as these
+forms.
