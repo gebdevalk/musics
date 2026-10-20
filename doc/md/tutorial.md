@@ -125,7 +125,9 @@ one (a fourth or fifth away at most). The first note of a `parse` call
 starts from C4; after that, each note continues from the one written
 just before it — across lines and across the parts of a `{ }` too — so
 start a part with an absolute pitch when its register matters. An uppercase
-letter is absolute. A digit after a lowercase letter is a duration,
+letter is absolute, and without an octave it keeps the one before it, as
+a duration carries over: `[C5/4 D E]` is C5 D5 E5, in chords and chord
+symbols too (`<C5 E G>`, `C2/1:7 | F:7`). A digit after a lowercase letter is a duration,
 never an octave — `c3` is a C lasting 1/3 of a whole note — so move
 octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
 

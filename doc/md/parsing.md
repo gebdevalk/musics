@@ -85,7 +85,11 @@ uppercase is an absolute pitch (`C4`, `F#5`); lowercase is resolved
 relative to the previous pitch — the nearest one, a fourth or fifth
 away at most, LilyPond `\relative`-style — even for the first note of a
 sequence (which is relative to C4). Ticks move a relative pitch an
-octave up (`'`) or down (`,`).
+octave up (`'`) or down (`,`). An uppercase letter without an octave
+takes the octave of the pitch before it, as a note without a duration
+takes its duration: `[C5/4 D E]` is C5 D5 E5, `<C5 E G>` C5 E5 G5, and
+`C2/1:7 | F:7` F2 -- the octave number, not the nearest pitch (`C5 B` is
+B5); octave 4 at the start.
 
 The octave digit of an absolute pitch is followed by `/` when a
 duration comes next (`C4/8`: C4, an eighth); without it the digits
@@ -94,6 +98,7 @@ would run together.
 ```mus
 [c4 d e f]            % relative: C4 D4 E4 F4
 [C4/4 G4/4 C5/2]      % absolute
+[C5/4 D E <F A C>]    % absolute, the octave carried: C5 D5 E5 <F5 A5 C5>
 [c4 f# b& cn']        % sharp, flat, natural (the accidental comes before the octave)
 ```
 

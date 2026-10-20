@@ -956,3 +956,17 @@
   (testing "a grace note"
     (let [seq-c (first-token "[grace c8\\f d4 d4]")]
       (is (= {:volume 70} (:overrides (first (:children seq-c))))))))
+
+;; ── Octave inheritance ──────────────────────────────────────
+
+(deftest an-absolute-letter-without-an-octave-keeps-the-one-before
+  (are [text pitches] (= pitches (mapv :pitches (wrapped-tokens text)))
+    "C5/4 D E"           [[72] [74] [76]]
+    "C5 B"               [[72] [83]]
+    "C2/4 G B&"          [[36] [43] [46]]
+    "<C5 E G>4 <F A C>"  [[72 76 79] [77 81 72]]
+    "C2/1:7 | F:7"       [[36 40 43 46] nil [41 45 48 51]]
+    "c' d F"             [[72] [74] [77]]
+    "C D"                [[60] [62]])
+  (testing "the same in chordmode"
+    (is (= [[72 76 79 82] nil [77 81 84 87]] (mapv :pitches (wrapped-tokens "chordmode ( C5/1:7 | F:7 )"))))))

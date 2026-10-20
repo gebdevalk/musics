@@ -46,7 +46,8 @@ c4                  → C4/4
   `< >` a chord, `r` a rest.
 - A duration carries over: `d8 e` makes `e` an eighth too.
 - A lowercase letter is relative: it lands as close as it can to the
-  note before. A capital letter with an octave is absolute: `C5`.
+  note before. A capital letter with an octave is absolute: `C5`; a
+  capital without one keeps the octave before it (`C5 D E`, `<C5 E G>`).
 - mu prints back absolutely (`C4/4`), and what it prints reads back
   as the same thing.
 

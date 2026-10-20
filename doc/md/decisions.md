@@ -1721,3 +1721,14 @@ under whatever chords are written, chordmode, symbols or spelled out.
 A walking bass in a repeat plays one line each pass; `:choruses`
 walks a new one each time.
 
+## 2026-10-20 — an absolute letter without an octave keeps the octave before it
+
+`C5 D E` was C5 D4 E4: an uppercase letter without a digit meant octave
+4. It now takes the octave number of the pitch before it, the way a
+duration carries over, so absolute music, chords and chord symbols can
+be written with the octave once. The octave number, not the nearest
+pitch (that is what a lowercase letter does), so `C5 B` is B5 and the
+writing stays absolute. Nothing in the tests or corpus relied on the old
+octave 4 (corpus pitches compared before and after); the importers and
+mu's printer always write the octave.
+

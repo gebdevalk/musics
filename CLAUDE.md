@@ -1596,7 +1596,11 @@ next one, writes `!f` before the note and turns `\<`/`\>` into
 `!vol<`/`!vol>` (joined to the note's dynamic as `!vol:mf<`). Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
-there's no position-based exception.
+there's no position-based exception. A capital letter without an octave
+takes the octave number of the pitch before it (`leaf-parser/resolve-
+pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
+(a chord's next starting from its first tone, as relative chords do),
+chord-symbol roots and bass notes alike; octave 4 at the start.
 
 An algo's param is written `@name:value` (`AlgoAssignment`), where `!`
 sets the music: `^{riff: @k:5 @n:16 @bass.k:3}`, or inline in a line
