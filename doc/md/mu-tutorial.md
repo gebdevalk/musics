@@ -161,15 +161,20 @@ on the line as a whole.
 | `[M]` or `mirror` | `( x -- x )` | mirrored around the mean pitch, keeping the register |
 
 ```
-[c e g] 7 +                → [G4/4 B4 D5]
+[c e g] 7 +                → [!K:G.major G4/4 B4 D5]
 [c e g] 12 -               → [C3/4 E3 G3]
-[c e g] c d transpose      → [D4/4 F#4 A4]
+[c e g] c d transpose      → [!K:D.major D4/4 F#4 A4]
 [c e g] [M]                → [G#4/4 E4 C#4]
 [c e g b] [R]              → [B4/4 G4 E4 C4]
 [c e g] [I]                → [C4/4 G#3 F3]
-[c e g] [I] 5 +            → [F4/4 C#4 A#3]       I5
+[c e g] [I] 5 +            → [!K:F.major F4/4 C#4 B&3]       I5
 [c d e g] [RI]             → [F3/4 G#3 A#3 C4]
 ```
+
+Moving music moves its key with it: `+`, `-` and `transpose` write the
+moved key at the start of the line (its own `!K:` moved, else the one
+it is in), so the notes stay what they were in their key and play so
+under any other; whole octaves leave the key alone.
 
 These are the serial row forms: R, I and RI, transposed with `+` (I5 is
 `[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a line
@@ -564,9 +569,9 @@ and play it, or rate them (section 16).
 
 ```
 'motif [c e g] :=
-\motif 5 +              → [F4/4 A4 C5]
+\motif 5 +              → [!K:F.major F4/4 A4 C5]
 [c d e] :mel R!         → :mel
-:mel R@ 7 +             → [G4/4 A4 B4]
+:mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
 ```
 
 ## 14. One tree: the color-talea

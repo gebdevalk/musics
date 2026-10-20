@@ -1633,3 +1633,21 @@ refuse an endless stream; a word calling itself without end is an
 error, not the end of mu; `:motif >` says to fetch with `R@`; the
 aliases (`>`, `..`, `[+]`, the twins) look their word up when they run,
 so a redefinition reaches them; `defaults` writes `!M:`.
+
+## 2026-10-20 — moving music moves its key
+
+mu's values pass through printing and reading, and the text has no way
+to say "written in C, moved up a semitone": `[c d e f] 1 +` was
+`[C#4 D#4 F4 F#4]` read as written in C, so under another playing key
+the F (e moved) was re-keyed onto F# beside the real F#. `+`, `-` and
+`transpose` now write the moved key at the start of the line (its own
+`!K:` moved, else the key its context gives; a `{ }`'s, a repeat's
+body), and every `!K:` inside moves too, so the notes are degrees of
+their own key wherever they play -- the line's own key wins over a
+`with` key, as any line's does. Whole octaves leave the key alone.
+The alternative, printing a moved run as `transpose n ( … )` to keep
+the text's `:key-shift`, would show the command instead of the notes.
+Changing a value's leaves (`map-leaves`) now changes its nodes and
+reads them back, so instructions inside a line (`[c !f d] 1 +`) and a
+`shuffle`/`rotate` mark survive; it rebuilt from the elements and the
+leading instructions before, dropping the rest.

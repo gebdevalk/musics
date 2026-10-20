@@ -647,7 +647,7 @@
                            [(- (pitch-of (peek s)) (pitch-of (peek (pop s)))) (pop (pop s))]))
                x (peek s)]
            (conj (pop s)
-                 (mt/map-leaves #(if (seq (:pitches %)) (update % :pitches (partial mapv (partial + n))) %) x)))))
+                 (mt/transposed x n)))))
 
 (word! "music" "repeat" "( x n -- repeat )  x played n times, as the text's repeat n [ x ] and LilyPond's (also times, [*])"
        (times-word "repeat"))

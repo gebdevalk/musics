@@ -182,7 +182,7 @@
 (defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
 
 (defn- on-material
-  "A word ( material n -- material' ): g n on every leaf. On two numbers
+  "A word ( material n -- material' ): (g n material). On two numbers
    it points to the numeric word (+ add, - sub, * mul, / div)."
   [word g check]
   (fn [s]
@@ -193,10 +193,7 @@
         (e/mu-error (str word ":") "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} word))
         (not (and (musical? x) (number? n)))
         (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
-        :else (do (check n) (conj (pop (pop s)) (mt/map-leaves (partial g n) x)))))))
-
-(defn- transpose-leaf [n leaf]
-  (if (seq (:pitches leaf)) (update leaf :pitches #(mapv (partial + n) %)) leaf))
+        :else (do (check n) (conj (pop (pop s)) (g n x)))))))
 
 (defn- whole! [word n] (when-not (integer? n) (e/mu-error (str word ":") "transposes by a whole number of semitones, got" n)))
 (defn- positive! [word n] (when-not (pos? n) (e/mu-error (str word ":") "needs a positive factor, got" n)))
@@ -211,19 +208,19 @@
         (conj (pop (pop s)) (el/transpose-key k (* sign n)))
         (f s)))))
 
-(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones (a key moves up too): [c e g] 7 +"
-       (or-key (on-material "+" transpose-leaf (partial whole! "+")) 1))
-(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones: [c e g] 12 -"
-       (or-key (on-material "-" (fn [n leaf] (transpose-leaf (- n) leaf)) (partial whole! "-")) -1))
+(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones, its key with it (!K: at the start of its line): [c e g] 7 +; a key moves up too"
+       (or-key (on-material "+" (fn [n x] (mt/transposed x n)) (partial whole! "+")) 1))
+(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones, its key with it: [c e g] 12 -"
+       (or-key (on-material "-" (fn [n x] (mt/transposed x (- n))) (partial whole! "-")) -1))
 ;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
 ;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
 (defn- scale-duration [leaf f]
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
 (word! "music" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
-       (on-material "*" (fn [f leaf] (scale-duration leaf f)) (partial positive! "*")))
+       (on-material "*" (fn [f x] (mt/map-leaves #(scale-duration % f) x)) (partial positive! "*")))
 (word! "music" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
-       (on-material "/" (fn [f leaf] (scale-duration leaf (/ 1 f))) (partial positive! "/")))
+       (on-material "/" (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) (partial positive! "/")))
 
 (defn- hairpin [word dir]
   (fn [s]

@@ -427,7 +427,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 
 | On material | Means | Example |
 |---|---|---|
-| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones | `c4 2 +` gives `D4/4`; `[c d e] 12 -` an octave down |
+| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones, the key with it (`!K:` at the start of the line: its own moved, else the one it is in; not for whole octaves) | `c4 2 +` gives `D4/4`; `[c d] 2 +` `[!K:D.major D4/4 E4]`; `[c d e] 12 -` an octave down |
 | `*`, `/` (`stretch`, `shrink`) | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cresc`, `dim` | crescendo, diminuendo across the material, to a volume 0-100 | `[c d e f] 90 cresc` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |

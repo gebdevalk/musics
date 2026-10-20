@@ -20,7 +20,7 @@
     (is (= "[C4/4 D4 E4 G4]" (show x)) "mu reads a literal")
     (is (= "[G4/4 E4 D4 C4]" (show (w/retrograde x))))
     (is (= "repeat 3 [C4/4 D4 E4 G4]" (show (w/times x 3))) "arguments in mu's order")
-    (is (= "[F#4/4 E4 D4]" (show (w/mu "[c d e] [R] 2 +"))) "or a phrase")
+    (is (= "[!K:D.major F#4/4 E4 D4]" (show (w/mu "[c d e] [R] 2 +"))) "or a phrase")
     (is (= ["[C4/4 D4]" "[E4/4 G4]"] (show (w/mu "[c d e g] 2 split-at"))) "several results: a vector")))
 
 (deftest what-clojure-has-is-clojures
@@ -38,7 +38,7 @@
                           [w/H w/head] [w/T w/tail]]]
       (is (= (show (long x)) (show (short x)))))
     (is (= "[C4/4 D4]" (show (w/H x 2))) "an optional count stays optional")
-    (is (= "[G4/4 A4 B4 D5]" (show (w/up x 7))) "+ as up")
+    (is (= "[!K:G.major G4/4 A4 B4 D5]" (show (w/up x 7))) "+ as up")
     (is (= "[3:1(C4/4 D4 E4 G4)]" (show (w/shrink x 3))) "/ as shrink")
     (is (true? (w/= x (w/mu "[C4 D4 E4 G4]"))) "= is eq: music by its notes")
     (is (false? (clojure.core/= x (w/mu "[c d e g]"))) "where clojure.core's = sees two values")
@@ -46,7 +46,7 @@
 
 (deftest any-word-by-its-mu-name
   (let [x (w/mu "[c d e g]")]
-    (is (= "[G4/4 A4 B4 D5]" (show (w/word "+" x 7))) "a sign without a Clojure name")
+    (is (= "[!K:G.major G4/4 A4 B4 D5]" (show (w/word "+" x 7))) "a sign without a Clojure name")
     (is (= (show (w/word "[R]" x)) (show (w/R x))))
     (is (= "repeat ~ [C4/4 D4 E4 G4]" (show (w/word "[~]" x))))
     (is (= (show (w/word "+" x 7)) (show (w/up x 7))) "up is +")

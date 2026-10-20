@@ -65,7 +65,7 @@
 
 (deftest quoting-and-executing-words
   (is (= [5 5] (:ok (run "5 'dup execute"))))
-  (is (= ["[D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
+  (is (= ["[!K:D.major D4/4 E4]"] (mapv p/show (:ok (run "[c d] 2 '+ execute")))) "a symbol word")
   (is (= [3 3] (:ok (run ": twice dup ;" "3 'twice execute"))) "a word of mine")
   (is (= [6] (:ok (run "'w 'mul :=" "2 3 \\w execute"))) "bound, and executed later")
   (is (= [5 5] (:ok (run "5 '( dup ) execute"))) "a quotation, as call")
@@ -167,9 +167,14 @@
     (is (= (p/show d) (p/show (first (:ok (run (p/show d)))))) "they read back")))
 
 (deftest arithmetic-on-material
-  (is (= "[D4/4 E4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes up")
-  (is (= "[A#3/4 C4]" (p/show (first (:ok (run "[c d] 2 -"))))) "- transposes down")
-  (is (= "[C3/4 D3]" (p/show (first (:ok (run "[c d] -12 +"))))) "or + with a negative number")
+  (is (= "[!K:D.major D4/4 E4]" (p/show (first (:ok (run "[c d] 2 +"))))) "+ transposes up")
+  (is (= "[!K:B&.major B&3/4 C4]" (p/show (first (:ok (run "[c d] 2 -"))))) "- transposes down")
+  (is (= "[C3/4 D3]" (p/show (first (:ok (run "[c d] -12 +"))))) "or + with a negative number; whole octaves keep the key")
+  (is (= "[!K:E.major D#4/4 !f E4]" (p/show (first (:ok (run "[!K:D.major c !f d] 2 +"))))) "its own key moves, instructions stay")
+  (is (= "{!K:G.major [G4/4 A4] [B4 C5]}" (p/show (first (:ok (run "{[c d] [e f]} 7 +"))))) "a { } takes the key too")
+  (run "[c d e f] 1 + ^{ !K:D.major } with :moved R!")
+  (is (= [61 63 65 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (m/events :moved))))
+      "the notes keep their own key under another: e moved up is F, not F#")
   (is (= "C4/8" (p/show (first (:ok (run "c4 1/2 *"))))) "* scales durations")
   (is (= "[C4/8 D4]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
   (is (= "r2" (p/show (first (:ok (run "r4 2 *"))))) "a rest moves in time")
@@ -207,7 +212,7 @@
 
 (deftest arithmetic-keeps-bar-lines
   (is (= "[3:1(C4/4 D4) | 3:1(E4 F4)]" (p/show (first (:ok (run "[c d | e f] 1/3 *"))))))
-  (is (= "[D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
+  (is (= "[!K:D.major D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
   (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
