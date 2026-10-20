@@ -51,3 +51,15 @@
   (is (every? #(.endsWith (.toLowerCase ^String %) ".sf2") (gv/soundfonts)))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no soundfont at"
                         (gv/load-soundfont! nil "/nowhere/none.sf2"))))
+
+(deftest an-output-that-doesnt-open-is-an-error
+  (let [undone (promise)
+        within #'gv/within]
+    (is (= 3 (within 1000 "late" #(+ 1 2) #(deliver undone true))) "in time: its result")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"late"
+                          (within 50 "late" #(Thread/sleep 300) #(deliver undone true)))
+        "too late: an error, not a wait")
+    (is (true? (deref undone 2000 false)) "and undone once it opens after all")
+    (is (thrown-with-msg? IllegalStateException #"boom"
+                          (within 1000 "late" #(throw (IllegalStateException. "boom")) (fn [])))
+        "its own error as it is")))

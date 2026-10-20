@@ -1681,3 +1681,12 @@ tempos that is more than the engine's 100 ms lookahead (150 ms at
 further ahead by the largest push was the fix considered; left, since
 it delays every live change for an effect heard only in slow, strongly
 pushed music.
+
+## 2026-10-20 — a sound output that doesn't open is an error
+
+Gervill's open waits in ALSA until the default output takes sound; a
+Bluetooth speaker asleep kept it waiting without end, mu's prompt with
+it. The open runs on its own thread and gives up after 5 s with an
+error naming the likely cause; if it opens later after all, the synth
+is closed again. The thread itself can't be stopped (a native call),
+so it is left to end or not.
