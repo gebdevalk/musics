@@ -3,6 +3,7 @@
    streams are refused where all of a stream is needed."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
+            [musics.algo.random.core :as rc]
             [musics.input.reader.builder :as builder]
             [musics.domain.context :as c]
             [musics.mu.eval :as e]
@@ -462,3 +463,29 @@
   (is (re-find #"not an articulation" (top "[c d] '[:nonsense] with-articulations")))
   (is (= "'[nil :accent]" (top "'[nil :accent]")) "keywords in data read back as they print"))
 
+
+(def ^:private blues
+  "The jazz blues in F, written relative, a repeat with its endings."
+  "[blues: !M:4/4 repeat 2 [ F3/1:7 | b&:7 | f:7 | c2:m7 f:7 | b&1:7 | b:d7 | f:7 | d:7 | g:m7 | c:7 ] volta [ [ f,2:7 d:7 | g:m7 c:7 ] [ f,1:7 | f:7 ] ] ]")
+
+(deftest walking-bass-walks-under-the-chords-as-they-play
+  (rc/seed! 42)
+  (let [bass  (top (str blues " walking-bass"))
+        notes (re-seq #"([A-G][&#]?)(\d)(/\d)?" bass)
+        bars  (str/split (subs bass (count "[!i:acousticBass ") (dec (count bass))) #" \| ")]
+    (is (str/starts-with? bass "[!i:acousticBass F2/4 "))
+    (is (str/ends-with? bass "| F2/1]") "the last chord held")
+    (is (= 24 (count bars)) "both passes and their endings: 2 x 10 bars, the turnaround, the closing two")
+    (is (= 93 (count notes)))
+    (is (= ["F" "B&" "F" "C" "B&" "B" "F" "D" "G" "C" "F" "G" "F" "B&" "F" "C" "B&" "B" "F" "D" "G" "C" "F" "F"]
+           (map #(second (re-find #"^([A-G][&#]?)" %)) bars))
+        "each bar starts on its chord's root"))
+  (testing "a new line each time it runs"
+    (is (not= (top (str blues " walking-bass")) (top (str blues " walking-bass")))))
+  (testing "beside the chords"
+    (is (str/starts-with? (top (str blues " dup walking-bass {2}")) "{[blues: !M:4/4 repeat 2 ["))))
+
+(deftest walking-bass-needs-a-line-of-chords
+  (is (str/includes? (top "{[F3/1:7] [C4/1:7]} walking-bass") "not a parallel"))
+  (is (str/includes? (top "[F3/1:7 | b&:7] [~] walking-bass") "endless"))
+  (is (str/includes? (top "[r1 r] walking-bass") "no chords")))

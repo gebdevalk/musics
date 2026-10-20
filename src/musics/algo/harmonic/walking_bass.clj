@@ -222,6 +222,13 @@
   (let [t (str/join (keep :token chords))]
     (and (str/includes? t "&") (not (str/includes? t "#")))))
 
+(defn line->mus
+  "The walking bass under chords (walk's, e.g. a line's leaves) as a
+   line of musics text, `[!i:acousticBass F2/4 ... ]`, spelled with
+   flats when the chords were. opts as walk's."
+  [chords opts]
+  (str "[!i:acousticBass " (notes-text (walk chords opts) (flats? chords) (volatile! nil)) " ]"))
+
 (defn ->mus
   "The walking bass under the chords of the part id as musics text, in
    the part's form -- a line, or a repeat with its volta endings

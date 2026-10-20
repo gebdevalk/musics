@@ -740,6 +740,23 @@ falling together:
 ^{ @seed:7 @len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
 ```
 
+### Chords and a walking bass
+
+A chord symbol is a root and a quality, absolute or relative, its
+duration carrying on as a note's does (`F3/1:7`, `b&:7`, `c2.:m7`).
+`walking-bass` takes a line of chords and makes a bass under it as you
+run it, a new one each time: a quarter a beat, each chord's root on its
+first beat, the beat before the next chord a step into it, the last
+chord held. Repeats are walked pass by pass, each with its own line.
+
+```
+[blues: !M:4/4 repeat 2 [ F3/1:7 | b&:7 | f:7 | c2:m7 f:7 | b&1:7 | b:d7 | f:7 | d:7 | g:m7 | c:7 ] volta [ [ f,2:7 d:7 | g:m7 c:7 ] [ f,1:7 | f:7 ] ] ]
+dup walking-bass {2} >
+```
+
+`dup` keeps the chords, `walking-bass` makes the bass from the copy,
+`{2}` sets the two side by side.
+
 ## 16. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`):
