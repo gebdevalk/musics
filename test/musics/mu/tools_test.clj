@@ -489,3 +489,13 @@
   (is (str/includes? (top "{[F3/1:7] [C4/1:7]} walking-bass") "not a parallel"))
   (is (str/includes? (top "[F3/1:7 | b&:7] [~] walking-bass") "endless"))
   (is (str/includes? (top "[r1 r] walking-bass") "no chords")))
+
+(deftest find-lists-what-a-name-can-mean
+  (is (= " 40  violin                 vln\n 41  viola                  vla\n"
+         (with-out-str (top "\"viol\" find-instrument"))))
+  (is (= " 49  Crash Cymbal 1       cr1   crash\n 57  Crash Cymbal 2       cr2\n"
+         (with-out-str (top ":cr find-drum"))))
+  (is (= "  0  standard\n 56  sfx\n" (with-out-str (top "\"s\" find-kit"))))
+  (is (= 128 (count (str/split-lines (with-out-str (top "\"\" find-instrument"))))) "nothing: all of them")
+  (is (= "no instrument is called or starts with \"zz\"\n" (with-out-str (top "\"zz\" find-instrument"))))
+  (is (str/includes? (top "3 find-drum") "needs the start of a name")))

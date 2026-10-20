@@ -1,6 +1,6 @@
 # Instruments and drums
 
-Every General MIDI instrument by program, name and short name, and the drums and kits. An instrument is set for a line with `!i:` or for one note with `\i:`, by any of the three: `!i:32`, `!i:acousticBass` and `!i:acbs` are the same. A name reads in any case, and the start of one finds it when it can only mean one instrument (`!i:trump`, `!i:pizz`, `!i:glock`); one that could mean several is an error naming them (`viol`: viola or violin). A list plays several at once (`!i:40,73`).
+Every General MIDI instrument by program, name and short name, and the drums and kits. An instrument is set for a line with `!i:` or for one note with `\i:`, by any of the three: `!i:32`, `!i:acousticBass` and `!i:acbs` are the same. A name reads in any case, and the start of one finds it when it can only mean one instrument (`!i:trump`, `!i:pizz`, `!i:glock`); one that could mean several is an error naming them (`viol`: viola or violin). In mu, `"viol" find-instrument`, `"cr" find-drum` and `"s" find-kit` list what a start can mean, one per line (`""` lists all); at the Clojure REPL `(mu/find-instrument "viol")`. A list plays several at once (`!i:40,73`).
 
 ## Instruments
 

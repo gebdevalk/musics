@@ -35,3 +35,10 @@
   (is (thrown-with-msg? Exception #"'viol' could be viola or violin" (gp/parse-domain-string "[!i:viol c]")))
   (is (thrown-with-msg? Exception #"'nope' is not a drum" (gp/parse-domain-string "[x8\\nope]")))
   (is (= [56 42] (->> (gp/parse-domain-string "[x8\\cow x\\closed]") :tree vals (mapcat :children) (keep :program)))))
+
+(deftest the-matches-listed
+  (is (= [{:program 40 :name "violin" :short "vln"} {:program 41 :name "viola" :short "vla"}] (data/instrument-matches "viol")))
+  (is (= [{:program 8 :name "celesta" :short "cel"}] (data/instrument-matches "cel")) "an exact name alone")
+  (is (= [42] (map :key (data/drum-matches "42"))))
+  (is (= ["hat" "hh" "hihat"] (:also (first (data/drum-matches "closed")))))
+  (is (= ["standard" "sfx"] (map :name (data/kit-matches "s")))))

@@ -207,6 +207,14 @@
   [xs]
   (if (next xs) (str (str/join ", " (butlast xs)) " or " (last xs)) (str (first xs))))
 
+(defn matches
+  "The entries of m k names, compared through norm: the one whose key is
+   k, else every one whose key begins with it."
+  [m k norm]
+  (let [s     (norm k)
+        exact (filter #(= s (norm (key %))) m)]
+    (if (seq exact) exact (filter #(str/starts-with? (norm (key %)) s) m))))
+
 (defn smart-get
   "The value m holds under k, or else under the keys k begins: a prefix
    finds what it can only mean (:te finds :tempo's value, pizz the
@@ -216,18 +224,14 @@
    naming one key for each: 'viol' could be viola or violin."
   ([m k] (smart-get m k name))
   ([m k norm]
-   (let [s     (norm k)
-         exact (first (filter #(= s (norm (key %))) m))]
-     (if exact
-       (val exact)
-       (let [hits (filter #(str/starts-with? (norm (key %)) s) m)
-             by-v (group-by val hits)]
-         (case (count by-v)
-           0 nil
-           1 (val (first hits))
-           (let [names (sort (for [[_ es] by-v] (name (key (apply max-key (comp count name key) es)))))]
-             (throw (ex-info (str "'" (name k) "' could be " (or-list names))
-                             {:prefix (name k) :matches (vec names)})))))))))
+   (let [hits (matches m k norm)
+         by-v (group-by val hits)]
+     (case (count by-v)
+       0 nil
+       1 (val (first hits))
+       (let [names (sort (for [[_ es] by-v] (name (key (apply max-key (comp count name key) es)))))]
+         (throw (ex-info (str "'" (name k) "' could be " (or-list names))
+                         {:prefix (name k) :matches (vec names)})))))))
 
 (defn- loose
   "A name as names are compared: any case, no - _ or space (birdTweet,
@@ -261,6 +265,15 @@
   "Every name a drum goes by: short (bd1), alias (kick) and General MIDI
    name (Acoustic Bass Drum)."
   (merge drum-name->midi (into {} (for [[k {:keys [name]}] drums] [name k]))))
+
+(defn drum-matches
+  "Every drum name (a drum's start of a name, its key as digits) could
+   mean, by key: {:key :name :short :also}, :also its other names."
+  [name]
+  (let [also (group-by val (apply dissoc drum-name->midi (map :abbr (vals drums))))
+        ks   (if (re-matches #"\d+" name) [(Integer/parseInt name)] (sort (distinct (map val (matches drum-names name loose)))))]
+    (for [k ks :let [{n :name a :abbr} (drums k)] :when n]
+      {:key k :name n :short a :also (sort (map key (also k)))})))
 
 (defn resolve-drum
   "Resolve a drum name or integer string to a MIDI note number: a name
@@ -357,12 +370,21 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
+(defn- camel [k] (let [[a & r] (str/split (name k) #"-")] (apply str a (map str/capitalize r))))
+
 (def ^:private instrument-names
   "Every name an instrument goes by: its General MIDI name, camelCase as
    musics text writes it (birdTweet), and its short name (brd)."
-  (into {} (concat (for [[k v] gm-sound-set]
-                     [(let [[a & r] (str/split (name k) #"-")] (apply str a (map str/capitalize r))) (:prog v)])
+  (into {} (concat (for [[k v] gm-sound-set] [(camel k) (:prog v)])
                    (for [[_ v] gm-sound-set] [(str/lower-case (:abbr v)) (:prog v)]))))
+
+(defn instrument-matches
+  "Every instrument x (a name, a short name or the start of one) could
+   mean, by program: {:program :name :short}, the name camelCase."
+  [x]
+  (for [p (sort (distinct (map val (matches instrument-names x loose))))
+        :let [k (program->name p)]]
+    {:program p :name (camel k) :short (str/lower-case (:abbr (gm-sound-set k)))}))
 
 (defn program-of
   "The MIDI program a General MIDI name gives (seashore, :bird-tweet, or
@@ -382,6 +404,12 @@
    has the standard kit only)."
   {"standard" 0 "room" 8 "power" 16 "electronic" 24 "tr808" 25
    "jazz" 32 "brush" 40 "orchestra" 48 "sfx" 56})
+
+(defn kit-matches
+  "Every drum kit x (a name or the start of one) could mean:
+   {:name :program}."
+  [x]
+  (for [[n p] (sort-by val (matches drum-kits x loose))] {:name n :program p}))
 
 (defn kit-of
   "The program a drum kit's name gives (brush, tr808; any case), or the
