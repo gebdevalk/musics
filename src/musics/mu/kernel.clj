@@ -297,16 +297,21 @@
 
 (defn- target-of
   "[voice-id stack]: a voice's id (:bass) or index (1 the lowest) on top
-   is the voice to play as; else nil."
+   is the voice to play as; else nil. With nothing under it, the voice
+   plays its own music again, from the start (1 >, :bass >>)."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
-    (do (when (and (keyword? (peek s)) (= 1 (count s)))
-          (e/mu-error (str word ":") (pr-str (peek s)) "on top is the voice to play as, and needs music under it;"
-                      "to play what is stored as" (pr-str (peek s)) "fetch it first:" (pr-str (peek s)) "R@ >"))
-        [(mt/voice-id word (peek s)) (pop s)])
+    (let [k (peek s)]
+      (when (and (keyword? k) (= 1 (count s)) (not (get (mt/live-voices) k)))
+        (e/mu-error (str word ":") (pr-str k) "on top is the voice to play as, and plays no music;"
+                    "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ >"))
+      (let [id (mt/voice-id word k) s (pop s)]
+        (if-let [{:keys [x ctx]} (and (empty? s) (get (mt/live-voices) id))]
+          [id (cond-> [x] ctx (conj ctx))]
+          [id s])))
     [nil s]))
 
-(word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given"
+(word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass >) starts its own music again"
        (fn [s]
          (let [[target s] (target-of s "play")]
            (need s 1 "play")
