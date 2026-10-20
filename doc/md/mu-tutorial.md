@@ -325,7 +325,7 @@ its bars, as written, so a swung part stays in step with a straight one.
 | `!shuffle` | the strict triplet feel of blues and rock, 2/3 and 1/3 |
 | `!swing:0.7`, `!straight` | any ratio from 0.5 (straight) to 0.75 (dotted) |
 | `!swingUnit:16` | swings sixteenths instead of eighths |
-| `!laidBack`, `!pushed`, `!groove:-1..1` | the weaker a note's place in the bar, the later (or earlier) it comes, the downbeat staying |
+| `!laidBack`, `!pushed`, `!groove:-1..1` | the weaker a note's place in the bar, the later (or earlier) it comes, up to a 32nd, the downbeat staying; live, a note comes at most 100 ms early (at `!groove:-1` below about `!T:75`) |
 | `!accent:metric` | the strong places of the bar louder, the weak ones softer, by the meter's levels |
 | `!accent:barlow` | the same by Barlow's finer ranking, every place its own weight |
 | `!accent:agogic` | the longer notes louder |
