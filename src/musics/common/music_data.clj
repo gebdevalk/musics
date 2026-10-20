@@ -454,6 +454,22 @@
    :13    {1 0, 3 4, 5 7, 7 10, 9 14, 13 21}
    :m13   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17, 13 21}
    :maj13 {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
+   ;; Shorthand, as chord symbols write them (m stays minor): M major
+   ;; -- the triad, a word of its own here, so a chord symbol outside
+   ;; chordmode can name it; M7 and up the major-seventh chords --, d
+   ;; diminished, A augmented, s suspended (a bare s the fourth).
+   :M    {1 0, 3 4, 5 7}
+   :M7   {1 0, 3 4, 5 7, 7 11}
+   :M9   {1 0, 3 4, 5 7, 7 11, 9 14}
+   :M11  {1 0, 3 4, 5 7, 7 11, 9 14, 11 17}
+   :M13  {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
+   :d    {1 0, 3 3, 5 6}
+   :d7   {1 0, 3 3, 5 6, 7 9}
+   :A    {1 0, 3 4, 5 8}
+   :A7   {1 0, 3 4, 5 8, 7 10}
+   :s    {1 0, 4 5, 5 7}
+   :s2   {1 0, 2 2, 5 7}
+   :s4   {1 0, 4 5, 5 7}
    ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
    ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
    ;; a bare pitch inside (chordmode ...) can fall back to this, exactly

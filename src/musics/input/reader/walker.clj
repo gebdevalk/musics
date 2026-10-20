@@ -707,7 +707,7 @@
         ;; ---- Leaves ----
         :Note  (tag-ratio (walk-note  state children (node-text state node)))
         :Chord (tag-ratio (walk-chord state children (node-text state node)))
-        :ChordModeNote (tag-ratio (walk-chord-mode-note state children (node-text state node)))
+        (:ChordModeNote :ChordSymbol) (tag-ratio (walk-chord-mode-note state children (node-text state node)))
         :Rest      (tag-ratio (walk-rest      state children (node-text state node)))
         :MultiRest (walk-multi-rest state children (node-text state node))
         :Drum  (tag-ratio (walk-drum  state children (node-text state node)))
@@ -1775,15 +1775,15 @@
 ;; ============================================================
 
 (def ^:private top-level-leaf-tags
-  "Tags musics.ebnf's own Leaf rule can produce (Chord | Note | Rest |
-   Drum | MultiRest) -- exactly what walk-element itself dispatches on
+  "Tags musics.ebnf's own Leaf rule can produce (Chord | ChordSymbol |
+   Note | Rest | Drum | MultiRest) -- exactly what walk-element itself dispatches on
    for a leaf. A bare one of these at Program's own top level now
    parses (TopElement includes Leaf), but must not be walked directly
    against whatever's on top of the builder stack -- at bare top level
    that's :ROOT itself. See wrap-bare-leaf below. (:ChordModeNote is
    deliberately excluded -- that tag only appears inside chordmode's
    own body, never reachable through Leaf/TopElement.)"
-  #{:Note :Chord :Rest :MultiRest :Drum})
+  #{:Note :Chord :ChordSymbol :Rest :MultiRest :Drum})
 
 (defn- needs-wrapper?
   "A bare top-level Leaf, repeat or tuplet (mu reads one): walked

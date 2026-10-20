@@ -180,8 +180,22 @@ repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 [acciaccatura c16 d4 e]     % a grace note
 [c4\trill d\mordent e( f g)]  % ornaments, a slur
-[c4:32]                      % a tremolo
+[c4:32]                      % a tremolo: 8, 16, 32, 64 or 128
 ```
+
+### Chords
+
+```mus
+[<c e g>4 <d f a>]           % chords spelled out
+[C4/1:7 | F3/2:m7 B&3:7 | E&3/1:M7 | A3:d7]   % chord symbols: a root and a quality
+[chordmode ( c2 f g:7 c )]   % in chordmode a bare root is a major triad
+```
+
+A quality: `7` dominant seventh, `m` minor, `M` major (`M7` major
+seventh), `d` diminished, `A` augmented, `s` suspended, `9` `11` `13`,
+or LilyPond's own words (`maj7`, `dim7`, `sus4`); `.5-` alters a step,
+`^3` drops one, `/E` puts E in the bass. A chord keeps the duration
+going, so in `E&3/1:M7 | A3:d7` both are whole notes.
 
 ### Bar lines
 

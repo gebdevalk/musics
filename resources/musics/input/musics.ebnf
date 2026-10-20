@@ -49,7 +49,8 @@
    below); transpose and the row forms are purely transient, spliced into the
    parent at pop time, and take a Scope body instead. grace's five forms
    take two bare Elements with no wrapping bracket at all. chordmode
-   keeps its own dedicated ( ChordModeNote... ) body.
+   keeps its own dedicated ( ChordModeNote... ) body; outside it a
+   chord symbol is a leaf of its own (ChordSymbol: F3/1:7, c:m7).
 
    A tuplet is a count before a group, n:m( ... ) — 3:2( c8 d e ),
    three in the time of two — and a single note can carry a factor of
@@ -106,7 +107,7 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
 Jump = '$' | 'DS' | 'DC' | 'Fine' | 'Coda' | './.'
 
 <Part> = Composite | Leaf | Reference | VarRef
-<Leaf> = Chord | Note | Rest | Drum | MultiRest
+<Leaf> = Chord | ChordSymbol | Note | Rest | Drum | MultiRest
 
 (* Bar / section markers -- pure structural signals for a future conductor,
    no effect on musical timing. Four levels of granularity, finest to
@@ -214,25 +215,16 @@ TupletCount = #'[0-9]+:[0-9]+'
 
 
 (* chordmode -- LilyPond's own compact chord shorthand, root:quality
-   (c4:m7), scoped inside its own ( ... ) body rather than reachable as
-   a bare note suffix: root:quality's own ':' collides, unavoidably,
-   with the existing Tremolo suffix (Tremolo = <':'> Int accepts ANY
-   integer, not just powers of two -- confirmed directly, not assumed
-   -- so c4:7 is genuinely ambiguous between "tremolo subdivision 7" and
-   "dominant seventh chordmode" with nothing left over either way to
-   disambiguate). Real LilyPond itself never allows this shorthand bare
-   either -- only inside its own chordmode {...}/\chords block -- so
-   scoping it the same way here is the faithful spelling, not a
-   workaround dressed up as one. Deliberately narrow for now (phase 1):
-   a flat run of ChordModeNote entries only (no nested Sequence/
-   Composite inside the block), and only the common-chord modifier
-   vocabulary below -- see musics.common.music-data/chord-qualities for the
-   exact interval table, and that ns's own docstring for what's
-   deliberately still out of scope (9/11/13, LilyPond's general
-   additive .step(+/-) alteration syntax). Each entry walks straight to
-   the SAME multi-pitch Leaf shape an explicit <c e g> Chord already
-   produces (walker/walk-chord-mode-note) -- a chordmode
-   chord and a spelled-out one are indistinguishable once committed. *)
+   (c4:m7), a flat run of ChordModeNote entries (no nested Sequence/
+   Composite inside the block). What sets it apart from a ChordSymbol,
+   the same chord written outside it, is LilyPond's own default: a
+   colon-less entry is a major triad here, a note outside. The qualities
+   (LilyPond's words, 9/11/13, the general .step[+/-]/^step alteration
+   and the shorthand m M d A s) are musics.common.music-data/
+   chord-qualities. Each entry walks straight to the SAME multi-pitch
+   Leaf shape an explicit <c e g> Chord already produces
+   (walker/walk-chord-mode-note) -- a chord symbol and a spelled-out
+   chord are indistinguishable once committed. *)
 chordmode = <'chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
 
 (* ChordQuality? -- LilyPond's own bare-note default: a plain pitch with
@@ -272,9 +264,12 @@ ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeN
    longest -- maj13/maj11/maj9/maj7 before bare maj (which is itself a
    PREFIX of every one of those and must also precede the whole m*
    family below, 'm' being a prefix of 'maj' too), dim7 before dim,
-   m13/m11/m9/m7/m6 before bare m. *)
+   m13/m11/m9/m7/m6 before bare m. The shorthand (chord symbols' own,
+   musics.common.music-data/chord-qualities): M major (the triad; M7..M13
+   the major-seventh chords), d diminished, A augmented, s suspended --
+   each before its own bare letter, likewise. *)
 <ChordQuality> = <':'> Quality ChordAddition* ChordRemoval?
-Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
+Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|M13|M11|M9|M7|M|d7|d|A7|A|s2|s4|s|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
 
 (* LilyPond's own general alteration mechanism (Notation Reference,
    "Extended and altered chords"), applied ON TOP of whatever Quality
@@ -530,6 +525,14 @@ KeySpec       = #'[A-Ga-g][#&]?(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*'
 Note  = Pitch Duration NoteSuffix* Tie?
       | Pitch           NoteSuffix* Tie?
 
+(* A chord symbol outside chordmode: a note with a ':' quality (F3/1:7,
+   c:m7, B3:d7, G:7.9-/B) -- chordmode's own entry, its quality required,
+   since here a note without one stays a note (:M is the major triad).
+   It can't be read as a tremolo instead: a tremolo is 8, 16, 32, 64
+   or 128 (Tremolo), never a quality, so the two never meet. *)
+ChordSymbol = Pitch Duration ChordQuality ChordBass? Articulation? ChordModeNoteSuffix* Tie?
+            | Pitch          ChordQuality ChordBass? Articulation? ChordModeNoteSuffix* Tie?
+
 (* Split by letter case -- absolute vs. relative resolution
    (leaf-parser/resolve-pitch) already keys off case, and here it's
    load-bearing at the grammar level too: only an absolute (uppercase)
@@ -624,7 +627,9 @@ OrnamentName = 'prall'     | 'prallup'      | 'pralldown'   | 'upprall'     |
 
 Ornament = <#'\\'> OrnamentName
 Modifier = <#'\\'> Name <':'> ModValue
-Tremolo  = <':'> Int
+(* A tremolo's subdivision is 8, 16, 32, 64 or 128, as LilyPond's; that
+   keeps every ':' quality free for ChordSymbol (c4:7 is a chord). *)
+Tremolo  = <':'> &#'(?:128|64|32|16|8)(?![0-9])' Int
 
 (* A dynamic mark glued onto a note/chord (c4\f, <c e g>4\mf) is that
    note's own volume: the same per-note override as c4\vol:70 (the

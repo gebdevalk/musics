@@ -31,7 +31,7 @@
   [x]
   (or (instance? Quotation x) (fn? x)))
 
-(def ^:private leaf-tags #{:Note :Chord :Rest :Drum :MultiRest})
+(def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
   (into leaf-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 

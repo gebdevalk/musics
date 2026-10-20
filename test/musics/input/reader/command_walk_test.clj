@@ -486,6 +486,50 @@
     (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "chordmode ( C4:m13^11 )")))
         "m13 keeps its 11 by default (see chordmode-extended-qualities), removed here explicitly")))
 
+;; ── Chord symbols outside chordmode ─────────────────────────
+;; A note with a ':' quality is a chord: chordmode's entry, its quality
+;; required. A tremolo is 8/16/32/64/128, never a quality, so the two
+;; can't meet.
+
+(deftest a-chord-symbol-is-a-chord-without-chordmode
+  (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
+    "C4:7"       [60 64 67 70]
+    "C4/1:m7"    [60 63 67 70]
+    "C4:13"      [60 64 67 70 74 81]
+    "C4:m7.5-"   [60 63 66 70]
+    "C4:9^3"     [60 67 70 74]
+    "C4:7/E3"    [52 60 67 70])
+  (is (= 1 (:duration (first-wrapped-token "C4/1:7"))))
+  (testing "it keeps the relative chain and the duration going, as a note does"
+    (let [[a b c] (wrapped-tokens "c4:7 g:m d")]
+      (is (= [60 64 67 70] (:pitches a)))
+      (is (= [[55 58 62] 1/4] [(:pitches b) (:duration b)]) "g below c, a quarter")
+      (is (= [50] (:pitches c)) "a note without a quality stays a note, d a fourth below g"))))
+
+(deftest the-shorthand-qualities
+  (are [q pitches] (= pitches (:pitches (first-wrapped-token (str "C4:" q))))
+    "m"   [60 63 67]
+    "M"   [60 64 67]
+    "M7"  [60 64 67 71]
+    "M9"  [60 64 67 71 74]
+    "d"   [60 63 66]
+    "d7"  [60 63 66 69]
+    "A"   [60 64 68]
+    "A7"  [60 64 68 70]
+    "s"   [60 65 67]
+    "s2"  [60 62 67]
+    "s4"  [60 65 67])
+  (testing "the same inside chordmode, as long words do outside it"
+    (is (= [60 63 66 69] (:pitches (first-wrapped-token "chordmode ( C4:d7 )"))))
+    (is (= [60 63 66 69] (:pitches (first-wrapped-token "C4:dim7"))))))
+
+(deftest a-tremolo-is-a-power-of-two-from-8
+  (doseq [n [8 16 32 64 128]]
+    (let [t (first-wrapped-token (str "c4:" n))]
+      (is (= [60] (:pitches t)) (str n " is a tremolo"))
+      (is (some #(= ["tremolo" n] %) (:modifiers t)))))
+  (is (thrown? Exception (gp/parse-domain-string "[c4:12]")) "12 is neither a tremolo nor a quality"))
+
 ;; ── Ornaments glued onto notes ───────────────────────────────
 
 (deftest ornament-note-modifier
