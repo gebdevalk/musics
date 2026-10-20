@@ -319,6 +319,30 @@
           (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
         (finally (mt/stop-all!))))))
 
+(deftest a-voice-alone-plays-its-own-music-again
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [m/receiver (atom :silent)]
+      (try
+        (run "[bass: !tempo:60 c1 d1] [~] >")
+        (run "[mel: !tempo:60 e'1 f1] ^{ !mf } >")
+        (let [played (atom [])
+              shown  (fn [[x ctx _ target]] [(p/show x) (some? ctx) target])]
+          (with-redefs [mt/play!  (fn [x ctx join? target] (swap! played conj [x ctx join? target]))
+                        mt/stage! (fn [x ctx _ join? target] (swap! played conj [x ctx join? target]))]
+            (run "1 play")
+            (run ":mel >")
+            (run "2 >>")
+            (is (= [["repeat ~ [bass: !tempo:60 C4/1 D4]" false :bass]
+                    ["[mel: !tempo:60 E5/1 F5]" true :mel]
+                    ["[mel: !tempo:60 E5/1 F5]" true :mel]]
+                   (mapv shown @played))
+                "a voice alone: its own music, under its own context, as that voice")
+            (reset! played [])
+            (run "[g1] 1 play")
+            (is (= "[G3/1]" (p/show (ffirst @played))) "music under it plays as the voice, as before")))
+        (is (re-find #":motif R@ >" (:error (run ":motif >"))) "a name that plays nothing: the hint to fetch it")
+        (finally (mt/stop-all!))))))
+
 (deftest a-named-voice-changes-at-its-own-boundary
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [m/receiver (atom :silent)]

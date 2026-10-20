@@ -1690,3 +1690,12 @@ it. The open runs on its own thread and gives up after 5 s with an
 error naming the likely cause; if it opens later after all, the synth
 is closed again. The thread itself can't be stopped (a native call),
 so it is left to end or not.
+
+## 2026-10-20 — a voice alone plays its own music again
+
+`1 >`, `:bass >>`: a voice's index or id with nothing under it starts
+that voice's music again from its start, under its own context -- the
+short form of `1 < 1 >`. Only with nothing under it: mu's stack lasts
+the session, so with music under the voice that music is what plays,
+as before. A name that plays nothing keeps its hint to fetch what is
+stored (`:motif R@ >`).

@@ -94,12 +94,15 @@ Music without a name is no voice of its own: `>` stops everything,
 
 Voices also go by index, low to high: `1` the lowest voice, `2` the
 next …, and the drum voices from `0` down (`0`, `-1` …, lowest drum key
-first). An index or id on top of a play word plays as that voice:
+first). An index or id on top of a play word plays as that voice; on
+its own, with no music under it, the voice starts its own music again:
 
 ```
 1 <                  what the lowest voice plays
 3 < 12 + 3 >>        voice 3 an octave up, at its boundary
 0 hush               silence the drums
+1 >                  voice 1 from its start, now
+:bass >>             :bass from its start, at the end of its pass
 ```
 
 `echo` prints each note as it sounds; `echo` again stops it.
