@@ -111,9 +111,10 @@
 
 (word! "kernel" "clear" "( … -- )  clear the stack" (fn [_] []))
 
-(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts"
+(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts, ---- under the last"
        (fn [s]
          (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
+         (when (seq s) (println "----"))
          s))
 
 ;; -- numbers ------------------------------------------------------------
