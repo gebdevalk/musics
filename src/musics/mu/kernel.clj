@@ -361,22 +361,24 @@
     (when-not (engine/voice-at id) (e/mu-error (str word ":") (pr-str id) "isn't playing -- voices lists what plays"))
     id))
 
-(word! "play" "voices" "( -- )  what plays: each voice's id, its material, and whether it is hushed or soloed"
+(word! "play" "voices" "( -- )  what plays: each voice's index (1 the lowest, 0 -1 … the drums), id, material, and whether it is hushed or soloed"
        (fn [s]
          (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)]
            (if (empty? vs)
              (println "nothing plays")
-             (doseq [[i id] (let [[pitched drums] (mt/ranked)]
-                              (concat (reverse (map-indexed (fn [i id] [(- i) id]) drums)) (map-indexed (fn [i id] [(inc i) id]) pitched)))
-                     :let [{:keys [x]} (get vs id)
-                           shown (p/show x)
-                           mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
-               (println (str i " " (pr-str id) "  "
-                             (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))
+             (let [[pitched drums] (mt/ranked)
+                   n (count pitched)]
+               (doseq [[i id] (concat (reverse (map-indexed (fn [i id] [(- i) id]) drums)) (map-indexed (fn [i id] [(inc i) id]) pitched))
+                       :let [{:keys [x]} (get vs id)
+                             shown (p/show x)
+                             label (cond (<= i 0) "drums" (= i 1) "lowest" (= i n) "highest" :else "")
+                             mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
+                 (println (format "%2d %-7s %s  %s%s" i label (pr-str id)
+                                  (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark))))))
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
        (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
-(word! "play" "<<" "( -- )  voices: what plays, each voice's id and its material" (e/same-as "play" "voices"))
+(word! "play" "<<" "( -- )  voices: what plays, each voice's index, id and material" (e/same-as "play" "voices"))
 (word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass < or 1 < (the lowest); to compare numbers write lt"
        (fn [s]
          (when (and (number? (peek s)) (not (integer? (peek s))))
