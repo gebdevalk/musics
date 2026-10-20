@@ -170,6 +170,12 @@
                            {:body (vec body) :effect (when effect {:in ins :out outs})
                             :values (:values env) :source (:source (meta node))})
                   stack)
+    :Group (let [xs (run-items [] (vec (rest node)) env)]
+             (when (empty? xs) (mu-error "( … ): leaves nothing to gather into a line"))
+             (when-let [x (first (remove #(or (v/material? %) (v/leaf? %)) xs))]
+               (mu-error "( … ): gathers music into a line, and left" (p/show x)))
+             ;; gathered as | … seq gathers
+             (conj stack (peek (run-word (into [v/mark] xs) "music/seq"))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")

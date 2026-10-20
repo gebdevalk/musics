@@ -33,6 +33,7 @@ Decided step by step (2026-10-08) and built on branch `mu`:
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered into one line (`\| … seq`) |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |

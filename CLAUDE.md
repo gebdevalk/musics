@@ -284,7 +284,8 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, `+` `up`, `*` `stretch`, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
-`'( … )` quotations; `musics.mu.kernel` and `musics.mu.tools` hold the
+`'( … )` quotations, `( … )` a group (run now, what it leaves
+gathered into a line, `| … seq`); `musics.mu.kernel` and `musics.mu.tools` hold the
 words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.

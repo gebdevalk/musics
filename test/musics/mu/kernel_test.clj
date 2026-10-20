@@ -362,6 +362,19 @@
         (is (re-find #"C7/1" (p/show (first (:ok (run "5 <"))))) "a repeat too, not among the drums")
         (finally (mt/stop-all!))))))
 
+(deftest a-group-is-one-line
+  (let [show #(p/show (first (:ok (run %))))]
+    (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered as | … seq")
+    (is (= "[C4/4 D4 E4]" (show "( c d e )")))
+    (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 repeat [e] [f] volta ) 1 +"))
+        "one line, so a word reaches all of it: the key covers the endings too")
+    (is (= "[D4/4 D4]" (show ": twice ( x -- y ) ( $x $x ) ; d4 twice")) "inside a definition, with locals")
+    (is (re-find #"nothing to gather" (:error (run "( )"))))
+    (is (re-find #"gathers music into a line, and left 1" (:error (run "( 1 2 )"))))
+    (run "( [c d] 2 repeat [e] [f] volta ) 1 + ^{ !K:D.major } with :grouped R!")
+    (is (= [61 63 65 61 63 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (m/events :grouped))))
+        "the first ending's F stays F under another key")))
+
 (deftest a-name-on-top-of-play-is-a-voice
   (is (re-find #":motif R@ >" (:error (run ":motif >"))) "the hint to fetch what is stored"))
 

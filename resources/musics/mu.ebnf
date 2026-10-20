@@ -9,7 +9,7 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / Quotation / Retrograde / Parallels / Lines / QuotedName
+<MuItem> = Definition / Quotation / Group / Retrograde / Parallels / Lines / QuotedName
          / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
@@ -23,6 +23,11 @@ EffectOut   = (<ws> EffectName)*
 
 (* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
+
+(* ( … ): run now, what it leaves gathered into one line -- | … seq
+   in brackets; as the text's ( ) holds what a command changes now,
+   ( … ) 1 + moves all of it, a repeat's endings too. *)
+Group = <'('> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
 
 <MuNumber>  = SignedRatio / SignedFloat / SignedInt
 

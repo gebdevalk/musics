@@ -1651,3 +1651,15 @@ Changing a value's leaves (`map-leaves`) now changes its nodes and
 reads them back, so instructions inside a line (`[c !f d] 1 +`) and a
 `shuffle`/`rotate` mark survive; it rebuilt from the elements and the
 leading instructions before, dropping the rest.
+
+## 2026-10-20 — `( … )`, a group
+
+`( … )` runs what is inside and gathers what it leaves into one line,
+`| … seq` in brackets: so a word after it reaches all of it --
+`( [c d] 2 times [e] [f] volta ) 1 +` moves a repeat and its endings
+under one key, where on the bare repeat only the body's line could
+carry it. It mirrors the text's `( )`, which holds what a command
+changes now (`transpose 1 ( … )`). A quotation, `'( … )`, stays code
+held: making every word that takes music run one was the other way,
+heavier for the same result. Bare parentheses meant nothing in mu
+before; a definition's stack effect has its `--`.
