@@ -35,6 +35,7 @@ declare -A pages=(
   [doc/md/domain.md]=domain
   [doc/md/walk-through.md]=walk-through
   [doc/md/tutorial.md]=tutorial
+  [doc/md/instruments.md]=instruments
   [doc/md/decisions.md]=decisions
   [CLAUDE.md]=CLAUDE
 )
