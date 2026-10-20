@@ -1786,7 +1786,9 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `kit-of` through `smart-get`: `trump`, `cow`, `elec`; an ambiguous start
   throws, naming the candidates; `instrument-matches`/`drum-matches`/
   `kit-matches` list them, mu's `find-instrument`/`find-drum`/`find-kit`;
-  `musics.mu.complete` is mu's Tab completion of them, a JLine completer).
+  `musics.mu.complete` is mu's Tab completion of them, a JLine completer,
+  which also completes context keys and `!` instructions, a note's `\`
+  tags, dynamics after `!vol:` and scales after `!K:F.`).
 - `musics/common/context_keys.clj` — the context-key registry (`!key:` names,
   aliases, types): `reg!` takes each key's range, default and scale from
   a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,

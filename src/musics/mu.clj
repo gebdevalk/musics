@@ -71,15 +71,16 @@
     (.setEscapeChars (char-array 0))))
 
 (defn- completer
-  "Tab completes the instrument, drum or kit name being written
-   (musics.mu.complete): one candidate is filled in, several listed with
-   their program or key, and a second Tab moves through them."
+  "Tab completes the name being written (musics.mu.complete: an
+   instrument, drum, kit, context key, instruction, a note's tag or a
+   scale): one candidate is filled in, several listed with what they
+   are, and a second Tab moves through them."
   []
   (reify Completer
     (complete [_ _ line candidates]
       (let [word (subs (.word line) 0 (.wordCursor line))]
-        (doseq [{:keys [value display descr]} (complete/candidates word)]
-          (.add candidates (Candidate. value display nil descr nil nil true)))))))
+        (doseq [{:keys [value display descr complete]} (complete/candidates word)]
+          (.add candidates (Candidate. value display nil descr nil nil complete)))))))
 
 (defn- line-reader
   "A JLine reader for mu on terminal, its history kept in history (a
