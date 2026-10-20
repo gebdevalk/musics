@@ -53,7 +53,9 @@ c4                  → C4/4
 ## 2. Listening
 
 First connect a synthesizer: `gervill` (Java's own, nothing to set up)
-or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
+or `fluidsynth` (through qsynth, see `doc/md/setup.md`). If the sound
+output doesn't open within 5 s (a Bluetooth speaker asleep), mu says so
+instead of waiting; `doc/md/setup.md` has what to do.
 
 | Word | Does |
 |---|---|
@@ -64,7 +66,7 @@ or `fluidsynth` (through qsynth, see `doc/md/setup.md`).
 | `>>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
-| `voices` or `<<` | what plays: each voice's index (`1 lowest` … `highest`, `0 drums` …), id and music |
+| `voices` or `<<` | what plays, the highest voice on top: each voice's index (`highest` … `1 lowest`, `0 drums` …), id and music |
 | `:bass playing` or `:bass <` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
