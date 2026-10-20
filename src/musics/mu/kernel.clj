@@ -367,14 +367,17 @@
            (if (empty? vs)
              (println "nothing plays")
              (let [[pitched drums] (mt/ranked)
-                   n (count pitched)]
-               (doseq [[i id] (concat (reverse (map-indexed (fn [i id] [(inc i) id]) pitched)) ; the highest on top, as in a score
-                                      (map-indexed (fn [i id] [(- i) id]) drums))
+                   n    (count pitched)
+                   rows (concat (reverse (map-indexed (fn [i id] [(inc i) id]) pitched)) ; the highest on top, as in a score
+                                (map-indexed (fn [i id] [(- i) id]) drums))
+                   wide #(apply max (map (comp count str %) rows))
+                   row  (str "%" (wide first) "d %-" (if (pos? n) 7 5) "s %-" (wide (comp pr-str second)) "s  %s%s")]
+               (doseq [[i id] rows
                        :let [{:keys [x]} (get vs id)
                              shown (p/show x)
                              label (cond (<= i 0) "drums" (= i 1) "lowest" (= i n) "highest" :else "")
                              mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)")]]
-                 (println (format "%2d %-7s %s  %s%s" i label (pr-str id)
+                 (println (format row i label (pr-str id)
                                   (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark))))))
          s))
 (word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
