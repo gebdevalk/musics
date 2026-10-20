@@ -1,7 +1,8 @@
 # mu tutorial: the music words
 
-mu is musics' musical REPL: you type music, and it lands on a stack
-where words change it, combine it and play it. This tutorial walks
+mu is musics' concatenative, real-time, interactive REPL: you type
+music, and it lands on a stack where words change it, combine it and
+play it, while it plays. This tutorial walks
 through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
