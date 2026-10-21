@@ -9,6 +9,7 @@
             [musics.conductor :as conductor]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
+            [musics.mu.library]
             [musics.mu.tools]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]

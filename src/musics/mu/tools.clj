@@ -138,21 +138,25 @@
 (word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
 (defn- music? [x] (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x)))))
 
+(defn times-of
+  "x played n times, the text's repeat n [ x ]; data and streams written
+   out n times, printed as x n times (data stays data). word names it in
+   an error."
+  [word x n]
+  (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
+  (if (music? x)
+    (mt/repetition x n [])
+    (let [x (finite! word x)]
+      (if (v/material? x)
+        (vary-meta (reshape x #(apply concat (repeat n %))) assoc :mu/repeat [x n])
+        (mt/repeated x n)))))
+
 (defn- times-word
-  "( x n -- repeat ): x played n times, the text's repeat n [ x ];
-   data and streams written out n times, printed as x n times (data
-   stays data)."
+  "( x n -- repeat ): times-of."
   [word]
   (fn [s]
     (let [n (count-arg s word) s (pop s) x (peek s)]
-      (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
-      (conj (pop s)
-            (if (music? x)
-              (mt/repetition x n [])
-              (let [x (finite! word x)]
-                (if (v/material? x)
-                  (vary-meta (reshape x #(apply concat (repeat n %))) assoc :mu/repeat [x n])
-                  (mt/repeated x n))))))))
+      (conj (pop s) (times-of word x n)))))
 
 (word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
        (times-word "[*]"))
@@ -756,7 +760,7 @@
              (assoc x :tied (boolean (and (map? nxt) (:tied nxt))))
              x)))))
 
-(defn- retrograde
+(defn retrograde
   "x backwards, at any depth: its elements reversed (nested lines,
    parallels' parts and repeats' bodies too), ties turned round, what its
    own instructions change written into the notes; a line with jumps ($
@@ -899,7 +903,7 @@
 
 ;; -- harmony ----------------------------------------------------------------
 
-(defn- played-leaves
+(defn played-leaves
   "x's notes, chords and rests in the order they play: nested lines and
    repeats (pass after pass, with their endings) walked through."
   [word x]

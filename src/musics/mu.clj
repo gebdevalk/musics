@@ -12,7 +12,8 @@
             [musics.mu.material :as mt]
             [musics.mu.tools]
             [musics.mu.algos]
-            [musics.mu.complete :as complete])
+            [musics.mu.complete :as complete]
+            [musics.mu.library])
   (:import (org.jline.keymap KeyMap)
            (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)

@@ -66,11 +66,13 @@
   [ns name effect f]
   (define! ns name {:fn f :effect effect}))
 
+(declare run-word)
+
 (defn same-as
   "A word's fn that runs the word ns/name, looked up when it runs: an
    alias (> for play) that follows a redefinition of what it names."
   [ns name]
-  (fn [stack] ((:fn (get-in @state [:ns ns name])) stack)))
+  (fn [stack] (run-word stack (str ns "/" name))))
 
 (defn need
   "Assert the stack holds at least n items for word."
@@ -112,12 +114,49 @@
     :SignedRatio (let [[n d] (str/split (str/replace text #"^\+" "") #"/")]
                    (/ (Long/parseLong n) (Long/parseLong d)))))
 
+(defn- effect-word?
+  "Is v a function done for its effect (its name ends in !), leaving nothing?"
+  [v]
+  (str/ends-with? (str (:name (meta v))) "!"))
+
+(defn- arity-for
+  "The arglist of v to call with what stack holds: the longest one whose
+   arguments past the shortest's all pass their :optional test (v's
+   :mu metadata, by argument name) on the values in their places; a
+   longer arity whose arguments have no test is never taken."
+  [v stack]
+  (let [lists    (sort-by count (:arglists (meta v)))
+        base     (count (first lists))
+        optional (:optional (:mu (meta v)))]
+    (or (last (filter (fn [al]
+                        (let [extra (drop base al)]
+                          (and (<= (count al) (count stack))
+                               (every? true? (map (fn [p x] (boolean (when-let [t (get optional (keyword p))] (t x))))
+                                                  extra (take-last (count extra) stack))))))
+                      lists))
+        (first lists))))
+
+(defn- run-var
+  "Run the Clojure function v as the word name: its arguments taken from
+   stack, music first; its value pushed, unless it is done for its effect.
+   An error it throws is a mu error, named by the word."
+  [stack name v]
+  (let [al   (arity-for v stack)
+        _    (need stack (count al) name)
+        n    (- (count stack) (count al))
+        r    (try (apply @v (subvec stack n))
+                  (catch clojure.lang.ExceptionInfo ex
+                    (if (:mu/error (ex-data ex)) (throw ex) (mu-error (str name ":") (ex-message ex)))))]
+    (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
+
 (defn run-word
   "Run the word called name on stack."
   [stack name]
   (let [entry (or (lookup @state name) (mu-error "unknown word:" name))]
-    (if-let [f (:fn entry)]
-      (f stack)
+    (cond
+      (:var entry) (run-var stack name (:var entry))
+      (:fn entry)  ((:fn entry) stack)
+      :else
       (let [ins    (get-in entry [:effect :in])
             _      (need stack (count ins) name)
             n      (- (count stack) (count ins))
