@@ -269,7 +269,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
-| `spread` or `**` | `( x -- a b … )` | x's elements on the stack: a line's notes, a parallel's parts, data's values (`[c d e] 2 [/] spread`) |
+| `spread` or `**` | `( x -- a b … )` | x's elements on the stack: a line's notes (no bar lines), a parallel's parts, data's values (`[c d e] 2 [/] spread`) |
 | `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 

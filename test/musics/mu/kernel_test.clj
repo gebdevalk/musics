@@ -47,7 +47,9 @@
   (is (= ["[C4/4 D4]" "[E4/4]"] (map p/show (:ok (run "{[c d] [e]} **")))) "** is spread: a parallel's parts")
   (is (= [1 2 3] (:ok (run "'[1 2 3] spread"))) "data's values")
   (is (= [7 1 2] (:ok (run "7 '[1 2] **"))) "what lies under stays")
-  (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused"))
+  (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d | e] spread")))) "bar lines left out")
+  (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused")
+  (is (re-find #"^spread: has no elements" (:error (run "7 spread"))) "an error named by the word"))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
