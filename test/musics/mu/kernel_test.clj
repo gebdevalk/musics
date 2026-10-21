@@ -262,8 +262,8 @@
     (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
 
 (deftest echo-prints-each-note-as-it-sounds
-  (is (= "x\\38 Acoustic Snare" (musics.mu.kernel/echo-line {:channel 9 :pitches [38]})))
-  (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.kernel/echo-line {:channel 2 :pitches [60 64 67] :program 40})))
+  (is (= "x\\38 Acoustic Snare" (musics.mu.material/echo-line {:channel 9 :pitches [38]})))
+  (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.material/echo-line {:channel 2 :pitches [60 64 67] :program 40})))
   (let [lines (atom [])]
     (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
       (with-redefs [m/receiver (atom :silent)

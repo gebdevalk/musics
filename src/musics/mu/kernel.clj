@@ -1,15 +1,12 @@
 (ns musics.mu.kernel
   "mu's kernel words (namespace kernel): the stack, quotations,
    printing, numbers, bindings, the repo, namespaces, help, files and
-   the defaults; also the symbols on material (+ - * / cresc dim, in
-   music) and playback and the synthesizers (in play) (doc/md/mu-repl.md,
-   section 8)."
+   the defaults; also the play words that read the stack's shape (play,
+   >, play-next, >>, …) (doc/md/mu-repl.md, section 8). The rest of play
+   is musics.play, the music words musics.music."
   (:require [clojure.string :as str]
-            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
             [musics.core :as m]
-            [musics.engine :as engine]
-            [musics.input.reader.leaf-parser :as lp]
             [musics.domain.resolve :as r]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -297,115 +294,7 @@
 (word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ">>+" true))
 
-(word! "play" "stop" "( [voice] -- )  stop everything that plays (Alt+.), or with a voice's id or index on top only that voice: :bass stop, 1 stop"
-       (fn [s]
-         (if (or (keyword? (peek s)) (integer? (peek s)))
-           (do (mt/stop-voice! (mt/voice-id "stop" (peek s))) (pop s))
-           (do (mt/stop-all!) s))))
-
-(defn- voice-arg [s word]
-  (need s 1 word)
-  (let [id (mt/voice-id word (peek s))]
-    (when-not (keyword? id) (e/mu-error (str word ":") "takes a voice's id or index, :bass, :TA or 1 (the lowest) -- voices lists them"))
-    (when-not (engine/voice-at id) (e/mu-error (str word ":") (pr-str id) "isn't playing -- voices lists what plays"))
-    id))
-
-(word! "play" "voices" "( -- )  what plays: each voice's index (1 the lowest, 0 -1 … the drums), id, material, and whether it is hushed or soloed"
-       (fn [s]
-         (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)]
-           (if (empty? vs)
-             (println "nothing plays")
-             (let [[pitched drums] (mt/ranked)
-                   n    (count pitched)
-                   rows (concat (reverse (map-indexed (fn [i id] [(inc i) id]) pitched)) ; the highest on top, as in a score
-                                (map-indexed (fn [i id] [(- i) id]) drums))
-                   wide #(apply max (map (comp count str %) rows))
-                   row  (str "%" (wide first) "d %-" (if (pos? n) 7 5) "s %-" (wide (comp pr-str second)) "s  %s%s")]
-               (doseq [[i id] rows
-                       :let [{:keys [x]} (get vs id)
-                             shown (p/show x)
-                             label (cond (<= i 0) "drums" (= i 1) "lowest" (= i n) "highest" :else "")
-                             mark  (cond (= solo [id]) "  solo" (contains? hushed [id]) "  hushed" (and solo (not= solo [id])) "  (not soloed)" :else "")]]
-                 (println (format row i label (pr-str id)
-                                  (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark))))))
-         s))
-(word! "play" "playing" "( voice -- material )  what a voice plays, to change and play again: :bass playing 5 + >>"
-       (fn [s] (conj (pop s) (mt/playing (voice-arg s "playing")))))
-(word! "play" "<<" "( -- )  voices: what plays, each voice's index, id and material" (e/same-as "play" "voices"))
-(word! "play" "<" "( voice -- material )  playing: what a voice plays, :bass < or 1 < (the lowest); to compare numbers write lt"
-       (fn [s]
-         (when (and (number? (peek s)) (not (integer? (peek s))))
-           (e/mu-error "<: takes a voice's id or index (:bass <, 1 <); to compare numbers write lt"))
-         ((e/same-as "play" "playing") s)))
-(word! "play" "hush" "( voice -- )  silence a voice, keeping its place; again and it sounds"
-       (fn [s] (engine/hush! (voice-arg s "hush")) (pop s)))
-(word! "play" "solo" "( voice -- )  only this voice sounds, the others keeping their place; again and all sound"
-       (fn [s] (engine/solo! (voice-arg s "solo")) (pop s)))
-(defn toggle-pause!
-  "Pause what plays, or resume it if paused. Says which: \"paused\",
-   \"resumed\" or \"nothing plays\"."
-  []
-  (let [eng engine/*engine*]
-    (cond
-      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
-      (engine/busy? eng)             (do (m/pause!) "paused")
-      :else                          "nothing plays")))
-
-(word! "play" "pause" "( -- )  hold what plays, or go on if it is held; Alt+,"
-       (fn [s]
-         (let [said (toggle-pause!)]
-           (when (= "nothing plays" said) (println said)))
-         s))
-(word! "play" "resume" "( -- )  go on after pause" (fn [s] (m/resume!) s))
-
 ;; -- synthesizers: Fluidsynth through VirMIDI, or Gervill, Java's own --------
-
-(defn echo-line
-  "What echo prints for a note or drum as it sounds: a drum's key and
-   name, a note's instrument, its name and the pitches."
-  [{:keys [channel pitches program]}]
-  (if (= 9 channel)
-    (str/join "  " (for [k pitches] (str "x\\" k " " (get-in data/drums [k :name] "(no GM drum)"))))
-    (str "\\i:" program " " (some-> (data/program->name program) name) "  "
-         (str/join " " (for [p pitches]
-                         (let [{:keys [letter accidental octave]} (lp/midi->spelling p)]
-                           (str (str/upper-case letter) accidental octave)))))))
-
-(defonce ^:private echo-agent (agent nil :error-mode :continue))
-
-(word! "play" "echo" "( -- )  print each note as it sounds (its instrument or drum), or stop printing"
-       (fn [s]
-         (if @engine/echo
-           (do (reset! engine/echo nil) (println "echo off"))
-           (do (reset! engine/echo (fn [ev] (send-off echo-agent (fn [_] (@e/print-above (echo-line ev)) nil))))
-               (println "echo on")))
-         s))
-
-(word! "play" "fluidsynth" "( -- )  play through Fluidsynth (qsynth, via VirMIDI)"
-       (fn [s] (mt/cancel-staged!) (m/connect :fluidsynth) s))
-(word! "play" "gervill" "( -- )  play through Gervill, Java's own synthesizer, with FluidR3_GM"
-       (fn [s] (mt/cancel-staged!) (m/connect :gervill) s))
-(word! "play" "soundfonts" "( -- )  the .sf2 files soundfont takes by number"
-       (fn [s]
-         (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f)))
-         s))
-(word! "play" "soundfont" "( \"file.sf2\"|n -- )  Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
-       (fn [s]
-         (need s 1 "soundfont")
-         (let [x (peek s)]
-           (when-not (or (string? x) (integer? x))
-             (e/mu-error "soundfont: needs a file in quotes or a number from soundfonts, got" (p/show x)))
-           (println (m/soundfont x))
-           (pop s))))
-
-(word! "play" "gui" "( -- )  open musics' GUI beside mu: transport, the parts and their contexts as sliders, the Wall, Record MIDI; closing it leaves mu running and gui opens it again"
-       (fn [s]
-         (m/gui)
-         ;; JavaFX ends when its last window closes, unless told not to:
-         ;; then gui couldn't open it again. By reflection, so loading
-         ;; mu needs no JavaFX class.
-         (clojure.lang.Reflector/invokeStaticMethod "javafx.application.Platform" "setImplicitExit" (object-array [false]))
-         s))
 
 (defn- context-text
   "vals ({key value}, keys as a context holds them) as a ^{ } literal,

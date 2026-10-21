@@ -9,7 +9,8 @@
             [musics.mu.kernel]
             [musics.mu.tools]
             [musics.music]
-            [musics.tool]))
+            [musics.tool]
+            [musics.play]))
 
 (defn word-name
   "The mu word a function is: its name, a trailing ! left off."
@@ -26,7 +27,7 @@
         optional (set (map name (keys (:optional (:mu (meta v))))))
         args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
         out      (if (str/ends-with? (str (:name (meta v))) "!") "" (word-name v))]
-    (str "( " (str/join " " args) " -- " out " )  " (str/replace (str doc) #"\s+" " "))))
+    (str "( " (str/join " " (concat args ["--"] (when (seq out) [out]))) " )  " (str/replace (str doc) #"\s+" " "))))
 
 (defn register!
   "Make every public function of clojure namespace ns-sym mu's words, in
@@ -43,4 +44,5 @@
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 
 (register! 'musics.tool "tool")
+(register! 'musics.play "play")
 (register! 'musics.music "music")

@@ -15,6 +15,7 @@
             [musics.common.music-elements :as el]
             [musics.mu.value :as v]
             [musics.input.reader.leaf-parser :as lp]
+            [musics.common.music-data :as data]
             [musics.registries :as reg]
             [musics.repo :as repo]))
 
@@ -685,3 +686,28 @@
   (read-text (str "{" (apply str (interpose " " (map #(p/show (->material %)) xs))) "}")))
 
 (defn marker? [x] (or (d/bar? x) (d/jump? x)))
+
+;; -- what play shares with the prompt ----------------------------------------
+
+(defn toggle-pause!
+  "Pause what plays, or resume it if paused. Says which: \"paused\",
+   \"resumed\" or \"nothing plays\"."
+  []
+  (let [eng engine/*engine*]
+    (cond
+      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
+      (engine/busy? eng)             (do (m/pause!) "paused")
+      :else                          "nothing plays")))
+
+(defn echo-line
+  "What echo prints for a note or drum as it sounds: a drum's key and
+   name, a note's instrument, its name and the pitches."
+  [{:keys [channel pitches program]}]
+  (if (= 9 channel)
+    (str/join "  " (for [k pitches] (str "x\\" k " " (get-in data/drums [k :name] "(no GM drum)"))))
+    (str "\\i:" program " " (some-> (data/program->name program) name) "  "
+         (str/join " " (for [p pitches]
+                         (let [{:keys [letter accidental octave]} (lp/midi->spelling p)]
+                           (str (str/upper-case letter) accidental octave)))))))
+
+(defonce echo-agent (agent nil :error-mode :continue))
