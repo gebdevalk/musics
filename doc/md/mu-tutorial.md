@@ -762,12 +762,18 @@ A chord symbol is a root and a quality, absolute or relative, its
 duration carrying on as a note's does (`F3/1:7`, `b&:7`, `c2.:m7`).
 `walking-bass` takes a line of chords and makes a bass under it as you
 run it, a new one each time: a quarter a beat, each chord's root on its
-first beat, the beat before the next chord a step into it, the last
-chord held. Repeats are walked pass by pass, each with its own line.
+first beat, the beat before the next chord a step into it. Repeats are
+walked pass by pass, each with its own line.
+
+A number says how many times: `x 4 walking-bass` is as long as `x 4
+times`, each time walked anew, the last chord held. Without a number it
+is an ostinato: one line whose last beat leads back into its first, to
+loop with the chords.
 
 ```
 [blues: !M:4/4 repeat 2 [ F3/1:7 | b&:7 | f:7 | c2:m7 f:7 | b&1:7 | b:d7 | f:7 | d:7 | g:m7 | c:7 ] volta [ [ f,2:7 d:7 | g:m7 c:7 ] [ f,1:7 | f:7 ] ] ]
-dup walking-bass {2} >
+dup 1 walking-bass {2} >          once through, the end held
+[F3/1:7 | b&:7 | c:7 | f:7] dup walking-bass {2} [~] >    an ostinato, looped
 ```
 
 `dup` keeps the chords, `walking-bass` makes the bass from the copy,

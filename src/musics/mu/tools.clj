@@ -911,13 +911,19 @@
     (or (v/material? x) (sequential? x))            (mapcat #(played-leaves word %) (mt/elements x))
     :else                                           []))
 
-(word! "music" "walking-bass" "( chords -- bass )  a walking bass under a line of chords, made as you run it, new each time: a quarter a beat, the root on each chord's first, a step into the next, the last chord held, on an acoustic bass -- [blues: …] dup walking-bass {2} >"
+(word! "music" "walking-bass" "( chords [n] -- bass )  a walking bass under a line of chords, made as you run it, new each time: a quarter a beat, the root on each chord's first, a step into the next, on an acoustic bass. With n, as long as the chords n times (x n times), each time walked anew, the last chord held -- x 4 times x 4 walking-bass {2} >; without, an ostinato: one line leading back into its own start, to loop with the chords -- x dup walking-bass {2} [~] >"
        (fn [s]
          (need s 1 "walking-bass")
-         (let [chords (for [l (played-leaves "walking-bass" (peek s))]
-                        {:pitches (when (= :LEAF (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))})]
+         (let [n      (when (integer? (peek s)) (peek s))
+               s      (if n (pop s) s)
+               _      (need s 1 "walking-bass")
+               _      (when (and n (< n 1)) (e/mu-error "walking-bass: walks a number of times from 1, got" n))
+               chords (vec (for [l (played-leaves "walking-bass" (peek s))]
+                             {:pitches (when (= :LEAF (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))}))]
            (when-not (some :pitches chords) (e/mu-error "walking-bass: there are no chords to walk under"))
-           (conj (pop s) (mt/read-text (walking-bass/line->mus chords {}))))))
+           (conj (pop s) (mt/read-text (if n
+                                         (walking-bass/line->mus (vec (apply concat (repeat n chords))) {:end true})
+                                         (walking-bass/line->mus chords {:end false})))))))
 
 
 ;; -- finding names ----------------------------------------------------------

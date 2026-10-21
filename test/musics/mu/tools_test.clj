@@ -470,7 +470,7 @@
 
 (deftest walking-bass-walks-under-the-chords-as-they-play
   (rc/seed! 42)
-  (let [bass  (top (str blues " walking-bass"))
+  (let [bass  (top (str blues " 1 walking-bass"))
         notes (re-seq #"([A-G][&#]?)(\d)(/\d)?" bass)
         bars  (str/split (subs bass (count "[!i:acousticBass ") (dec (count bass))) #" \| ")]
     (is (str/starts-with? bass "[!i:acousticBass F2/4 "))
@@ -484,6 +484,33 @@
     (is (not= (top (str blues " walking-bass")) (top (str blues " walking-bass")))))
   (testing "beside the chords"
     (is (str/starts-with? (top (str blues " dup walking-bass {2}")) "{[blues: !M:4/4 repeat 2 ["))))
+
+(def ^:private pitch-of
+  (into {} (for [[l pc] {"C" 0 "D" 2 "E" 4 "F" 5 "G" 7 "A" 9 "B" 11} [a d] {"" 0 "&" -1 "#" 1}] [(str l a) (+ pc d)])))
+
+(defn- bass-notes
+  "[pitch-class octave] of each note of a printed bass line."
+  [text]
+  (for [[_ n o] (re-seq #"([A-G][&#]?)(\d)" text)] [(mod (pitch-of n) 12) (Integer/parseInt o)]))
+
+(deftest walking-bass-without-a-number-is-an-ostinato
+  (rc/seed! 42)
+  (let [bass  (top "[F3/1:7 | B&3:7 | C4:7 | F3:7] walking-bass")
+        notes (bass-notes bass)
+        midi  (fn [[pc o]] (+ pc (* 12 (inc o))))]
+    (is (= 16 (count notes)) "four bars of quarters: nothing held")
+    (is (not (str/includes? bass "/1")))
+    (is (<= 1 (abs (- (midi (first notes)) (midi (last notes)))) 7)
+        "the last note leads back into the first, so it loops")))
+
+(deftest walking-bass-with-a-number-walks-that-many-times
+  (rc/seed! 42)
+  (let [bass  (top "[F3/1:7 | B&3:7 | C4:7 | F3:7] 3 walking-bass")
+        bars  (str/split (subs bass (count "[!i:acousticBass ") (dec (count bass))) #" \| ")]
+    (is (= 12 (count bars)) "as long as the chords three times")
+    (is (str/ends-with? bass "| F2/1]") "the last chord held")
+    (is (not= (take 4 bars) (take 4 (drop 4 bars))) "each time walked anew"))
+  (is (str/includes? (top "[F3/1:7] 0 walking-bass") "from 1")))
 
 (deftest walking-bass-needs-a-line-of-chords
   (is (str/includes? (top "{[F3/1:7] [C4/1:7]} walking-bass") "not a parallel"))
