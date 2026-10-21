@@ -1,6 +1,9 @@
 (ns ^:repl musics.mu.complete-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [musics.mu.complete :as c]))
+            [musics.core :as m]
+            [musics.mu.complete :as c]
+            [musics.mu.kernel]
+            [musics.test-support :refer [with-fresh-session]]))
 
 (defn- values [word] (mapv :value (c/candidates word)))
 
@@ -44,4 +47,36 @@
 
 (deftest nothing-where-no-name-is-written
   (are [word] (empty? (c/candidates word))
-    "c4" "[blues:" "dup" "!i:zz" "!K:F" "\\verse" "!vol:90"))
+    "c4" "[blues:" "!i:zz" "!K:F" "\\verse" "!vol:90"))
+
+(def ^:private env
+  {:words {"walk" "( a -- b )  x" "walking-bass" "( chords [n] -- bass )  a walking bass"
+           "pitch/lorenz" "( -- p )" "pitch/walk" "( -- p )"}
+   :ids   ["bass" "blues" "verse2"]})
+
+(defn- env-values [word] (mapv :value (c/candidates word env)))
+
+(deftest mu-words-and-their-stack-effects
+  (are [word vs] (= vs (env-values word))
+    "walk"     ["walk" "walking-bass"]
+    "wal"      ["walk" "walking-bass"]
+    "pitch/lo" ["pitch/lorenz"]
+    "pitch/"   ["pitch/lorenz" "pitch/walk"])
+  (is (= "( chords [n] -- bass )" (:descr (second (c/candidates "walk" env))))))
+
+(deftest stored-parts-after-a-colon
+  (are [word vs] (= vs (env-values word))
+    ":bl"  [":blues"]
+    ":b"   [":bass" ":blues"]
+    "[:ve" ["[:verse2"]
+    "{:ba" ["{:bass"])
+  (is (empty? (env-values "[blues:")) "naming a part is no reference"))
+
+(deftest live-knows-mus-words-and-the-named-parts
+  (with-fresh-session
+    (with-out-str (m/parse "[c d] [verse: e f] repeat 2 [g] ^{loud: !ff}"))
+    (let [{:keys [words ids]} (c/live)]
+      (is (= ["loud" "verse"] ids) "named parts only: no :s1, :repeat1 or :ROOT")
+      (is (contains? words "dup") "a word in use, bare")
+      (is (contains? words "kernel/dup") "and qualified"))))
+

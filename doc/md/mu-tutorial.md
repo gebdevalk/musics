@@ -538,7 +538,9 @@ filling in the one it can be, or listing them with their program or key
 key or an instruction after `!` (`!swingU` to `!swingUnit:`, `!mo` to
 `!moderato`), what a note takes after `\` (`c4\tri` to `c4\trill`,
 `c4\vo` to `c4\vol:`), a dynamic after `!vol:`, and a scale after a
-key's tonic (`!K:F.ma` to `!K:F.major`); a list plays
+key's tonic (`!K:F.ma` to `!K:F.major`), a stored part after `:` (`:blu`
+to `:blues`) and a word (`walk` to `walking-bass`, `pitch/lo` to
+`pitch/lorenz`), each listed with its stack effect; a list plays
 several at once. A drum is `x` with its key or name; a bare `x`
 repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
 `power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`

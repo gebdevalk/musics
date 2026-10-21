@@ -1794,7 +1794,8 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `kit-matches` list them, mu's `find-instrument`/`find-drum`/`find-kit`;
   `musics.mu.complete` is mu's Tab completion of them, a JLine completer,
   which also completes context keys and `!` instructions, a note's `\`
-  tags, dynamics after `!vol:` and scales after `!K:F.`).
+  tags, dynamics after `!vol:`, scales after `!K:F.`, stored parts after
+  `:` (named ones, not `:s12`) and mu's words, qualified ones after `ns/`).
 - `musics/common/context_keys.clj` — the context-key registry (`!key:` names,
   aliases, types): `reg!` takes each key's range, default and scale from
   a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,
