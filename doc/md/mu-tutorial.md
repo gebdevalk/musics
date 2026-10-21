@@ -126,6 +126,7 @@ it leaves mu running, and `gui` opens it again.
 | `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
 | `<>` or `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
+| `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a line's notes or a parallel's parts |
 
 The pairs differ in what they take and what they make of it:
 
@@ -154,7 +155,15 @@ The pairs differ in what they take and what they make of it:
 [c d e f] [T]           → [D4/4 E4 F4]              the tail
 [c d e f] 2 [H]         → [C4/4 D4]
 c e g <>                → <C4 E4 G4>4
+[c d | e] spread        → C4/4 D4/4 E4/4            three notes, the bar line left out
+{[c d] [e f]} **        → [C4/4 D4] [E4/4 F4]       two lines
+[c d e] spread swap [3] → [C4/4 E4 D4]              the last two exchanged
 ```
+
+`spread` undoes `[n]` and `{n}`: the elements come onto the stack one
+by one, where the stack words reach each of them, and `[n]` or `{n}`
+puts them back together. Bar lines and jump marks are left out, since
+they mean nothing outside their line.
 
 A group makes one line of what would be several values, so the next word
 reaches all of it: `( [c d] 2 repeat [e] [f] volta ) 1 +` moves the repeat
@@ -824,6 +833,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `<>` `chord` | `( notes -- chord )` |
 | `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
 | `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
+| `**` `spread` | `( x -- a b … )` |
 | `{+}` `beside` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- line )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
