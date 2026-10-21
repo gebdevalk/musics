@@ -142,8 +142,9 @@
    on-change is a cljfx event-map merged with :fx/event -> the newly
    picked string, fired on JavaFX ComboBox's own :on-value-changed.
    show-label? (default true) omits the label when false, same as
-   slider's own."
-  [{:keys [label items value on-change show-label?]
+   slider's own. editable? lets a value be typed as well as picked
+   (on-change gets the typed text when it is committed)."
+  [{:keys [label items value on-change show-label? editable?]
     :or {show-label? true}}]
   {:fx/type :h-box
    :spacing 6
@@ -154,6 +155,7 @@
      true (conj {:fx/type :combo-box
                  :items items
                  :value value
+                 :editable (boolean editable?)
                  :pref-width 200
                  :on-value-changed on-change}))})
 
