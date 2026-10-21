@@ -5,8 +5,7 @@
    (doc/md/mu-repl.md, section 8). The kernel's other words are
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
-  (:require [musics.domain :as d]
-            [musics.mu.eval :as e :refer [word! need]]
+  (:require [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]))
@@ -51,12 +50,12 @@
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
-(word! "kernel" "spread" "( x -- a b … )  x's elements on the stack, one after another: a line's notes (its bar lines left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
+(word! "kernel" "spread" "( x -- a b … )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
        (fn [s]
          (need s 1 "spread")
          (let [xs (try (mt/elements (peek s))
                        (catch clojure.lang.ExceptionInfo ex (e/mu-error "spread:" (ex-message ex))))]
-           (into (pop s) (remove d/bar? (mt/finite! "spread" xs))))))
+           (into (pop s) (remove mt/marker? (mt/finite! "spread" xs))))))
 
 (word! "kernel" "**" "( x -- a b … )  spread: x's elements on the stack (also spread)" (e/same-as "kernel" "spread"))
 
