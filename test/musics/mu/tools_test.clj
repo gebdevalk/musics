@@ -8,6 +8,7 @@
             [musics.domain.context :as c]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
+            [musics.mu.library]
             [musics.mu.print :as p]
             [musics.mu.tools]
             [musics.mu.value :as v]

@@ -285,8 +285,24 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
-gathered into a line, `| … seq`); `musics.mu.kernel` and `musics.mu.tools` hold the
-words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
+gathered into a line, `| … seq`). Most words are plain Clojure
+functions, one namespace per mu namespace: `musics.kernel` (numbers,
+comparison, the repo, help, files), `musics.tool`, `musics.music`,
+`musics.play` and `musics.rate` -- `musics.mu.library` registers each
+public function under its name, a trailing `!` left off, and its
+`:mu :names`, signs like `[R]` and `+`, and
+`musics.mu.eval` runs such a `{:var v}` word by taking its arguments
+from the stack, music first (the longest arity whose extra arguments
+pass their `:mu :optional` test), pushing the one value it returns --
+nothing for a `!` function -- and naming an error by the word; the
+bridge's `mu/…` for it calls the var, so a redefinition changes the
+word everywhere. The words that read the stack's shape stay stack
+words: the stack, quotations, `:=` and printing the stack, and the play
+words with their optional context, mark and voice (`>`, `>>`, …) in
+`musics.mu.kernel`; `split-at` (two values), `seq` `par` `{n}` `[n]`
+`<>` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
+generated from the registry (`musics.mu.algos`). `musics.mu.material`
+holds what they all share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
 Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/

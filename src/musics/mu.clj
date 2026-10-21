@@ -8,11 +8,12 @@
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.grammar :as g]
-            [musics.mu.kernel :as kernel]
+            [musics.mu.kernel]
             [musics.mu.material :as mt]
             [musics.mu.tools]
             [musics.mu.algos]
-            [musics.mu.complete :as complete])
+            [musics.mu.complete :as complete]
+            [musics.mu.library])
   (:import (org.jline.keymap KeyMap)
            (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)
@@ -111,7 +112,7 @@
    k meh, l like; shifted they move through an audition: J prev,
    K again, L next."
   [["mu-stop"    (KeyMap/alt ".") #(do (mt/stop-all!) (@e/print-above "stopped"))]
-   ["mu-pause"   (KeyMap/alt ",") #(@e/print-above (kernel/toggle-pause!))]
+   ["mu-pause"   (KeyMap/alt ",") #(@e/print-above (mt/toggle-pause!))]
    ["mu-dislike" (KeyMap/alt "j") #(fb/rate-current! -1)]
    ["mu-meh"     (KeyMap/alt "k") #(fb/rate-current! 0)]
    ["mu-like"    (KeyMap/alt "l") #(fb/rate-current! 1)]

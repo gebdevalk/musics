@@ -1741,3 +1741,25 @@ write a chord became two, spelled out (`<c e g>`) and chord symbols.
 `chordmode` is no longer a command or a reserved word. LilyPond's own
 `\chordmode { }` is documented in `lilypond-chordmode-chords.md`.
 
+## 2026-10-21 — mu's words are Clojure functions
+
+A mu word was a stack function, and its Clojure version a wrapper that
+ran it on a fresh stack. Now the function comes first: `musics.music`'s
+public functions are the words, the arguments taken from the stack,
+music first, the one value they return pushed (one value only: the few
+words that left several were stack words anyway); a name ending in `!`
+is done for its effect. `:mu` metadata names the signs and the tests of
+optional arguments -- declared on the function, as algos declare
+themselves with `:algo`, rather than inferred by a rule. Words that read
+the stack's shape (gathering to a mark, a count the grammar pushes, any
+number of quotations, `split-at`'s two values, the play words' optional
+context, mark and voice) stay stack words. All five word namespaces
+went this way (`musics.kernel`, `musics.tool`, `musics.music`,
+`musics.play`, `musics.rate`). The algo words stay generated from the
+registry (`musics.mu.algos`): the algos already are Clojure (the tree
+constructors, `musics.algo.pitch` …), and a var per algo would only
+repeat the registry. The cost is code: about +280 lines over the stack
+words, a `defn` with its docstring per word where a `word!` line was;
+the gain is one definition per word, readable, callable and testable
+as a function, with the bridge's `mu/…` the function itself.
+

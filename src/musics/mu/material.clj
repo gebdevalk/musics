@@ -14,6 +14,8 @@
             [musics.mu.print :as p]
             [musics.common.music-elements :as el]
             [musics.mu.value :as v]
+            [musics.input.reader.leaf-parser :as lp]
+            [musics.common.music-data :as data]
             [musics.registries :as reg]
             [musics.repo :as repo]))
 
@@ -633,3 +635,79 @@
                                  (when (seq body) [(line-of body)])
                                  (filter #(and (instruction? %) (not (ramp? %))) body))))
                      groups))))
+
+;; -- what the words share ---------------------------------------------------
+
+(defn endless [xs] (with-meta xs {:mu/endless true}))
+
+(defn endless? [x] (and (sequential? x) (:mu/endless (meta x))))
+
+(defn streamed
+  "x, or an endless repeat (a loop) as the endless stream of what it
+   plays, so the tools take from it as from cycle's."
+  [x]
+  (if (and (repetition? x) (= :infinite (repeat-count x))) (elements x) x))
+
+(defn finite!
+  "xs, refused if it is an endless stream: word needs all of it."
+  [word xs]
+  (when (endless? xs) (e/mu-error (str word ":") "needs all of a stream, and this one is endless -- take some first"))
+  xs)
+
+(defn reshape
+  "f on x's elements, giving a value of x's form: rebuilt for a value,
+   a stream for a stream."
+  [x f]
+  (let [x   (streamed x)
+        els (f (elements x))]
+    (cond
+      (or (v/material? x) (leaf? x)) (rebuild (if (leaf? x) (line [x]) x) els)
+      (endless? x) (endless els)
+      :else els)))
+
+(defn music? [x] (or (leaf? x) (and (v/material? x) (not= :DATA (kind x)))))
+
+(defn result
+  "What quotation q leaves for x: exactly one value."
+  [word q x]
+  (let [out (e/call [x] q)]
+    (when-not (= 1 (count out))
+      (e/mu-error (str word ":") "the quotation must leave one value for each element, left" (count out)))
+    (peek out)))
+
+(defn key? [x] (instance? musics.common.music_elements.Key x))
+
+(defn key-line
+  "Pitches as a line of quarter notes, spelled in ks."
+  [ks pitches]
+  (read-text (str "[" (str/join " " (map #(str (lp/spell-pitch % nil ks) "4") pitches)) "]")))
+
+(defn par-of [xs]
+  (read-text (str "{" (apply str (interpose " " (map #(p/show (->material %)) xs))) "}")))
+
+(defn marker? [x] (or (d/bar? x) (d/jump? x)))
+
+;; -- what play shares with the prompt ----------------------------------------
+
+(defn toggle-pause!
+  "Pause what plays, or resume it if paused. Says which: \"paused\",
+   \"resumed\" or \"nothing plays\"."
+  []
+  (let [eng engine/*engine*]
+    (cond
+      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
+      (engine/busy? eng)             (do (m/pause!) "paused")
+      :else                          "nothing plays")))
+
+(defn echo-line
+  "What echo prints for a note or drum as it sounds: a drum's key and
+   name, a note's instrument, its name and the pitches."
+  [{:keys [channel pitches program]}]
+  (if (= 9 channel)
+    (str/join "  " (for [k pitches] (str "x\\" k " " (get-in data/drums [k :name] "(no GM drum)"))))
+    (str "\\i:" program " " (some-> (data/program->name program) name) "  "
+         (str/join " " (for [p pitches]
+                         (let [{:keys [letter accidental octave]} (lp/midi->spelling p)]
+                           (str (str/upper-case letter) accidental octave)))))))
+
+(defonce echo-agent (agent nil :error-mode :continue))

@@ -19,6 +19,7 @@
             [musics.mu.kernel]
             [musics.mu.tools]
             [musics.mu.feedback]
+            [musics.mu.library]
             [musics.mu.print :as p]
             [musics.mu.value])
   (:import (musics.mu.value Material)))
@@ -101,11 +102,14 @@
     (shown (if (:mu/endless (meta xs)) (with-meta ys {:mu/endless true}) ys))))
 
 (defn- word-fn [qualified w]
-  (let [f (if (counting w)
-            (fn [& args] (run qualified (concat args [(count args)])))
-            (fn [& args] (run qualified args)))
-        {:keys [effect]} (e/lookup @e/state qualified)]
-    [f (str effect)]))
+  (let [{:keys [effect] v :var} (e/lookup @e/state qualified)
+        f (cond
+            ;; a word that is a Clojure function: that function, its
+            ;; value shown as mu shows it
+            v           (fn [& args] (shown (apply @v args)))
+            (counting w) (fn [& args] (run qualified (concat args [(count args)])))
+            :else        (fn [& args] (run qualified args)))]
+    [f (str (or (:doc (meta v)) effect))]))
 
 (defn fns
   "{name [f doc]}: every word of namespaces with a Clojure name, not
