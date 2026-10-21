@@ -48,6 +48,7 @@
   (is (= [1 2 3] (:ok (run "'[1 2 3] spread"))) "data's values")
   (is (= [7 1 2] (:ok (run "7 '[1 2] **"))) "what lies under stays")
   (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d | e] spread")))) "bar lines left out")
+  (is (= ["C4/4" "D4/4"] (map p/show (:ok (run "[c $ d DS] spread")))) "jump marks left out")
   (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused")
   (is (re-find #"^spread: has no elements" (:error (run "7 spread"))) "an error named by the word"))
 
