@@ -8,7 +8,8 @@
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.tools]
-            [musics.music]))
+            [musics.music]
+            [musics.tool]))
 
 (defn word-name
   "The mu word a function is: its name, a trailing ! left off."
@@ -28,16 +29,18 @@
     (str "( " (str/join " " args) " -- " out " )  " (str/replace (str doc) #"\s+" " "))))
 
 (defn register!
-  "Make every public function of clojure namespace ns-sym mu's words,
-   each name's help naming the others it goes by: (also +)."
-  [ns-sym]
+  "Make every public function of clojure namespace ns-sym mu's words, in
+   mu namespace mu-ns unless its :mu :ns says otherwise, each name's help
+   naming the others it goes by: (also +)."
+  [ns-sym mu-ns]
   (doseq [[_ v] (sort-by key (ns-publics ns-sym))
           :when (fn? @v)
-          :let [{:keys [names] mu-ns :ns} (:mu (meta v))
+          :let [{:keys [names] own-ns :ns} (:mu (meta v))
                 all (cons (word-name v) names)]
           w all
           :let [others (remove #{w} all)]]
-    (e/define! (or mu-ns "music") w
+    (e/define! (or own-ns mu-ns) w
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 
-(register! 'musics.music)
+(register! 'musics.tool "tool")
+(register! 'musics.music "music")

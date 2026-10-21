@@ -24,7 +24,6 @@
             [musics.mu.feedback :as fb]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
-            [musics.mu.tools :as tools]
             [musics.mu.value :as v]
             [musics.repo :as repo]))
 
@@ -77,7 +76,7 @@
       (when t (e/mu-error "[R]: a tremolo can't be played backwards"))
       (mt/repetition (retrograde body) n [] bars))
     (= :SEQ (mt/kind x)) (retrograde x)
-    (= :PAR (mt/kind x)) (tools/reshape x #(mapv retrograde %))
+    (= :PAR (mt/kind x)) (mt/reshape x #(mapv retrograde %))
     :else x))
 
 (defn- tie-backwards
@@ -104,8 +103,8 @@
     (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
   (cond
     (mt/repetition? x)                 (backwards x)
-    (or (mt/leaf? x) (v/material? x))  (tools/reshape (bake x) #(tie-backwards (tools/finite! "[R]" %)))
-    :else                              (tools/reshape x #(reverse (tools/finite! "[R]" %)))))
+    (or (mt/leaf? x) (v/material? x))  (mt/reshape (bake x) #(tie-backwards (mt/finite! "[R]" %)))
+    :else                              (mt/reshape x #(reverse (mt/finite! "[R]" %)))))
 
 (defn- pitches-of [x] (vec (mapcat :pitches (mt/leaves x))))
 
@@ -136,7 +135,7 @@
   "What zip takes from x: a line's notes as they play (no bar lines, a
    nested line's notes), else x's elements."
   [x]
-  (if (tools/music? x) (mt/played-leaves x) (mt/elements (tools/streamed x))))
+  (if (mt/music? x) (mt/played-leaves x) (mt/elements (mt/streamed x))))
 
 (defn zip
   "durations and pitches zipped as a line, a rest among the durations
@@ -152,7 +151,7 @@
             k        (if (or (zero? sounding) (empty? pl)) 1 (quot (mt-tools/lcm sounding (count pl)) sounding))]
         (mt/repetition (mt/line (take (* k (count dl)) (zipped (clojure.core/cycle dl) (clojure.core/cycle pl)))) :infinite []))
       (let [ds (items d) ps (items p)]
-        (when (and (tools/endless? ps) (tools/endless? ds))
+        (when (and (mt/endless? ps) (mt/endless? ds))
           (e/mu-error "zip: two endless streams, not both loops, never end -- take some first"))
         (mt/line (zipped ds ps))))))
 
@@ -163,7 +162,7 @@
   [word f rests? x]
   (if-let [[body n] (mt/repeat-of x)]
     (mt/repeated (read-notes word f rests? body) n)
-    (apply list (map f (cond->> (mt/played-leaves (tools/finite! word x))
+    (apply list (map f (cond->> (mt/played-leaves (mt/finite! word x))
                          (not rests?) (remove #(= :REST (:type %))))))))
 
 (def ^:private articulation-order
@@ -206,7 +205,7 @@
   [word f x vs]
   (when-not (or (mt/leaf? x) (v/material? x))
     (e/mu-error (str word ":") "puts a stream onto a line or a note, got" (p/show x)))
-  (let [cur (volatile! (seq (mt/elements (tools/streamed vs))))
+  (let [cur (volatile! (seq (mt/elements (mt/streamed vs))))
         put (fn [l]
               (if (= :REST (:type l))
                 l
@@ -256,11 +255,11 @@
    an error."
   [word x n]
   (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
-  (if (tools/music? x)
+  (if (mt/music? x)
     (mt/repetition x n [])
-    (let [x (tools/finite! word x)]
+    (let [x (mt/finite! word x)]
       (if (v/material? x)
-        (vary-meta (tools/reshape x #(apply concat (clojure.core/repeat n %))) assoc :mu/repeat [x n])
+        (vary-meta (mt/reshape x #(apply concat (clojure.core/repeat n %))) assoc :mu/repeat [x n])
         (mt/repeated x n)))))
 
 (defn- played-leaves
@@ -303,9 +302,9 @@
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
-  (if (tools/music? x)
+  (if (mt/music? x)
     (mt/repetition x :infinite [])
-    (mt/repeated (tools/finite! "[~]" x) :infinite)))
+    (mt/repeated (mt/finite! "[~]" x) :infinite)))
 
 (defn repeats
   "x in repeat signs, played twice."
@@ -355,15 +354,15 @@
   [a b]
   (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
     (if (= :PAR (mt/kind a))
-      (tools/reshape a #(concat % bs))
-      (tools/par-of (cons a bs)))))
+      (mt/reshape a #(concat % bs))
+      (mt/par-of (cons a bs)))))
 
 (defn mute
   "Each note or drum q keeps becomes a rest of its length: the rhythm
    stays -- [c e g c'] '( pitch 65 gt ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
-  (mt/map-leaves #(if (and (not= :REST (:type %)) (tools/result "mute" q %))
+  (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))
                     (merge (d/rest* nil nil (:duration %)) (select-keys % [:ratio]))
                     %)
                  x))
@@ -387,7 +386,7 @@
    line): [c e g] 7 +; a key moves up too"
   {:mu {:names ["+"]}}
   [x n]
-  (if (and (tools/key? x) (integer? n))
+  (if (and (mt/key? x) (integer? n))
     (el/transpose-key x n)
     (by-number "+" x n (fn [n x] (mt/transposed x n)) whole!)))
 
@@ -395,7 +394,7 @@
   "Every pitch down n semitones, its key with it: [c e g] 12 -"
   {:mu {:names ["-"]}}
   [x n]
-  (if (and (tools/key? x) (integer? n))
+  (if (and (mt/key? x) (integer? n))
     (el/transpose-key x (- n))
     (by-number "-" x n (fn [n x] (mt/transposed x (- n))) whole!)))
 
@@ -539,7 +538,7 @@
   [leaf numbers]
   (when-not (and (mt/leaf? leaf) (not= :REST (:type leaf)))
     (fail "needs a note, chord or drum under the numbers, got" (p/show leaf)))
-  (let [nums (tools/finite! "sounds" (mt/elements numbers))]
+  (let [nums (mt/finite! "sounds" (mt/elements numbers))]
     (sound-numbers! nums "35 82 range or '[36 38 42]")
     (layered leaf nums)))
 
@@ -558,15 +557,15 @@
   "Scale steps of the key from its tonic in octave 4: 0 the tonic, 7 an
    octave up, -1 the step below"
   [numbers key]
-  (when-not (tools/key? key) (fail "needs a key on top, as D.major, got" (p/show key)))
-  (let [nums (tools/finite! "degrees" (mt/elements numbers))]
+  (when-not (mt/key? key) (fail "needs a key on top, as D.major, got" (p/show key)))
+  (let [nums (mt/finite! "degrees" (mt/elements numbers))]
     (when-not (every? integer? nums) (fail "needs whole numbers under the key, as '[0 2 4]"))
-    (tools/key-line key (map #(bridge/degree->pitch % (el/key->str key) 4) nums))))
+    (mt/key-line key (map #(bridge/degree->pitch % (el/key->str key) 4) nums))))
 
 (defn tonic
   "The key's tonic, in octave 4"
   [key]
-  (when-not (tools/key? key) (fail "needs a key, as D.major, got" (p/show key)))
+  (when-not (mt/key? key) (fail "needs a key, as D.major, got" (p/show key)))
   (lib/->part (+ 60 (first (el/key-pitches key))) 1/4))
 
 (defn key
@@ -581,7 +580,7 @@
   "The settings in front of a line (its own come after, so they win), or
    played in that key; a { } or a repeat is wrapped"
   [x settings]
-  (let [ctx (if (tools/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
+  (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx)) (fail "needs a context ^{ … } on top"))
     (let [settings (str/join " " (map :raw (:children (v/node ctx))))
           shown    (p/show (mt/->material x))]
