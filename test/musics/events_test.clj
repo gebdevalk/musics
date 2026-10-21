@@ -239,7 +239,7 @@
 
 (deftest a-chord-symbol-follows-the-key-by-its-root
   ;; the written quality stays: F major in C plays F# major under G
-  (parse! "[chords: chordmode ( F4 C4/E )]")
+  (parse! "[chords: F4:M C4:M/E]")
   (parse! "[chordsG: !key:G.major :chords]")
   (is (= [[65 69 72] [52 60 67]] (note-pitches :chords)))
   (is (= [[66 70 73] [52 60 67]] (note-pitches :chordsG))))

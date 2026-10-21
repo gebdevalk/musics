@@ -1,7 +1,7 @@
 (ns musics.input.reader.walker
   "Post-parse tree walker for musics.ebnf -- the GUIDO-bracketed
    grammar ([ ] sequential, { } parallel, ^{ } Context, '[ ] Data;
-   transpose/repeat/volta/grace/reverse/chordmode are bare-word
+   transpose/repeat/volta/grace/reverse are bare-word
    commands, LilyPond's names without the backslash) that
    replaced an earlier Lisp-prefix-call/#{ }-parallel/b-flat scheme of
    the same grammar. See musics.ebnf's own header comment for the full
@@ -604,7 +604,7 @@
 (declare walk-algo-assignment walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
-         walk-note walk-chord walk-chord-mode-note walk-rest walk-multi-rest walk-drum
+         walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose walk-alternate
          walk-repeat walk-repeat-bars walk-grace)
@@ -715,7 +715,7 @@
         ;; ---- Leaves ----
         :Note  (tag-ratio (walk-note  state children (node-text state node)))
         :Chord (tag-ratio (walk-chord state children (node-text state node)))
-        (:ChordModeNote :ChordSymbol) (tag-ratio (walk-chord-mode-note state children (node-text state node)))
+        :ChordSymbol (tag-ratio (walk-chord-symbol state children (node-text state node)))
         :Rest      (tag-ratio (walk-rest      state children (node-text state node)))
         :MultiRest (walk-multi-rest state children (node-text state node))
         :Drum  (tag-ratio (walk-drum  state children (node-text state node)))
@@ -1210,7 +1210,7 @@
         alter  (first (remove #(tag? % :Step) addition-children))
         base   (get data/chord-step-defaults step)]
     (when-not base
-      (throw (ex-info (str "step " step " has no default interval for a chordmode addition")
+      (throw (ex-info (str "step " step " has no default interval for a chord addition")
                        {:step step :expected (set (keys data/chord-step-defaults))})))
     (assoc step-map step (case alter "+" (inc base) "-" (dec base) base))))
 
@@ -1224,9 +1224,9 @@
                     (find-all-children (rest removal-node) :Step))]
     (apply dissoc step-map steps)))
 
-(defn- walk-chord-mode-note
-  "Walk one chordmode entry -- root Pitch + optional Duration + ':'
-   quality (LilyPond's own chordmode modifier word -- see
+(defn- walk-chord-symbol
+  "Walk one chord symbol -- root Pitch + optional Duration + ':'
+   quality (LilyPond's own chordmode modifier word or its shorthand -- see
    musics.common.music-data/chord-qualities, not invented), optional
    '.step[+/-]' additions/overrides and a '^step(.step)*' removal
    (LilyPond's own general alteration mechanism -- see
@@ -1253,12 +1253,7 @@
         chain      (flat/current-context-chain state)
         root-node  (find-child children :Pitch)
         dur        (resolve-duration+ratio! state children)
-        quality-node (find-child children :Quality)
-        ;; No ':quality' at all -- LilyPond's own bare-note default
-        ;; inside chordmode (a colon-less entry is still a full major
-        ;; triad, not just a single note -- see musics.ebnf's own
-        ;; comment on ChordModeNote's optional ChordQuality).
-        quality-kw (if quality-node (keyword (second quality-node)) :major)
+        quality-kw (keyword (second (find-child children :Quality)))
         base-steps (get data/chord-qualities quality-kw)
         additions  (find-all-children children :ChordAddition)
         removal    (find-child children :ChordRemoval)
@@ -1269,7 +1264,7 @@
         overrides  (extract-overrides children)
         tied       (has-tie? children)]
     (when-not base-steps
-      (throw (ex-info (str "'" quality-kw "' is not a recognized chordmode quality")
+      (throw (ex-info (str "'" quality-kw "' is not a recognized chord quality")
                        {:given quality-kw :expected (set (keys data/chord-qualities))})))
     (let [step-map    (cond-> (reduce apply-chord-addition base-steps additions)
                          removal (apply-chord-removal removal))
@@ -1291,7 +1286,7 @@
               (vec (cons bass-below kept)))
             chord-midis)]
       (flat/append-child state
-                          (cond-> (assoc (d/leaf (or token (str "chordmode-" (str/join "-" final-midis)))
+                          (cond-> (assoc (d/leaf (or token (str "chord-" (str/join "-" final-midis)))
                                                  (or ctx (c/context)) dur final-midis
                                                  (slur-articulation! state (articulation-ratio art) slur-marks)
                                                  (when (map? art) (:dynamic art)) modifiers tied)
@@ -1788,9 +1783,7 @@
    for a leaf. A bare one of these at Program's own top level now
    parses (TopElement includes Leaf), but must not be walked directly
    against whatever's on top of the builder stack -- at bare top level
-   that's :ROOT itself. See wrap-bare-leaf below. (:ChordModeNote is
-   deliberately excluded -- that tag only appears inside chordmode's
-   own body, never reachable through Leaf/TopElement.)"
+   that's :ROOT itself. See wrap-bare-leaf below."
   #{:Note :Chord :ChordSymbol :Rest :MultiRest :Drum})
 
 (defn- needs-wrapper?

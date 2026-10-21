@@ -190,7 +190,7 @@ repeat 4 [c8 d]
 ```mus
 [<c e g>4 <d f a>]           % chords spelled out
 [C4/1:7 | F3/2:m7 B&3:7 | E&3/1:M7 | A3:d7]   % chord symbols: a root and a quality
-[chordmode ( c2 f g:7 c )]   % in chordmode a bare root is a major triad
+[c2:M f:M g:7 c:M]           % relative roots and durations, as notes have
 ```
 
 A quality: `7` dominant seventh, `m` minor, `M` major (`M7` major

@@ -8,7 +8,7 @@
    musics.algo.random, so a seed repeats a line.
 
    A chord is {:pitches [...] :duration d}, as a leaf holds them; its
-   lowest pitch is the root, so a chordmode inversion (C4/E) walks
+   lowest pitch is the root, so an inversion (C4:M/E) walks
    from its bass note."
   (:require [clojure.string :as str]
             [musics.algo.random :as random]

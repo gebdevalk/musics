@@ -14,7 +14,7 @@
 
 (def practice
   "The jazz blues in F, with its closing bar."
-  "[blues: !M:4/4 chordmode ( F3/1:7 | B&3/1:7 | F3/1:7 | C4/2:m7 F3/2:7 | B&3/1:7 | B3/1:dim7 | F3/1:7 | D4/1:7 | G3/1:m7 | C4/1:7 | F3/2:7 D4/2:7 | G3/2:m7 C4/2:7 | F3/1:7 ) ]")
+  "[blues: !M:4/4 F3/1:7 | B&3:7 | F3:7 | C4/2:m7 F3:7 | B&3/1:7 | B3:d7 | F3:7 | D4:7 | G3:m7 | C4:7 | F3/2:7 D4:7 | G3:m7 C4:7 | F3/1:7 ]")
 
 (defn- walked [seed opts]
   (parse! practice)
@@ -113,7 +113,7 @@
             (str "seed " seed ": from body to ending and back, no leap past a fifth"))))))
 
 (deftest a-repeat-without-endings-loops-its-body
-  (parse! "[lp: !M:4/4 repeat 3 [ chordmode ( F3/1:7 | B&3/1:7 ) ] ]")
+  (parse! "[lp: !M:4/4 repeat 3 [ F3/1:7 | B&3:7 ] ]")
   (rc/seed! 42)
   (let [{:keys [count body endings] :as form} (wb/form-of :lp)
         [b es] (wb/walk-repeat form {})]

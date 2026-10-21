@@ -447,7 +447,7 @@
 ;; ── Commands ────────────────────────────────────────────────
 
 (deftest commands-parse
-  ;; transpose/reverse/grace (and its 4 synonyms below)/chordmode are all
+  ;; transpose/reverse/grace (and its 4 synonyms below) are all
   ;; backslash-prefixed commands now, LilyPond-style -- see musics.ebnf's
   ;; own header comment. transpose/reverse take a Scope body, ( ... );
   ;; repeat/alternative keep a real, retained Sequence body, [ ... ];
@@ -688,7 +688,7 @@
 (deftest commands-are-bare-words
   (testing "a command is written without a backslash, next to notes that share its first letter"
     (doseq [t ["[repeat 2 [c d] e]" "[repeat 2 [c d] volta [e] f]"
-               "[transpose c d ( c e g )]" "[retrograde ( c d e )]" "[chordmode ( c4:m7 f )]"
+               "[transpose c d ( c e g )]" "[retrograde ( c d e )]"
                "[grace c8 d4]" "[afterGrace c4 d16]" "[partial 4 c4 | d e f g]"
                "[a r g c p4 repeat 2 [a] r]" "repeat 2 [c d]"]]
       (is (not (insta/failure? (gp/parse-string t))) t)))

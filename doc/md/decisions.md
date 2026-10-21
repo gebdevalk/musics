@@ -1732,3 +1732,12 @@ writing stays absolute. Nothing in the tests or corpus relied on the old
 octave 4 (corpus pitches compared before and after); the importers and
 mu's printer always write the octave.
 
+## 2026-10-21 — chordmode removed
+
+With chord symbols written anywhere a note can be (`F3/1:7`), the
+`chordmode ( … )` block only added LilyPond's bare-root default (a
+colon-less entry a major triad), which `:M` spells; three ways to
+write a chord became two, spelled out (`<c e g>`) and chord symbols.
+`chordmode` is no longer a command or a reserved word. LilyPond's own
+`\chordmode { }` is documented in `lilypond-chordmode-chords.md`.
+

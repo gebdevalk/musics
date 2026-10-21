@@ -183,8 +183,8 @@ written: `c8*2/3` is a triplet eighth.
   `7.9+`, `9^3`); `/pitch` puts a chord tone in the bass, `/+pitch`
   adds one (`C4:7/E`).
 - A chord symbol keeps the duration and the relative-pitch chain going,
-  as a note does. A note without a quality stays a note; `chordmode
-  ( )` (below) is the one place where a bare root is a major triad.
+  as a note does. A note without a quality stays a note; `:M` makes it
+  a major triad.
 
 ### Rests and drums
 
@@ -296,7 +296,6 @@ repeat ~ [c4 d]                              % endlessly
 [c4 Coda d e DC Coda f]                      % plays c d e c f
 [c4 d | ./. | e]                             % plays c d c d e
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
-[chordmode ( c4:maj7 f:m7 g:7/b )]
 ```
 
 - `transpose` and the row forms take a `Scope` `( )` body. It's spliced
@@ -322,9 +321,6 @@ repeat ~ [c4 d]                              % endlessly
 - Grace notes take two elements: `grace`, `acciaccatura`,
   `appoggiatura` and `slashedGrace` put the grace note first,
   `afterGrace` the main note first.
-- `chordmode` writes chords by root and quality, as chord symbols are
-  written (`c:maj7`, `c:m7/g`, added/removed steps `c:7.9+^5`), and a
-  bare root in it is a major triad (`chordmode ( c f g )`).
 
 ## 5. Variables
 

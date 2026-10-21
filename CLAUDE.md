@@ -844,7 +844,7 @@ that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 `musics.algo.harmonic.progression` (`prog` in `user`) writes roman-
 numeral schemes as chord symbols: `prog/blues` holds twelve-bar blues
 (`:basic` `:quick-change` `:minor` `:jazz`), `musics.common.music-data/
-choruses` the choruses of `doc/lilypond-chordmode-chords.pdf`
+choruses` the choruses of `doc/md/lilypond-chordmode-chords.md`
 (`:blues-chorus`, `:jazz-chorus` -- rhythm changes, 32 bars AABA --
 `:jazz-ii-V-I-chorus`), each with the key it's written in as its
 default `:tonic`, and `(prog/->mus :jazz
@@ -1619,14 +1619,13 @@ Trees read them as their settings (`t/run tree tctx chain`; see
 "Simple composition" below).
 
 A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,
-`c:m7`, `G3:7.9-/B`), walked as a `chordmode ( )` entry is
-(`walker/walk-chord-mode-note`) to an ordinary multi-pitch Leaf. The
+`c:m7`, `G3:7.9-/B`), LilyPond's chordmode spelling as a leaf of its
+own, walked (`walker/walk-chord-symbol`) to an ordinary multi-pitch Leaf. The
 qualities are `musics.common.music-data/chord-qualities`: LilyPond's
 words, `.step[+/-]`/`^step` alterations, `/pitch`/`/+pitch` bass notes,
 and the shorthand `m` `M` (`M` the triad, `M7`.. the major sevenths)
-`d` `A` `s`; a bare `7` is dominant. Outside chordmode the quality is
-required (a note without one is a note); inside, a bare root is a major
-triad. A tremolo is `:8` `:16` `:32` `:64` or `:128` (`Tremolo`'s
+`d` `A` `s`; a bare `7` is dominant. The quality is required (a note
+without one is a note; `:M` is the major triad). A tremolo is `:8` `:16` `:32` `:64` or `:128` (`Tremolo`'s
 lookahead), which keeps every `:` quality from reading as one.
 
 A note or chord can override any context key for itself with a
@@ -1689,7 +1688,7 @@ its interval to the leaf's `:key-shift`, and `rekey` transposes both
 keys by it before comparing, so transposed notes follow the playing key
 transposed the same way; their printed names are spelled in the
 transposed key (`musics.common.music-elements/transpose-key`). A chord
-symbol (chordmode's or not) moves by its root (`:key-root`), keeping its written quality
+symbol moves by its root (`:key-root`), keeping its written quality
 (`F4` in C plays F# major under G). Generated notes carry no `:key` and
 never move.
 

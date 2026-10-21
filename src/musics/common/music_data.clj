@@ -474,15 +474,15 @@
    :bebop-major {:intervals [0 2 4 5 7 8 9 11] :display "Bebop Major" :offset 0}})
 
 ;; ============================================================
-;; 8b. CHORD QUALITIES (chordmode)
+;; 8b. CHORD QUALITIES (chord symbols)
 ;; ============================================================
 
 (def chord-qualities
   "Root-relative {scale-step -> semitone-offset} for musics.ebnf's
-   chordmode modifier words -- LilyPond's OWN common/extended chord
+   chord symbols' quality words -- LilyPond's OWN common/extended chord
    modifiers (Notation Reference, \"Common chord modifiers\"/\"Extended
    and altered chords\"), not invented. Step-KEYED, not a flat interval
-   list, specifically so walk-chord-mode-note's own '.step[+/-]'
+   list, specifically so walk-chord-symbol's own '.step[+/-]'
    addition and '^step' removal syntax (LilyPond's own general
    alteration mechanism, applied ON TOP of whichever entry here a
    Quality word picked) can target/override/drop an exact scale degree
@@ -502,7 +502,7 @@
    combined with an unaltered 13, the 11 is removed from a :13 major
    chord unless added explicitly') applies to :13/:maj13 (major 3rd)
    but not :m13 (minor 3rd), which keeps its 11 by default -- matching
-   walk-chord-mode-note's own '.11' addition syntax for restoring it,
+   walk-chord-symbol's own '.11' addition syntax for restoring it,
    same shape LilyPond's own :13.11 uses."
   {:3    {1 0, 3 4}
    :5    {1 0, 5 7}
@@ -528,8 +528,8 @@
    :m13   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17, 13 21}
    :maj13 {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
    ;; Shorthand, as chord symbols write them (m stays minor): M major
-   ;; -- the triad, a word of its own here, so a chord symbol outside
-   ;; chordmode can name it; M7 and up the major-seventh chords --, d
+   ;; -- the triad, a word of its own here, so a chord symbol can name
+   ;; it; M7 and up the major-seventh chords --, d
    ;; diminished, A augmented, s suspended (a bare s the fourth).
    :M    {1 0, 3 4, 5 7}
    :M7   {1 0, 3 4, 5 7, 7 11}
@@ -542,17 +542,11 @@
    :A7   {1 0, 3 4, 5 8, 7 10}
    :s    {1 0, 4 5, 5 7}
    :s2   {1 0, 2 2, 5 7}
-   :s4   {1 0, 4 5, 5 7}
-   ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
-   ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
-   ;; a bare pitch inside (chordmode ...) can fall back to this, exactly
-   ;; matching LilyPond's own documented default ("None: produces a
-   ;; major triad") for a colon-less chordmode entry.
-   :major {1 0, 3 4, 5 7}})
+   :s4   {1 0, 4 5, 5 7}})
 
 (def chord-step-defaults
   "The canonical, UNALTERED semitone offset for each scale step a
-   chordmode '.step[+/-]' addition can name -- LilyPond's own general
+   chord's '.step[+/-]' addition can name -- LilyPond's own general
    alteration mechanism (Notation Reference, \"Extended and altered
    chords\"): a bare '.step' uses this value as-is, '.step+'/'.step-'
    raise/lower it by one semitone, ALWAYS computed fresh from this
@@ -572,7 +566,7 @@
 ;; ============================================================
 
 (def choruses
-  "Chord choruses, from doc/lilypond-chordmode-chords.pdf, as roman
+  "Chord choruses, from doc/md/lilypond-chordmode-chords.md, as roman
    numerals in musics.algo.harmonic.progression's notation (bars split
    by |, a bar's chords sharing it; a numeral, then a chord quality), in
    4/4, :tonic the key the PDF writes them in -- any other plays them

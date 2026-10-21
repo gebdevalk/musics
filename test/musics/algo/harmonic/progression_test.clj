@@ -45,9 +45,9 @@
          (hp/->mus :jazz {:tonic "F" :name :blues :end false}))
       "the raised IV of F is B, not C&; two chords share a bar as halves; a duration only where it changes"))
 
-(deftest the-text-plays-as-chordmode-written-out
+(deftest the-text-plays-as-written-out
   (parse! (hp/->mus :jazz {:tonic "F" :name :short :end false}))
-  (parse! "[long: !M:4/4 chordmode ( F3/1:7 | B&3/1:7 | F3/1:7 | C4/2:m7 F3/2:7 | B&3/1:7 | B3/1:dim7 | F3/1:7 | D4/1:7 | G3/1:m7 | C4/1:7 | F3/2:7 D4/2:7 | G3/2:m7 C4/2:7 ) ]")
+  (parse! "[long: !M:4/4 F3/1:7 | B&3/1:7 | F3/1:7 | C4/2:m7 F3/2:7 | B&3/1:7 | B3/1:dim7 | F3/1:7 | D4/1:7 | G3/1:m7 | C4/1:7 | F3/2:7 D4/2:7 | G3/2:m7 C4/2:7 ]")
   (is (= (chords :long) (chords :short))))
 
 (deftest roots-are-spelled-in-the-key
