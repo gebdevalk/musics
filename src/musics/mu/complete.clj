@@ -4,15 +4,18 @@
    drum after its \\ (x8\\cr), a kit after !kit:, a context key or an
    instruction after ! (!tem, !mf), what a note takes after its \\
    (c4\\vo, c4\\tr: a key, an ornament, a dynamic, an articulation), and
-   a scale after a key's tonic (!K:F.ma) -- every name (or short name)
-   that begins with what is typed, in any case. A pure fn of the word;
-   musics.mu hands its candidates to JLine, which lists them when there
-   are several."
+   a scale after a key's tonic (!K:F.ma), a stored part after : (:blu),
+   and else a mu word (walk, pitch/lo) -- every name (or short name) that
+   begins with what is typed, in any case. A fn of the word and of what
+   mu knows now (its words, the repo); musics.mu hands its candidates to
+   JLine, which lists them when there are several."
   (:require [clojure.string :as str]
             [musics.common.context-keys :as ck]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
-            [musics.domain.ornaments :as orn]))
+            [musics.domain.ornaments :as orn]
+            [musics.mu.eval :as e]
+            [musics.repo :as repo]))
 
 (def ^:private instrument-keys "i|instrument|timbre|program|prog")
 
@@ -96,25 +99,65 @@
   (for [n (sort (map name (keys el/scale-steps))) :when (str/starts-with? n (str/lower-case typed))]
     {:name n :descr "scale"}))
 
+(defn- effect
+  "A word's stack effect, the ( a -- b ) its description opens with."
+  [description]
+  (or (re-find #"^\(.*?\)" (str description)) ""))
+
+(defn- auto-id?
+  "Was id made up by the walker (:s12, :p3, :repeat1), not named?"
+  [id node]
+  (let [prefix (get {:SEQ "s" :PAR "p" :CONTEXT "c" :DATA "d"} (:type node)
+                    (str/lower-case (name (or (:type node) ""))))]
+    (boolean (re-matches (re-pattern (str prefix "\\d+")) (name id)))))
+
+(defn live
+  "What mu knows now: :words, word name -> its description (the words
+   in use bare, every namespace's qualified, ns/name), and :ids, the
+   parts stored under a name of their own."
+  []
+  (let [{:keys [ns use]} @e/state]
+    {:words (merge (into {} (for [[n m] ns, [w entry] m] [(str n "/" w) (:effect entry)]))
+                   (into {} (for [n use, [w entry] (get ns n)] [w (:effect entry)])))
+     :ids   (sort (for [[id node] @(repo/registry)
+                        :when (and (keyword? id) (not= :ROOT id) (not (auto-id? id node)))]
+                    (name id)))}))
+
+(defn- words [env typed]
+  (let [qualified? (str/includes? typed "/")]
+    (for [[w desc] (sort-by key (:words env))
+          :when (= qualified? (str/includes? w "/"))
+          :when (str/starts-with? (str/lower-case w) (str/lower-case typed))]
+      {:name w :descr (effect desc)})))
+
+(defn- parts [env typed]
+  (for [id (:ids env) :when (str/starts-with? (str/lower-case id) (str/lower-case typed))]
+    {:name id :descr "part"}))
+
 (def ^:private kinds
   "[pattern kind], tried in turn: what is being written, the text before
-   the name and the name so far."
+   the name and the name so far; a kind is a fn of the name, or, marked
+   :env, of what mu knows and the name."
   [[(re-pattern (str "(?s)(.*[!\\\\](?:" instrument-keys "):(?:[^\\s,]*,)*)([A-Za-z0-9_-]*)")) instruments]
    [#"(?s)(.*!kit:)([A-Za-z0-9_-]*)" kits]
    [#"(?s)(.*[!\\](?:volume|vol|v):)([a-z]*)" dynamics]
    [#"(?s)(.*![Kk](?:ey)?:[A-Ga-g](?:##|&&|#|&)?\.)([A-Za-z-]*)" scales]
    [#"(?s)(.*x[0-9./*]*\\(?:[A-Za-z0-9_-]+,)*)([A-Za-z0-9_-]*)" drums]
    [#"(?s)(.*!)([A-Za-z][A-Za-z0-9]*)?" (fn [typed] (concat (instructions (or typed "")) (key-names (or typed ""))))]
-   [#"(?s)(.*[^\\\s]\\)([A-Za-z]*)" note-tags]])
+   [#"(?s)(.*[^\\\s]\\)([A-Za-z]*)" note-tags]
+   [#"(?s)((?:.*[\[{(])?:)([A-Za-z][A-Za-z0-9_]*)?" parts :env]
+   [#"(?s)()([A-Za-z][^\s\[\]{}()'\"\\]*)" words :env]])
 
 (defn candidates
   "The completions of word (the text up to the cursor, from its last
    space): [{:value :display :descr :complete}], :value the whole word
    as it will read (:complete false when a value follows, as after
    !tempo:), or nil when word isn't a name being written."
-  [word]
-  (some (fn [[re f]]
-          (when-let [[_ before typed] (re-matches re word)]
-            (for [{:keys [name descr complete] :or {complete true}} (f (or typed ""))]
-              {:value (str before name) :display name :descr descr :complete complete})))
-        kinds))
+  ([word] (candidates word (live)))
+  ([word env]
+   (some (fn [[re f env?]]
+           (when-let [[_ before typed] (re-matches re word)]
+             (for [{:keys [name descr complete] :or {complete true}}
+                   (if env? (f env (or typed "")) (f (or typed "")))]
+               {:value (str before name) :display name :descr descr :complete complete})))
+         kinds)))
