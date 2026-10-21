@@ -39,7 +39,7 @@
                              entirely by WHERE each is reachable
 
    Structural commands (transpose/repeat/volta/grace and its four
-   synonyms/retrograde/inversion/…/chordmode/partial) are bare words, LilyPond's own
+   synonyms/retrograde/inversion/…/partial) are bare words, LilyPond's own
    names without its backslash — transpose c g ( ... ), repeat 2
    [ ... ] — rather than Lisp prefix calls. The backslash is left to a
    variable reference (\name) and to what is glued onto a note (c4\f,
@@ -48,8 +48,8 @@
    own context, an Iterator replays on each pass — see "Commands"
    below); transpose and the row forms are purely transient, spliced into the
    parent at pop time, and take a Scope body instead. grace's five forms
-   take two bare Elements with no wrapping bracket at all. chordmode
-   keeps its own dedicated ( ChordModeNote... ) body.
+   take two bare Elements with no wrapping bracket at all. A chord
+   symbol is a leaf of its own (ChordSymbol: F3/1:7, c:m7).
 
    A tuplet is a count before a group, n:m( ... ) — 3:2( c8 d e ),
    three in the time of two — and a single note can carry a factor of
@@ -106,7 +106,7 @@ Program = ws? (TopElement (ws TopElement)*)? ws?
 Jump = '$' | 'DS' | 'DC' | 'Fine' | 'Coda' | './.'
 
 <Part> = Composite | Leaf | Reference | VarRef
-<Leaf> = Chord | Note | Rest | Drum | MultiRest
+<Leaf> = Chord | ChordSymbol | Note | Rest | Drum | MultiRest
 
 (* Bar / section markers -- pure structural signals for a future conductor,
    no effect on musical timing. Four levels of granularity, finest to
@@ -167,7 +167,7 @@ Nil                   = <'nil'>
    stored under a name, so the name would be lost (walker/walk-bareword);
    a line of its own inside it keeps one. The keyword itself is hidden
    (<'transpose'> etc.) wherever the rule name alone already
-   disambiguates it (transpose/row-form/repeat/volta/chordmode
+   disambiguates it (transpose/row-form/repeat/volta
    each have their own distinct rule) -- but kept VISIBLE, untagged,
    for grace, where five near-identical shapes share one rule and the
    word is the only way for the walker to tell them apart. *)
@@ -213,56 +213,10 @@ tuplet      = TupletCount ws? Scope
 TupletCount = #'[0-9]+:[0-9]+'
 
 
-(* chordmode -- LilyPond's own compact chord shorthand, root:quality
-   (c4:m7), scoped inside its own ( ... ) body rather than reachable as
-   a bare note suffix: root:quality's own ':' collides, unavoidably,
-   with the existing Tremolo suffix (Tremolo = <':'> Int accepts ANY
-   integer, not just powers of two -- confirmed directly, not assumed
-   -- so c4:7 is genuinely ambiguous between "tremolo subdivision 7" and
-   "dominant seventh chordmode" with nothing left over either way to
-   disambiguate). Real LilyPond itself never allows this shorthand bare
-   either -- only inside its own chordmode {...}/\chords block -- so
-   scoping it the same way here is the faithful spelling, not a
-   workaround dressed up as one. Deliberately narrow for now (phase 1):
-   a flat run of ChordModeNote entries only (no nested Sequence/
-   Composite inside the block), and only the common-chord modifier
-   vocabulary below -- see musics.common.music-data/chord-qualities for the
-   exact interval table, and that ns's own docstring for what's
-   deliberately still out of scope (9/11/13, LilyPond's general
-   additive .step(+/-) alteration syntax). Each entry walks straight to
-   the SAME multi-pitch Leaf shape an explicit <c e g> Chord already
-   produces (walker/walk-chord-mode-note) -- a chordmode
-   chord and a spelled-out one are indistinguishable once committed. *)
-chordmode = <'chordmode'> ws? <'('> ws? EdgeBar? ChordModeNote (Sep ChordModeNote)* EdgeBar? ws? <')'>
-
-(* ChordQuality? -- LilyPond's own bare-note default: a plain pitch with
-   NO ':' at all still means a full major triad inside chordmode
-   (Notation Reference: "None: produces a major triad"), not "just a
-   single note" the way the identical text would read OUTSIDE this
-   block -- see walk-chord-mode-note's own default when no :Quality
-   child is present.
-
-   ChordModeNoteSuffix, NOT the general NoteSuffix -- Tremolo dropped:
-   confirmed live, not just reasoned about, that ChordQuality being
-   OPTIONAL reopens the exact ':Int' collision the whole chordmode(...)
-   wrapper exists to avoid in the first place, for every NUMERIC quality
-   (:5/:7/:9/:11/:13) specifically -- 'C4:5' parses two genuinely valid
-   ways once quality can be skipped: ChordQuality "5", or (quality
-   absent, bare major triad) + a trailing Tremolo suffix ':5' -- and
-   instaparse silently picked the second, wrong one every time. Ordering
-   the Quality regex differently cannot fix this: it's a choice between
-   two DIFFERENT rules at the same position, not a regex-alternative
-   prefix issue. Dropping Tremolo from chordmode entries removes the
-   ambiguity structurally instead -- also the musically sensible
-   choice, since a rhythmic tremolo marking on a lead-sheet chord symbol
-   isn't a meaningful thing to write in the first place. Tie, same as
-   every other leaf shape now, is forced to the very end rather than
-   living in this alternation -- see NoteSuffix below for the general
-   reasoning. *)
-<ChordModeNoteSuffix> = Modifier | Ornament | Dynamic | SlurMark
-
-ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
-              | Pitch          ChordQuality? ChordBass? Articulation? ChordModeNoteSuffix* Tie?
+(* What a chord symbol carries after its quality and bass note: every
+   NoteSuffix but Tremolo, a tremolo on a chord symbol being nothing
+   anyone writes. Tie, as on every leaf, comes last (see NoteSuffix). *)
+<ChordSuffix> = Modifier | Ornament | Dynamic | SlurMark
 
 (* Quality: LilyPond's own common-chord + extended-chord modifier
    words, not invented (see musics.common.music-data/chord-qualities for the
@@ -272,9 +226,12 @@ ChordModeNote = Pitch Duration ChordQuality? ChordBass? Articulation? ChordModeN
    longest -- maj13/maj11/maj9/maj7 before bare maj (which is itself a
    PREFIX of every one of those and must also precede the whole m*
    family below, 'm' being a prefix of 'maj' too), dim7 before dim,
-   m13/m11/m9/m7/m6 before bare m. *)
+   m13/m11/m9/m7/m6 before bare m. The shorthand (chord symbols' own,
+   musics.common.music-data/chord-qualities): M major (the triad; M7..M13
+   the major-seventh chords), d diminished, A augmented, s suspended --
+   each before its own bare letter, likewise. *)
 <ChordQuality> = <':'> Quality ChordAddition* ChordRemoval?
-Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
+Quality      = #'maj13|maj11|maj9|maj7|maj|dim7|dim|aug|sus2|sus4|M13|M11|M9|M7|M|d7|d|A7|A|s2|s4|s|m13|m11|m9|m7|m6|m|13|11|9|5|6|7|3'
 
 (* LilyPond's own general alteration mechanism (Notation Reference,
    "Extended and altered chords"), applied ON TOP of whatever Quality
@@ -366,7 +323,7 @@ alternate  = <('alternate' | 'ALT')> ws Sequence
 rotate     = <('rotate' | 'ROT')> ws SignedInt ws Sequence
 rotate-now = <('rotate' | 'ROT')> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | RepeatBars | grace | row-form | chordmode | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
+<Command> = transpose | repeat | RepeatBars | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
@@ -379,7 +336,7 @@ VarDef = VarName ws? <'='> ws? Sequence
 VarRef = <'\\'> VarName
 
 (* Ornament names AND every reserved command word (transpose/repeat/
-   volta/grace and its four synonyms/the row forms/chordmode) share
+   volta/grace and its four synonyms/the row forms) share
    VarRef's own \name spelling -- the genuine collision: a bare \trill
    or transpose has to be structurally incapable of also parsing as
    VarRef, not just conventionally discouraged from being used that
@@ -387,7 +344,7 @@ VarRef = <'\\'> VarName
    this file: its own ambiguity resolution for a genuinely ambiguous
    grammar is not reliable declaration order, so this exclusion has to
    be structural (a negative lookahead), not positional. *)
-VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|repeat|volta|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|reverse|chordmode)\b)[a-zA-Z][a-zA-Z0-9_]*'
+VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|prall|upmordent|downmordent|mordent|trill|turn|reverseturn|verylongfermata|longfermata|shortfermata|fermata|transpose|repeat|volta|acciaccatura|appoggiatura|slashedGrace|afterGrace|grace|reverse)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* ── Instructions ───────────────────────────────────────── *)
 
@@ -530,6 +487,18 @@ KeySpec       = #'[A-Ga-g][#&]?(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*'
 Note  = Pitch Duration NoteSuffix* Tie?
       | Pitch           NoteSuffix* Tie?
 
+(* A chord symbol: a note with a ':' quality (F3/1:7, c:m7, B3:d7,
+   G:7.9-/B), LilyPond's chordmode spelling as a leaf of its own; a note
+   without one stays a note (:M is the major triad). The qualities
+   (LilyPond's words, 9/11/13, .step[+/-]/^step alterations and the
+   shorthand m M d A s) are musics.common.music-data/chord-qualities;
+   it walks to the same multi-pitch Leaf a spelled-out <c e g> chord
+   does (walker/walk-chord-symbol). It can't be read as a tremolo
+   instead: a tremolo is 8, 16, 32, 64 or 128 (Tremolo), never a
+   quality, so the two never meet. *)
+ChordSymbol = Pitch Duration ChordQuality ChordBass? Articulation? ChordSuffix* Tie?
+            | Pitch          ChordQuality ChordBass? Articulation? ChordSuffix* Tie?
+
 (* Split by letter case -- absolute vs. relative resolution
    (leaf-parser/resolve-pitch) already keys off case, and here it's
    load-bearing at the grammar level too: only an absolute (uppercase)
@@ -624,7 +593,9 @@ OrnamentName = 'prall'     | 'prallup'      | 'pralldown'   | 'upprall'     |
 
 Ornament = <#'\\'> OrnamentName
 Modifier = <#'\\'> Name <':'> ModValue
-Tremolo  = <':'> Int
+(* A tremolo's subdivision is 8, 16, 32, 64 or 128, as LilyPond's; that
+   keeps every ':' quality free for ChordSymbol (c4:7 is a chord). *)
+Tremolo  = <':'> &#'(?:128|64|32|16|8)(?![0-9])' Int
 
 (* A dynamic mark glued onto a note/chord (c4\f, <c e g>4\mf) is that
    note's own volume: the same per-note override as c4\vol:70 (the

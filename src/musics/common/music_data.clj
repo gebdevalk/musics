@@ -202,6 +202,43 @@
    79 {:name "Open Cuica"         :abbr "cuo"  :group "Percussion"}
    80 {:name "Mute Triangle"      :abbr "trim" :group "Percussion"}
    81 {:name "Open Triangle"      :abbr "trio" :group "Percussion"}})
+(defn- or-list
+  "\"a\", \"a or b\", \"a, b or c\"."
+  [xs]
+  (if (next xs) (str (str/join ", " (butlast xs)) " or " (last xs)) (str (first xs))))
+
+(defn matches
+  "The entries of m k names, compared through norm: the one whose key is
+   k, else every one whose key begins with it."
+  [m k norm]
+  (let [s     (norm k)
+        exact (filter #(= s (norm (key %))) m)]
+    (if (seq exact) exact (filter #(str/starts-with? (norm (key %)) s) m))))
+
+(defn smart-get
+  "The value m holds under k, or else under the keys k begins: a prefix
+   finds what it can only mean (:te finds :tempo's value, pizz the
+   pizzicato strings). Keys and k are compared through norm (name by
+   default: (smart-get m k #(str/lower-case (name %))) ignores case).
+   No match is nil; a prefix of keys holding different values throws,
+   naming one key for each: 'viol' could be viola or violin."
+  ([m k] (smart-get m k name))
+  ([m k norm]
+   (let [hits (matches m k norm)
+         by-v (group-by val hits)]
+     (case (count by-v)
+       0 nil
+       1 (val (first hits))
+       (let [names (sort (for [[_ es] by-v] (name (key (apply max-key (comp count name key) es)))))]
+         (throw (ex-info (str "'" (name k) "' could be " (or-list names))
+                         {:prefix (name k) :matches (vec names)})))))))
+
+(defn- loose
+  "A name as names are compared: any case, no - _ or space (birdTweet,
+   bird-tweet and Bird Tweet are one)."
+  [x]
+  (str/replace (str/lower-case (name x)) #"[-_ ]" ""))
+
 ;; Drum name -> MIDI note lookup (user-facing names)
 (def drum-name->midi
   (merge
@@ -224,13 +261,29 @@
     "claves"  75,
     "whistle" 71}))
 
+(def ^:private drum-names
+  "Every name a drum goes by: short (bd1), alias (kick) and General MIDI
+   name (Acoustic Bass Drum)."
+  (merge drum-name->midi (into {} (for [[k {:keys [name]}] drums] [name k]))))
+
+(defn drum-matches
+  "Every drum name (a drum's start of a name, its key as digits) could
+   mean, by key: {:key :name :short :also}, :also its other names."
+  [name]
+  (let [also (group-by val (apply dissoc drum-name->midi (map :abbr (vals drums))))
+        ks   (if (re-matches #"\d+" name) [(Integer/parseInt name)] (sort (distinct (map val (matches drum-names name loose)))))]
+    (for [k ks :let [{n :name a :abbr} (drums k)] :when n]
+      {:key k :name n :short a :also (sort (map key (also k)))})))
+
 (defn resolve-drum
-  "Resolve a drum name or integer string to a MIDI note number.
-   Returns the MIDI note or nil if unknown."
+  "Resolve a drum name or integer string to a MIDI note number: a name
+   in any case, or the start of one that can only mean one drum (cow,
+   closed, splash); nil if unknown, an error naming the drums an
+   ambiguous start could be (cr: Crash Cymbal 1 or Crash Cymbal 2)."
   [name]
   (if (re-matches #"\d+" name)
     (Integer/parseInt name)
-    (get drum-name->midi (str/lower-case name))))
+    (smart-get drum-names name loose)))
 
 
 ;; ============================================================
@@ -317,20 +370,33 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
-(def ^:private abbr->program
-  (into {} (map (fn [[_ v]] [(str/lower-case (:abbr v)) (:prog v)]) gm-sound-set)))
+(defn- camel [k] (let [[a & r] (str/split (name k) #"-")] (apply str a (map str/capitalize r))))
+
+(def ^:private instrument-names
+  "Every name an instrument goes by: its General MIDI name, camelCase as
+   musics text writes it (birdTweet), and its short name (brd)."
+  (into {} (concat (for [[k v] gm-sound-set] [(camel k) (:prog v)])
+                   (for [[_ v] gm-sound-set] [(str/lower-case (:abbr v)) (:prog v)]))))
+
+(defn instrument-matches
+  "Every instrument x (a name, a short name or the start of one) could
+   mean, by program: {:program :name :short}, the name camelCase."
+  [x]
+  (for [p (sort (distinct (map val (matches instrument-names x loose))))
+        :let [k (program->name p)]]
+    {:program p :name (camel k) :short (str/lower-case (:abbr (gm-sound-set k)))}))
 
 (defn program-of
   "The MIDI program a General MIDI name gives (seashore, :bird-tweet, or
    camelCase as musics text writes it, birdTweet, electricPiano1), or its
-   short name (sea, acgd, ep1; any case), else nil. Only instruments:
-   a drum's short names are drums' (resolve-drum), never these -- vib
-   here is the vibraphone, as a drum the vibraslap."
+   short name (sea, acgd, ep1), in any case -- or the start of a name
+   that can only mean one instrument (trump, pizz, glock); else nil. A
+   start that could be several throws, naming them (viol: viola or
+   violin). Only instruments: a drum's names are drums' (resolve-drum),
+   never these -- vib here is the vibraphone, as a drum the vibraslap."
   [x]
   (when (or (keyword? x) (string? x))
-    (let [n (name x)
-          s (-> n (str/replace #"([a-z])([A-Z0-9])" "$1-$2") str/lower-case)]
-      (or (abbr->program (str/lower-case n)) (:prog (get gm-sound-set (keyword s)))))))
+    (smart-get instrument-names x loose)))
 
 (def drum-kits
   "Drum kits by name: the program a program change on the drum channel
@@ -339,10 +405,17 @@
   {"standard" 0 "room" 8 "power" 16 "electronic" 24 "tr808" 25
    "jazz" 32 "brush" 40 "orchestra" 48 "sfx" 56})
 
-(defn kit-of
-  "The program a drum kit's name gives (brush, tr808; any case), else nil."
+(defn kit-matches
+  "Every drum kit x (a name or the start of one) could mean:
+   {:name :program}."
   [x]
-  (when (or (keyword? x) (string? x)) (get drum-kits (str/lower-case (name x)))))
+  (for [[n p] (sort-by val (matches drum-kits x loose))] {:name n :program p}))
+
+(defn kit-of
+  "The program a drum kit's name gives (brush, tr808; any case), or the
+   start of one that can only mean one kit (elec, orch), else nil."
+  [x]
+  (when (or (keyword? x) (string? x)) (smart-get drum-kits x loose)))
 
 ;; ============================================================
 ;; 7. TIME SIGNATURES
@@ -401,15 +474,15 @@
    :bebop-major {:intervals [0 2 4 5 7 8 9 11] :display "Bebop Major" :offset 0}})
 
 ;; ============================================================
-;; 8b. CHORD QUALITIES (chordmode)
+;; 8b. CHORD QUALITIES (chord symbols)
 ;; ============================================================
 
 (def chord-qualities
   "Root-relative {scale-step -> semitone-offset} for musics.ebnf's
-   chordmode modifier words -- LilyPond's OWN common/extended chord
+   chord symbols' quality words -- LilyPond's OWN common/extended chord
    modifiers (Notation Reference, \"Common chord modifiers\"/\"Extended
    and altered chords\"), not invented. Step-KEYED, not a flat interval
-   list, specifically so walk-chord-mode-note's own '.step[+/-]'
+   list, specifically so walk-chord-symbol's own '.step[+/-]'
    addition and '^step' removal syntax (LilyPond's own general
    alteration mechanism, applied ON TOP of whichever entry here a
    Quality word picked) can target/override/drop an exact scale degree
@@ -429,7 +502,7 @@
    combined with an unaltered 13, the 11 is removed from a :13 major
    chord unless added explicitly') applies to :13/:maj13 (major 3rd)
    but not :m13 (minor 3rd), which keeps its 11 by default -- matching
-   walk-chord-mode-note's own '.11' addition syntax for restoring it,
+   walk-chord-symbol's own '.11' addition syntax for restoring it,
    same shape LilyPond's own :13.11 uses."
   {:3    {1 0, 3 4}
    :5    {1 0, 5 7}
@@ -454,16 +527,26 @@
    :13    {1 0, 3 4, 5 7, 7 10, 9 14, 13 21}
    :m13   {1 0, 3 3, 5 7, 7 10, 9 14, 11 17, 13 21}
    :maj13 {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
-   ;; Not spelled by any actual ':quality' token -- musics.ebnf's own
-   ;; ChordModeNote makes the ':quality' suffix OPTIONAL specifically so
-   ;; a bare pitch inside (chordmode ...) can fall back to this, exactly
-   ;; matching LilyPond's own documented default ("None: produces a
-   ;; major triad") for a colon-less chordmode entry.
-   :major {1 0, 3 4, 5 7}})
+   ;; Shorthand, as chord symbols write them (m stays minor): M major
+   ;; -- the triad, a word of its own here, so a chord symbol can name
+   ;; it; M7 and up the major-seventh chords --, d
+   ;; diminished, A augmented, s suspended (a bare s the fourth).
+   :M    {1 0, 3 4, 5 7}
+   :M7   {1 0, 3 4, 5 7, 7 11}
+   :M9   {1 0, 3 4, 5 7, 7 11, 9 14}
+   :M11  {1 0, 3 4, 5 7, 7 11, 9 14, 11 17}
+   :M13  {1 0, 3 4, 5 7, 7 11, 9 14, 13 21}
+   :d    {1 0, 3 3, 5 6}
+   :d7   {1 0, 3 3, 5 6, 7 9}
+   :A    {1 0, 3 4, 5 8}
+   :A7   {1 0, 3 4, 5 8, 7 10}
+   :s    {1 0, 4 5, 5 7}
+   :s2   {1 0, 2 2, 5 7}
+   :s4   {1 0, 4 5, 5 7}})
 
 (def chord-step-defaults
   "The canonical, UNALTERED semitone offset for each scale step a
-   chordmode '.step[+/-]' addition can name -- LilyPond's own general
+   chord's '.step[+/-]' addition can name -- LilyPond's own general
    alteration mechanism (Notation Reference, \"Extended and altered
    chords\"): a bare '.step' uses this value as-is, '.step+'/'.step-'
    raise/lower it by one semitone, ALWAYS computed fresh from this
@@ -477,6 +560,32 @@
    follow -- this is one shared table, not a second, potentially
    drifting copy of the same fact."
   {1 0, 2 2, 3 4, 4 5, 5 7, 6 9, 7 10, 9 14, 11 17, 13 21})
+
+;; ============================================================
+;; 8c. CHORUSES
+;; ============================================================
+
+(def choruses
+  "Chord choruses, from doc/md/lilypond-chordmode-chords.md, as roman
+   numerals in musics.algo.harmonic.progression's notation (bars split
+   by |, a bar's chords sharing it; a numeral, then a chord quality), in
+   4/4, :tonic the key the PDF writes them in -- any other plays them
+   there (prog/->mus :jazz-chorus {:tonic \"F\"})."
+  {:blues-chorus
+   {:tonic "C"
+    :doc   "Twelve-bar blues: three four-bar phrases on I, IV and V, all dominant sevenths, the quick change (IV in bar 2) and V in the last bar"
+    :scheme "I7 | IV7 | I7 | I7 | IV7 | IV7 | I7 | I7 | V7 | IV7 | I7 | V7"}
+   :jazz-chorus
+   {:tonic "B&"
+    :doc   "Rhythm changes, the 32-bar AABA form of I Got Rhythm: A circles I-VI-II-V, the bridge a cycle of dominants (III7 VI7 II7 V7) two bars each, the last A ending on the tonic"
+    :scheme (str "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IIm7 V7 | "
+                 "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IIm7 V7 | "
+                 "III7 | III7 | VI7 | VI7 | II7 | II7 | V7 | V7 | "
+                 "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IM7")}
+   :jazz-ii-V-I-chorus
+   {:tonic "C"
+    :doc   "The ii-V-I four times, with the usual substitutions: plain, a secondary dominant (VI7 flat nine) back to the ii, plain, the tritone substitute (bII7) and a turnaround"
+    :scheme "IIm7 V7 | IM7 | IIm7 V7 | IM7 VI7.9- | IIm7 V7 | IM7 | IIm7 bII7 | IM7 V7"}})
 
 ;; ============================================================
 ;; 9. TEMPOS

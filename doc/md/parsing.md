@@ -85,7 +85,11 @@ uppercase is an absolute pitch (`C4`, `F#5`); lowercase is resolved
 relative to the previous pitch — the nearest one, a fourth or fifth
 away at most, LilyPond `\relative`-style — even for the first note of a
 sequence (which is relative to C4). Ticks move a relative pitch an
-octave up (`'`) or down (`,`).
+octave up (`'`) or down (`,`). An uppercase letter without an octave
+takes the octave of the pitch before it, as a note without a duration
+takes its duration: `[C5/4 D E]` is C5 D5 E5, `<C5 E G>` C5 E5 G5, and
+`C2/1:7 | F:7` F2 -- the octave number, not the nearest pitch (`C5 B` is
+B5); octave 4 at the start.
 
 The octave digit of an absolute pitch is followed by `/` when a
 duration comes next (`C4/8`: C4, an eighth); without it the digits
@@ -94,6 +98,7 @@ would run together.
 ```mus
 [c4 d e f]            % relative: C4 D4 E4 F4
 [C4/4 G4/4 C5/2]      % absolute
+[C5/4 D E <F A C>]    % absolute, the octave carried: C5 D5 E5 <F5 A5 C5>
 [c4 f# b& cn']        % sharp, flat, natural (the accidental comes before the octave)
 ```
 
@@ -164,8 +169,22 @@ written: `c8*2/3` is a triplet eighth.
 [<c e g>4 <d f# a>2.]      % chords: two or more pitches, one duration
 [c4~ c8 d]                 % tie
 [c4( d e f) g]             % slur
-[c4:32 <c e>4:16]          % tremolo on a note or chord
+[c4:32 <c e>4:16]          % tremolo on a note or chord: 8, 16, 32, 64 or 128
+[F3/1:7 | C4/2:m7 F3:7 | B&3/1:M7 | B3:d7 | G3:7.9-/B]   % chord symbols
 ```
+
+- A note with a `:` quality is a chord: its root, then the quality.
+  The qualities are LilyPond's chordmode words (`7`, `maj7`, `m7`,
+  `dim7`, `aug`, `sus4`, `9`, `11`, `13`, ...) and the shorthand `m`
+  minor, `M` major (`M` the triad, `M7`..`M13` the major-seventh
+  chords), `d` diminished, `A` augmented, `s` suspended (`s` = `s4`).
+  A bare number is dominant: `7` is C E G B♭.
+- `.step` adds or alters a step, `^step` removes steps (`m7.5-`,
+  `7.9+`, `9^3`); `/pitch` puts a chord tone in the bass, `/+pitch`
+  adds one (`C4:7/E`).
+- A chord symbol keeps the duration and the relative-pitch chain going,
+  as a note does. A note without a quality stays a note; `:M` makes it
+  a major triad.
 
 ### Rests and drums
 
@@ -277,7 +296,6 @@ repeat ~ [c4 d]                              % endlessly
 [c4 Coda d e DC Coda f]                      % plays c d e c f
 [c4 d | ./. | e]                             % plays c d c d e
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
-[chordmode ( c4:maj7 f:m7 g:7/b )]
 ```
 
 - `transpose` and the row forms take a `Scope` `( )` body. It's spliced
@@ -303,8 +321,6 @@ repeat ~ [c4 d]                              % endlessly
 - Grace notes take two elements: `grace`, `acciaccatura`,
   `appoggiatura` and `slashedGrace` put the grace note first,
   `afterGrace` the main note first.
-- `chordmode` writes chords by root and quality (`c:maj7`, `c:m7/g`,
-  added/removed steps `c:7.9+^5`).
 
 ## 5. Variables
 

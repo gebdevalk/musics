@@ -355,7 +355,8 @@
 (defn resolve-pitch
   "Resolve a parsed pitch tuple [name accidental octave-spec] to a MIDI
    note number. Absolute notation (uppercase + 'N/') resets the reference
-   point. last-ref is the previous note's {:letter :octave} (no
+   point; an uppercase letter without an octave takes last-ref's octave
+   (the pitch before it, by octave number: C5 B is B5). last-ref is the previous note's {:letter :octave} (no
    accidental baked in -- see rel->midi) and defaults to c4, like
    LilyPond's own \\relative entry point. ks (the active Key, for
    resolving a note with no explicit accidental) defaults to C major
@@ -373,7 +374,10 @@
   ([[name accidental octave-spec] last-ref ks lang]
    (let [upper? (Character/isUpperCase (char (first name)))]
      (if upper?
-       (abs->midi ks lang name accidental (if (seq octave-spec) octave-spec "4/"))
+       ;; an absolute letter without an octave takes the octave of the
+       ;; pitch before it, as a note without a duration takes its
+       ;; duration (C5 D E is C5 D5 E5); 4 at the start
+       (abs->midi ks lang name accidental (if (seq octave-spec) octave-spec (str (:octave last-ref 4) "/")))
        (rel->midi ks lang (or last-ref default-ref) name accidental (or octave-spec ""))))))
 
 (defn resolve-fixed-pitch

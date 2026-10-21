@@ -1699,3 +1699,45 @@ short form of `1 < 1 >`. Only with nothing under it: mu's stack lasts
 the session, so with music under the voice that music is what plays,
 as before. A name that plays nothing keeps its hint to fetch what is
 stored (`:motif R@ >`).
+
+## 2026-10-20 — chord symbols outside chordmode
+
+`c4:7` was a tremolo of 7 until now, which is why chord symbols lived
+only in `chordmode ( )`. A tremolo's subdivision is now 8, 16, 32, 64
+or 128 (LilyPond's own), every tremolo in the tests and corpus already
+one of them; no quality is, so a note with a `:` quality is a chord
+anywhere, and the corpus parses as before. Outside chordmode the
+quality is required, since a bare root there is a note. The shorthand
+gives `M` the major triad -- the usual chord-symbol reading, and the
+triad's missing word -- where LilyPond's `maj` alone is maj7; `M7` is
+maj7.
+
+## 2026-10-20 — progressions and the walking bass write text
+
+`musics.algo.harmonic` gives musics text, not leaves or a tree algo:
+a progression and its bass are parts to parse, name, read and edit,
+and the bass reads its chords back from the parsed part, so it walks
+under whatever chords are written, chordmode, symbols or spelled out.
+A walking bass in a repeat plays one line each pass; `:choruses`
+walks a new one each time.
+
+## 2026-10-20 — an absolute letter without an octave keeps the octave before it
+
+`C5 D E` was C5 D4 E4: an uppercase letter without a digit meant octave
+4. It now takes the octave number of the pitch before it, the way a
+duration carries over, so absolute music, chords and chord symbols can
+be written with the octave once. The octave number, not the nearest
+pitch (that is what a lowercase letter does), so `C5 B` is B5 and the
+writing stays absolute. Nothing in the tests or corpus relied on the old
+octave 4 (corpus pitches compared before and after); the importers and
+mu's printer always write the octave.
+
+## 2026-10-21 — chordmode removed
+
+With chord symbols written anywhere a note can be (`F3/1:7`), the
+`chordmode ( … )` block only added LilyPond's bare-root default (a
+colon-less entry a major triad), which `:M` spells; three ways to
+write a chord became two, spelled out (`<c e g>`) and chord symbols.
+`chordmode` is no longer a command or a reserved word. LilyPond's own
+`\chordmode { }` is documented in `lilypond-chordmode-chords.md`.
+

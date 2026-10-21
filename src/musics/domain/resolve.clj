@@ -155,8 +155,8 @@
    playing key. A transpose around the leaf (:key-shift semitones)
    transposes both keys first, so its notes follow the playing key
    transposed the same way. A pitch written with its own accidental
-   (chromatic in the leaf's key) stays. A chordmode chord (:key-root)
-   moves every tone by its root's change, so f:maj in C plays f#:maj
+   (chromatic in the leaf's key) stays. A chord symbol (:key-root)
+   moves every tone by its root's change, so f:M in C plays f#:M
    under G rather than f# a c. Unchanged without a :key
    (generated material, ornament sub-notes), under :accidentals
    :explicit, or in the same key. Applied before the wall and

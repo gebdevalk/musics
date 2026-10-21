@@ -6,6 +6,7 @@
    lazy streams; take makes them finite."
   (:require [clojure.string :as str]
             [musics.algo.bridge :as bridge]
+            [musics.algo.harmonic.walking-bass :as walking-bass]
             [musics.algo.random :as random]
             [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
@@ -895,3 +896,56 @@
          ["tool"  "tail"                 "tool"  "[T]"]
          ["tool"  "parts"                "tool"  "[/]"]]]
   (twin! ns name sign-ns sign))
+
+;; -- harmony ----------------------------------------------------------------
+
+(defn- played-leaves
+  "x's notes, chords and rests in the order they play: nested lines and
+   repeats (pass after pass, with their endings) walked through."
+  [word x]
+  (cond
+    (mt/leaf? x)                                    [x]
+    (= :PAR (mt/kind x))                            (e/mu-error (str word ":") "walks under one line of chords, not a parallel")
+    (and (mt/repetition? x) (= :infinite (mt/repeat-count x)))
+    (e/mu-error (str word ":") "needs all of the chords, and an endless repeat has no end -- repeat it a number of times")
+    (or (v/material? x) (sequential? x))            (mapcat #(played-leaves word %) (mt/elements x))
+    :else                                           []))
+
+(word! "music" "walking-bass" "( chords -- bass )  a walking bass under a line of chords, made as you run it, new each time: a quarter a beat, the root on each chord's first, a step into the next, the last chord held, on an acoustic bass -- [blues: …] dup walking-bass {2} >"
+       (fn [s]
+         (need s 1 "walking-bass")
+         (let [chords (for [l (played-leaves "walking-bass" (peek s))]
+                        {:pitches (when (= :LEAF (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))})]
+           (when-not (some :pitches chords) (e/mu-error "walking-bass: there are no chords to walk under"))
+           (conj (pop s) (mt/read-text (walking-bass/line->mus chords {}))))))
+
+
+;; -- finding names ----------------------------------------------------------
+
+(defn- name-arg
+  "The start of a name on top: a string or a keyword (\"viol\", :viol);
+   nothing there lists every one."
+  [s word]
+  (need s 1 word)
+  (let [x (peek s)]
+    (if (or (string? x) (keyword? x)) (name x)
+        (e/mu-error (str word ":") "needs the start of a name on top, as a string or keyword: \"viol\" or :viol"))))
+
+(defn- list-names [s word what rows row]
+  (let [start (name-arg s word)]
+    (if (seq rows)
+      (doseq [r rows] (println (row r)))
+      (println (str "no " what " is called or starts with " (pr-str start))))
+    (pop s)))
+
+(word! "music" "find-instrument" "( \"start\" -- )  list every instrument a name, short name or its start can mean: program, name, short name -- \"viol\" find-instrument, \"gt\" find-instrument, \"\" for all"
+       (fn [s] (list-names s "find-instrument" "instrument" (data/instrument-matches (name-arg s "find-instrument"))
+                           (fn [{:keys [program name short]}] (format "%3d  %-22s %s" program name short)))))
+
+(word! "music" "find-drum" "( \"start\" -- )  list every drum a name or its start can mean: key, name, short name, other names -- \"cr\" find-drum, \"\" for all"
+       (fn [s] (list-names s "find-drum" "drum" (data/drum-matches (name-arg s "find-drum"))
+                           (fn [{:keys [key name short also]}] (str/trimr (format "%3d  %-20s %-5s %s" key name short (str/join " " also)))))))
+
+(word! "music" "find-kit" "( \"start\" -- )  list every drum kit a name or its start can mean: program, name -- \"\" find-kit for all"
+       (fn [s] (list-names s "find-kit" "kit" (data/kit-matches (name-arg s "find-kit"))
+                           (fn [{:keys [program name]}] (format "%3d  %s" program name)))))

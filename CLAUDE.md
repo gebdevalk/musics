@@ -839,6 +839,32 @@ registry's types: `find-algos` (by category, input, output, param),
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
 that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
+### Chord progressions and walking bass: `musics.algo.harmonic`
+
+`musics.algo.harmonic.progression` (`prog` in `user`) writes roman-
+numeral schemes as chord symbols: `prog/blues` holds twelve-bar blues
+(`:basic` `:quick-change` `:minor` `:jazz`), `musics.common.music-data/
+choruses` the choruses of `doc/md/lilypond-chordmode-chords.md`
+(`:blues-chorus`, `:jazz-chorus` -- rhythm changes, 32 bars AABA --
+`:jazz-ii-V-I-chorus`), each with the key it's written in as its
+default `:tonic`, and `(prog/->mus :jazz
+{:tonic "F" :name :blues})` gives `[blues: !M:4/4 F3/1:7 | B&3:7 | ...]`,
+roots spelled in the key, a duration only where it changes, a closing
+bar on the tonic (`:end`, true; none when the scheme ends on it), `:hit` to strike each chord per beat,
+`:repeat n` the choruses as `repeat n [ ] volta [ [turnaround] [tonic] ]`.
+`musics.algo.harmonic.walking-bass` walks a quarter-note bass under a
+line of chords: the root on each chord's first beat, the beat before
+the next an approach to its root (a half step, a scale step or its
+fifth), the beats between on the chord's scale, every step at most a
+fifth, drawn back towards the middle of its range; `:choruses` new
+lines joined end to start, `:end` the last chord held. `wb/->mus id`
+reads a part (`form-of`: a line, or one repeat with its volta endings,
+walked in the same form) and writes `[bass: !i:acousticBass ...]`;
+then `(play #{id :bass})`. In mu the word `walking-bass` ( chords --
+bass ) makes it from the line on the stack as it runs, every pass of a
+repeat walked anew (`x dup walking-bass {2} >`). Both draw from
+`musics.algo.random`, so a seed repeats them.
+
 ### Species counterpoint: `musics.algo.logic.counterpoint`
 
 `(cp/counterpoint {:cantus [...] :voices 2-4 :kind 1-5})` writes
@@ -1574,7 +1600,11 @@ next one, writes `!f` before the note and turns `\<`/`\>` into
 `!vol<`/`!vol>` (joined to the note's dynamic as `!vol:mf<`). Absolute octaves need a **capital**
 pitch letter (`C5`); lowercase is always relative pitch resolution (nearest
 fourth/fifth, LilyPond `\relative`-style) even as a sequence's first note —
-there's no position-based exception.
+there's no position-based exception. A capital letter without an octave
+takes the octave number of the pitch before it (`leaf-parser/resolve-
+pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
+(a chord's next starting from its first tone, as relative chords do),
+chord-symbol roots and bass notes alike; octave 4 at the start.
 
 An algo's param is written `@name:value` (`AlgoAssignment`), where `!`
 sets the music: `^{riff: @k:5 @n:16 @bass.k:3}`, or inline in a line
@@ -1587,6 +1617,16 @@ algo reads its params once per run. The assignment node's `:key` is the
 string `"@k"` (a keyword `:@k` wouldn't survive `write`/`load`'s EDN).
 Trees read them as their settings (`t/run tree tctx chain`; see
 "Simple composition" below).
+
+A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,
+`c:m7`, `G3:7.9-/B`), LilyPond's chordmode spelling as a leaf of its
+own, walked (`walker/walk-chord-symbol`) to an ordinary multi-pitch Leaf. The
+qualities are `musics.common.music-data/chord-qualities`: LilyPond's
+words, `.step[+/-]`/`^step` alterations, `/pitch`/`/+pitch` bass notes,
+and the shorthand `m` `M` (`M` the triad, `M7`.. the major sevenths)
+`d` `A` `s`; a bare `7` is dominant. The quality is required (a note
+without one is a note; `:M` is the major triad). A tremolo is `:8` `:16` `:32` `:64` or `:128` (`Tremolo`'s
+lookahead), which keeps every `:` quality from reading as one.
 
 A note or chord can override any context key for itself with a
 Modifier, `\name:value` (`c4\vol:90\i:40`, `e4\pan:-1.0`): the value
@@ -1647,8 +1687,8 @@ can't be told from a bare letter and follows too. `transpose` adds
 its interval to the leaf's `:key-shift`, and `rekey` transposes both
 keys by it before comparing, so transposed notes follow the playing key
 transposed the same way; their printed names are spelled in the
-transposed key (`musics.common.music-elements/transpose-key`). A chordmode
-chord moves by its root (`:key-root`), keeping its written quality
+transposed key (`musics.common.music-elements/transpose-key`). A chord
+symbol moves by its root (`:key-root`), keeping its written quality
 (`F4` in C plays F# major under G). Generated notes carry no `:key` and
 never move.
 
@@ -1744,7 +1784,14 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   linear. `(quantity :pitch {:doc ..})` returns a spec with overrides, for
   algo metadata. The rest is reference data ported from an earlier Python
   implementation (pitch names, note lengths, dynamics, scales, drum name
-  → MIDI, …).
+  → MIDI, …). Instruments, drums and kits are found by name, short name
+  or the start of one that can only mean one (`program-of`/`resolve-drum`/
+  `kit-of` through `smart-get`: `trump`, `cow`, `elec`; an ambiguous start
+  throws, naming the candidates; `instrument-matches`/`drum-matches`/
+  `kit-matches` list them, mu's `find-instrument`/`find-drum`/`find-kit`;
+  `musics.mu.complete` is mu's Tab completion of them, a JLine completer,
+  which also completes context keys and `!` instructions, a note's `\`
+  tags, dynamics after `!vol:` and scales after `!K:F.`).
 - `musics/common/context_keys.clj` — the context-key registry (`!key:` names,
   aliases, types): `reg!` takes each key's range, default and scale from
   a quantity (`:Tempo` → `:tempo`, `:rate`/`:durScale` → `:ratio`,

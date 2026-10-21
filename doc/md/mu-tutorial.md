@@ -1,7 +1,8 @@
 # mu tutorial: the music words
 
-mu is musics' musical REPL: you type music, and it lands on a stack
-where words change it, combine it and play it. This tutorial walks
+mu is musics' concatenative, real-time, interactive REPL: you type
+music, and it lands on a stack where words change it, combine it and
+play it, while it plays. This tutorial walks
 through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
@@ -46,7 +47,8 @@ c4                  → C4/4
   `< >` a chord, `r` a rest.
 - A duration carries over: `d8 e` makes `e` an eighth too.
 - A lowercase letter is relative: it lands as close as it can to the
-  note before. A capital letter with an octave is absolute: `C5`.
+  note before. A capital letter with an octave is absolute: `C5`; a
+  capital without one keeps the octave before it (`C5 D E`, `<C5 E G>`).
 - mu prints back absolutely (`C4/4`), and what it prints reads back
   as the same thing.
 
@@ -522,7 +524,17 @@ several steps.
 
 An instrument is a General MIDI program, by number (`\i:40` is a
 violin), by name (`!i:seashore`, `\i:birdTweet`) or by its short name
-(`!i:sea`, `\i:vib`), set on a note or for a whole line; a list plays
+(`!i:sea`, `\i:vib`), or the start of a name that can only mean one
+(`!i:trump`, `!i:pizz`), set on a note or for a whole line; `"viol"
+find-instrument`, `"cr" find-drum` and `"s" find-kit` list what a
+start of a name can mean (`""` all of them), and Tab completes a name
+as you write it -- after `!i:` or `\i:`, a drum's `x8\` or `!kit:` --
+filling in the one it can be, or listing them with their program or key
+(a second Tab moves through the list). Tab completes keys too: a context
+key or an instruction after `!` (`!swingU` to `!swingUnit:`, `!mo` to
+`!moderato`), what a note takes after `\` (`c4\tri` to `c4\trill`,
+`c4\vo` to `c4\vol:`), a dynamic after `!vol:`, and a scale after a
+key's tonic (`!K:F.ma` to `!K:F.major`); a list plays
 several at once. A drum is `x` with its key or name; a bare `x`
 repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
 `power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`
@@ -739,6 +751,23 @@ falling together:
 ^{ @seed:7 @len:6 } pitch/walk     → '[48 48 48 53 60 60]
 ^{ @seed:7 @len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
 ```
+
+### Chords and a walking bass
+
+A chord symbol is a root and a quality, absolute or relative, its
+duration carrying on as a note's does (`F3/1:7`, `b&:7`, `c2.:m7`).
+`walking-bass` takes a line of chords and makes a bass under it as you
+run it, a new one each time: a quarter a beat, each chord's root on its
+first beat, the beat before the next chord a step into it, the last
+chord held. Repeats are walked pass by pass, each with its own line.
+
+```
+[blues: !M:4/4 repeat 2 [ F3/1:7 | b&:7 | f:7 | c2:m7 f:7 | b&1:7 | b:d7 | f:7 | d:7 | g:m7 | c:7 ] volta [ [ f,2:7 d:7 | g:m7 c:7 ] [ f,1:7 | f:7 ] ] ]
+dup walking-bass {2} >
+```
+
+`dup` keeps the chords, `walking-bass` makes the bass from the copy,
+`{2}` sets the two side by side.
 
 ## 16. Rating what you hear
 

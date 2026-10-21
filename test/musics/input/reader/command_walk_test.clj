@@ -336,46 +336,42 @@
       (is (< 1 (count (:pitches t)))
           "chord should have multiple pitches"))))
 
-;; ── Chordmode ───────────────────────────────────────────────
-;; \chordmode ( root:quality/bass ... ) -- LilyPond's own compact chord
-;; shorthand, scoped inside its own backslash command (see musics.ebnf's
-;; own comment on why: root:quality's ':' collides with Tremolo's
-;; existing c4:32 suffix). Absolute (uppercase) roots throughout so each
-;; assertion is self-evident against a known anchor (C4 = 60, same
-;; convention domain_test.clj/decompose_test.clj already use),
-;; not entangled with relative-pitch resolution.
+;; ── Chord symbols ──────────────────────────────────────────
+;; root:quality/bass, LilyPond's chordmode spelling as a leaf of its own.
+;; Absolute (uppercase) roots throughout so each assertion is
+;; self-evident against a known anchor (C4 = 60).
 
-(deftest chordmode-common-qualities
+(deftest chord-symbol-common-qualities
   (testing "Each common-chord modifier resolves to LilyPond's own
             documented intervals (Notation Reference, 'Common chord
             modifiers') -- not invented"
     (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
-      "chordmode ( C4:5 )"    [60 67]
-      "chordmode ( C4:m )"    [60 63 67]
-      "chordmode ( C4:aug )"  [60 64 68]
-      "chordmode ( C4:dim )"  [60 63 66]
-      "chordmode ( C4:7 )"    [60 64 67 70]
-      "chordmode ( C4:maj7 )" [60 64 67 71]
-      "chordmode ( C4:maj )"  [60 64 67 71]
-      "chordmode ( C4:dim7 )" [60 63 66 69]
-      "chordmode ( C4:m7 )"   [60 63 67 70]
-      "chordmode ( C4:6 )"    [60 64 67 69]
-      "chordmode ( C4:m6 )"   [60 63 67 69]
-      "chordmode ( C4:sus2 )" [60 62 67]
-      "chordmode ( C4:sus4 )" [60 65 67])))
+      "C4:5"    [60 67]
+      "C4:m"    [60 63 67]
+      "C4:aug"  [60 64 68]
+      "C4:dim"  [60 63 66]
+      "C4:7"    [60 64 67 70]
+      "C4:maj7" [60 64 67 71]
+      "C4:maj"  [60 64 67 71]
+      "C4:dim7" [60 63 66 69]
+      "C4:m7"   [60 63 67 70]
+      "C4:6"    [60 64 67 69]
+      "C4:m6"   [60 63 67 69]
+      "C4:sus2" [60 62 67]
+      "C4:sus4" [60 65 67])))
 
-(deftest chordmode-extended-qualities
+(deftest chord-symbol-extended-qualities
   (testing "9/11/13 stack thirds up to the extent, defaulting to a
             minor 7th (LilyPond: 'the seventh step added as part of an
             extended chord will be the minor or flatted seventh, not
             the major seventh') -- verbatim from the docs, not invented"
     (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
-      "chordmode ( C4:9 )"     [60 64 67 70 74]
-      "chordmode ( C4:m9 )"    [60 63 67 70 74]
-      "chordmode ( C4:maj9 )"  [60 64 67 71 74]
-      "chordmode ( C4:11 )"    [60 64 67 70 74 77]
-      "chordmode ( C4:m11 )"   [60 63 67 70 74 77]
-      "chordmode ( C4:maj11 )" [60 64 67 71 74 77]))
+      "C4:9"     [60 64 67 70 74]
+      "C4:m9"    [60 63 67 70 74]
+      "C4:maj9"  [60 64 67 71 74]
+      "C4:11"    [60 64 67 70 74 77]
+      "C4:m11"   [60 63 67 70 74 77]
+      "C4:maj11" [60 64 67 71 74 77]))
 
   (testing "The 11 is dropped by default from a 13 chord built on a
             MAJOR third (:13 and :maj13 alike -- LilyPond: 'since an
@@ -383,74 +379,70 @@
             unaltered 13, the 11 is removed from a :13 major chord
             unless it is added explicitly'), but kept for :m13 (minor
             third)"
-    (is (= [60 64 67 70 74 81] (:pitches (first-wrapped-token "chordmode ( C4:13 )")))
+    (is (= [60 64 67 70 74 81] (:pitches (first-wrapped-token "C4:13")))
         "13, 11 omitted")
-    (is (= [60 64 67 71 74 81] (:pitches (first-wrapped-token "chordmode ( C4:maj13 )")))
+    (is (= [60 64 67 71 74 81] (:pitches (first-wrapped-token "C4:maj13")))
         "maj13, 11 omitted")
-    (is (= [60 63 67 70 74 77 81] (:pitches (first-wrapped-token "chordmode ( C4:m13 )")))
+    (is (= [60 63 67 70 74 77 81] (:pitches (first-wrapped-token "C4:m13")))
         "m13, 11 KEPT")))
 
-(deftest chordmode-bare-note-is-a-major-triad
-  (testing "A colon-less chordmode entry is still a full major triad,
-            LilyPond's own documented default ('None: produces a major
-            triad') -- not just a single note the way the identical
-            text would read outside this block"
-    (is (= [60 64 67] (:pitches (first-wrapped-token "chordmode ( C4 )"))))))
+(deftest chordmode-is-not-a-command
+  (is (thrown? Exception (gp/parse-domain-string "[chordmode ( C4:m7 )]")) "chord symbols stand alone: C4:m7"))
 
-(deftest chordmode-unrecognized-quality-throws
+(deftest a-note-without-a-quality-stays-a-note
+  (is (= [60] (:pitches (first-wrapped-token "C4"))))
+  (is (= [60 64 67] (:pitches (first-wrapped-token "C4:M"))) ":M is the major triad"))
+
+(deftest chord-symbol-unrecognized-quality-throws
   (testing "A quality word the grammar's own Quality regex can't match
             is a parse error, not a silent no-op or a walk-time failure
             -- the grammar and the table are meant to agree exactly"
-    (is (thrown? Exception (gp/parse-domain-string "[chordmode ( C4:bogus )]")))))
+    (is (thrown? Exception (gp/parse-domain-string "[C4:bogus]")))))
 
-(deftest chordmode-inversion-moves-existing-tone-without-duplicating
+(deftest chord-symbol-inversion-moves-existing-tone-without-duplicating
   (testing "Plain /bass, when that pitch CLASS is already part of the
             chord, moves it to the bottom rather than duplicating it --
             LilyPond's own documented distinction ('the pitch is not
             added but merely moved to the bottom of the chord')"
-    (let [t (first-wrapped-token "chordmode ( C4:5/G3 )")]
+    (let [t (first-wrapped-token "C4:5/G3")]
       (is (= [55 60] (:pitches t))
           "the fifth (67) is replaced by a lower G, not duplicated -- 2 notes total, not 3"))))
 
-(deftest chordmode-inversion-plus-always-adds
+(deftest chord-symbol-inversion-plus-always-adds
   (testing "/+bass always adds a new note regardless of whether that
             pitch class already sounds in the chord -- LilyPond's own
             documented distinction ('treated as an added note and thus
             printed twice')"
-    (let [t (first-wrapped-token "chordmode ( C4:maj7/+E3 )")]
+    (let [t (first-wrapped-token "C4:maj7/+E3")]
       (is (= [52 60 64 67 71] (:pitches t))
           "E (64) stays, PLUS a new lower E (52) added as the bass -- 5 notes, a duplicate pitch class"))))
 
-(deftest chordmode-multiple-entries-splice-like-any-transient-command
-  (testing "A run of chordmode entries splices flat into the enclosing
-            container, same shape any transient command's own body
-            already gets -- each entry its own Leaf, not one combined
-            chord"
-    (let [ts (wrapped-tokens "chordmode ( C4:m G4:7 )")]
-      (is (= 2 (count ts)))
-      (is (every? d/leaf? ts))
-      (is (= [60 63 67] (:pitches (first ts))))
-      (is (= [67 71 74 77] (:pitches (second ts)))))))
+(deftest chord-symbols-in-a-line-are-leaves-of-their-own
+  (let [ts (wrapped-tokens "C4:m G4:7")]
+    (is (= 2 (count ts)))
+    (is (every? d/leaf? ts))
+    (is (= [60 63 67] (:pitches (first ts))))
+    (is (= [67 71 74 77] (:pitches (second ts))))))
 
-(deftest chordmode-dot-addition-overrides-not-accumulates
+(deftest chord-symbol-dot-addition-overrides-not-accumulates
   (testing "LilyPond's own canonical worked example: c:3.5.5-.5+
             resolves to an augmented triad -- each .step[+/-] entry
             OVERRIDES step 5 outright, computed fresh from the step's
             own default (7) each time, not a cumulative -1 then +1 from
             whatever was there before (which would also land on 7, not
             8) -- confirmed against LilyPond's own docs, not assumed"
-    (is (= [60 64 68] (:pitches (first-wrapped-token "chordmode ( C4:3.5.5-.5+ )")))))
+    (is (= [60 64 68] (:pitches (first-wrapped-token "C4:3.5.5-.5+")))))
 
   (testing "A bare .step addition uses that step's own canonical
             default interval"
-    (is (= [60 64 67] (:pitches (first-wrapped-token "chordmode ( C4:3.5 )")))
+    (is (= [60 64 67] (:pitches (first-wrapped-token "C4:3.5")))
         "3 + a bare added 5 = an ordinary major triad")))
 
-(deftest chordmode-dot-addition-builds-altered-chords-not-in-the-fixed-table
+(deftest chord-symbol-dot-addition-builds-altered-chords-not-in-the-fixed-table
   (testing "Half-diminished (m7 with a flatted 5th) is reachable only
             via the general addition mechanism, no fixed :quality word
             of its own -- m7.5- glues the alteration onto step 5"
-    (is (= [60 63 66 70] (:pitches (first-wrapped-token "chordmode ( C4:m7.5- )")))
+    (is (= [60 63 66 70] (:pitches (first-wrapped-token "C4:m7.5-")))
         "half-diminished: C Eb Gb Bb"))
 
   (testing "A minor-major7 (m triad + RAISED 7th) needs '.7+' -- an
@@ -460,31 +452,74 @@
             +/-, matching how LilyPond's own modifier grammar keeps
             alterations tied to an explicit step, never bare-glued onto
             a quality word"
-    (is (= [60 63 67 71] (:pitches (first-wrapped-token "chordmode ( C4:m.7+ )")))
+    (is (= [60 63 67 71] (:pitches (first-wrapped-token "C4:m.7+")))
         "m (minor triad) + an explicit major-7th addition")))
 
-(deftest chordmode-caret-removal-drops-named-steps
+(deftest chord-symbol-caret-removal-drops-named-steps
   (testing "^step drops that scale degree outright -- LilyPond's own
             'no3'/'no5' style voicings"
-    (is (= [60 67 70 74] (:pitches (first-wrapped-token "chordmode ( C4:9^3 )")))
+    (is (= [60 67 70 74] (:pitches (first-wrapped-token "C4:9^3")))
         "9 chord, no 3rd")
-    (is (= [60 70 74] (:pitches (first-wrapped-token "chordmode ( C4:9^3.5 )")))
+    (is (= [60 70 74] (:pitches (first-wrapped-token "C4:9^3.5")))
         "9 chord, no 3rd AND no 5th -- one ^, dot-separated, not one ^ per step")))
 
-(deftest chordmode-dot-addition-restores-the-13-chords-own-dropped-11
+(deftest chord-symbol-dot-addition-restores-the-13-chords-own-dropped-11
   (testing "LilyPond's own :13.11 -- explicitly adding the 11 back onto
             a 13 chord that would otherwise omit it by default (see
-            chordmode-extended-qualities above)"
-    (is (= [60 64 67 70 74 77 81] (:pitches (first-wrapped-token "chordmode ( C4:13.11 )"))))))
+            chord-symbol-extended-qualities above)"
+    (is (= [60 64 67 70 74 77 81] (:pitches (first-wrapped-token "C4:13.11"))))))
 
-(deftest chordmode-addition-and-removal-combine-in-one-entry
+(deftest chord-symbol-addition-and-removal-combine-in-one-entry
   (testing "Additions (all of them) apply before removals, per
             LilyPond's own ordering ('Following any steps to be added,
             a series of steps to be removed...')"
-    (is (= [60 67 74 77 81] (:pitches (first-wrapped-token "chordmode ( C4:13.11^3.7 )")))
+    (is (= [60 67 74 77 81] (:pitches (first-wrapped-token "C4:13.11^3.7")))
         "13.11 with the 3rd and 7th both then removed")
-    (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "chordmode ( C4:m13^11 )")))
-        "m13 keeps its 11 by default (see chordmode-extended-qualities), removed here explicitly")))
+    (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "C4:m13^11")))
+        "m13 keeps its 11 by default (see chord-symbol-extended-qualities), removed here explicitly")))
+
+;; ── Chord symbols in a line ─────────────────────────────────
+;; A note with a ':' quality is a chord, its quality
+;; required. A tremolo is 8/16/32/64/128, never a quality, so the two
+;; can't meet.
+
+(deftest a-chord-symbol-is-a-chord-in-a-line
+  (are [text pitches] (= pitches (:pitches (first-wrapped-token text)))
+    "C4:7"       [60 64 67 70]
+    "C4/1:m7"    [60 63 67 70]
+    "C4:13"      [60 64 67 70 74 81]
+    "C4:m7.5-"   [60 63 66 70]
+    "C4:9^3"     [60 67 70 74]
+    "C4:7/E3"    [52 60 67 70])
+  (is (= 1 (:duration (first-wrapped-token "C4/1:7"))))
+  (testing "it keeps the relative chain and the duration going, as a note does"
+    (let [[a b c] (wrapped-tokens "c4:7 g:m d")]
+      (is (= [60 64 67 70] (:pitches a)))
+      (is (= [[55 58 62] 1/4] [(:pitches b) (:duration b)]) "g below c, a quarter")
+      (is (= [50] (:pitches c)) "a note without a quality stays a note, d a fourth below g"))))
+
+(deftest the-shorthand-qualities
+  (are [q pitches] (= pitches (:pitches (first-wrapped-token (str "C4:" q))))
+    "m"   [60 63 67]
+    "M"   [60 64 67]
+    "M7"  [60 64 67 71]
+    "M9"  [60 64 67 71 74]
+    "d"   [60 63 66]
+    "d7"  [60 63 66 69]
+    "A"   [60 64 68]
+    "A7"  [60 64 68 70]
+    "s"   [60 65 67]
+    "s2"  [60 62 67]
+    "s4"  [60 65 67])
+  (testing "the long words too"
+    (is (= [60 63 66 69] (:pitches (first-wrapped-token "C4:dim7"))))))
+
+(deftest a-tremolo-is-a-power-of-two-from-8
+  (doseq [n [8 16 32 64 128]]
+    (let [t (first-wrapped-token (str "c4:" n))]
+      (is (= [60] (:pitches t)) (str n " is a tremolo"))
+      (is (some #(= ["tremolo" n] %) (:modifiers t)))))
+  (is (thrown? Exception (gp/parse-domain-string "[c4:12]")) "12 is neither a tremolo nor a quality"))
 
 ;; ── Ornaments glued onto notes ───────────────────────────────
 
@@ -867,9 +902,9 @@
   (testing "canonical keys, values read as !name:value reads them"
     (is (= [{:volume 90 :instrument 40} {:volume 60} {:panning -1.0 :Tempo 60} {:durScale 1/2}]
            (map :overrides (wrapped-tokens "c4\\vol:90\\i:40 d4\\vol:mf e4\\pan:-1.0\\tempo:60 f4\\durScale:1/2")))))
-  (testing "chords and chordmode chords take them too; a plain note has none"
+  (testing "chords and chord symbols take them too; a plain note has none"
     (is (= [{:volume 80} nil] (map :overrides (wrapped-tokens "<c e g>4\\vol:80 c4"))))
-    (is (= {:volume 70} (:overrides (first-wrapped-token "chordmode ( C4:maj\\vol:70 )")))))
+    (is (= {:volume 70} (:overrides (first-wrapped-token "C4:maj\\vol:70")))))
   (testing "an override is not an ornament/tremolo modifier"
     (is (= [["ornament" "trill"]] (:modifiers (first-wrapped-token "c4\\trill\\vol:20"))))))
 
@@ -912,3 +947,16 @@
   (testing "a grace note"
     (let [seq-c (first-token "[grace c8\\f d4 d4]")]
       (is (= {:volume 70} (:overrides (first (:children seq-c))))))))
+
+;; ── Octave inheritance ──────────────────────────────────────
+
+(deftest an-absolute-letter-without-an-octave-keeps-the-one-before
+  (are [text pitches] (= pitches (mapv :pitches (wrapped-tokens text)))
+    "C5/4 D E"           [[72] [74] [76]]
+    "C5 B"               [[72] [83]]
+    "C2/4 G B&"          [[36] [43] [46]]
+    "<C5 E G>4 <F A C>"  [[72 76 79] [77 81 72]]
+    "C2/1:7 | F:7"       [[36 40 43 46] nil [41 45 48 51]]
+    "c' d F"             [[72] [74] [77]]
+    "C D"                [[60] [62]]
+    "C5/1:7 | F:7"       [[72 76 79 82] nil [77 81 84 87]]))

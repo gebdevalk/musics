@@ -37,6 +37,9 @@
    -- are aliased by half product: pitch/lorenz, duration/euclid,
    volume/walk, articulation/tala.
 
+   Chord progressions are aliased prog (musics.algo.harmonic.progression):
+   (parse (prog/->mus :jazz {:tonic \"F\" :name :blues})), then (play :blues).
+
    mu's words are aliased mu (musics.mu.words): (mu/retrograde x),
    (mu/R x), (mu/times x 3), (mu/mu \"[c d e]\") -- mu at the REPL."
   (:refer-clojure :exclude [reverse load shuffle find repeat])
@@ -53,4 +56,5 @@
             [musics.algo.volume :as volume]
             [musics.algo.articulation :as articulation]
             [musics.algo.instrument :as instrument]
+            [musics.algo.harmonic.progression :as prog]
             [musics.mu.words :as mu]))
