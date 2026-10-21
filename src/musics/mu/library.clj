@@ -10,7 +10,8 @@
             [musics.mu.tools]
             [musics.music]
             [musics.tool]
-            [musics.play]))
+            [musics.play]
+            [musics.rate]))
 
 (defn word-name
   "The mu word a function is: its name, a trailing ! left off."
@@ -45,4 +46,5 @@
 
 (register! 'musics.tool "tool")
 (register! 'musics.play "play")
+(register! 'musics.rate "rate")
 (register! 'musics.music "music")

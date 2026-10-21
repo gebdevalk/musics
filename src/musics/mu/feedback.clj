@@ -1,16 +1,15 @@
 (ns musics.mu.feedback
-  "mu's feedback words (doc/md/feedback.md): rate what was heard -- like,
-   meh, dislike, or Alt+l Alt+k Alt+j at the prompt (musics.mu binds the keys) --
-   audition a line of sounds one by one, and read the ratings back
-   (taste, liked, disliked), in namespace rate. The ratings themselves
-   are musics.feedback's."
+  "What mu's rate words (musics.rate) and the prompt's Alt keys share
+   (doc/md/feedback.md): rating what is heard -- the audition's item,
+   else the sound last played -- and auditioning a line of sounds one by
+   one. The ratings themselves are musics.feedback's."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
             [musics.core :as m]
             [musics.engine :as engine]
             [musics.feedback :as fb]
             [musics.midi.gervill :as gervill]
-            [musics.mu.eval :as e :refer [word! need]]
+            [musics.mu.eval :as e]
             [musics.mu.material :as mt]
             [musics.mu.print :as p])
   (:import (java.util.concurrent LinkedBlockingQueue TimeUnit)))
@@ -22,7 +21,9 @@
 
 (defn- say [line] (@e/print-above line))
 
-(defn- part-name [kind n]
+(defn part-name
+  "The name of an instrument program or a drum key, by kind."
+  [kind n]
   (if (= kind :drum)
     (get-in data/drums [n :name])
     (some-> (data/program->name n) name)))
@@ -139,56 +140,7 @@
 
 ;; -- ask: a prompt to rate when what was played ends -------------------------
 
-(defonce ^:private ask-agent (agent nil :error-mode :continue))
-
-(defn- ask-fn [_top]
-  (when (and (nil? @audition) (sound? @mt/last-played))
-    (send-off ask-agent
-              (fn [_] (say (str "rate " (p/show @mt/last-played) "?  Alt+j dislike · Alt+k meh · Alt+l like")) nil))))
-
 ;; -- words --------------------------------------------------------------------
-
-(word! "rate" "like" "( -- )  rate what is heard (the audition's item, else the sound last played) 1; Alt+l"
-       (fn [s] (rate-current! 1) s))
-(word! "rate" "meh" "( -- )  rate it 0, neutral; Alt+k"
-       (fn [s] (rate-current! 0) s))
-(word! "rate" "dislike" "( -- )  rate it -1; Alt+j"
-       (fn [s] (rate-current! -1) s))
-(word! "rate" "again" "( -- )  play it again; Alt+K"
-       (fn [s] (again!) s))
-(word! "rate" "next" "( -- )  the audition's next item; Alt+L"
-       (fn [s] (next!) s))
-(word! "rate" "prev" "( -- )  the audition's previous item; Alt+J"
-       (fn [s] (back!) s))
-
-(word! "rate" "audition" "( line -- )  play its sounds one by one, in the background, to rate each; stop (Alt+.) stops"
-       (fn [s]
-         (need s 1 "audition")
-         (let [items (filterv sound? (mt/elements (peek s)))]
-           (when (empty? items)
-             (e/mu-error "audition: needs a line of notes, chords or drums, got" (p/show (peek s))))
-           (start-audition! items)
-           (pop s))))
-
-(word! "rate" "step" "( -- )  auditions wait for a rating or next, or move on by themselves again"
-       (fn [s]
-         (println (if (swap! auto? not) "auditions move on by themselves" "auditions wait for a rating or next"))
-         s))
-
-(word! "rate" "gap" "( ms -- )  the silence after each sound of an audition before it moves on by itself (150 by default)"
-       (fn [s]
-         (need s 1 "gap")
-         (let [ms (peek s)]
-           (when-not (and (number? ms) (<= 0 ms)) (e/mu-error "gap: takes milliseconds, 0 or more"))
-           (reset! gap-ms (long ms))
-           (pop s))))
-
-(word! "rate" "ask" "( -- )  ask for a rating when a sound played ends, or stop asking"
-       (fn [s]
-         (if @engine/finished
-           (do (reset! engine/finished nil) (println "ask off"))
-           (do (reset! engine/finished ask-fn) (println "ask on")))
-         s))
 
 (defn combinations
   "Every k-element combination of xs, in order."
@@ -198,24 +150,3 @@
         :else (concat (map #(cons (first xs) %) (combinations (dec k) (rest xs)))
                       (combinations k (rest xs)))))
 
-(word! "rate" "taste" "( -- )  the ratings: per sound, then per instrument or drum, best first (mean, count)"
-       (fn [s]
-         (let [rs (fb/ratings)]
-           (if (empty? rs)
-             (println "nothing rated yet")
-             (do (println "sounds")
-                 (doseq [l (fb/table (map (fn [[w v]] [(describe w) v]) (fb/by-sound rs)))] (println " " l))
-                 (println "instruments and drums")
-                 (doseq [l (fb/table (map (fn [[part v]] [(fb/part-label part part-name) v]) (fb/by-part rs)))]
-                   (println " " l)))))
-         s))
-
-(defn- sounds-line [word pred]
-  (let [ws (fb/sounds-where pred)]
-    (when (empty? ws) (e/mu-error (str word ":") "no sound rated so far"))
-    (mt/read-text (str "[" (str/join " " ws) "]"))))
-
-(word! "rate" "liked" "( -- line )  the sounds rated above zero on the whole, best first"
-       (fn [s] (conj s (sounds-line "liked" pos?))))
-(word! "rate" "disliked" "( -- line )  the sounds rated below zero on the whole, worst last"
-       (fn [s] (conj s (sounds-line "disliked" neg?))))
