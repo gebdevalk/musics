@@ -87,7 +87,7 @@
 
 (def ^:private combo-keys
   "Keys shown as a name dropdown (combo-specs), never a slider."
-  #{:instrument :kit :accent})
+  #{:instrument :kit :accent :Key :Meter :accidentals})
 
 (def param-specs
   "Context keys this GUI shows as a slider -- canonical key -> slider
@@ -133,6 +133,26 @@
                     :scale scale
                     :zoom-floor (/ (- hi lo) 8.0)}])))))
 
+(def ^:private tonics
+  "A key's tonic as !K: spells it, chromatically, both spellings of a
+   black key (D& for a major key, C# for a minor one)."
+  ["C" "C#" "D&" "D" "D#" "E&" "E" "F" "F#" "G&" "G" "G#" "A&" "A" "A#" "B&" "B" "C&"])
+
+(def ^:private scale-names
+  "The scales a key takes, the common ones first."
+  (let [first-ones ["major" "minor" "harmonic-minor" "melodic-minor" "dorian" "phrygian"
+                    "lydian" "mixolydian" "aeolian" "locrian" "ionian"]]
+    (into first-ones (sort (remove (set first-ones) (map name (keys el/scale-steps)))))))
+
+(def ^:private meters
+  "Meters offered; any other !M: spelling can be typed (7/8(2+2+3), 223)."
+  ["4/4" "3/4" "2/4" "2/2" "6/8" "9/8" "12/8" "5/4" "5/8" "7/8"])
+
+(defn- key-from
+  "The Key a tonic and a scale name make, or nil."
+  [tonic scale]
+  (el/parse-key (str tonic "." scale)))
+
 (def combo-specs
   "Categorical context keys this GUI shows as a name dropdown instead
    of a slider -- each backed by a REAL musics.gui.data lookup (which is
@@ -147,7 +167,40 @@
    already subsumes it, not a second, independently useful control."
   {:instrument {:label "Instrument" :lookup data/instruments}
    :kit        {:label "Kit" :lookup data/kits}
-   :accent     {:label "Accent" :lookup data/accents}})
+   :accent     {:label "Accent" :lookup data/accents}
+   ;; the key as two dropdowns, both writing the one :Key context value:
+   ;; :read gives a control's name of the context's value, :write the
+   ;; value of a name, given the other controls' names
+   :key-tonic  {:label "Tonic" :ctx-key :Key :items tonics
+                :read  #(some-> % :signature :display)
+                :write (fn [t combos] (key-from t (:key-scale combos "major")))}
+   :key-scale  {:label "Scale" :ctx-key :Key :items scale-names
+                :read  #(some-> % :scale :name name)
+                :write (fn [s combos] (key-from (:key-tonic combos "C") s))}
+   :accidentals {:label "Accidentals" :switch "explicit" :items ["implied" "explicit"]
+                 :read  #(name (or % :implied))
+                 :write (fn [n _] (keyword n))}
+   :Meter      {:label "Meter" :items meters :editable? true
+                :read  #(some-> % el/meter->str)
+                :write (fn [text _] (try (el/parse-meter-str (str/trim text)) (catch Exception _ nil)))}})
+
+(def control-groups
+  "The controls of a context window (and the root panel), by importance,
+   under a heading each: [heading [control-key ...]]. A slider or a
+   dropdown a later key gets that no group names lands under Other."
+  (let [groups [["Tempo"   [:Tempo]]
+                ["Key"     [:key-tonic :key-scale :accidentals]]
+                ["Meter"   [:Meter]]
+                ["Sound"   [:volume :instrument :kit]]
+                ["Feel"    [:swing :swingUnit :groove :accent :accentDepth]]
+                ["Playing" [:articulation :durScale :humanization :micro]]
+                ["Pitch"   [:transposition :octave]]
+                ["Space"   [:panning]]]
+        placed (set (mapcat second groups))
+        known  (fn [k] (or (contains? param-specs k) (contains? combo-specs k)))
+        other  (remove placed (concat (keys param-specs) (keys combo-specs)))]
+    (cond-> (vec (for [[h ks] groups :let [ks (filter known ks)] :when (seq ks)] [h (vec ks)]))
+      (seq other) (conj ["Other" (vec other)]))))
 
 (def *state
   (atom {:transport :stopped
@@ -302,11 +355,13 @@
    doesn't match any known name. A list of programs (!i:40,73, several
    instruments at once) shows its first; a number is matched as an int,
    anything else (accent's :metric, nil) as itself."
-  [id key {:keys [lookup]}]
-  (let [v (m/ctx-value id key 0)
+  [id key {:keys [lookup read ctx-key items]}]
+  (let [v (m/ctx-value id (or ctx-key key) 0)
         v (if (sequential? v) (first v) v)]
-    (get (:value->name lookup) (if (number? v) (int v) v)
-         (first (:items lookup)))))
+    (if read
+      (or (read v) (first items))
+      (get (:value->name lookup) (if (number? v) (int v) v)
+           (first (:items lookup))))))
 
 (defn- write-value!
   "The one place that actually mutates a real Context: root? picks
@@ -411,13 +466,21 @@
   (swap! *state assoc-in [:watched id :params key] value))
 
 (defn- apply-combo!
+  "A picked (or typed) name, written as the value it stands for: a
+   lookup's, or what the spec's :write makes of it and the other
+   controls' names (the key's tonic and scale, both one :Key). A name
+   that makes no value (a meter that doesn't read) changes nothing."
   [id key display-name]
-  (when-let [{:keys [lookup]} (get combo-specs key)]
-    (when-let [value (get (:name->value lookup) display-name)]
-      (when (hot? id)
-        (when-let [ctx (container-context id)]
-          (write-value! ctx (= id :ROOT) (ck/canonical-key key) value)))
-      (swap! *state assoc-in [:watched id :combos key] display-name))))
+  (when-let [{:keys [lookup write ctx-key]} (get combo-specs key)]
+    (let [combos (assoc (get-in @*state [:watched id :combos]) key display-name)
+          value  (if write
+                   (write display-name combos)
+                   (get (:name->value lookup) display-name ::none))]
+      (when-not (or (nil? display-name) (= ::none value) (and write (nil? value)))
+        (when (hot? id)
+          (when-let [ctx (container-context id)]
+            (write-value! ctx (= id :ROOT) (ck/canonical-key (or ctx-key key)) value)))
+        (swap! *state assoc-in [:watched id :combos key] display-name)))))
 
 (defn- unified-peers
   "Every OTHER watched id that's also unified? and also exposes key --

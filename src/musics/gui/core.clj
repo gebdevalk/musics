@@ -222,25 +222,42 @@
                         :on-change {:event/type :set-param :id id :key key}))}
         (ui/button {:text "Z" :on-action {:event/type :zoom :id id :key key}})]})))
 
+(defn- choice-control
+  "A combo-specs control: a switch (a toggle between its two names), or
+   a dropdown, editable where a value can be typed (the meter)."
+  [id key {:keys [label lookup items switch editable?]} value show-labels?]
+  (if switch
+    (ui/button-row
+      {:children
+       (cond-> []
+         show-labels? (conj (ui/label {:text label}))
+         true (conj (ui/toggle-button
+                      {:text (str switch " " (str/lower-case label))
+                       :selected? (= value switch)
+                       :on-action {:event/type :set-combo :id id :key key
+                                   :value (if (= value switch) (first items) switch)}})))})
+    (ui/combo-box
+      {:label label
+       :items (or items (:items lookup))
+       :value value
+       :editable? editable?
+       :show-label? show-labels?
+       :on-change {:event/type :set-combo :id id :key key}})))
+
 (defn- param-rows
-  "Empty when collapsed? (the 'S' show/hide control) -- otherwise every
-   param slider + combo row for id, honoring show-labels? (the 'L'
-   control) throughout."
+  "Empty when collapsed? (the 'S' show/hide control) -- otherwise id's
+   controls by importance (musics.gui.state/control-groups), a heading
+   over each group, honoring show-labels? (the 'L' control) throughout."
   [id {:keys [params combos zoom collapsed? show-labels?]}]
   (if collapsed?
     []
-    (-> []
-        (into (map (fn [[key spec]]
-                     (zoomable-slider id key spec (get params key 0.0) (get zoom key) show-labels?))
-                   state/param-specs))
-        (into (map (fn [[key spec]]
-                     (ui/combo-box
-                       {:label (:label spec)
-                        :items (:items (:lookup spec))
-                        :value (get combos key)
-                        :show-label? show-labels?
-                        :on-change {:event/type :set-combo :id id :key key}}))
-                   state/combo-specs)))))
+    (vec (for [[heading ks] state/control-groups
+               row (cons (ui/label {:text heading :style "-fx-font-weight: bold; -fx-padding: 6 0 0 0;"})
+                         (for [k ks]
+                           (if-let [spec (get state/param-specs k)]
+                             (zoomable-slider id k spec (get params k 0.0) (get zoom k) show-labels?)
+                             (choice-control id k (get state/combo-specs k) (get combos k) show-labels?))))]
+           row))))
 
 (defn- hot-toggle
   [id hot?]
@@ -1041,7 +1058,7 @@
   [{:keys [event/type] :as event}]
   (case type
     :set-param      (state/set-param! (:id event) (:key event) (ui/slider-value event))
-    :set-combo      (state/set-combo! (:id event) (:key event) (:fx/event event))
+    :set-combo      (state/set-combo! (:id event) (:key event) (or (:value event) (:fx/event event)))
     :zoom           (state/zoom! (:id event) (:key event))
     :toggle-hot     (state/toggle-hot! (:id event))
     :toggle-unified (state/toggle-unified! (:id event))
