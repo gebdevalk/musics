@@ -33,7 +33,7 @@
    control, printing, binding, namespaces, gathering to a mark."
   #{"dup" "pop" "swap" "over" "rot" "nip" "tuck" "pick" "depth" "call"
     "execute" "if" "when" "each" "reduce" "clear" "cls" "words" "use"
-    "in" "seq" "par" "bye" "R!"})
+    "in" "seq" "par" "bye" "R!" "spread"})
 
 (def clojure-has
   "Words clojure.core already has, by the same name and meaning (the

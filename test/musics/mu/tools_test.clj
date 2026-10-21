@@ -113,6 +113,7 @@
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
   (is (= "[C4/4] [D4/4 E4]" (top "[c d e] 1 split-at")))
+  (is (= "[C4/4 D4] [E4/4]" (top "[c d e] 2 [/] spread")) "[/]'s parts, spread on the stack")
   (is (= "[!mf C4/4 D4]" (top "[!mf c d e] 2 take")) "leading instructions are kept")
   (is (= 4 (count (re-seq #"[A-G]" (top "[c d e f] shuffle")))) "shuffled, the same four"))
 

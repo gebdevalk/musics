@@ -50,6 +50,13 @@
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
+(word! "kernel" "spread" "( x -- a b … )  x's elements on the stack, one after another: a line's notes, a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
+       (fn [s]
+         (need s 1 "spread")
+         (into (pop s) (mt/finite! "spread" (mt/elements (peek s))))))
+
+(word! "kernel" "**" "( x -- a b … )  spread: x's elements on the stack (also spread)" (e/same-as "kernel" "spread"))
+
 ;; -- quotations ---------------------------------------------------------
 
 (word! "kernel" "call" "( q -- … )  run the quotation"
