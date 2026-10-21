@@ -150,9 +150,7 @@
          ["music" "alternating"          "music" "[\\]"]
          ["music" "line"                 "music" "[n]"]
          ["music" "together"             "music" "{n}"]
-         ["music" "chord"                "music" "<>"]
-         ["kernel" "store"               "kernel" "R!"]
-         ["kernel" "fetch"               "kernel" "R@"]]]
+         ["music" "chord"                "music" "<>"]]]
   (twin! ns name sign-ns sign))
 
 ;; -- harmony ----------------------------------------------------------------

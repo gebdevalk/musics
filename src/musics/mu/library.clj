@@ -8,6 +8,7 @@
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.tools]
+            [musics.kernel]
             [musics.music]
             [musics.tool]
             [musics.play]
@@ -44,6 +45,7 @@
     (e/define! (or own-ns mu-ns) w
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 
+(register! 'musics.kernel "kernel")
 (register! 'musics.tool "tool")
 (register! 'musics.play "play")
 (register! 'musics.rate "rate")
