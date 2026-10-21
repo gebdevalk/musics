@@ -6,12 +6,8 @@
    lazy streams; take makes them finite."
   (:require [clojure.string :as str]
             [musics.algo.random :as random]
-            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
-            [musics.common.music-tools :as mt-tools]
-            [musics.algo.tree.lib :as lib]
             [musics.domain :as d]
-            [musics.domain.context :as c]
             [musics.input.reader.leaf-parser :as lp]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -135,28 +131,6 @@
 (word! "tool" "drop-last" "( x n -- x' )  all but the last n elements" (with-n "drop-last" (fn [n xs] (drop-last n (finite! "drop-last" xs)))))
 (defn music? [x] (or (mt/leaf? x) (and (v/material? x) (not= :DATA (mt/kind x)))))
 
-(defn times-of
-  "x played n times, the text's repeat n [ x ]; data and streams written
-   out n times, printed as x n times (data stays data). word names it in
-   an error."
-  [word x n]
-  (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
-  (if (music? x)
-    (mt/repetition x n [])
-    (let [x (finite! word x)]
-      (if (v/material? x)
-        (vary-meta (reshape x #(apply concat (repeat n %))) assoc :mu/repeat [x n])
-        (mt/repeated x n)))))
-
-(defn- times-word
-  "( x n -- repeat ): times-of."
-  [word]
-  (fn [s]
-    (let [n (count-arg s word) s (pop s) x (peek s)]
-      (conj (pop s) (times-of word x n)))))
-
-(word! "tool" "[*]" "( x n -- repeat )  x played n times, as the text's repeat n [ x ]; data and streams written out n times"
-       (times-word "[*]"))
 (word! "tool" "rotate" "( x n -- x' )  rotated by n, wrapping around (also [%])"
        (with-n "rotate" (fn [n xs] (let [v (vec (finite! "rotate" xs)) k (if (seq v) (mod n (count v)) 0)]
                                      (concat (drop k v) (take k v))))))
@@ -359,8 +333,6 @@
 (word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" mt/line))
 
-(defn parts [x] (if (= :PAR (mt/kind x)) (mt/elements x) [x]))
-
 (word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]
          (let [leaves (reverse (take-while #(and (mt/leaf? %) (seq (:pitches %))) (rseq s)))]
@@ -368,149 +340,7 @@
            (conj (subvec s 0 (- (count s) (count leaves)))
                  (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
-(defn- zipped
-  "Leaves from durations and pitches: a rest among the durations stays a
-   rest and uses no pitch, as the trees' zip does."
-  [ds ps]
-  (lazy-seq
-   (when-let [[d & ds'] (seq ds)]
-     (if (and (map? d) (= :REST (:type d)))
-       (cons (lib/->part nil (:duration d)) (zipped ds' ps))
-       (when-let [[x & ps'] (seq ps)]
-         (let [p (if (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) x)]
-           (cons (lib/->part p (if (mt/leaf? d) (:duration d) d)) (zipped ds' ps'))))))))
-
-(defn- zip-items
-  "What zip takes from x: a line's notes as they play (no bar lines, a
-   nested line's notes), else x's elements."
-  [x]
-  (if (music? x) (mt/played-leaves x) (mt/elements (streamed x))))
-
-(defn zip-of
-  "durations and pitches zipped as a line; two loops as a loop, of the
-   notes the two take to line up again."
-  [d p]
-  (let [body  #(vec (zip-items (first (mt/repeat-of %))))
-        items #(if (mt/loop? %) (with-meta (cycle (body %)) {:mu/endless true}) (zip-items %))]
-    (if (and (mt/loop? d) (mt/loop? p))
-      (let [dl       (body d)
-            pl       (body p)
-            sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
-            k        (if (or (zero? sounding) (empty? pl)) 1 (quot (mt-tools/lcm sounding (count pl)) sounding))]
-        (mt/repetition (mt/line (take (* k (count dl)) (zipped (cycle dl) (cycle pl)))) :infinite []))
-      (let [ds (items d) ps (items p)]
-        (when (and (endless? ps) (endless? ds))
-          (e/mu-error "zip: two endless streams, not both loops, never end -- take some first"))
-        (mt/line (zipped ds ps))))))
-
-(defn read-notes
-  "f of every note of x, as a stream: a repeat or a loop around it kept
-   (a loop's notes as a loop of their values, printed as '[ … ] [~]), a
-   repeat with endings written out."
-  [word f rests? x]
-  (if-let [[body n] (mt/repeat-of x)]
-    (mt/repeated (read-notes word f rests? body) n)
-    (apply list (map f (cond->> (mt/played-leaves (finite! word x))
-                         (not rests?) (remove #(= :REST (:type %))))))))
-
-(def ^:private articulation-order
-  [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
-
-(defn articulation-name
-  "The articulation a leaf was written with, by its length and dynamic
-   (a drum by its dynamic alone), else nil."
-  [x]
-  (let [drum? (= :DRUM (:type x))
-        a     (:articulation x)
-        dyn   (or (:dynamic x) 0)]
-    (when (or a (not= 0 dyn))
-      (some (fn [k] (let [v (data/articulations k)]
-                      (when (and (= dyn (:dynamic v)) (or drum? (= a (:duration v)))) k)))
-            articulation-order))))
-
-(defn note-pitch
-  "A note's pitch, a chord's pitches lowest first, nil for a rest or drum."
-  [x]
-  (let [ps (some-> (:pitches x) seq sort)]
-    (if (next ps) (apply list ps) (first ps))))
-
-(defn instrument-of
-  "A note's own instrument; nil for a drum, whose sound is a key of the
-   drum kit, not a program (drum-of)."
-  [x]
-  (when-not (= :DRUM (:type x)) (get-in x [:overrides :instrument])))
-
-(defn drum-of
-  "A drum's key; nil for anything else."
-  [x]
-  (when (= :DRUM (:type x)) (:program x)))
-
 ;; -- a stream onto a line: volumes, articulations, instruments -----------------
-
-(defn onto
-  "x with (f note value) for each note of the line in written order, the stream's values in turn; a rest takes
-   none, as a generated stream has none for it (volume/euclid), and
-   notes past the stream's end stay as they are. The line keeps its
-   form: repeats, loops and nested lines."
-  [word f x vs]
-  (when-not (or (mt/leaf? x) (v/material? x))
-    (e/mu-error (str word ":") "puts a stream onto a line or a note, got" (p/show x)))
-  (let [cur (volatile! (seq (mt/elements (streamed vs))))
-        put (fn [l]
-              (if (= :REST (:type l))
-                l
-                (if-let [[v & more] @cur] (do (vreset! cur more) (if (nil? v) l (f l v))) l)))]
-    (mt/map-leaves put x)))
-
-(defn set-articulation [l a]
-  (if-let [{:keys [duration dynamic]} (data/articulations (keyword a))]
-    (cond-> (assoc l :dynamic dynamic) (and duration (not= :DRUM (:type l))) (assoc :articulation duration))
-    (e/mu-error "with-articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
-
-(defn set-instrument [l i]
-  (when (= :DRUM (:type l))
-    (e/mu-error "with-instruments: a drum has no instrument, its sound is a key of the kit -- use with-drums"))
-  (assoc-in l [:overrides :instrument]
-            (or (when (number? i) (int i)) (data/program-of i)
-                (e/mu-error "with-instruments:" (pr-str i) "is not a program or General MIDI name"))))
-
-(defn- drum-key [word i]
-  (or (when (number? i) (int i)) (data/resolve-drum (name i))
-      (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
-
-(defn set-drum [l i]
-  (when-not (= :DRUM (:type l))
-    (e/mu-error "with-drums: a note is no drum -- as-drums turns notes into drums"))
-  (assoc l :program (drum-key "with-drums" i)))
-
-(defn as-drum
-  "The note as the drum i, keeping its length, its articulation's weight
-   and its own settings (volume and the like); its pitch and instrument
-   go."
-  [l i]
-  (if (= :DRUM (:type l))
-    (set-drum l i)
-    (merge (d/drum nil nil (:duration l) (drum-key "as-drums" i))
-           (select-keys l [:dynamic :tied])
-           {:overrides (dissoc (:overrides l) :instrument)})))
-
-(defn with-settings
-  "x with the settings (written instructions) in front: inserted at the
-   start of a line -- its own come after them, so they still win -- or
-   of a note made a line; anything else (a { }, a repeat) wrapped in a
-   line that holds them."
-  [x settings]
-  (let [shown (p/show (mt/->material x))]
-    (mt/read-text
-     (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
-                               (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
-       (str "[" id settings " " body "]")
-       (str "[" settings " " shown "]")))))
-
-(defn pitch-of [x]
-  (cond (number? x) x
-        (mt/leaf? x) (or (first (:pitches x)) (e/mu-error "transpose: a rest has no pitch"))
-        :else (e/mu-error "transpose: needs two notes or pitch numbers, got" (p/show x))))
 
 (defn- above-repeat
   "[below repeat xs]: what lies above the nearest repeat on the stack,
@@ -540,91 +370,7 @@
                                             (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
                                           (peek out))))))))
 
-(defn- pitches-of [x] (vec (mapcat :pitches (mt/leaves x))))
-
-(defn invert-around
-  "x mirrored through d/invert around (axis pitches), unchanged when it
-   has no pitch."
-  [axis x]
-  (let [ps (pitches-of x)]
-    (if (seq ps) (mt/map-leaves (d/invert (axis ps)) x) x)))
-
-(def on-mean
-  "The rounded mean, musics.algo.common.reshape/invert's axis."
-  #(Math/round (double (/ (reduce + %) (count %)))))
-
 ;; -- the retrograde -------------------------------------------------------
-
-(defn- changing-keys
-  "{key envelope} of the settings ctx changes after its start: what a
-   line's own instructions written among its notes do."
-  [ctx]
-  (into {} (for [[k env] (some-> ctx :envelopes-atom deref)
-                 :when (some pos? (some-> env :points-atom deref keys))]
-             [k env])))
-
-(defn- bake
-  "x with each note's value of what its line's instructions change (a
-   !f, a ramp) written into the note as its own override, read where the
-   note is written: so the music sounds the same reversed, the
-   instructions themselves left behind. A note's own override wins."
-  [x]
-  (let [ctx  (when (v/material? x) (:context (v/node x)))
-        keys (changing-keys ctx)]
-    (if (empty? keys)
-      x
-      (mt/map-leaves
-       (fn [leaf]
-         (if-let [off (some (fn [[cx o]] (when (identical? (:envelopes-atom cx) (:envelopes-atom ctx)) o))
-                            (:ctx-chain leaf))]
-           (reduce (fn [l [k env]]
-                     (let [v (c/sample-at env off)]
-                       (if (or (nil? v) (contains? (:overrides l) (keyword k))) l (assoc-in l [:overrides (keyword k)] v))))
-                   leaf keys)
-           leaf))
-       x))))
-
-(declare retrograde)
-
-(defn- backwards
-  "An element of a line as it plays backwards: a nested line reversed
-   too, a parallel's parts each, a repeat's body (one with endings is
-   refused: no repeat plays its passes backwards)."
-  [x]
-  (cond
-    (mt/repetition? x)
-    (let [[t n body alt bars] (mt/repeat-parts x)]
-      (when alt (e/mu-error "[R]: a repeat with volta endings can't be played backwards -- write it out first with [!]"))
-      (when t (e/mu-error "[R]: a tremolo can't be played backwards"))
-      (mt/repetition (retrograde body) n [] bars))
-    (= :SEQ (mt/kind x)) (retrograde x)
-    (= :PAR (mt/kind x)) (reshape x #(mapv retrograde %))
-    :else x))
-
-(defn- tie-backwards
-  "The elements reversed, each nested one backwards too, each tie moved
-   to the note now before its partner: c~ c d reversed is d c~ c."
-  [els]
-  (let [r (mapv backwards (reverse els))
-        n (count r)]
-    (vec (for [j (range n)
-               :let [x (r j) nxt (when (< (inc j) n) (r (inc j)))]]
-           (if (and (map? x) (contains? x :tied))
-             (assoc x :tied (boolean (and (map? nxt) (:tied nxt))))
-             x)))))
-
-(defn retrograde
-  "x backwards, at any depth: its elements reversed (nested lines,
-   parallels' parts and repeats' bodies too), ties turned round, what its
-   own instructions change written into the notes; a line with jumps ($
-   DS DC Fine Coda ./.) is refused -- write it out first ([!])."
-  [x]
-  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (mt/elements x)))
-    (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
-  (cond
-    (mt/repetition? x)                 (backwards x)
-    (or (mt/leaf? x) (v/material? x))  (reshape (bake x) #(tie-backwards (finite! "[R]" %)))
-    :else                              (reshape x #(reverse (finite! "[R]" %)))))
 
 (defn- alternatives-word
   "( x q … -- part ) or ( x -- part ): the text's kw [ … ] of the
@@ -691,7 +437,6 @@
          ["music" "line"                 "music" "[n]"]
          ["music" "together"             "music" "{n}"]
          ["music" "chord"                "music" "<>"]
-         ["tool"  "times"                "tool"  "[*]"]
          ["tool"  "head"                 "tool"  "[H]"]
          ["tool"  "shuffling"            "tool"  "[?]"]
          ["tool"  "SFL"                  "tool"  "shuffle"]
@@ -703,18 +448,6 @@
   (twin! ns name sign-ns sign))
 
 ;; -- harmony ----------------------------------------------------------------
-
-(defn played-leaves
-  "x's notes, chords and rests in the order they play: nested lines and
-   repeats (pass after pass, with their endings) walked through."
-  [word x]
-  (cond
-    (mt/leaf? x)                                    [x]
-    (= :PAR (mt/kind x))                            (e/mu-error (str word ":") "walks under one line of chords, not a parallel")
-    (and (mt/repetition? x) (= :infinite (mt/repeat-count x)))
-    (e/mu-error (str word ":") "needs all of the chords, and an endless repeat has no end -- repeat it a number of times")
-    (or (v/material? x) (sequential? x))            (mapcat #(played-leaves word %) (mt/elements x))
-    :else                                           []))
 
 ;; -- finding names ----------------------------------------------------------
 
