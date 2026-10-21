@@ -843,10 +843,14 @@ that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
 `musics.algo.harmonic.progression` (`prog` in `user`) writes roman-
 numeral schemes as chord symbols: `prog/blues` holds twelve-bar blues
-(`:basic` `:quick-change` `:minor` `:jazz`), and `(prog/->mus :jazz
+(`:basic` `:quick-change` `:minor` `:jazz`), `musics.common.music-data/
+choruses` the choruses of `doc/lilypond-chordmode-chords.pdf`
+(`:blues-chorus`, `:jazz-chorus` -- rhythm changes, 32 bars AABA --
+`:jazz-ii-V-I-chorus`), each with the key it's written in as its
+default `:tonic`, and `(prog/->mus :jazz
 {:tonic "F" :name :blues})` gives `[blues: !M:4/4 F3/1:7 | B&3:7 | ...]`,
 roots spelled in the key, a duration only where it changes, a closing
-bar on the tonic (`:end`, true), `:hit` to strike each chord per beat,
+bar on the tonic (`:end`, true; none when the scheme ends on it), `:hit` to strike each chord per beat,
 `:repeat n` the choruses as `repeat n [ ] volta [ [turnaround] [tonic] ]`.
 `musics.algo.harmonic.walking-bass` walks a quarter-note bass under a
 line of chords: the root on each chord's first beat, the beat before

@@ -568,6 +568,32 @@
   {1 0, 2 2, 3 4, 4 5, 5 7, 6 9, 7 10, 9 14, 11 17, 13 21})
 
 ;; ============================================================
+;; 8c. CHORUSES
+;; ============================================================
+
+(def choruses
+  "Chord choruses, from doc/lilypond-chordmode-chords.pdf, as roman
+   numerals in musics.algo.harmonic.progression's notation (bars split
+   by |, a bar's chords sharing it; a numeral, then a chord quality), in
+   4/4, :tonic the key the PDF writes them in -- any other plays them
+   there (prog/->mus :jazz-chorus {:tonic \"F\"})."
+  {:blues-chorus
+   {:tonic "C"
+    :doc   "Twelve-bar blues: three four-bar phrases on I, IV and V, all dominant sevenths, the quick change (IV in bar 2) and V in the last bar"
+    :scheme "I7 | IV7 | I7 | I7 | IV7 | IV7 | I7 | I7 | V7 | IV7 | I7 | V7"}
+   :jazz-chorus
+   {:tonic "B&"
+    :doc   "Rhythm changes, the 32-bar AABA form of I Got Rhythm: A circles I-VI-II-V, the bridge a cycle of dominants (III7 VI7 II7 V7) two bars each, the last A ending on the tonic"
+    :scheme (str "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IIm7 V7 | "
+                 "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IIm7 V7 | "
+                 "III7 | III7 | VI7 | VI7 | II7 | II7 | V7 | V7 | "
+                 "IM7 VI7 | IIm7 V7 | IIIm7 VI7 | IIm7 V7 | Vm7 I7 | IVM7 #IVd7 | IIIm7 VI7 | IM7")}
+   :jazz-ii-V-I-chorus
+   {:tonic "C"
+    :doc   "The ii-V-I four times, with the usual substitutions: plain, a secondary dominant (VI7 flat nine) back to the ii, plain, the tritone substitute (bII7) and a turnaround"
+    :scheme "IIm7 V7 | IM7 | IIm7 V7 | IM7 VI7.9- | IIm7 V7 | IM7 | IIm7 bII7 | IM7 V7"}})
+
+;; ============================================================
 ;; 9. TEMPOS
 ;; ============================================================
 

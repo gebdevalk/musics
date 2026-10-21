@@ -76,17 +76,31 @@
   [text]
   (or (first (filter #(re-matches #"I(?![IV]).*" %) (str/split (str/trim text) #"[\s|]+"))) "I"))
 
+(defn- scheme-text
+  "scheme's roman numerals: a key of blues or of musics.common.music-data/
+   choruses, or a scheme string itself."
+  [scheme]
+  (let [text (or (blues scheme) (get-in data/choruses [scheme :scheme]) scheme)]
+    (when-not (string? text) (throw (ex-info (str "no scheme " scheme) {:scheme scheme})))
+    text))
+
+(defn- tonic-of
+  "The tonic opts asks for, else the chorus' own, else C."
+  [scheme opts]
+  (or (:tonic opts) (get-in data/choruses [scheme :tonic]) "C"))
+
 (defn bars
-  "scheme (a scheme string or a key of blues) in tonic's key ->
+  "scheme (a scheme string, a key of blues or of music-data's choruses)
+   in tonic's key (a chorus' own by default, else C) ->
    a vector of bars, each a vector of chords (see chord) with their
    :duration, one bar a whole note. With hit (a note value), each
    chord is struck as many times as hit fits in its share of the bar.
    With end (true), a last bar holds the tonic (tonic-chord), so the
-   turnaround lands; false leaves the form open, to loop."
-  [scheme {:keys [tonic octave hit end] :or {tonic "C" octave 3 end true}}]
-  (let [text       (get blues scheme scheme)
-        _          (when-not (string? text) (throw (ex-info (str "no scheme " scheme) {:scheme scheme})))
-        [l a]      (parse-tonic tonic)
+   turnaround lands, unless the scheme ends on it already; false leaves
+   the form open, to loop."
+  [scheme {:keys [octave hit end] :or {octave 3 end true} :as opts}]
+  (let [text       (scheme-text scheme)
+        [l a]      (parse-tonic (tonic-of scheme opts))
         tonic-midi (+ (* 12 (inc octave)) (data/diatonic-pcs l) a)
         form       (vec (for [bar (str/split (str/trim text) #"\s*\|\s*")
                               :let [numerals (str/split bar #"\s+")
@@ -96,7 +110,8 @@
                                      c (repeat strikes (chord l tonic-midi n))]
                                  (assoc c :duration (/ share strikes))))))]
     (cond-> form
-      end (conj [(assoc (chord l tonic-midi (tonic-chord text)) :duration 1)]))))
+      (and end (not= (tonic-chord text) (str/trim (peek (str/split text #"\|")))))
+      (conj [(assoc (chord l tonic-midi (tonic-chord text)) :duration 1)]))))
 
 (defn- section
   "bars as chord symbols, a bar line between bars."
@@ -110,7 +125,7 @@
    second."
   [scheme n opts last]
   (let [form  (bars scheme (assoc opts :end false))
-        text  (get blues scheme scheme)
+        text  (scheme-text scheme)
         tonic (bars (tonic-chord text) (assoc opts :end false))
         held  (peek (bars (tonic-chord text) (assoc opts :end true :hit nil)))]
     (when (< (count form) 3)
@@ -123,14 +138,16 @@
 (defn ->mus
   "scheme (see bars) as musics text: `[name: !M:4/4 F3/1:7 | ... ]`,
    a bar line between bars, ready for musics.core/parse. Options:
-   :tonic (\"C\", spelled as musics text spells it: \"B&\", \"F#\"),
+   :tonic (spelled as musics text spells it: \"B&\", \"F#\"; a chorus'
+   own, else \"C\"),
    :octave of the tonic (3), :hit (nil: one chord per its share of a bar),
    :end (true: a closing bar on the tonic), :name (none: an unnamed
    line), :repeat n (none: once) the choruses as a repeat with volta
    endings (volta-form), the turnaround first, the tonic last."
   ([scheme] (->mus scheme {}))
   ([scheme {:keys [name repeat] :as opts}]
-   (let [last (volatile! nil)]
+   (let [last (volatile! nil)
+         opts (assoc opts :tonic (tonic-of scheme opts))]
      (str "[" (when name (str (clojure.core/name name) ": ")) "!M:4/4 "
           (if repeat (volta-form scheme repeat opts last) (section (bars scheme opts) last))
           " ]"))))
