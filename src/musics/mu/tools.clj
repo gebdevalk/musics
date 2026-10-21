@@ -1,9 +1,9 @@
 (ns musics.mu.tools
-  "mu's tools (doc/md/mu-repl.md, section 8): make, form, selection and
-   map in namespace tool, assemble and the meaning tools in music. A
-   tool keeps the form: on a line it gives a line, on a parallel a
-   parallel, on a stream a stream. Endless results (cycle, iterate) are
-   lazy streams; take makes them finite."
+  "The tool and music words that read the stack's shape
+   (doc/md/mu-repl.md, section 8): split-at (two values), what lies
+   above a | mark or a repeat, the top n ({n} [n] <>), and choose and
+   alternate with their quotations; each with its named twin. The other
+   tool and music words are musics.tool and musics.music."
   (:require [clojure.string :as str]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -18,20 +18,12 @@
     (when-not (and (integer? n) (>= n 0)) (e/mu-error (str word ":") "needs a whole number on top, got" (p/show n)))
     n))
 
-;; -- make (tool) ----------------------------------------------------------
-
-;; -- access (tool) --------------------------------------------------------
-
-;; -- form (tool) ----------------------------------------------------------
+;; -- split-at (tool) ------------------------------------------------------
 
 (word! "tool" "split-at" "( x n -- a b )  the first n elements and the rest, as two values"
        (fn [s]
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (mt/reshape x (partial take n)) (mt/reshape x (partial drop n))))))
-
-;; -- a chunk: slice, splice, within (tool) --------------------------------
-
-;; -- selection and map (tool) ---------------------------------------------
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 
@@ -98,7 +90,7 @@
                                             (e/mu-error "vary: a quotation must leave one value a pass, left" (count out)))
                                           (peek out))))))))
 
-;; -- the retrograde -------------------------------------------------------
+;; -- alternatives: choose and alternate --------------------------------------
 
 (defn- alternatives-word
   "( x q … -- part ) or ( x -- part ): the text's kw [ … ] of the
@@ -133,8 +125,6 @@
 (word! "music" "[\\]" "( x q … -- part ) or ( x -- part )  alternate [ … ]: the alternatives in turn, one each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [\\] [~] plays I, R, I, …), or without them x's own elements"
        (alternatives-word "[\\]" "alternate"))
 
-;; -- head and tail: a count on top, else 1 ---------------------------------
-
 ;; -- twins: a word beside each sign, a name Clojure can carry too ----------
 
 (defn- twin!
@@ -145,15 +135,9 @@
     (word! sign-ns sign (str effect " (also " name ")") fn)))
 
 (doseq [[ns name sign-ns sign]
-        [["music" "retrograde"           "music" "[R]"]
-         ["music" "choosing"             "music" "[|]"]
+        [["music" "choosing"             "music" "[|]"]
          ["music" "alternating"          "music" "[\\]"]
          ["music" "line"                 "music" "[n]"]
          ["music" "together"             "music" "{n}"]
          ["music" "chord"                "music" "<>"]]]
   (twin! ns name sign-ns sign))
-
-;; -- harmony ----------------------------------------------------------------
-
-;; -- finding names ----------------------------------------------------------
-
