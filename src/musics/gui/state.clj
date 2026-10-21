@@ -85,6 +85,10 @@
         spaced (str/replace n #"(?<=[a-z])(?=[A-Z])" " ")]
     (str (str/upper-case (subs spaced 0 1)) (subs spaced 1))))
 
+(def ^:private combo-keys
+  "Keys shown as a name dropdown (combo-specs), never a slider."
+  #{:instrument :kit :accent})
+
 (def param-specs
   "Context keys this GUI shows as a slider -- canonical key -> slider
    bounds/format, computed directly from musics.common.context-keys/context-keys
@@ -98,8 +102,8 @@
    nothing reads gets no slider, and gains one the moment resolve
    samples it, with no GUI-side change at all; its :scale (:log for tempo/ratios) is passed
    on to the slider -- EXCEPT
-   :instrument, deliberately excluded: it already gets a name-based
-   dropdown (see combo-specs) rather than a raw 0-127 slider.
+   the combo-keys, deliberately excluded: they get a name-based dropdown
+   (see combo-specs) rather than a raw slider (:kit's 0-127).
    :label is derived from the key's own name (see humanize-label);
    :fmt is %.0f when the registered range is all-integer bounds, %.2f
    otherwise; :zoom-floor (a GUI-only interaction concern with no
@@ -117,7 +121,7 @@
         rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
     (into (sorted-map-by #(compare (rank %1) (rank %2)))
           (for [[key {:keys [range scale]}] registry
-                :when (and range (not= key :instrument) (resolve/played-keys key))]
+                :when (and range (not (combo-keys key)) (resolve/played-keys key))]
             (let [[lo hi] range
                   lo (double lo)
                   hi (double hi)
@@ -141,7 +145,9 @@
    already reaches every value in its real 0-100 range -- a strictly
    more restrictive alternative sitting right next to the slider that
    already subsumes it, not a second, independently useful control."
-  {:instrument {:label "Instrument" :lookup data/instruments}})
+  {:instrument {:label "Instrument" :lookup data/instruments}
+   :kit        {:label "Kit" :lookup data/kits}
+   :accent     {:label "Accent" :lookup data/accents}})
 
 (def *state
   (atom {:transport :stopped
@@ -293,11 +299,14 @@
 (defn- read-combo
   "The display name for id's current value of key, per lookup's own
    :value->name -- falls back to lookup's first item if the raw value
-   doesn't match any known name."
+   doesn't match any known name. A list of programs (!i:40,73, several
+   instruments at once) shows its first; a number is matched as an int,
+   anything else (accent's :metric, nil) as itself."
   [id key {:keys [lookup]}]
-  (let [v (m/ctx-value id key 0)]
-    (or (get (:value->name lookup) (some-> v int))
-        (first (:items lookup)))))
+  (let [v (m/ctx-value id key 0)
+        v (if (sequential? v) (first v) v)]
+    (get (:value->name lookup) (if (number? v) (int v) v)
+         (first (:items lookup)))))
 
 (defn- write-value!
   "The one place that actually mutates a real Context: root? picks
@@ -668,7 +677,8 @@
                (fn [s]
                  (-> s
                      (assoc :playing-ids (engine/playing-ids)
-                            :voice-details (live-voice-details))
+                            :voice-details (live-voice-details)
+                            :hushed (engine/hushed))
                      (assoc-in [:wall :assignments] (m/algo-assignments)))))
         (Thread/sleep 200))))
   nil)

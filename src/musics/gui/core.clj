@@ -362,14 +362,16 @@
    every other committed top-level id. Purely informational (no watch!/
    play here) -- use the Play Builder to act on one; its own Play
    Change path field wants exactly the path spelling shown below."
-  [playing-ids voice-details]
+  [playing-ids voice-details {:keys [hushed solo]}]
   (ui/titled-panel
     {:title "Voices"
      :children
      (-> [(ui/label {:text (str "Playing (material): " (str/join ", " (map name (sort playing-ids))))})]
          (into (for [[path {:keys [algo]}] (sort-by (comp str first) voice-details)]
-                 (ui/label {:text (str "    " (str/join "/" (map name path))
-                                        " — algo: " (or algo "(none)"))})))
+                 (ui/label {:text (str "    " (str/join "/" (map #(if (keyword? %) (name %) (str %)) path))
+                                        " — algo: " (or algo "(none)")
+                                        (cond (= path solo)               "  — solo"
+                                              (contains? hushed path)     "  — hushed"))})))
          (conj (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})))}))
 
 (defn- midi-input-panel
@@ -455,7 +457,7 @@
                 "    Ids: " ids-count)}))
 
 (defn- state-view
-  [{:keys [transport new-id watched playing-ids voice-details theme record browser midi-input]}]
+  [{:keys [transport new-id watched playing-ids voice-details hushed theme record browser midi-input]}]
   (show-on-top
     {:fx/type :stage
      :showing true
@@ -487,7 +489,7 @@
            [(transport-bar transport theme)
             (watch-row new-id)
             (panels-row)
-            (voices-panel (or playing-ids #{}) (or voice-details {}))
+            (voices-panel (or playing-ids #{}) (or voice-details {}) (or hushed {}))
             (ui/label {:text (str "Watching: " (str/join ", " (map name (keys (dissoc watched :ROOT)))))})
             (midi-input-panel midi-input)
             (record-panel record)]}})

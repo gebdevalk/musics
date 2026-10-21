@@ -35,6 +35,18 @@
    just re-keyed by display name instead of by number."
   (name-lookup (into {} (map (fn [[k v]] [k (:prog v)]) md/gm-sound-set))))
 
+(def kits
+  "Drum kit names -> the drum channel's program, !kit:'s own table
+   (musics.common.music-data/drum-kits)."
+  (name-lookup md/drum-kits))
+
+(def accents
+  "!accent:'s choices, off first: how a note's velocity follows its place
+   or length (musics.events/felt)."
+  {:items       ["off" "metric" "barlow" "agogic"]
+   :name->value {"off" nil "metric" :metric "barlow" :barlow "agogic" :agogic}
+   :value->name {nil "off" :metric "metric" :barlow "barlow" :agogic "agogic"}})
+
 (def dynamics
   "Dynamic mark names (:pp :mf :ff ...) -> the velocity value !mf/!ff/
    etc. already set on :volume when authored as text."

@@ -1111,8 +1111,15 @@
   (when-let [nodes (ancestor-path view part)]
     (->> nodes reverse (keep :context))))
 
+(defn- fmt-value
+  "A context value as text writes it: a key G.major, a meter 12/8."
+  [v]
+  (cond (instance? musics.common.music_elements.Key v)   (el/key->str v)
+        (instance? musics.common.music_elements.Meter v) (el/meter->str v)
+        :else                                            (pr-str v)))
+
 (defn- fmt-point [[time [value ip]]]
-  (str (pr-str value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
+  (str (fmt-value value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
 
 (defn- fmt-context
   "One-line summary of a Context's own envelope points, or nil if it
