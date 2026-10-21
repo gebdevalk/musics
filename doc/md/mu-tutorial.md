@@ -111,6 +111,10 @@ its own, with no music under it, the voice starts its own music again:
 
 `echo` prints each note as it sounds; `echo` again stops it.
 
+`gui` opens musics' GUI beside mu, on what mu plays: the transport, the
+parts and their contexts as sliders, the Wall and Record MIDI. Closing
+it leaves mu running, and `gui` opens it again.
+
 ## 3. Putting music together
 
 | Word | Stack | Does |

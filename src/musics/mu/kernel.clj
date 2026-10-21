@@ -455,6 +455,15 @@
            (println (m/soundfont x))
            (pop s))))
 
+(word! "play" "gui" "( -- )  open musics' GUI beside mu: transport, the parts and their contexts as sliders, the Wall, Record MIDI; closing it leaves mu running and gui opens it again"
+       (fn [s]
+         (m/gui)
+         ;; JavaFX ends when its last window closes, unless told not to:
+         ;; then gui couldn't open it again. By reflection, so loading
+         ;; mu needs no JavaFX class.
+         (clojure.lang.Reflector/invokeStaticMethod "javafx.application.Platform" "setImplicitExit" (object-array [false]))
+         s))
+
 (defn- context-text
   "vals ({key value}, keys as a context holds them) as a ^{ } literal,
    those keep? accepts."

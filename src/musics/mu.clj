@@ -144,6 +144,7 @@
              "echo     prints each note"
              "voices   'voices' or '<<' lists the playing voices: 1..n low to high, 0 -1 … the drums"
              "         ':id <' gives what :id plays; :id stop, :id hush, :id solo"
+             "gui      opens the GUI beside mu (closing it leaves mu running)"
              "leave    bye or Ctrl+D"]))
 
 (defn repl
