@@ -42,6 +42,15 @@
   (is (= "0> [C4/4 D4]\n1> 7\n----\n" (out "7 [c d] .s")) "top first, numbered as pick counts, ---- under the last")
   (is (= "" (out ".s")) "an empty stack shows nothing"))
 
+(deftest spreading
+  (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d e] spread")))) "a line's notes, one an item")
+  (is (= ["[C4/4 D4]" "[E4/4]"] (map p/show (:ok (run "{[c d] [e]} **")))) "** is spread: a parallel's parts")
+  (is (= [1 2 3] (:ok (run "'[1 2 3] spread"))) "data's values")
+  (is (= [7 1 2] (:ok (run "7 '[1 2] **"))) "what lies under stays")
+  (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d | e] spread")))) "bar lines left out")
+  (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused")
+  (is (re-find #"^spread: has no elements" (:error (run "7 spread"))) "an error named by the word"))
+
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
          (:ok (run "1 2 add  1/2 1/4 sub  2 3 mul  1 2 div  9 7 mod  3 neg  -3 abs  2 3 min  4 3 max  7/2 int  3/4 float  0.75 rational"))))
