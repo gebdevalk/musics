@@ -178,63 +178,6 @@
 (word! "kernel" "ge" "( a b -- flag )  true when a is at least b" (num2 "ge" >=))
 (word! "kernel" "not" "( flag -- flag )  true becomes false, false true" (fn [s] (need s 1 "not") (conj (pop s) (not (peek s)))))
 
-;; -- the musical symbols ------------------------------------------------------
-
-(defn- musical? [x] (or (mt/leaf? x) (v/material? x) (and (sequential? x) (not (string? x)))))
-
-(defn- on-material
-  "A word ( material n -- material' ): (g n material). On two numbers
-   it points to the numeric word (+ add, - sub, * mul, / div)."
-  [word g check]
-  (fn [s]
-    (need s 2 word)
-    (let [n (peek s) x (peek (pop s))]
-      (cond
-        (and (number? x) (number? n))
-        (e/mu-error (str word ":") "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} word))
-        (not (and (musical? x) (number? n)))
-        (e/mu-error (str word ":") "needs material and a number, got" (p/show x) "and" (p/show n))
-        :else (do (check n) (conj (pop (pop s)) (g n x)))))))
-
-(defn- whole! [word n] (when-not (integer? n) (e/mu-error (str word ":") "transposes by a whole number of semitones, got" n)))
-(defn- positive! [word n] (when-not (pos? n) (e/mu-error (str word ":") "needs a positive factor, got" n)))
-
-(defn- or-key
-  "f, but a key under a whole number moves by that many semitones
-   times sign (D.major 2 + gives E.major)."
-  [f sign]
-  (fn [s]
-    (let [n (peek s) k (when (> (count s) 1) (peek (pop s)))]
-      (if (and (instance? musics.common.music_elements.Key k) (integer? n))
-        (conj (pop (pop s)) (el/transpose-key k (* sign n)))
-        (f s)))))
-
-(word! "music" "+" "( material|key n -- up n semitones )  every pitch up n semitones, its key with it (!K: at the start of its line): [c e g] 7 +; a key moves up too"
-       (or-key (on-material "+" (fn [n x] (mt/transposed x n)) (partial whole! "+")) 1))
-(word! "music" "-" "( material|key n -- down n semitones )  every pitch down n semitones, its key with it: [c e g] 12 -"
-       (or-key (on-material "-" (fn [n x] (mt/transposed x (- n))) (partial whole! "-")) -1))
-;; The factor is kept as the leaf's :ratio, as c4*1/3 keeps it, so a
-;; length that is no note value prints as written: c4 1/3 * as C4/4*1/3.
-(defn- scale-duration [leaf f]
-  (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
-
-(word! "music" "*" "( material f -- durations times f )  every duration times f: [c d] 2 * gives halves"
-       (on-material "*" (fn [f x] (mt/map-leaves #(scale-duration % f) x)) (partial positive! "*")))
-(word! "music" "/" "( material f -- durations divided by f )  every duration divided by f: [c d e] 3 / gives a triplet"
-       (on-material "/" (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) (partial positive! "/")))
-
-(defn- hairpin [word dir]
-  (fn [s]
-    (need s 2 word)
-    (let [target (peek s) x (peek (pop s))]
-      (when-not (and (number? target) (<= 0 target 100))
-        (e/mu-error (str word ":") "needs a target volume 0-100 on top, got" (p/show target)))
-      (when-not (musical? x) (e/mu-error (str word ":") "needs material under the target, got" (p/show x)))
-      (conj (pop (pop s)) (mt/hairpin (mt/->material x) dir target)))))
-
-(word! "music" "cresc" "( material target -- crescendo to target )  a crescendo over the material, up to a volume 0-100" (hairpin "cresc" "<"))
-(word! "music" "dim" "( material target -- diminuendo to target )  a diminuendo over the material, down to a volume 0-100" (hairpin "dim" ">"))
-
 (word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
        (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
 

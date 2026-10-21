@@ -286,7 +286,18 @@ reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
 gathered into a line, `| … seq`); `musics.mu.kernel` and `musics.mu.tools` hold the
-words, `musics.mu.material` what they share. The prompt is `mu<n>` (the
+words, `musics.mu.material` what they share. A word can be a plain
+Clojure function: `musics.music`'s public functions are mu's words
+(`musics.mu.library` registers each under its name, a trailing `!` left
+off, and its `:mu :names`, signs like `[R]` and `+`), and
+`musics.mu.eval` runs such a `{:var v}` word by taking its arguments
+from the stack, music first (the longest arity whose extra arguments
+pass their `:mu :optional` test), pushing the one value it returns --
+nothing for a `!` function -- and naming an error by the word; the
+bridge's `mu/…` for it calls the var, so a redefinition changes the
+word everywhere. The `music` namespace's words are functions there,
+but for those that read the stack's shape (`seq` `par` `{n}` `[n]` `<>`
+`volta` `vary` `[|]` `[\]`), which stay stack words in `musics.mu.tools`. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D returns, the stack lasts the session.
 Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/

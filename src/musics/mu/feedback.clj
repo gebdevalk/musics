@@ -198,22 +198,6 @@
         :else (concat (map #(cons (first xs) %) (combinations (dec k) (rest xs)))
                       (combinations k (rest xs)))))
 
-(word! "music" "combos" "( leaf numbers k -- line )  a copy of the leaf per k of the numbers layered: a drum's keys, a note's instruments"
-       (fn [s]
-         (need s 3 "combos")
-         (let [k (peek s) ns (peek (pop s)) x (peek (pop (pop s)))]
-           (when-not (sound? x)
-             (e/mu-error "combos: needs a note, chord or drum under the numbers, got" (p/show x)))
-           (let [nums (vec (distinct (mt/elements ns)))]
-             (when-not (every? #(and (integer? %) (<= 0 % 127)) nums)
-               (e/mu-error "combos: needs whole numbers 0-127 (drum keys or instruments), as '[40 41 71 73]"))
-             (when-not (and (integer? k) (<= 1 k (count nums)))
-               (e/mu-error "combos: needs a count 1 to" (count nums) "on top, got" k))
-             (conj (pop (pop (pop s)))
-                   (mt/line (for [c (combinations k nums)
-                                  :let [v (if (= 1 k) (first c) (vec c))]]
-                              (if (= :DRUM (:type x)) (assoc x :program v) (assoc-in x [:overrides :instrument] v)))))))))
-
 (word! "rate" "taste" "( -- )  the ratings: per sound, then per instrument or drum, best first (mean, count)"
        (fn [s]
          (let [rs (fb/ratings)]

@@ -104,8 +104,9 @@
 (defn- word-fn [qualified w]
   (let [{:keys [effect] v :var} (e/lookup @e/state qualified)
         f (cond
-            ;; a word that is a Clojure function: that function itself
-            v           (fn [& args] (apply @v args))
+            ;; a word that is a Clojure function: that function, its
+            ;; value shown as mu shows it
+            v           (fn [& args] (shown (apply @v args)))
             (counting w) (fn [& args] (run qualified (concat args [(count args)])))
             :else        (fn [& args] (run qualified args)))]
     [f (str (or (:doc (meta v)) effect))]))
