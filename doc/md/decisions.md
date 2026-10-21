@@ -1752,6 +1752,14 @@ is done for its effect. `:mu` metadata names the signs and the tests of
 optional arguments -- declared on the function, as algos declare
 themselves with `:algo`, rather than inferred by a rule. Words that read
 the stack's shape (gathering to a mark, a count the grammar pushes, any
-number of quotations) stay stack words. Migrated namespace by namespace,
-`music` first; the functions still call `musics.mu.tools`' helpers.
+number of quotations, `split-at`'s two values, the play words' optional
+context, mark and voice) stay stack words. All five word namespaces
+went this way (`musics.kernel`, `musics.tool`, `musics.music`,
+`musics.play`, `musics.rate`). The algo words stay generated from the
+registry (`musics.mu.algos`): the algos already are Clojure (the tree
+constructors, `musics.algo.pitch` …), and a var per algo would only
+repeat the registry. The cost is code: about +280 lines over the stack
+words, a `defn` with its docstring per word where a `word!` line was;
+the gain is one definition per word, readable, callable and testable
+as a function, with the bridge's `mu/…` the function itself.
 
