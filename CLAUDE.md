@@ -860,9 +860,12 @@ fifth, drawn back towards the middle of its range; `:choruses` new
 lines joined end to start, `:end` the last chord held. `wb/->mus id`
 reads a part (`form-of`: a line, or one repeat with its volta endings,
 walked in the same form) and writes `[bass: !i:acousticBass ...]`;
-then `(play #{id :bass})`. In mu the word `walking-bass` ( chords --
+then `(play #{id :bass})`. In mu the word `walking-bass` ( chords [n] --
 bass ) makes it from the line on the stack as it runs, every pass of a
-repeat walked anew (`x dup walking-bass {2} >`). Both draw from
+repeat walked anew: with n as long as the chords n times, each walked
+anew, the last chord held (`x 4 times x 4 walking-bass {2} >`); without,
+an ostinato leading back into its own start, to loop (`x dup
+walking-bass {2} [~] >`). Both draw from
 `musics.algo.random`, so a seed repeats them.
 
 ### Species counterpoint: `musics.algo.logic.counterpoint`
