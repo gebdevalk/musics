@@ -595,6 +595,22 @@
                                       fs (range dice))))
         (+ lo (* (- hi lo) (/ (reduce + @faces) dice)))))))
 
+(defn tendency
+  "Koenig's tendency mask: :len values, each drawn uniformly between a
+   lower and an upper bound that move in a straight line from their
+   start to their end values, so a texture narrows, widens or drifts."
+  {:algo {:in [] :out :number
+          :params {:len      {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}
+                   :lo-start (assoc num-spec :default 48.0 :doc "lower bound at the start")
+                   :lo-end   (assoc num-spec :default 66.0 :doc "lower bound at the end")
+                   :hi-start (assoc num-spec :default 84.0 :doc "upper bound at the start")
+                   :hi-end   (assoc num-spec :default 66.0 :doc "upper bound at the end")}}}
+  [len lo-start lo-end hi-start hi-end]
+  (let [along (fn [a b t] (+ a (* t (- b a))))]
+    (vec (for [i (range len)
+               :let [t (if (> len 1) (/ i (double (dec len))) 0.0)]]
+           (uniform (along lo-start lo-end t) (along hi-start hi-end t))))))
+
 (defn smooth-walk
   "Returns a function that moves toward a target each call with inertia.
    inertia=0 → snaps to target, inertia=1 → ignores target.

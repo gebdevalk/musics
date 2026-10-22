@@ -8,13 +8,13 @@
    Exposed from musics/algo/ -- every fn carrying :algo metadata in these
    namespaces (the full list with params: (musics.algo.tree/algos)):
      musics.algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala drums
-                       polyrhythm sieve necklace swing genetic ...
+                       polyrhythm sieve necklace swing genetic ca ...
      musics.algo.metric       bits cfrac modular
      musics.algo.melodic.*    infra inter ultra polations markov-train
                        markov-gen lsys-melody grammar constrained
-                       modulating counterpoint
+                       modulating counterpoint row row-form (serial)
      musics.algo.random.*     samplers (normal uniform triangular ... -- :len
-                       draws), walks (walk glide cyclic chain), logistic
+                       draws), walks (walk glide cyclic chain), pink, tendency, logistic
                        henon lorenz, poisson sputter choose-n ...
      musics.algo.indispensability  indisp tilt power
    Defined here:
@@ -65,9 +65,9 @@
            musics.algo.indispensability
            musics.algo.logic.counterpoint
            musics.algo.metric
-           musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.slonimsky
+           musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.serial musics.algo.melodic.slonimsky
            musics.algo.random musics.algo.random.henon musics.algo.random.logistic musics.algo.random.lorenz
-           musics.algo.rhythmic.constraint musics.algo.rhythmic.decompose musics.algo.rhythmic.drums musics.algo.rhythmic.fractal-geometric
+           musics.algo.rhythmic.automaton musics.algo.rhythmic.constraint musics.algo.rhythmic.decompose musics.algo.rhythmic.drums musics.algo.rhythmic.fractal-geometric
            musics.algo.rhythmic.micro musics.algo.rhythmic.necklace musics.algo.rhythmic.phase-sieve
            musics.algo.rhythmic.physical musics.algo.rhythmic.poly musics.algo.rhythmic.rhythm
            musics.algo.rhythmic.sonification musics.algo.rhythmic.stochastic musics.algo.rhythmic.transform

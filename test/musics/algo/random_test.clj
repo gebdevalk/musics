@@ -208,6 +208,16 @@
     (is (not-any? #{48 52 48.0 52.0} xs) "clamping would park on an edge; reflecting doesn't")))
 
 ;; ============================================================
+;; tendency -- Koenig's tendency mask
+;; ============================================================
+
+(deftest tendency-draws-between-moving-bounds
+  (let [xs (r/tendency 101 0 50 100 50)]
+    (is (= 101 (count xs)))
+    (is (every? true? (map-indexed (fn [i x] (<= (* i 0.5) x (- 100 (* i 0.5)))) xs)))
+    (is (== 50 (last xs)) "the bounds close on 50")))
+
+;; ============================================================
 ;; pink-noise -- Voss's 1/f dice
 ;; ============================================================
 
