@@ -574,8 +574,8 @@
         (reset! state (scaling/bound boundary clip-lo clip-hi next))))))
 
 (defn pink-noise
-  "Returns a function giving 1/f (\"pink\") noise between lo and hi,
-   Voss's algorithm as Dodge & Jerse give it (8.1): `dice` dice, the
+  "Pink (1/f) noise between lo and hi, by Voss's dice.
+   Returns a function, Voss's algorithm as Dodge & Jerse give it (8.1): `dice` dice, the
    k-th rolled again whenever bit k of a counter changes, the value
    their sum scaled to [lo hi). The first die changes every call, the
    last seldom, so it wanders like a walk yet stays in its range:

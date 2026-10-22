@@ -767,6 +767,47 @@ falling together:
 ^{ @seed:7 @len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
 ```
 
+### Noise, masks, rows and automata
+
+From Dodge & Jerse's *Computer Music*, chapter 8. White noise jumps,
+pink noise (Voss's dice: `@dice`, more is slower) wanders but keeps its
+range, a walk (brown) drifts; `@boundary:reflect` bounces it off its
+clip bounds, given as its pitch range too:
+
+```
+[c8] [~] durations ^{ @len:16 } pitch/uniform zip >
+[c8] [~] durations ^{ @len:16 @dice:5 } pitch/pink zip >
+[c8] [~] durations ^{ @len:16 @step-bound:3 @clip-lo:48 @clip-hi:84 @boundary:reflect @pitch-from-lo:48 @pitch-from-hi:84 @pitch-lo:48 @pitch-hi:84 } pitch/walk zip >
+^{ @seed:4 @len:16 } duration/pink ^{ @seed:5 @len:16 } pitch/pink zip >
+```
+
+A tendency mask draws between two bounds that move, here closing from
+48..84 onto 66 (`@lo-start @lo-end @hi-start @hi-end`):
+
+```
+[c16] [~] durations ^{ @len:32 } pitch/tendency zip >
+```
+
+`pitch/row-classes` is a twelve-tone row (`@kind:allInterval`: every
+interval once), its forms the row forms of section 4 on the line. One
+seed reads one row, so it can be rhythm too -- Babbitt's time points --
+and volume:
+
+```
+^{ @kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
+^{ @seed:3 @kind:allInterval } duration/row-time-points ^{ @seed:3 @kind:allInterval } pitch/row-classes zip >
+^{ @seed:3 @kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ @seed:3 @kind:allInterval @volume-lo:40 @volume-hi:100 @volume-from-hi:11 } volume/row with-volumes >
+```
+
+`duration/ca` is a cellular automaton, a bar of `@width` pulses per
+generation (`@rule:90` Sierpinski, `30` chaos, `110` structure,
+`@start:random`), as notes or drums:
+
+```
+^{ @rule:90 @width:16 @steps:4 @duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
+^{ @rule:30 @width:16 @steps:4 @duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
+```
+
 ### Chords and a walking bass
 
 A chord symbol is a root and a quality, absolute or relative, its
