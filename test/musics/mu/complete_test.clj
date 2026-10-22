@@ -51,7 +51,7 @@
 
 (def ^:private env
   {:words {"walk" "( a -- b )  x" "walking-bass" "( chords [n] -- bass )  a walking bass"
-           "pitch/lorenz" "( -- p )" "pitch/walk" "( -- p )"}
+           "pitch/lorenz" "( -- p )" "pitch/walk" "( -- p )" "?empty" "( x -- f )"}
    :ids   ["bass" "blues" "verse2"]})
 
 (defn- env-values [word] (mapv :value (c/candidates word env)))
@@ -61,7 +61,8 @@
     "walk"     ["walk" "walking-bass"]
     "wal"      ["walk" "walking-bass"]
     "pitch/lo" ["pitch/lorenz"]
-    "pitch/"   ["pitch/lorenz" "pitch/walk"])
+    "pitch/"   ["pitch/lorenz" "pitch/walk"]
+    "?em"      ["?empty"])
   (is (= "( chords [n] -- bass )" (:descr (second (c/candidates "walk" env))))))
 
 (deftest stored-parts-after-a-colon

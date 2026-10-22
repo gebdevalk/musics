@@ -112,7 +112,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 ```
 
 - `: name … ;` defines a word. The colon needs a space after it. The
-  name can't be a leaf (`a`, `c4`, `x`, `R` …).
+  name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
+  (`?empty`); `?name:value` is an algo's param, never a word.
 - **Locals are optional**: with a stack effect `( a b -- c )`, its
   input names are bound as locals; without one, the word is plain stack
   code. Any name may be a local, leaf letters included.

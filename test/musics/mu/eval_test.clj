@@ -95,3 +95,6 @@
   (swap! e/state update :use conj "a" "b")
   (is (re-find #"w is ambiguous, in a and b -- write a/w or b/w" (:error (run "w"))))
   (is (= [:a :b] (:ok (run "a/w b/w"))) "qualified, either can be used"))
+
+(deftest a-word-may-start-with-?
+  (is (= [3 3] (:ok (run ": ?three 3 ; ?three ?three")))))
