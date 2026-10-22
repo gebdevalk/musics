@@ -30,3 +30,9 @@
   (is (= 100 (scaling/scale-range 5 0 10 50 150)))
   (is (= 50 (scaling/scale-range 0 0 10 50 150)))
   (is (= 150 (scaling/scale-range 10 0 10 50 150))))
+
+(deftest bound-clamps-reflects-or-wraps
+  (is (= 10 (scaling/bound :clamp 0 10 13)))
+  (is (= [7 3 5] (map #(scaling/bound :reflect 0 10 %) [13 -3 25])))
+  (is (= [3 7] (map #(scaling/bound :wrap 0 10 %) [13 -3])))
+  (is (= 99 (scaling/bound :reflect ##-Inf ##Inf 99)) "an open range has nothing to bounce off"))

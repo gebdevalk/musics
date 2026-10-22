@@ -36,6 +36,25 @@
     clip-hi (min v clip-hi)
     :else v))
 
+(defn bound
+  "Bring v into [lo hi] the way `boundary` says: :clamp stops at the
+   edge, :reflect bounces back off it (as a random walk does at its
+   limits, Dodge & Jerse 8.1), :wrap comes in at the other end. Either
+   bound may be nil or infinite; :reflect and :wrap need both finite
+   and otherwise clamp.
+
+   (bound :clamp 0 10 13)   ;=> 10
+   (bound :reflect 0 10 13) ;=> 7
+   (bound :wrap 0 10 13)    ;=> 3"
+  [boundary lo hi v]
+  (let [w (when (and lo hi (Double/isFinite lo) (Double/isFinite hi)) (- hi lo))]
+    (cond
+      (or (= boundary :clamp) (nil? w)) (clamp-optional lo hi v)
+      (<= w 0) lo
+      (= boundary :wrap) (+ lo (mod (- v lo) w))
+      :else (let [m (mod (- v lo) (* 2 w))]
+              (+ lo (if (<= m w) m (- (* 2 w) m)))))))
+
 (defn closest-to
   "Whichever of low/hi is numerically closer to n.
 

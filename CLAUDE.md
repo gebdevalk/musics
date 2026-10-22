@@ -678,7 +678,7 @@ its `:arity`. A fn yielding ONE value per call becomes a sequence source
 through metadata alone: `:repeat :len` calls it `:len` times (the
 samplers: `normal`, `triangular`, `int-range`, ...), `:pull {:via :value
 :args [..]}` calls it once for a generator and pulls `:len` values (the
-closures: `walk`, `glide`, `cyclic`, `chain`, `logistic`, `henon`,
+closures: `walk` (`:boundary` clamp, reflect or wrap), `pink` (Voss's 1/f dice), `glide`, `cyclic`, `chain`, `logistic`, `henon`,
 `lorenz`); the count is a param like any other. Every param spec must
 carry `:type` (`:int :double :ratio :string :keyword :vector :map :fn
 :bool :any`) and `:default` (`##NaN` = required — a fitness fn, say), and
