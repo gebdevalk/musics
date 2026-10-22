@@ -1763,3 +1763,15 @@ words, a `defn` with its docstring per word where a `word!` line was;
 the gain is one definition per word, readable, callable and testable
 as a function, with the bridge's `mu/…` the function itself.
 
+
+## 2026-10-22 — an algo's param is ?name:value
+
+An algo's param in musics text was `@name:value`; it is `?name:value`
+now, and the context stores it under `"?name"`. The prefix only has to
+keep a param apart from `!`, the music's keys; `?` is free in musics
+text and reads as asking the algo. `\` was considered and rejected: it
+is already a variable (`\verse`) and, glued to a note, an override of a
+music key (`c4\k:5` is that note's key), so `\k:5` would read as
+either. A bare `k=5` (no prefix, its own sign) was the other candidate.
+A session saved before this keeps its `"@name"` settings, which no
+algo reads any more.

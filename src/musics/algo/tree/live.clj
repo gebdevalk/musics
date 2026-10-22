@@ -22,7 +22,7 @@
      voice's own notes arrive as :nodes and the tree's data replaces them.
 
    The tree runs with what the tctx sets, then the settings of the music
-   the voice plays in (its chain: ^{ @k:5 }, !key:), then the defaults --
+   the voice plays in (its chain: ^{ ?k:5 }, !key:), then the defaults --
    read, for a generating tree, at the voice's first note and after each
    change. Each voice keeps its own position; a change re-runs the tree once and
    continues at the same position. A tree that fails to run keeps the

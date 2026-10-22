@@ -152,7 +152,7 @@
 (defn- decide-keys
   "Occurrences -> the same, each with its :key (see the ns docstring) and
    :at, the context names it is read under, most specific first: the
-   instance's (@bass.k), the algo's (@euclid.k), the plain one (@k).
+   instance's (?bass.k), the algo's (?euclid.k), the plain one (?k).
    A tctx writes a key under the name that matches it."
   [occs]
   (let [shared? (->> (remove #(or (:read %) (:as %)) occs)
@@ -165,10 +165,10 @@
                           (shared? (:name p)) (:name p)
                           :else              (keyword (str (label short) "." pn)))]]
       (assoc o :key key
-               :own (str "@" (if (namespace key) (str (namespace key) "." (name key)) (name key)))
-               :at (vec (remove nil? [(when as (str "@" (name as) "." pn))
-                                      (when-not read (str "@" (label short) "." pn))
-                                      (str "@" pn)]))))))
+               :own (str "?" (if (namespace key) (str (namespace key) "." (name key)) (name key)))
+               :at (vec (remove nil? [(when as (str "?" (name as) "." pn))
+                                      (when-not read (str "?" (label short) "." pn))
+                                      (str "?" pn)]))))))
 
 (defn- spec-of [{:keys [read short p at own]}]
   (if read
@@ -227,7 +227,7 @@
                     {:key k :value v :spec spec}))))
 
 (defn- coerce
-  "A value as written in text (@key:D.major is a keyword, @on?:true too),
+  "A value as written in text (?key:D.major is a keyword, ?on?:true too),
    or a music key's own (a !key: is a Key), in the type `spec` wants."
   [{:keys [type]} v]
   (cond
@@ -256,7 +256,7 @@
 
 (defn- at-of
   "The context name a key is written under: (at-of specs :bass/k) is
-   \"@bass.k\"; a string is taken as it is."
+   \"?bass.k\"; a string is taken as it is."
   [specs k]
   (cond (string? k) k
         (get specs k) (get-in specs [k :own])
@@ -268,7 +268,7 @@
   [a]
   (fn [m]
     (let [by-at (into {} (for [[k s] (:specs (meta a))] [(:own s) [k s]]))]
-      (doseq [[n v] m :when (and (string? n) (= \@ (first n)))]
+      (doseq [[n v] m :when (and (string? n) (= \? (first n)))]
         (if-let [[k s] (by-at n)]
           (check-value! k v s)
           (throw (ex-info (str "musics.algo.tree: " n " is not a param of this tctx") {:key n}))))
@@ -298,7 +298,7 @@
   "Set params in a tctx, each checked against its spec: (setp! tctx :k
    5), (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). A
    key is a tree's key (:k, :euclid.n, :bass/k) or a context name
-   (\"@bass.k\"). All values land in one swap!, so a bad one leaves
+   (\"?bass.k\"). All values land in one swap!, so a bad one leaves
    every value as it was. Returns the params."
   ([tctx m]
    (let [ss (specs tctx)]
@@ -315,7 +315,7 @@
 
 (defn tctx
   "A new tctx for `tree`: an ordinary Context (doc/md/decisions.md,
-   2026-10-14) whose settings are @ names (\"@k\", \"@bass.k\"), set
+   2026-10-14) whose settings are ? names (\"?k\", \"?bass.k\"), set
    with setp!, each checked against its spec on every change. It holds
    only what is set (`overrides`, then setp!); the rest falls through to
    the contexts given to run, then to the defaults. The tree isn't
@@ -415,8 +415,8 @@
 (defn run
   "Run `tree` with the settings in `src` -- a tctx, or a plain map (keys
    it lacks fall through) -- then `chain`, contexts nearest first (the
-   music's own: a ^{ } or a voice's chain), where a param is an @ name
-   (@k, @euclid.k, @bass.k). What none of them sets takes its default.
+   music's own: a ^{ } or a voice's chain), where a param is a ? name
+   (?k, ?euclid.k, ?bass.k). What none of them sets takes its default.
    Every value is checked against its spec; throws, listing them, when a
    required param is unset."
   ([tree src] (run tree src nil))

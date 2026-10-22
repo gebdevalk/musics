@@ -1100,18 +1100,18 @@
     :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
     :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
     :StructValue   (extract-struct-values node)
-    (throw (ex-info (str "@: not a value an algo param takes: " (pr-str node)) {:node node}))))
+    (throw (ex-info (str "?: not a value an algo param takes: " (pr-str node)) {:node node}))))
 
 (defn- walk-algo-assignment
-  "@name:value -- an algo param, stored in the current context under
-   \"@name\", as a point at the current beat (one value, no ramp)."
+  "?name:value -- an algo param, stored in the current context under
+   \"?name\", as a point at the current beat (one value, no ramp)."
   [state children]
   (let [nm  (second (find-child children :AlgoName))
         vn  (first (remove #(tag? % :AlgoName) children))
         v   (algo-value vn)
-        raw (str "@" nm ":" (or (node-text state vn) (pr-str v)))]
-    (c/ctx-append (flat/current-context state) (str "@" nm) (duration state) v :fixed)
-    (flat/append-child state {:type :assignment :key (str "@" nm) :val v :raw raw})))
+        raw (str "?" nm ":" (or (node-text state vn) (pr-str v)))]
+    (c/ctx-append (flat/current-context state) (str "?" nm) (duration state) v :fixed)
+    (flat/append-child state {:type :assignment :key (str "?" nm) :val v :raw raw})))
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)

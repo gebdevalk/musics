@@ -139,32 +139,32 @@
     (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
     (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
     (t/setp! tctx :k 5)
-    (is (= {"@k" 5} @(:envelopes-atom tctx)) "a setting is an @ name")
+    (is (= {"?k" 5} @(:envelopes-atom tctx)) "a setting is a ? name")
     (is (= {:k 5} (t/values tctx)))))
 
 (deftest a-param-falls-through-the-chain
   (let [tctx  (t/tctx riff)
         music (c/context)
-        _     (swap! (:envelopes-atom music) assoc "@k" 5 "@root" 62)]
-    (is (= 5 (count (t/run riff tctx [music]))) "the music's @k: five onsets")
+        _     (swap! (:envelopes-atom music) assoc "?k" 5 "?root" 62)]
+    (is (= 5 (count (t/run riff tctx [music]))) "the music's ?k: five onsets")
     (t/setp! tctx :k 2)
     (is (= 2 (count (t/run riff tctx [music]))) "the tctx comes first")
     (t/unsetp! tctx :k)
     (is (= 62 (first (:pitches (first (t/run riff tctx [music]))))) "unset again, the chain counts"))
   (testing "the most specific name wins within a context; written values are coerced"
     (let [music (c/context)]
-      (swap! (:envelopes-atom music) assoc "@k" 5 "@euclid.k" 4)
+      (swap! (:envelopes-atom music) assoc "?k" 5 "?euclid.k" 4)
       (is (= 4 (count (t/run riff nil [music]))))
       (let [bad (c/context)]
-        (swap! (:envelopes-atom bad) assoc "@k" :x)
+        (swap! (:envelopes-atom bad) assoc "?k" :x)
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) nil [bad]))))
       (let [txt (c/context)]
-        (swap! (:envelopes-atom txt) assoc "@key" :D.major)
+        (swap! (:envelopes-atom txt) assoc "?key" :D.major)
         (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) nil [txt]))) "a bare name read as a string"))))
   (testing "a named instance reads its own name first"
     (let [music (c/context)
           two   (zip (pulses->durations (euclid :as :a)) (cycle> scale))]
-      (swap! (:envelopes-atom music) assoc "@a.k" 2 "@k" 7)
+      (swap! (:envelopes-atom music) assoc "?a.k" 2 "?k" 7)
       (is (= 2 (count (t/run two nil [music])))))))
 
 (deftest one-tree-runs-against-several-tctxs
@@ -176,7 +176,7 @@
   (let [tctx (t/tctx riff)]
     (is (= 5 (:k (t/setp! tctx :k 5))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":k 99 should be at most 32 \(euclid, onsets\)"
-                          (swap! (:envelopes-atom tctx) assoc "@k" 99)) "even a plain swap!")
+                          (swap! (:envelopes-atom tctx) assoc "?k" 99)) "even a plain swap!")
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/setp! tctx :k 1.5)))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/setp! tctx :nope 1)))
     (is (= 5 (:k (t/params tctx))) "a rejected change leaves the value as it was")
@@ -292,7 +292,7 @@
       (is (= out (f out nil {:path [:TA]})) "already-transformed notes pass through"))))
 
 (deftest a-live-tree-reads-the-music-it-plays-in
-  (let [music (doto (c/context) (c/ctx-append "@semitones" 0 5 :fixed) (c/ctx-append "@root" 0 72 :fixed))]
+  (let [music (doto (c/context) (c/ctx-append "?semitones" 0 5 :fixed) (c/ctx-append "?root" 0 72 :fixed))]
     (t/live! :up (transpose :nodes) (t/tctx (transpose :nodes)))
     (is (= [[65]] (map :pitches ((wall/algo :up) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TA]})))
         "a setting the tctx leaves comes from the music")
@@ -332,6 +332,6 @@
   (let [music (c/context)]
     (c/ctx-append music :Key 0 (el/parse-key "D.major") :fixed)
     (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
-    (swap! (:envelopes-atom music) assoc "@key" "C.major")
+    (swap! (:envelopes-atom music) assoc "?key" "C.major")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {} [])) "no context: the default")))

@@ -10,15 +10,15 @@
    taken apart into what the algo wants -- durations (a rest as itself),
    pitches (a chord's lowest, nil for a rest) or leaves -- and a stream
    is taken as it is; a repeat or loop around the inputs is run on what
-   it repeats and put back around the result. A context on top, ^{ @k:5 @n:16 }, is its
+   it repeats and put back around the result. A context on top, ^{ ?k:5 ?n:16 }, is its
    settings: read first, then the music's own (the :ROOT context, so a
-   key param follows !key:), then the defaults. @seed:7 in it runs the
+   key param follows !key:), then the defaults. ?seed:7 in it runs the
    algo on that random seed, so two words with one seed and one source
    read the same run (pitch and volume of one walk). Streams come back as
    streams, leaves as a line, parts as { }.
 
      duration/euclid                    ( -- durations )
-     ^{ @k:5 @n:16 } duration/euclid    ( ctx -- durations )
+     ^{ ?k:5 ?n:16 } duration/euclid    ( ctx -- durations )
      [c8 d e f g] durations duration/emi ( durations -- durations )"
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
@@ -91,7 +91,7 @@
           [args wrap] (around word out (subvec s (- (count s) n)))
           tree    (apply (t/constructor (reg/algo short)) (map input in args))
           chain   (remove nil? [ctx (:context (repo/current :ROOT))])
-          seed    (some-> ctx (#(c/ctx-value-chain [%] "@seed" Double/POSITIVE_INFINITY)))
+          seed    (some-> ctx (#(c/ctx-value-chain [%] "?seed" Double/POSITIVE_INFINITY)))
           run     #(try (output out (t/run tree nil chain))
                         (catch clojure.lang.ExceptionInfo ex
                           (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
@@ -107,7 +107,7 @@
    durations )  its doc  @its @params."
   [{:keys [in out doc params]}]
   (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[^{ @… }] -- " (plural out (name out)) " )  "
-       doc "  " (str/join " " (map #(str "@" (name (:name %))) params))))
+       doc "  " (str/join " " (map #(str "?" (name (:name %))) params))))
 
 (defn register-all!
   "A word for every algo on a shelf in `shelves`. Returns how many."

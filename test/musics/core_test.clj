@@ -769,7 +769,7 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-algo-params
-  (parse! "^{riff: @k:5 @style:rock @iv:0,2,4 @key:\"D.major\"}")
+  (parse! "^{riff: ?k:5 ?style:rock ?iv:0,2,4 ?key:\"D.major\"}")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (m/write (.getPath tmp)))
@@ -778,7 +778,7 @@
       (with-out-str (m/load (.getPath tmp)))
       (let [ctx (:context (m/find :riff))]
         (is (= [5 :rock [0 2 4] "D.major"]
-               (mapv #(c/ctx-value-chain [ctx] % 0) ["@k" "@style" "@iv" "@key"]))))
+               (mapv #(c/ctx-value-chain [ctx] % 0) ["?k" "?style" "?iv" "?key"]))))
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record
