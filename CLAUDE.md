@@ -691,7 +691,13 @@ the tctx like any number. The registry maps short ↔ full names
 constructor. `musics.algo.tree.lib` `expose-ns`es every annotated fn in
 `musics.algo.{indispensability,metric}`, `musics/algo/{melodic,random,rhythmic}` and the bridges — about
 130 algos, each under a short name (`euclid`, `cantor`, `tala`,
-`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
+`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...; from Dodge &
+Jerse's chapter 8, `pink`, `tendency`, `ca` (an elementary cellular
+automaton as pulses) and `musics.algo.melodic.serial`: `row` gives pitch
+classes as raw numbers, so the bridges serialise any parameter --
+`classes->pitches`, `time-points->durations` (Babbitt), `numbers->durations` --
+with `row-form`, and `matrix`/`combinatorial`/`prime-form`/`interval-vector`
+as plain fns) — and
 `defalgo`s the tools -- within one type, any material, marked `>` so
 they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
 `map>`/`filter>` with a `:fn` param, `scale>` a range onto another,
