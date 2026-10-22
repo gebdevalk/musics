@@ -9,7 +9,7 @@
 
 (deftest an-all-interval-row-has-every-interval-once
   (doseq [seed (range 5)]
-    (let [r (rc/with-seed seed (s/row :all-interval))]
+    (let [r (rc/with-seed seed (s/row :allInterval))]
       (is (= (set (range 12)) (set r)))
       (is (= (set (range 1 12)) (set (map #(mod (- %2 %1) 12) r (rest r))))))))
 

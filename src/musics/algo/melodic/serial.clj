@@ -6,7 +6,7 @@
    serialism), time-points->durations as Babbitt's time points.
 
      (row :random)                  a random row: (3 10 0 ...)
-     (row :all-interval)            every interval 1-11 once between neighbours
+     (row :allInterval)            every interval 1-11 once between neighbours
      (row-form r :RI 5)             one of its 48 forms
      (matrix r)                     the 12x12 table: P forms across, I down
      (combinatorial r)              forms whose first hexachord completes r's
@@ -40,13 +40,13 @@
 
 (defn row
   "A twelve-tone row as pitch classes 0-11: :random any order of the
-   twelve, :all-interval one whose eleven intervals between neighbours
+   twelve, :allInterval one whose eleven intervals between neighbours
    are all different (always starting on 0; row-form transposes it)."
   {:algo {:in [] :out :number
-          :params {:kind {:type :keyword :choices [:random :all-interval] :default :random
+          :params {:kind {:type :keyword :choices [:random :allInterval] :default :random
                           :doc "any row, or one with every interval once"}}}}
   [kind]
-  (if (= :all-interval kind) (all-interval) (vec (random/shuffle (range 12)))))
+  (if (= :allInterval kind) (all-interval) (vec (random/shuffle (range 12)))))
 
 (defn row-form
   "One of a row's 48 forms: :P as written, :I inverted around its first
