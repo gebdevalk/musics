@@ -65,7 +65,7 @@
            musics.algo.indispensability
            musics.algo.logic.counterpoint
            musics.algo.metric
-           musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.serial musics.algo.melodic.slonimsky
+           musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.serial
            musics.algo.random musics.algo.random.henon musics.algo.random.logistic musics.algo.random.lorenz
            musics.algo.rhythmic.automaton musics.algo.rhythmic.constraint musics.algo.rhythmic.decompose musics.algo.rhythmic.drums musics.algo.rhythmic.fractal-geometric
            musics.algo.rhythmic.micro musics.algo.rhythmic.necklace musics.algo.rhythmic.phase-sieve

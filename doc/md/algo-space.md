@@ -331,7 +331,7 @@ without knowing the decision.
 | `musics.algo.tool` | the tools, by plain verb: `cycle`, `take`, `shuffle`, `map`, `filter`, `rescale`, `stretch`, `choose-n`, `sputter`, … A tool works within one type for any type: `:in [:any] :out :same`. |
 | `musics.algo.bridge` | the bridges |
 | `musics.algo.tree.*` | the machinery: registry, builder, live |
-| generator namespaces | stay organised by origin and method (`rhythmic.world`, `random`, `melodic.slonimsky` …), where code that belongs together lives together |
+| generator namespaces | stay organised by origin and method (`rhythmic.world`, `random`, `melodic.serial` …), where code that belongs together lives together |
 
 `rescale` is the tool that maps one number range onto another; `scale`
 stays the source of a key's pitches.

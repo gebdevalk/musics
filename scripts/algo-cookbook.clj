@@ -43,7 +43,7 @@
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
-                      '[musics.algo.melodic.slonimsky :as slon]))))
+                      '[musics.algo.melodic.serial :as slon]))))
 
 (defn esc [s] (-> (str s) (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
 
