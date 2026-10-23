@@ -6,7 +6,7 @@
 ;;   lein run -m clojure.main scripts/algo-cookbook.clj
 ;;   google-chrome --headless=new --no-pdf-header-footer ;;     --print-to-pdf=doc/pdf/algo-cookbook.pdf doc/html/algo-cookbook.html
 ;;
-;; A stand-in MIDI receiver keeps musics.core/play from connecting to
+;; A stand-in MIDI receiver keeps musics.engine/play-connected from connecting to
 ;; real MIDI; nothing is sent anywhere.
 (ns cookbook-gen
   (:require [clojure.string :as str]
@@ -20,14 +20,14 @@
             [musics.domain :as d]
             [musics.repo :as repo]
             [musics.wall :as wall]
-            [musics.core :as m]))
+            [musics.mu.store :as store]))
 
-(m/reset)
+(store/reset-all!)
 (repo/commit-node! :ROOT (assoc (repo/current :ROOT) :context (c/context-root {"Tempo" 6000 "volume" 80})))
 (alter-var-root #'engine/*engine* (constantly (engine/engine nil (repo/registry) :ROOT)))
-;; a stand-in receiver, so musics.core/play never connects to real MIDI;
+;; a stand-in receiver, so play-connected never connects to real MIDI;
 ;; the engine above has no receiver at all, so nothing is sent anywhere
-(reset! m/receiver ::no-midi)
+(reset! engine/receiver ::no-midi)
 
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
@@ -37,7 +37,10 @@
                       '[musics.algo.pitch :as pitch]
                       '[musics.algo.duration :as duration]
                       '[musics.algo.volume :as volume]
-                      '[musics.core :as m]
+                      '[musics.mu.store :as store]
+                      '[musics.repo :as repo]
+                      '[musics.compose :as compose]
+                      '[musics.engine :as engine]
                       '[musics.wall :as wall]
                       '[musics.algo.rhythmic.rhythm :as rhythm]
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
@@ -315,8 +318,8 @@
     :runs [["other, with calm" "other" "calm"]]}
    {:title "Settings in the music: @ params in a context"
     :tree [["riff" "from recipe 1"]]
-    :params [["(m/parse \"^{ riffset: ?k:5 ?root:67 ?euclid.n:16 }\")" "?name:value sets an algo's param where !name: sets the music's"]
-             ["(def music (:context (m/find :riffset)))" "an ordinary context"]
+    :params [["(store/read! \"^{ riffset: ?k:5 ?root:67 ?euclid.n:16 }\")" "?name:value sets an algo's param where !name: sets the music's"]
+             ["(def music (:context (repo/lookup :riffset)))" "an ordinary context"]
              ["(def mine (t/tctx riff {:k 2}))" "the tctx comes first in the chain"]]
     :runs [["from the music" "riff" "[nil [music]]" "(t/run riff nil [music])"]
            ["the tctx first" "riff" "[mine [music]]" "(t/run riff mine [music])"]]}
@@ -342,16 +345,16 @@
     :tree [["(def up5 (transpose :nodes))" "reads :nodes: the voice's own notes"]]
     :params [["(def up5-tctx (t/tctx up5 {:semitones 5}))" ""]]
     :play [["(t/live! :up5 up5 up5-tctx)" "a transform only binds the name"]
-           ["(m/parse \"[verse: c4 e4 g4]\")" ""]
-           ["(m/play :verse :algo :up5)" "the verse, a fourth higher"]]
-    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (m/sq :verse)) nil {:path [:TA]})"]]}
+           ["(store/read! \"[verse: c4 e4 g4]\")" ""]
+           ["(engine/play-connected :verse :algo :up5)" "the verse, a fourth higher"]]
+    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (compose/sq :verse)) nil {:path [:TA]})"]]}
 
    {:group "Material"}
    {:title "Generated notes become committed musics text"
     :tree [["riff" "from recipe 1"]]
     :params [["(def p {:k 3})" ""]]
     :runs [["text" "riff" "p" "(notes->mus (t/run riff p))"]]
-    :extra [["committed" "(:ids (m/parse (notes->mus (t/run riff p))))"]]}])
+    :extra [["committed" "(:ids (store/read! (notes->mus (t/run riff p))))"]]}])
 
 (def api
   [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings ? names (\"?k\"); the tree isn't stored, its specs are"]
@@ -368,7 +371,7 @@
    ["(t/algo :short)" "(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)" "the registry"]
    ["(defalgo name doc {:algo …} [args] body)" "(t/expose ns/fn …)" "define a new algo; make an annotated fn one"]
    ["(algo … :as :name)" "" "name an instance: keys :name/…"]
-   ["(notes->mus parts)" "" "notes as musics text, ready for (m/parse …)"]])
+   ["(notes->mus parts)" "" "notes as musics text, ready for (store/read! …)"]])
 
 (defn short-value
   ([v] (short-value v 36))
@@ -501,7 +504,7 @@
    [:instrument nil "+instrument onto leaves" "a MIDI program, a General MIDI name or its short name" "(+instrument riff (cycle> [\"violin\"]))"]
    [:drum nil "+drum onto leaves" "each note made a drum: a key of the kit or a drum's name" "(+drum riff (cycle> [\"kick\" \"hhc\"]))"]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2: pulses->durations takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
-   [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
+   [:leaf nil "none — t/play!, t/live!, or notes->mus → store/read!" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
   (let [lib (remove #(or (:via (val %)) (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
@@ -623,7 +626,7 @@
        "<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe " (recipe-number "Different algos, same param name") "). A named instance's are <code>:as/name</code>.</li></ul>\n"
 
        "<h2 class=\"pb\">7. Recipes (" n-recipes ")</h2>\n"
-       "<p>Each recipe is plain Clojure in three parts. <b>Tree</b>: the code that builds it. <b>Params</b>: the settings code, then <i>every</i> param the tree reads with the value it ran with — given, or its default. <b>Result</b>: the run and what came back. The grey column is code, the right column a note on it; notes are shown as <code>notes-&gt;mus</code> text, exactly what <code>(m/parse …)</code> would commit.</p>\n"
+       "<p>Each recipe is plain Clojure in three parts. <b>Tree</b>: the code that builds it. <b>Params</b>: the settings code, then <i>every</i> param the tree reads with the value it ran with — given, or its default. <b>Result</b>: the run and what came back. The grey column is code, the right column a note on it; notes are shown as <code>notes-&gt;mus</code> text, exactly what <code>(store/read! …)</code> would commit.</p>\n"
        body-recipes
 
        "<h2 class=\"pb\">8. Parameters and the GUI</h2>\n"

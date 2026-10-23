@@ -9,7 +9,7 @@
             [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.events :as ev]
-            [musics.input.grammar-parser :as gp]
+            [musics.input.reader.builder :as builder]
             [musics.mu.eval :as e]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
@@ -309,21 +309,38 @@
 
 ;; -- the repo -------------------------------------------------------------
 
+(defn store-all!
+  "Store each [x name] of pairs at once, as store! does one; returns the
+   ids, in order. Warns (without refusing) when an id it redefines is
+   also used by a part it doesn't store."
+  [pairs]
+  (let [parts (for [[x name] pairs
+                    :let [mat (->material (if (repetition? x) (line [x]) x)) ; a bare repeat is stored in a line
+                          id  (or name (:id mat))
+                          top (assoc (v/node mat) :id id)]]
+                {:id id :top top :edits (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top))})
+        edits (apply merge (map :edits parts))
+        ours  (conj (set (keys edits)) :ROOT)]
+    (doseq [k (keys edits)
+            :let [affected (remove ours (repo/usages k))]
+            :when (and (repo/current k) (seq affected))]
+      (println "[musics] Redefining" k "also affects" (vec affected)
+               "-- give it a new id instead if that's not intended."))
+    (repo/commit-many! edits)
+    (let [root (or (repo/current :ROOT) (get (:repo (builder/empty-session)) :ROOT))
+          new  (for [{:keys [id top]} parts
+                     :when (and (not= :CONTEXT (:type top)) (not (some #{id} (:children root))))]
+                 id)]
+      (when (seq new)
+        (repo/commit-node! :ROOT (update root :children (fnil into []) (distinct new)))))
+    (reg/log! :parse)
+    (mapv :id parts)))
+
 (defn store!
   "Store x in the repo under name if given, else its own id or an auto
-   one; returns the id."
+   one; returns the id (see store-all!)."
   [x name]
-  (if (leaf? x)
-    (first (:ids (gp/parse (str "[" (when name (str (clojure.core/name name) ": ")) (p/show x) "]"))))
-    (let [mat  (->material (if (repetition? x) (line [x]) x)) ; as parse stores a bare repeat
-          id   (or name (:id mat))
-          top  (assoc (v/node mat) :id id)
-          root (repo/current :ROOT)]
-      (repo/commit-many! (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top)))
-      (when (and (not= :CONTEXT (:type top)) (not (some #{id} (:children root))))
-        (repo/commit-node! :ROOT (update root :children (fnil conj []) id)))
-      (reg/log! :parse)
-      id)))
+  (first (store-all! [[x name]])))
 
 (defn fetch
   "The value stored as id."

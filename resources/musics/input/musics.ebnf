@@ -6,8 +6,7 @@
 
    Bracket system:
      [ ]      Sequence     musical sequence — also reused as-is for
-                             repeat/volta's own body and a
-                             VarDef's value; the walker, not the
+                             repeat/volta's own body; the walker, not the
                              grammar, decides whether a given [ ]
                              becomes a real, addressable container or
                              is spliced/stashed, based on WHERE it sits,
@@ -23,8 +22,8 @@
                              Parallel's plain { }
      '[ ]     Data         data container
      [: :]    RepeatBars   a sequence played twice (repeat 2 [ ])
-     ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( ),
-                             and a VarDef's value; never a container of
+     ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( );
+                             never a container of
                              its own, always spliced/stashed at pop
                              time — see "Commands" below; also a slur
                              mark glued directly onto a Note/Chord (c4(
@@ -69,31 +68,12 @@
    repeat freely and appear in ANY order; a tie (~), if present, always
    comes last.
 
-   Comments: ; to end of line (real Clojure), %{ ... %} for a block
-   (Clojure has no block-comment reader syntax of its own to borrow, so
-   this stays LilyPond-style — it was never really about LilyPond
-   specifically, just a delimiter).
-   ============================================================ *)
+   Comments: % to end of line, %{ ... %} for a block, LilyPond's.
 
-(* Every alternative NOT listed here can write directly into whatever
-   context is on top of the builder stack, which at Program's own top
-   level is :ROOT -- meant to be a read-only endpoint. That's still why
-   Instruction/transient Command/Reference/VarRef stay excluded. repeat
-   is reachable directly because an Iterator's own :source/:alternative
-   is a real, retained container with a genuine context of its own,
-   exactly as safe at top level as any other real container. Leaf is
-   reachable directly too, for the same reason in spirit but a
-   different mechanism: walker/walk auto-wraps a bare
-   top-level Leaf in its own ordinary, auto-id'd one-child Sequence
-   before walking it (the exact push-container/walk/pop-container idiom
-   Sequence's own case already uses below), so a note-glued dynamic
-   (c4\f) lands on that wrapper's own context, never on :ROOT's --
-   exactly as safe as writing [c4\f] yourself. One real consequence:
-   several bare leaves with no [ ] (c4 d4) become TWO separate one-note
-   top-level Sequences, not one combined two-note Sequence -- [ ] is
-   still required to group more than one Leaf together. *)
-Program = ws? (TopElement (ws TopElement)*)? ws?
-<TopElement> = Composite | Leaf | repeat | RepeatBars | shuffle | rotate | choose | alternate | VarDef
+   This file is the musical sublanguage: what a literal is. mu.ebnf
+   (resources/musics/mu.ebnf), appended to it, is the top level --
+   MuInput, the one start rule, for a .mus file and mu's input alike.
+   ============================================================ *)
 
 <Element> = Part | Instruction | Command | Jump
 
@@ -159,9 +139,7 @@ Nil                   = <'nil'>
    its backslash; a note letter starting the word (grace, volta,
    repeat, ...) can't be misread, since a note letter is never followed
    by more letters --
-   never a fresh top-level Composite of its own (repeat is the one
-   exception, see TopElement above, and even it is reachable there only
-   because its own body is a real retained container). An Id written
+   at mu's top level they are words (mu.ebnf). An Id written
    directly inside a transient one's own body (Scope, or grace's bare
    Elements), or as a variable's own, is refused: that body is never
    stored under a name, so the name would be lost (walker/walk-bareword);
@@ -326,13 +304,7 @@ rotate-now = <('rotate' | 'ROT')> ws SignedInt ws? Scope
 <Command> = transpose | repeat | RepeatBars | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
-(* name = [ ... ] defines a variable (Sequence's own [ ] bracket, reused
-   as-is -- the walker sees a Sequence node sitting in VarDef's own
-   value position and, on that basis alone, stashes it under the name
-   rather than registering it as an addressable container), \name
-   references it, must be defined first. See src/input/CLAUDE.md's
-   "Comments and variables" section for the full reasoning. *)
-VarDef = VarName ws? <'='> ws? Sequence
+(* \name: the music bound to name (mu's 'name value :=), spliced in. *)
 VarRef = <'\\'> VarName
 
 (* Ornament names AND every reserved command word (transpose/repeat/

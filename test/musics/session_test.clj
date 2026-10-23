@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [musics.test-support :refer [with-fresh-session]]
-            [musics.events :as ev] [musics.input.grammar-parser :as gp] [musics.persist :as persist] [musics.registries :as reg]
+            [musics.events :as ev] [musics.mu.store :as store] [musics.persist :as persist] [musics.registries :as reg]
             [musics.repo :as repo]
             [musics.engine :as engine]
             [musics.compose :as compose]
@@ -28,8 +28,8 @@
   ;; commit from a DIFFERENT test namespace could leak in, not just from
   ;; this file's own previous test). Still seeds a real :ROOT, committed,
   ;; with playback pointed at it -- a session is never nil in real use
-  ;; either (see musics.input.grammar-parser's _bootstrap). musics.registries' `session`
-  ;; atom (:auto-ids/:var-map) is a plain defonce, not a musics.registries
+  ;; either (see musics.mu.store's _bootstrap). musics.registries' `session`
+  ;; atom (:auto-ids) is a plain defonce, not a musics.registries
   ;; ^:dynamic var, so it still needs its own explicit reset! here.
   (with-fresh-session
     (reset! reg/session {:auto-ids {}})
@@ -41,7 +41,7 @@
   "Test helper: parse (commits immediately, see its own docstring) and
    return the ids it introduced or changed."
   [text]
-  (:ids (gp/parse text)))
+  (:ids (store/read! text)))
 
 (defn- quietly
   "Run f with *out* redirected to a throwaway sink and return its value.
@@ -63,7 +63,7 @@
     (is (d/container? (repo/lookup :verse)) "id resolves to a container in the session")))
 
 (deftest parse-commits-immediately
-  (let [{:keys [ids]} (gp/parse "[verse: c4 d4]")]
+  (let [{:keys [ids]} (store/read! "[verse: c4 d4]")]
     (is (= [:verse] ids))
     (is (d/container? (repo/lookup :verse)) "visible immediately, no separate commit step")))
 
@@ -76,7 +76,7 @@
 
 (deftest parse-error-returns-nil
   (binding [*out* (java.io.StringWriter.)]
-    (is (nil? (gp/parse "[c4 d4")) "unclosed bracket returns nil")))
+    (is (nil? (store/read! "[c4 d4")) "unclosed bracket returns nil")))
 
 (deftest root-children-accumulates-every-top-level-parse
   (parse! "[verse: c4 d4]")
@@ -96,17 +96,17 @@
   ;; so there's no realistic duplicate-id case a vector needs to guard
   ;; against the way a set-shaped return once did.
   (testing "order is preserved for a multi-block parse"
-    (let [{:keys [ids]} (gp/parse "[a: c4] [b: d4] [c: e4]")]
+    (let [{:keys [ids]} (store/read! "[a: c4] [b: d4] [c: e4]")]
       (is (= [:a :b :c] ids) "seq order is exactly written order")))
   (testing "only a direct :ROOT child counts -- nested content that also
             changed as part of the same parse doesn't leak in"
-    (let [{:keys [ids]} (gp/parse "[outer: c4 [inner: d4]]")]
+    (let [{:keys [ids]} (store/read! "[outer: c4 [inner: d4]]")]
       (is (= [:outer] ids)
           ":inner did change (and got staged/committed same as always),
            but it's not a direct :ROOT child, so it's not part of ids")))
   (testing "re-parsing an existing top-level id doesn't duplicate it either"
     (parse! "[verse: c4]")
-    (let [{:keys [ids]} (gp/parse "[verse: d4]")]
+    (let [{:keys [ids]} (store/read! "[verse: d4]")]
       (is (= [:verse] ids)))))
 
 (deftest re-parsing-the-same-top-level-id-does-not-duplicate-it-in-root-children
@@ -191,20 +191,20 @@
 
 (deftest usages-finds-every-direct-referrer-of-a-shared-id
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
-  (is (= #{:verseA :verseB :ROOT} (gp/usages :motif))
+  (is (= #{:verseA :verseB :ROOT} (repo/usages :motif))
       "both real referrers found, plus :ROOT (every top-level id's own
        registering parent) -- see parse's own :ROOT exclusion below")
-  (is (= #{:ROOT} (gp/usages :verseA))
+  (is (= #{:ROOT} (repo/usages :verseA))
       ":verseA is itself only referenced by :ROOT -- nothing else points at it"))
 
 (deftest usages-is-empty-for-an-id-nothing-references
   (parse! "[lonely: c4]")
-  (is (= #{:ROOT} (gp/usages :lonely))
+  (is (= #{:ROOT} (repo/usages :lonely))
       "only :ROOT (its own registering parent) -- no OTHER container shares it"))
 
 (deftest parse-warns-when-a-redefinition-has-spillover
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
-  (let [printed (with-out-str (gp/parse "[motif: g4 a4]"))]
+  (let [printed (with-out-str (store/read! "[motif: g4 a4]"))]
     (is (re-find #"Redefining :motif also affects" printed))
     (is (re-find #":verseA" printed))
     (is (re-find #":verseB" printed))
@@ -214,7 +214,7 @@
          redefinition and say nothing the composer doesn't already know")))
 
 (deftest parse-does-not-warn-when-nothing-is-shared
-  (let [printed (with-out-str (gp/parse "[solo: c4 d4]"))]
+  (let [printed (with-out-str (store/read! "[solo: c4 d4]"))]
     (is (= "" printed) "an ordinary, unshared top-level redefinition prints nothing")))
 
 (deftest parse-does-not-warn-when-the-whole-batch-covers-the-spillover
@@ -224,7 +224,7 @@
   ;; already accounts for all of it.
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
   (let [printed (with-out-str
-                  (gp/parse "[motif: g4 a4] [verseA: :motif b4] [verseB: :motif b4]"))]
+                  (store/read! "[motif: g4 a4] [verseA: :motif b4] [verseB: :motif b4]"))]
     (is (= "" printed)
         "every referrer was part of the same batch, so there's no surprise spillover")))
 
@@ -253,7 +253,7 @@
 ;; endpoint instead of interpolating, since async-engine's build-chain
 ;; prepended that context onto the ctx-chain unrebased. async_engine_test
 ;; already covers this with hand-built domain objects; these two cover
-;; it through the real, end-to-end (gp/parse ...) path (commits
+;; it through the real, end-to-end (store/read! ...) path (commits
 ;; immediately), for the two shapes real usage actually takes.
 ;; ============================================================
 

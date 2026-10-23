@@ -2,15 +2,16 @@
   "mu's musical values: what a literal becomes on the stack, without
    entering the repo.
 
-   All literals of one input are walked together, in order, against the
-   current repo, so within an input a duration carries over and a
-   relative pitch follows the note before it, as across a .mus file's
-   top-level elements; each input starts fresh. A bare leaf becomes the
+   The literals of one input are walked together, in order, against the
+   current repo (up to each :=, after which the input reads on afresh),
+   so a duration carries over and a relative pitch follows the note
+   before it; each input starts fresh. A bare leaf becomes the
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
    storing is R! (doc/md/mu-repl.md)."
   (:require [musics.domain.context :as c]
-            [musics.input.reader.walker :as walker]))
+            [musics.input.reader.walker :as walker]
+            [musics.mu.grammar :as g]))
 
 (defrecord Material [id repo])
 ;; :base, assoc'd on, is the repo the literal was read against: what the
@@ -104,12 +105,14 @@
 
 (defn- refs
   "The ids a node refers to: keyword children, and those of inline
-   children, an iterator's source and its alternative, recursively."
+   children, an iterator's source and its alternative, an override
+   mark's context, recursively."
   [n]
   (letfn [(of [x] (cond (keyword? x) [x]
                         (map? x)     (concat (mapcat of (:children x))
                                              (of (:source x))
-                                             (of (get-in x [:params :alternative])))
+                                             (of (get-in x [:params :alternative]))
+                                             (when (= :override (:key x)) (of (:ref x))))
                         :else        []))]
     (of (dissoc n :id))))
 
@@ -133,3 +136,17 @@
                    :when (and n (not= k :ROOT) (not (identical? n (get base k))))]
                [k n]))))
 
+
+(defn read-domain
+  "Walk text made only of literals ([c d] {…} ^{…} …) to the domain,
+   nothing stored: the walker's {:tree id->node :ids [id …] :auto-ids …},
+   one id per literal. Throws when text can't be read or holds anything
+   but literals."
+  ([text] (read-domain text nil))
+  ([text session]
+   (let [tree (g/parse text)]
+     (when (g/failure? tree)
+       (throw (ex-info (str "can't read this:\n" (with-out-str (print tree))) {:failure tree})))
+     (when-let [x (first (remove literal? (rest tree)))]
+       (throw (ex-info (str "only literals here, not " (pr-str x)) {:node x})))
+     (walker/walk-each (rest tree) text session))))

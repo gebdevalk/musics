@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [musics.common.music-elements :as el]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.store :as store]
             [musics.domain.resolve :as resolve]
             [musics.gui.state :as gs]
             [musics.test-support :refer [with-fresh-session]]))
@@ -20,7 +20,7 @@
   (with-fresh-session
     (let [saved @gs/*state]
       (try
-        (with-out-str (gp/parse "[multi: !i:40,73 !kit:brush !accent:metric c4 d] [plain: e4]"))
+        (with-out-str (store/read! "[multi: !i:40,73 !kit:brush !accent:metric c4 d] [plain: e4]"))
         (gs/watch! "multi")
         (gs/watch! "plain")
         (testing "several instruments at once show the first; kit and accent by name"
@@ -37,7 +37,7 @@
 
 (deftest a-context-shows-a-key-and-a-meter-as-written
   (with-fresh-session
-    (with-out-str (gp/parse "[k: !K:G.major !M:7/8 c4]"))
+    (with-out-str (store/read! "[k: !K:G.major !M:7/8 c4]"))
     (let [shown (with-out-str (resolve/ctx :k))]
       (is (str/includes? shown "Key=G.major@0"))
       (is (str/includes? shown "Meter=7/8@0")))))
@@ -52,7 +52,7 @@
   (with-fresh-session
     (let [saved @gs/*state]
       (try
-        (with-out-str (gp/parse "[p: c4 d]"))
+        (with-out-str (store/read! "[p: c4 d]"))
         (gs/watch! "ROOT")
         (gs/watch! "p")
         (is (= {:key-tonic "C" :key-scale "major" :accidentals "implied" :Meter "4/4"}

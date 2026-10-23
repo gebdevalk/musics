@@ -19,7 +19,7 @@
      *conductor-schedule*          musics.conductor   [id phase] -> action-id, one-shot (consumed on trigger)
      *conductor-repeating*         musics.conductor   [id phase] -> action-id, NOT consumed on trigger
      *activity-log*                musics.assist      bounded log of the actions taken (its history facts)
-     session                       the reader         auto-id counters and the variable map of what was read
+     session                       the reader         the auto-id counters of what was read
 
    That's 7, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
@@ -119,11 +119,10 @@ names; read by musics.assist as history facts."}
   (swap! *activity-log* #(vec (take-last 30 (conj % {:action action :when (System/currentTimeMillis)}))))
   nil)
 
-(defonce ^{:doc "What reading text keeps between inputs: {:auto-ids {prefix n}
-:var-map {name {:children :context}}} -- the auto-id counters (so a later
-input never reuses an earlier one's ids) and the variables defined. Not
-dynamic: tests share it, as they share nothing that depends on it."}
-  session (atom {:auto-ids {} :var-map {}}))
+(defonce ^{:doc "What reading text keeps between inputs: {:auto-ids {prefix n}},
+the auto-id counters, so a later input never reuses an earlier one's ids.
+Not dynamic: tests share it, as they share nothing that depends on it."}
+  session (atom {:auto-ids {}}))
 
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
@@ -137,5 +136,5 @@ dynamic: tests share it, as they share nothing that depends on it."}
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})
   (clojure.core/reset! *activity-log* [])
-  (clojure.core/reset! session {:auto-ids {} :var-map {}})
+  (clojure.core/reset! session {:auto-ids {}})
   nil)

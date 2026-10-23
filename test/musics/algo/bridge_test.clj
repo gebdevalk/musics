@@ -6,7 +6,7 @@
             [musics.algo.tree.lib :as lib]
             [musics.domain :as d]
             [musics.events :as ev]
-            [musics.input.grammar-parser]
+            [musics.mu.value :as v]
             [musics.input.reader.leaf-parser]))
 
 (defn- rest-of [x] (when (d/rest? x) [:rest (:duration x)]))
@@ -100,7 +100,7 @@
                                                   [40 "violin" nil])
                                 [nil nil "kick"]) {})
         text  (str "[" (str/join " " (map musics.input.reader.leaf-parser/part->mus parts)) "]")
-        {:keys [tree root-id]} (musics.input.grammar-parser/parse-domain-string text)
+        {:keys [tree root-id]} (v/read-domain text)
         back  (:children (get tree (first (:children (get tree root-id)))))
         same  (fn [xs] (map (juxt :type :pitches :program :duration :articulation :dynamic :overrides) xs))]
     (is (= (same parts) (same back)) text)))

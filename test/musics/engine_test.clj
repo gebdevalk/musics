@@ -11,7 +11,7 @@
             [musics.domain :as d]
             [musics.domain.context :as c]
             [musics.common.music-elements :as el]
-            [musics.input.grammar-parser :as gp]))
+            [musics.mu.store :as store]))
 
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
@@ -241,7 +241,7 @@
 
 (deftest an-instrument-list-plays-each-note-on-a-channel-per-instrument
   (with-fresh-session
-   (with-out-str (gp/parse "[l: !tempo:240 !i:40,73,0 c8 <d f>]"))
+   (with-out-str (store/read! "[l: !tempo:240 !i:40,73,0 c8 <d f>]"))
    (let [sent (atom [])]
     (with-redefs [engine/send-midi-on!  (fn [fs ev fresh?]
                                           (when (= fs ::fs)
@@ -261,7 +261,7 @@
 
 (deftest an-instrument-list-on-one-note-layers-only-that-note
   (with-fresh-session
-   (with-out-str (gp/parse "[l: !tempo:240 !i:0 c8\\i:40,73 d]"))
+   (with-out-str (store/read! "[l: !tempo:240 !i:0 c8\\i:40,73 d]"))
    (let [sent (atom [])]
      (with-redefs [engine/send-midi-on!  (fn [fs ev _]
                                            (when (= fs ::fs) (swap! sent conj [(:program ev) (:pitches ev)])))

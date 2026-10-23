@@ -10,10 +10,10 @@
    Instruction is no longer a valid TopElement (see CLAUDE.md's 'ROOT
    read-only' section) -- exactly the kind of thing that's invisible
    from just eyeballing generated text and only shows up by actually
-   parsing it, which is why grammar-parser is required here too."
+   parsing it, which is why musics.mu.store is required here too."
   (:require [clojure.test :refer [deftest is testing]]
             [musics.input.midi-record :as rec]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.grammar :as g]
             [musics.common.music-data :as data]))
 
 ;; ============================================================
@@ -114,7 +114,7 @@
                   (rec/->musics-text [{:type :note :dur 500 :pitches [60 64 67]}] 90 40)
                   (rec/->musics-text [{:type :rest :dur 500}
                                        {:type :note :dur 500 :pitches [62]}] 120 nil)]]
-      (is (some? (gp/try-parse text)) (str "failed to parse:\n" text)))))
+      (is (some? (g/parse text)) (str "failed to parse:\n" text)))))
 
 (deftest instrument-names-are-midi-program-numbers
   ;; GM tables print 1-128; MIDI sends 0-127, as !instrument: takes it

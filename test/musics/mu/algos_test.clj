@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu.algos-test
   "The algos as mu words: by what they deliver, a line taken apart into
-   their inputs, a ^{ @… } on top as their settings."
+   their inputs, a ^{ ?… } on top as their settings."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
             [musics.input.reader.builder :as builder]

@@ -5,7 +5,7 @@
             [musics.test-support :refer [with-fresh-session]]
             [musics.assist :as a]
             [musics.registries :as reg]
-            [musics.input.grammar-parser :as gp]))
+            [musics.mu.store :as store]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
@@ -51,6 +51,6 @@
   (testing "an action that can't be taken yet"
     (is (str/includes? (with-out-str (a/explain :render)) "render needs :committed")))
   (testing "after parse"
-    (with-out-str (gp/parse "[verse: c4 d e]"))
+    (with-out-str (store/read! "[verse: c4 d e]"))
     (is (= #{:committed} (a/facts)))
     (is (str/includes? (with-out-str (a/explain :committed)) "holds already"))))

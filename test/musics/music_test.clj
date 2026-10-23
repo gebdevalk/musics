@@ -10,8 +10,7 @@
 (defn- mu
   "Run mu text on a fresh stack: the one value it leaves, nil for none."
   [text]
-  (let [r   (e/read-input text)
-        out (e/run-items [] (:items r) {:locals {} :values (:values r)})]
+  (let [out (e/run-text [] text)]
     (case (count out) 0 nil 1 (peek out) out)))
 
 (defn- run [text] (p/show (mu text)))

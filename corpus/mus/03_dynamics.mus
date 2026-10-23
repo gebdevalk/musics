@@ -9,7 +9,7 @@
 % A dynamic glued onto a note (g\ff) is that note's alone -- see
 % dyn_accent.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 [dyn_constant_soft:
   !pp

@@ -3,7 +3,7 @@
    playback (on a silent engine), namespaces, help, files, defaults."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
-            [musics.events :as ev] [musics.input.grammar-parser :as gp] [musics.domain.resolve :as r]
+            [musics.events :as ev] [musics.mu.store :as store] [musics.domain.resolve :as r]
             [musics.engine :as engine]
             [musics.input.reader.builder :as builder]
             [musics.conductor :as conductor]
@@ -102,7 +102,8 @@
   (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
   (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
   (is (re-find #"holds 7 -- only music" (:error (run "'q 7 :=" "[\\q]"))))
-  (is (re-find #"bound in this input" (:error (run "'m [c d] := [\\m e]"))))
+  (is (= "[C4/4 D4 E4]" (p/show (peek (:ok (run "'m [c d] := [\\m e]"))))) "bound, then used, in one input")
+  (is (re-find #"bound by the := it comes before" (:error (run "[\\fresh e] 'fresh [c d] :="))))
   (is (re-find #":=: needs a name under the value" (:error (run "3 4 :=")))))
 
 (deftest storing-and-fetching
@@ -265,7 +266,7 @@
   (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
   (testing "each prints what it reads"
     (is (= (with-out-str (prn (repo/ids))) (out "ids")))
-    (is (= (with-out-str (prn (gp/usages :inner))) (out ":inner usages")))
+    (is (= (with-out-str (prn (repo/usages :inner))) (out ":inner usages")))
     (is (= (with-out-str (r/ctx :inner)) (out ":inner ctx")))
     (is (= (with-out-str (r/ctx :verse)) (out ":verse R@ ctx")) "fetched material works too"))
   (is (= ":inner: (empty)\n:verse: Tempo=90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
@@ -451,7 +452,7 @@
       (binding [engine/*engine* eng]
         (try
           (mt/stop-all!)
-          (engine/play [(first (:ids (gp/parse "[!tempo:60 c1 d1]")))])
+          (engine/play [(first (:ids (store/read! "[!tempo:60 c1 d1]")))])
           (run "[e f] >>")
           (is (empty? (conductor/scheduled)) "mu knows no pass of what plays: no wait for a | that may never come")
           (is (= 1 (count (mt/live-voices))))

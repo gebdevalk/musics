@@ -7,7 +7,7 @@
 % change. accent = +5 vel / 0.90 dur, marcato = +10 vel / 0.55 dur.
 % Plain notes use the context default articulation ratio (0.9), not 1.0.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 [plain_no_accent:
   !mf

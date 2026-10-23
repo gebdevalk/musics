@@ -103,10 +103,10 @@
    :leaf "line" :part "parallel"})
 
 (defn- effect
-  "The stack effect and what the word is: ( durations [^{ @… }] --
+  "The stack effect and what the word is: ( durations [^{ ?… }] --
    durations )  its doc  @its @params."
   [{:keys [in out doc params]}]
-  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[^{ @… }] -- " (plural out (name out)) " )  "
+  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[^{ ?… }] -- " (plural out (name out)) " )  "
        doc "  " (str/join " " (map #(str "?" (name (:name %))) params))))
 
 (defn register-all!

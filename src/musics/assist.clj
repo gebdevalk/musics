@@ -32,7 +32,7 @@
 (def actions
   "The REPL actions, in the order they are suggested."
   [{:action :parse      :needs []                 :gives [:committed]
-    :var 'musics.input.grammar-parser/parse     :call "(parse \"[name: c4 d e f]\")"   :doc "commit musics text"}
+    :var 'musics.mu.material/store-all!     :call "(parse \"[name: c4 d e f]\")"   :doc "commit musics text"}
    {:action :play       :needs [:committed]       :gives [:playing :played]
     :var 'musics.engine/play-connected      :call "(play :name)"                   :doc "play it (connects first)"}
    {:action :play-add   :needs [:committed :playing] :gives []

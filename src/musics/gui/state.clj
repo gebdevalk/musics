@@ -73,7 +73,7 @@
     [musics.gui.data :as data]
     [musics.input.midi-record :as rec]
     [musics.input.midi :as midi-in]
-    [musics.input.grammar-parser :as gp]
+    [musics.mu.store :as store]
     [musics.compose :as compose]
     [musics.conductor :as conductor]
     [musics.domain :as d]
@@ -238,7 +238,7 @@
          :play-builder-open? false
          :wall-open? false
          ;; Editor panel -- write/parse musics text, which commits
-         ;; immediately (see musics.input.grammar-parser/parse's own docstring -- no
+         ;; immediately (see musics.mu.store/read!'s own docstring -- no
          ;; separate stage/commit step). :ids is whatever the most
          ;; recent parse introduced/changed, :message the panel's own
          ;; status/error line. See the Editor section below.
@@ -675,7 +675,7 @@
   "Wipe the whole session -- see musics/reset's own docstring. Clears
    :watched too, since every watched Context just stopped existing."
   []
-  (gp/reset)
+  (store/reset-all!)
   (swap! *state assoc :transport :stopped :watched (sorted-map))
   nil)
 
@@ -850,7 +850,7 @@
         (spit path text)
         (println "[gui] Wrote" path)
         (when auto-commit?
-          (let [{:keys [ids]} (or (gp/parse-file path) {})]
+          (let [{:keys [ids]} (or (store/read-file! path) {})]
             (if ids
               (println "[gui] Auto-committed" path "->" ids)
               (println "[gui] Auto-commit skipped -- parse failed, see console.")))))
@@ -911,7 +911,7 @@
 
 ;; ============================================================
 ;; Editor panel -- write/parse musics text, the GUI's own path to
-;; musics.input.grammar-parser/parse (previously REPL-only), which commits immediately
+;; musics.mu.store/read! (previously REPL-only), which commits immediately
 ;; -- no separate stage/commit step. Toggled open/closed the same way
 ;; as the :ROOT window (see open-root!/close-root! above) rather than
 ;; tied to any watch!/unwatch! -- it isn't a container's context, so it
@@ -933,7 +933,7 @@
 
 (defn- capture-out
   "Calls f with *out* rebound to a fresh StringWriter -- returns
-   [return-value printed-string]. musics.input.grammar-parser/parse only ever PRINTS
+   [return-value printed-string]. musics.mu.store/read! only ever PRINTS
    its error text, it never returns it -- with no visible console in
    front of a GUI user (confirmed live: 'Parse failed -- see the REPL
    console' was useless advice when there's no REPL console reachable
@@ -949,7 +949,7 @@
 
 (defn- apply-editor-parse-result!
   "Shared by editor-parse!/editor-load-file! -- result is whatever
-   musics.input.grammar-parser/parse or parse-file just returned (nil on failure, else
+   musics.mu.store/read! or parse-file just returned (nil on failure, else
    {:ids ids} -- already committed by the time this runs, parse never
    leaves anything staged); printed is whatever it printed along the
    way (see capture-out) -- the actual error text on failure, empty on
@@ -966,10 +966,10 @@
   nil)
 
 (defn editor-parse!
-  "Parse the editor's current text -- see musics.input.grammar-parser/parse. Commits
+  "Parse the editor's current text -- see musics.mu.store/read!. Commits
    immediately, visible the instant this call returns."
   []
-  (let [[result printed] (capture-out #(gp/parse (:text (:editor @*state))))]
+  (let [[result printed] (capture-out #(store/read! (:text (:editor @*state))))]
     (apply-editor-parse-result! (or result {}) printed)))
 
 (defn editor-clear!
@@ -983,10 +983,10 @@
 
 (defn editor-load-file!
   "Read the editor's :load-path, show its own contents in the text area
-   (musics.input.grammar-parser/parse-file alone never surfaces the text it read, only
+   (musics.mu.store/read-file! alone never surfaces the text it read, only
    its parse result -- calling that directly here left the editor
    showing nothing after a load, a real gap), and parse it via
-   musics.input.grammar-parser/parse on that same text -- commits immediately, same as
+   musics.mu.store/read! on that same text -- commits immediately, same as
    Parse above."
   []
   (let [path (str/trim (:load-path (:editor @*state) ""))]
@@ -995,7 +995,7 @@
         (if (= text ::read-failed)
           (swap! *state assoc-in [:editor :message] (str "Could not read file: " path))
           (do (swap! *state assoc-in [:editor :text] text)
-              (let [[result printed] (capture-out #(gp/parse text))]
+              (let [[result printed] (capture-out #(store/read! text))]
                 (apply-editor-parse-result! (or result {}) printed)))))
       (swap! *state assoc-in [:editor :message] "Type a file path first.")))
   nil)

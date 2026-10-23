@@ -107,7 +107,7 @@
    ns's own state (the repo registry) -- redundant with, but harmless
    alongside, a direct (musics.registries/reset-all!) call, which also
    wipes musics.wall/core.conductor/core.assist's own state; that wider
-   reset is musics.input.grammar-parser/reset's job, not this fn's."
+   reset is musics.mu.store/reset-all!'s job, not this fn's."
   []
   (clojure.core/reset! reg/*repo-registry* {})
   nil)
@@ -153,3 +153,13 @@
     (when (and (map? c) (contains? c :children))
       (mapv (fn [child] (if (keyword? child) (get view child) child))
             (:children c)))))
+
+(defn usages
+  "Every id whose content references id directly as one of its children
+   -- what else changes when id is stored again."
+  [id]
+  (into #{}
+        (keep (fn [[candidate-id node]]
+                (when (and (map? node) (some #{id} (:children node)))
+                  candidate-id)))
+        @(registry)))

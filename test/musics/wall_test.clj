@@ -2,7 +2,7 @@
   "musics.wall: the name -> wall fn registry the engine reads per node."
   (:require [clojure.test :refer [deftest is]]
             [musics.test-support :refer [with-fresh-registries]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.store :as store]
             [musics.repo :as repo]
             [musics.wall :as wall]
             [musics.engine :as engine]
@@ -49,8 +49,8 @@
   ;; a :DATA container has no Leaf/Rest/Drum/Bar children play-node
   ;; recognizes, so (play id) on one must neither throw nor hang.
   (with-fresh-registries
-    (gp/reset)
-    (let [{:keys [ids]} (gp/parse "'[ /4 /8 /8 /4 ]")
+    (store/reset-all!)
+    (let [{:keys [ids]} (store/read! "'[ /4 /8 /8 /4 ]")
           eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
         (let [track (engine/play (first ids))]

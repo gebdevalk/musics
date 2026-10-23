@@ -10,7 +10,6 @@
             [musics.common.music-elements :as el]
             [musics.domain.resolve :as r]
             [musics.input.abc-import :as abc]
-            [musics.input.grammar-parser :as gp]
             [musics.input.guido-import :as guido]
             [musics.input.lilypond-import :as ly]
             [musics.midi.file :as midi-file]
@@ -99,7 +98,7 @@
     id))
 
 (defn ids!    "Every stored id" [] (prn (repo/ids)))
-(defn usages! "The ids whose content uses it directly" [id] (prn (gp/usages (stored-id id))))
+(defn usages! "The ids whose content uses it directly" [id] (prn (repo/usages (stored-id id))))
 (defn ctx!    "A part's context chain: each ancestor's own settings, nearest first" [id] (r/ctx (stored-id id)))
 
 ;; -- the defaults -----------------------------------------------------------
@@ -194,7 +193,8 @@
   [file]
   (let [path (name-of file)]
     (when-not (.exists (java.io.File. ^String path)) (fail "no such file:" path))
-    (if-let [{:keys [ids]} (gp/parse (file-text path))]
+    ;; resolved, since musics.mu.store loads this ns
+    (if-let [{:keys [ids]} ((requiring-resolve 'musics.mu.store/read!) (file-text path))]
       (println "stored" (str/join " " (map pr-str ids)))
       (fail "the file didn't parse:" path))))
 

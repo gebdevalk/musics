@@ -8,7 +8,7 @@
             [musics.repo :as repo]
             [clojure.string :as str]
             [musics.input.reader.leaf-parser :as lp]
-            [musics.input.grammar-parser :as gp]))
+            [musics.mu.store :as store]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
@@ -52,7 +52,7 @@
 (defn- parsed-layers
   "Parse `text` (one { } of [ ] layers, named :grv) and give its layers back."
   [text]
-  (with-out-str (gp/parse text))
+  (with-out-str (store/read! text))
   (for [id (:children (repo/current (first (:children (repo/current :grv)))))]
     (:children (repo/current id))))
 

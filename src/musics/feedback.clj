@@ -3,10 +3,10 @@
    dislike -1, appended one map per line to a file. A trial's :what is
    the sound as mu prints it; what it is made of is read back from that
    text (sound-parts), so the file never needs migrating. Knows nothing
-   of mu or the engine."
+   of mu's stack or the engine."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [musics.input.grammar-parser :as gp]))
+            [musics.mu.value :as v]))
 
 (defonce ^{:doc "The ratings file; tests point it elsewhere."}
   file (atom (str (System/getProperty "user.home") "/.mu-feedback.edn")))
@@ -39,7 +39,7 @@
    note, chord or drum."
   [text]
   (try
-    (let [{:keys [tree]} (gp/parse-domain-string (str "[" text "]"))
+    (let [{:keys [tree]} (v/read-domain (str "[" text "]"))
           leaf (some #(when (#{:LEAF :DRUM} (:type %)) %)
                      (mapcat :children (filter #(= :SEQ (:type %)) (vals tree))))
           many (fn [x] (cond (vector? x) x (nil? x) nil :else [x]))]

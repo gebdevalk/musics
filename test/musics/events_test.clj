@@ -9,13 +9,13 @@
             [musics.domain :as d]
             [musics.domain.context :as c]
             [musics.midi.file :as midi-file]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.store :as store] [musics.mu.value :as v]
             [musics.algo.random.core :as rc])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
-(defn- parse! [text] (with-out-str (gp/parse text)))
+(defn- parse! [text] (with-out-str (store/read! text)))
 
 (defn- notes [evs] (filter #(= :note (:kind %)) evs))
 
@@ -305,7 +305,7 @@
   (parse! "[loop: repeat ~ [ C4 D4 ] ]")
   (is (= [[60] [62] [60] [62] [60]] (take 5 (note-pitches :loop))))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no volta endings"
-                        (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))
+                        (v/read-domain "[repeat ~ [c d] volta [e]]"))))
 
 (defn- drum-hits [form]
   (map (juxt :beat (comp first :pitches)) (filter #(= :drum (:kind %)) (ev/events (repo/registry) form))))

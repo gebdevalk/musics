@@ -17,8 +17,8 @@
   (opened/closed automatically as watch!/unwatch! add/remove it from
   musics.gui.state's :watched map), and three more always-available,
   toggle-open/closed windows covering what used to be REPL-only:
-  'Editor' (parse musics text, commits immediately -- musics.input.grammar-parser/
-  parse/parse-file), 'Browser' (repo inspection --
+  'Editor' (parse musics text, commits immediately -- musics.mu.store/
+  read!/read-file!), 'Browser' (repo inspection --
   ids/children/leaves/print-structure/ctx), and 'Play
   Builder' (the full play/play-add/play-change mini-language, not just
   the state window's own fixed, always-sequential Play button).

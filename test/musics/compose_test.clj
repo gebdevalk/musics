@@ -1,14 +1,14 @@
 (ns ^:engine musics.compose-test
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [musics.test-support :refer [with-fresh-registries]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.store :as store]
             [musics.repo :as repo]
             [musics.compose :as compose]))
 
 ;; a fresh session too, so auto ids (s1, p1, ...) don't depend on test order
-(use-fixtures :each (fn [f] (with-fresh-registries (with-out-str (gp/reset)) (f))))
+(use-fixtures :each (fn [f] (with-fresh-registries (with-out-str (store/reset-all!)) (f))))
 
-(defn- parse! [text] (with-out-str (gp/parse text)))
+(defn- parse! [text] (with-out-str (store/read! text)))
 
 (defn- display [& args] (apply compose/display (repo/registry) args))
 
@@ -39,5 +39,5 @@
   (is (= "TA  [v: !mf !tempo:120 C4/4 D4/4 ]" (display :v))))
 
 (deftest a-bare-top-level-repeat-is-its-own-part
-  (is (= [:s2] (:ids (gp/parse "repeat 2 [ c8 d ]"))))
-  (is (= "TA  [s2: repeat 2 [s1: C4/8 D4/8 ] ]" (display :s2))))
+  (let [[id] (:ids (store/read! "repeat 2 [ c8 d ]"))]
+    (is (re-matches #"TA  \[s\d+: repeat 2 \[s\d+: C4/8 D4/8 \] \]" (display id)))))

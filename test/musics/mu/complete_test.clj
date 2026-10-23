@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu.complete-test
   (:require [clojure.test :refer [deftest is are testing]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.store :as store]
             [musics.mu.complete :as c]
             [musics.mu.kernel]
             [musics.test-support :refer [with-fresh-session]]))
@@ -75,7 +75,7 @@
 
 (deftest live-knows-mus-words-and-the-named-parts
   (with-fresh-session
-    (with-out-str (gp/parse "[c d] [verse: e f] repeat 2 [g] ^{loud: !ff}"))
+    (with-out-str (store/read! "[c d] [verse: e f] repeat 2 [g] ^{loud: !ff}"))
     (let [{:keys [words ids]} (c/live)]
       (is (= ["loud" "verse"] ids) "named parts only: no :s1, :repeat1 or :ROOT")
       (is (contains? words "dup") "a word in use, bare")
