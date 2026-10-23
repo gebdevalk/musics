@@ -5,7 +5,6 @@
    one. The ratings themselves are musics.feedback's."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
-            [musics.core :as m]
             [musics.engine :as engine]
             [musics.feedback :as fb]
             [musics.midi.gervill :as gervill]
@@ -110,8 +109,8 @@
       (when (sound? x) {:value x :where :repl}))))
 
 (defn- synth-info []
-  (cond @m/synth    {:synth :gervill :soundfont (gervill/soundbank-name @m/synth)}
-        @m/receiver {:synth :fluidsynth :soundfont nil}
+  (cond @engine/synth    {:synth :gervill :soundfont (gervill/soundbank-name @engine/synth)}
+        @engine/receiver {:synth :fluidsynth :soundfont nil}
         :else       {:synth nil :soundfont nil}))
 
 (def ^:private score-words {1 "like" 0 "meh" -1 "dislike"})

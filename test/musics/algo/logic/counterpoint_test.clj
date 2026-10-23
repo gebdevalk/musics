@@ -4,7 +4,7 @@
             [musics.algo.logic.counterpoint.intervals :as iv]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
-            [musics.core :as m]))
+            [musics.events :as ev] [musics.input.grammar-parser :as gp] [musics.repo :as repo]))
 
 (def dorian [62 65 64 62 67 65 69 67 65 64 62])   ; D F E D G F A G F E D
 (def cf4 [[62 1] [65 1] [64 1] [62 1]])            ; D F E D, for hand examples
@@ -101,9 +101,9 @@
   (let [r (cp/counterpoint {:cantus dorian :voices 2 :kind 5})
         txt (cp/->mus r :cpt)]
     (is (re-find #"\{cpt: \[ !acc:explicit" txt))
-    (with-out-str (m/parse txt))
+    (with-out-str (gp/parse txt))
     (is (= (reduce + (map #(count (remove (comp nil? first) %)) (:voices r)))
-           (count (filter #(= :note (:kind %)) (m/events :cpt))))
+           (count (filter #(= :note (:kind %)) (ev/events (repo/registry) :cpt))))
         "every note parses and plays"))
   (is (= 2 (count (t/run (lib/species dorian) {:voices 2 :kind 1}))))
   (is (= [] (t/run (lib/species [60 61]) {})) "no solution: no layers"))

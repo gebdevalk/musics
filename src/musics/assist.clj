@@ -14,8 +14,8 @@
 
    so one table answers what's possible now (`now`), how to reach a
    fact or take an action (`plan`), why an action can't be taken yet
-   (`why-not`) and what gives a fact (`providers`). musics.core/assist
-   prints them; the GUI colours and disables its buttons with them.
+   (`why-not`) and what gives a fact (`providers`). `explain` prints
+   them; the GUI colours and disables its buttons with them.
 
    Every action is recorded with musics.registries/log! by the function
    its :var names, under its own key or :logs (test/musics/assist_test.clj
@@ -23,6 +23,7 @@
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== all conde conso emptyo fresh membero
                                         nafc or* run run* fail]]
+            [clojure.string :as str]
             [musics.engine :as engine]
             [musics.registries :as reg]
             [musics.repo :as repo]
@@ -31,19 +32,19 @@
 (def actions
   "The REPL actions, in the order they are suggested."
   [{:action :parse      :needs []                 :gives [:committed]
-    :var 'musics.core/parse     :call "(parse \"[name: c4 d e f]\")"   :doc "commit musics text"}
+    :var 'musics.input.grammar-parser/parse     :call "(parse \"[name: c4 d e f]\")"   :doc "commit musics text"}
    {:action :play       :needs [:committed]       :gives [:playing :played]
-    :var 'musics.core/play      :call "(play :name)"                   :doc "play it (connects first)"}
+    :var 'musics.engine/play-connected      :call "(play :name)"                   :doc "play it (connects first)"}
    {:action :play-add   :needs [:committed :playing] :gives []
-    :var 'musics.core/play-add  :call "(play-add :other)"              :doc "join what's playing"}
+    :var 'musics.engine/play-add-connected  :call "(play-add :other)"              :doc "join what's playing"}
    {:action :pause!     :needs [:playing]         :gives [:paused]
-    :var 'musics.core/pause!    :call "(pause!)"                       :doc "hold playback"}
+    :var 'musics.engine/pause!    :call "(pause!)"                       :doc "hold playback"}
    {:action :resume!    :needs [:paused]          :gives []
-    :var 'musics.core/resume!   :call "(resume!)"                      :doc "go on from the pause"}
+    :var 'musics.engine/resume!   :call "(resume!)"                      :doc "go on from the pause"}
    {:action :stop!      :needs [:playing]         :gives []
-    :var 'musics.core/stop!     :call "(stop!)"                        :doc "stop everything"}
+    :var 'musics.engine/stop!     :call "(stop!)"                        :doc "stop everything"}
    {:action :render     :needs [:committed]       :gives [:rendered]
-    :var 'musics.core/render    :call "(render :name \"name.mid\")"    :doc "write a MIDI file"}
+    :var 'musics.midi.file/render    :call "(render :name \"name.mid\")"    :doc "write a MIDI file"}
    {:action :build-tree :needs []                 :gives [:tree :tctx]
     :var 'musics.algo.tree/build-tree  :call "(def tt (build-tree))"          :doc "compose an algo tree by drag and drop -> [tree tctx]"}
    {:action :tctx       :needs [:tree]            :gives [:tctx]
@@ -53,9 +54,9 @@
    {:action :live!      :needs [:tree :tctx]      :gives [:live :playing :played]
     :var 'musics.algo.tree/live!       :call "(t/live! :riff tree tc)"        :doc "play a tree live; settings heard at once"}
    {:action :play-algo  :needs [:committed :live] :gives [:playing :played] :logs :play
-    :var 'musics.core/play      :call "(play :name :algo :riff)"       :doc "play material through a live tree"}
+    :var 'musics.engine/play-connected      :call "(play :name :algo :riff)"       :doc "play material through a live tree"}
    {:action :connect    :needs []                 :gives [:connected]
-    :var 'musics.core/connect   :call "(connect)"                      :doc "open MIDI (play does it for you)"}])
+    :var 'musics.engine/connect!   :call "(connect)"                      :doc "open MIDI (play does it for you)"}])
 
 (def ^:private by-action (into {} (map (juxt :action identity)) actions))
 
@@ -68,7 +69,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- connected? []
-  (some-> (resolve 'musics.core/receiver) deref deref some?))
+  (some? @engine/receiver))
 
 (defn state
   "The observable facts that hold now."
@@ -215,3 +216,48 @@
    playing or nothing leads there."
   ([] (next-step (facts)))
   ([have] (first (plan have :playing))))
+
+;; ---------------------------------------------------------------------------
+;; Printed
+;; ---------------------------------------------------------------------------
+
+(defn- step-line [k]
+  (let [{:keys [call doc]} (action k)]
+    (format "  %-34s %s" call doc)))
+
+(defn explain
+  "Print what you can do now and how to get where you want to be.
+     (explain)               what holds, what you can do now, the way to
+                             hearing something
+     (explain :live)         the steps to a fact or an action, or why the
+                             action can't be taken yet
+     (explain :pulse :pitch) algo trees from one type to another
+                             (musics.algo.logic.tree/how)"
+  ([]
+   (let [have (facts)
+         path (plan have :playing)]
+     (println "Holds:" (if (seq have) (str/join " " (sort have)) "nothing yet"))
+     (println "Now:")
+     (doseq [k (now)] (println (step-line k)))
+     (when (seq path)
+       (println "To hear something:")
+       (doseq [k path] (println (step-line k))))))
+  ([goal]
+   (let [have (facts)
+         path (plan have goal)]
+     (when-let [missing (and (action goal) (seq (why-not have goal)))]
+       (println (name goal) "needs" (str/join ", " (map str missing))
+                "-- given by" (str/join ", " (for [m missing] (str m " <- " (str/join "/" (map name (providers m))))))))
+     (cond
+       (nil? path)   (println "Nothing leads to" goal "-- facts:"
+                              (str/join " " (sort (distinct (mapcat #(concat (:needs %) (:gives %)) actions)))))
+       (empty? path) (println goal "holds already.")
+       :else         (do (println "To reach" (str goal ":"))
+                         (doseq [k path] (println (step-line k)))))))
+  ([from to]
+   (let [how   (requiring-resolve 'musics.algo.logic.tree/how)
+         show  (requiring-resolve 'musics.algo.logic.tree/show)
+         trees (how from to)]
+     (if (seq trees)
+       (doseq [tr trees] (println " " (show tr)))
+       (println "No tree turns a" from "into a" to "within 3 levels.")))))

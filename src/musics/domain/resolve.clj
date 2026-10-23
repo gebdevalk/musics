@@ -59,7 +59,8 @@
             [musics.domain.context :as c]
             [musics.common.context-keys :as ck]
             [musics.common.music-data :as data]
-            [musics.common.music-elements :as el]))
+            [musics.common.music-elements :as el]
+            [musics.repo :as repo]))
 
 (defn humanize
   "[onset-offset velocity] for a resolved note e: its :micro, plus, scaled
@@ -537,4 +538,87 @@
   ;; (a real session's :ROOT always does -- see musics.common.context-keys/reg!'s
   ;; own :Meter registration -- so nil only shows up for a repo built
   ;; by hand like this one, not real playback).
-  )
+  );; ============================================================
+;; A stored part's context chain
+;; ============================================================
+
+(defn- ref->part [view child]
+  (if (keyword? child) (get view child) child))
+
+(defn- ancestor-path
+  "The nodes from :ROOT down to target itself, found by searching the
+   tree (a Context has no parent pointer); matched by value, since a
+   leaf's :id can repeat. nil when target isn't reachable from :ROOT;
+   the first path when several are."
+  [view target]
+  (letfn [(search [part trail]
+            (cond
+              (nil? part) nil
+              (= part target) (conj trail part)
+              (d/iterator? part)
+              (search (ref->part view (:source part)) (conj trail part))
+              (d/container? part)
+              (some #(search (ref->part view %) (conj trail part)) (:children part))
+              :else nil))]
+    (search (get view :ROOT) [])))
+
+(defn full-ctx-chain
+  "Every reachable ancestor's Context of part, nearest first, :ROOT
+   included; nil when part isn't reachable from :ROOT."
+  [view part]
+  (when-let [nodes (ancestor-path view part)]
+    (->> nodes reverse (keep :context))))
+
+(defn- fmt-value
+  "A context value as text writes it: a key G.major, a meter 12/8."
+  [v]
+  (cond (instance? musics.common.music_elements.Key v)   (el/key->str v)
+        (instance? musics.common.music_elements.Meter v) (el/meter->str v)
+        :else                                            (pr-str v)))
+
+(defn- fmt-point [[time [value ip]]]
+  (str (fmt-value value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
+
+(defn- fmt-context
+  "A Context's own envelope points on one line, nil when it has none."
+  [ctx]
+  (let [envs @(:envelopes-atom ctx)]
+    (when (seq envs)
+      (apply str
+             (interpose "  "
+               (for [[k env] (sort-by key envs)]
+                 (str k "=" (apply str (interpose ", " (map fmt-point @(:points-atom env)))))))))))
+
+(defn ctx
+  "Print a stored part's context chain: each ancestor's own authored
+   values, nearest first, :ROOT's defaults left out."
+  [x]
+  (let [part  (repo/lookup x)
+        nodes (when part (ancestor-path @(repo/registry) part))]
+    (cond
+      (nil? part)
+      (println "Not found:" (pr-str x))
+
+      (nil? nodes)
+      (do (println "(not reachable from :ROOT — anonymous/detached; own context only)")
+          (println (str "  " (or (some-> part :context fmt-context) "(empty)"))))
+
+      :else
+      (let [chain (->> nodes reverse (remove #(= (:id %) :ROOT)))]
+        (if (empty? chain)
+          (println (pr-str (:id part)) "— no context chain (only :ROOT)")
+          (doseq [c chain]
+            (println (str (:id c) ": " (or (some-> c :context fmt-context) "(empty)")))))))))
+
+(defn ctx-value
+  "A context value of a stored part at time, its key canonicalized as a
+   write does (:tempo -> :Tempo), sampled over its whole ancestor chain
+   (or its own context and :ROOT's when it isn't reachable from :ROOT).
+   (ctx-value :verse :tempo 0.0) -> 120"
+  [x key time]
+  (let [part  (repo/lookup x)
+        view  @(repo/registry)
+        chain (or (full-ctx-chain view part)
+                  (keep :context [part (get view :ROOT)]))]
+    (when (seq chain)
+      (c/ctx-value-chain chain (ck/canonical-key key) time))))

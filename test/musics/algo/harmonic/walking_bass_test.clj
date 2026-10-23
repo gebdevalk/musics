@@ -1,7 +1,7 @@
 (ns ^:algo musics.algo.harmonic.walking-bass-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.test-support :refer [with-fresh-session]]
-            [musics.core :as m]
+            [musics.input.grammar-parser :as gp]
             [musics.repo :as repo]
             [musics.events :as ev]
             [musics.algo.random.core :as rc]
@@ -10,7 +10,7 @@
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
-(defn- parse! [text] (with-out-str (m/parse text)))
+(defn- parse! [text] (with-out-str (gp/parse text)))
 
 (def practice
   "The jazz blues in F, with its closing bar."

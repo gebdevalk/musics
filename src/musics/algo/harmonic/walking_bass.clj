@@ -233,7 +233,7 @@
   "The walking bass under the chords of the part id as musics text, in
    the part's form -- a line, or a repeat with its volta endings
    (walk-repeat) -- named name (:bass) and played on an acoustic bass,
-   ready for musics.core/parse; then (play #{id :bass}). opts as walk's."
+   ready for musics.input.grammar-parser/parse; then (play #{id :bass}). opts as walk's."
   ([id] (->mus id {}))
   ([id opts]
    (let [{:keys [chords body endings] :as form} (form-of id)

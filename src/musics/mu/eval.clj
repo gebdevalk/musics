@@ -10,11 +10,11 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.common.music-elements :as el]
-            [musics.core :as m]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
+            [musics.registries :as reg]
             [musics.repo :as repo]))
 
 ;; ------------------------------------------------------------------
@@ -321,8 +321,8 @@
       (let [[tree' lits] (annotate tree text)
             _       (check-refs! tree' lits)
             current (current-repo)
-            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))]
-        (swap! m/session assoc :auto-ids auto-ids)
+            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @reg/session) (:bindings @state))]
+        (swap! reg/session assoc :auto-ids auto-ids)
         {:items (vec (rest tree')) :values values}))))
 
 (defn eval-input

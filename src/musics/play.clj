@@ -6,7 +6,6 @@
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
-            [musics.core :as m]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
             [musics.mu.material :as mt]
@@ -79,7 +78,7 @@
 (defn resume!
   "Go on after pause"
   []
-  (m/resume!))
+  (engine/resume!))
 
 (defn echo!
   "Print each note as it sounds (its instrument or drum), or stop printing"
@@ -93,32 +92,32 @@
   "Play through Fluidsynth (qsynth, via VirMIDI)"
   []
   (mt/cancel-staged!)
-  (m/connect :fluidsynth))
+  (engine/connect! :fluidsynth))
 
 (defn gervill!
   "Play through Gervill, Java's own synthesizer, with FluidR3_GM"
   []
   (mt/cancel-staged!)
-  (m/connect :gervill))
+  (engine/connect! :gervill))
 
 (defn soundfonts!
   "The .sf2 files soundfont takes by number"
   []
-  (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f))))
+  (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
 
 (defn soundfont!
   "Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
   [file-or-n]
   (when-not (or (string? file-or-n) (integer? file-or-n))
     (fail "needs a file in quotes or a number from soundfonts, got" (p/show file-or-n)))
-  (println (m/soundfont file-or-n)))
+  (println (engine/soundfont! file-or-n)))
 
 (defn gui!
   "Open musics' GUI beside mu: transport, the parts and their contexts as
    sliders, the Wall, Record MIDI; closing it leaves mu running and gui
    opens it again"
   []
-  (m/gui)
+  ((requiring-resolve 'musics.gui.core/launch!) :dark)
   ;; JavaFX ends when its last window closes, unless told not to: then
   ;; gui couldn't open it again. By reflection, so loading mu needs no
   ;; JavaFX class.

@@ -4,7 +4,7 @@
    Moved up from musics.domain.persist -- freeze/thaw's own reach was
    already the whole session (repo + auto-ids), not just the domain
    model in isolation, and the persist-session/restore-session pair
-   (musics.core) that builds on this next needs to reach further still,
+   (musics.persist/write and friends, below) that builds on this next needs to reach further still,
    into musics.engine's live voice state (see engine/live-algos) --
    engine state, not domain-model state at all. musics.domain wasn't the right home for
    that, so this ns moved to be a peer of musics.repo/core.wall/
@@ -20,7 +20,11 @@
    So every part is 'frozen' into a plain, fully-readable tagged map before
    writing, and 'thawed' back into the real record/atom shape after
    reading -- no custom EDN readers needed, just plain data."
+  (:refer-clojure :exclude [load])
   (:require [clojure.edn :as edn]
+            [musics.engine :as engine]
+            [musics.registries :as reg]
+            [musics.repo :as repo]
             [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.common.music-elements :as el])
@@ -231,7 +235,7 @@
    and can never survive an EDN round-trip -- restoring replays each
    Name through assign-algo! (into the prep table, picked up by
    whatever you play there next), re-resolving it against whatever's
-   registered at restore time (see musics.core/restore-session).
+   registered at restore time (see musics.persist/restore-session).
    algo-assignments defaults to {} -- nothing live yet is a valid,
    empty case, not an error."
   ([repo auto-ids] (session->edn repo auto-ids {}))
@@ -252,3 +256,46 @@
       {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
        :auto-ids         auto-ids
        :algo-assignments (or algo-assignments {})})))
+
+;; ============================================================
+;; Files
+;; ============================================================
+
+(defn write
+  "Write what is stored, and the auto-ids, to path as EDN."
+  [path]
+  (spit path (repo->edn (into {} @(repo/registry)) (:auto-ids @reg/session)))
+  (println "[musics] Session written to" path))
+
+(defn load
+  "Replace what is stored with a write'd file's (path), auto-ids too."
+  [path]
+  (let [loaded (edn->repo (slurp path))]
+    (repo/seed! (:repo loaded))
+    (swap! reg/session assoc :auto-ids (:auto-ids loaded)))
+  (println "[musics] Session loaded from" path))
+
+(defn persist-session
+  "Like write, and also each live voice's algo (path -> name,
+   musics.engine/live-algos). Not kept: what a name in the algo registry
+   holds (code), the conductor's tables (cues of one performance)."
+  [path]
+  (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session)
+                           (engine/live-algos)))
+  (println "[musics] Session persisted to" path))
+
+(defn restore-session
+  "Like load, then prepares each saved voice path's algo
+   (musics.engine/assign-algo!), so the next untagged play at that path
+   plays through it again; makes a silent engine first when none exists.
+   A later connect! makes a new engine, without these."
+  [path]
+  (let [{:keys [repo auto-ids algo-assignments]} (edn->session (slurp path))]
+    (repo/seed! repo)
+    (swap! reg/session assoc :auto-ids auto-ids)
+    (when (seq algo-assignments)
+      (when-not engine/*engine*
+        (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
+      (doseq [[voice-path name] algo-assignments]
+        (engine/assign-algo! voice-path name))))
+  (println "[musics] Session restored from" path))

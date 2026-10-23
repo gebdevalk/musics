@@ -51,7 +51,7 @@
      noise        :n :lo :hi :len      smooth value noise -> :number
 
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
-   musics text, ready to read, edit, or commit with musics.core/parse."
+   musics text, ready to read, edit, or commit with musics.input.grammar-parser/parse."
   (:require [musics.algo.tree :refer [defalgo expose-ns]]
             [musics.algo.tree.half :as half]
             [musics.algo.random :as random]

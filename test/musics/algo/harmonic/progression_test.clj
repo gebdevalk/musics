@@ -2,14 +2,14 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.test-support :refer [with-fresh-session]]
-            [musics.core :as m]
+            [musics.input.grammar-parser :as gp]
             [musics.repo :as repo]
             [musics.events :as ev]
             [musics.algo.harmonic.progression :as hp]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
-(defn- parse! [text] (with-out-str (m/parse text)))
+(defn- parse! [text] (with-out-str (gp/parse text)))
 
 (defn- chords
   "[pitches beat] of every chord the part id plays."

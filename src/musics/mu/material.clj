@@ -4,11 +4,12 @@
    printing's isomorphism makes safe), storing, fetching and playing.
    Shared by the kernel and the tools."
   (:require [clojure.string :as str]
-            [musics.core :as m]
             [musics.domain :as d]
             [musics.conductor :as conductor]
             [musics.domain.context :as c]
             [musics.engine :as engine]
+            [musics.events :as ev]
+            [musics.input.grammar-parser :as gp]
             [musics.mu.eval :as e]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
@@ -34,7 +35,7 @@
   [text]
   (let [nodes (filterv v/literal? (rest (g/parse text)))]
     (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
-    (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @m/session))))))
+    (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @reg/session))))))
 
 (defn- node-value
   "A child node as a value of its own: an id read in repo, or a node held
@@ -313,7 +314,7 @@
    one; returns the id."
   [x name]
   (if (leaf? x)
-    (first (:ids (m/parse (str "[" (when name (str (clojure.core/name name) ": ")) (p/show x) "]"))))
+    (first (:ids (gp/parse (str "[" (when name (str (clojure.core/name name) ": ")) (p/show x) "]"))))
     (let [mat  (->material (if (repetition? x) (line [x]) x)) ; as parse stores a bare repeat
           id   (or name (:id mat))
           top  (assoc (v/node mat) :id id)
@@ -368,13 +369,20 @@
                 ;; a repeat holds its music in a line of its own (as-line)
                 (let [[x & more] (elements body)] (when (and x (not more) (v/material? x)) (named x)))))))))
 
+(defn events
+  "What playing x would perform, as musics.events gives it: a lazy seq
+   of timed events, read against what is stored plus x's own nodes."
+  [x]
+  (let [mat (->material x)]
+    (ev/events (merge (into {} @(repo/registry)) (v/own-nodes mat)) (:id mat))))
+
 (defn- prepared
   "[engine form mat] for playing x, under a context if given, without
    storing either: the engine reads a repo of what is stored plus their
    own nodes."
   [x ctx]
   (let [mat  (->material x)
-        _    (when (nil? @m/receiver) (m/connect))
+        _    (engine/ensure-connected!)
         snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
     [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
 
@@ -475,7 +483,7 @@
   (cancel-staged!)
   (reset! voices {})
   (doseq [f (vals @stoppers)] (f))
-  (when engine/*engine* (m/stop!)))
+  (when engine/*engine* (engine/stop!)))
 
 (defn stop-voice!
   "Stop only the voice id."
@@ -695,8 +703,8 @@
   []
   (let [eng engine/*engine*]
     (cond
-      (and eng (engine/paused? eng)) (do (m/resume!) "resumed")
-      (engine/busy? eng)             (do (m/pause!) "paused")
+      (and eng (engine/paused? eng)) (do (engine/resume!) "resumed")
+      (engine/busy? eng)             (do (engine/pause!) "paused")
       :else                          "nothing plays")))
 
 (defn echo-line

@@ -8,8 +8,12 @@
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [musics.common.music-elements :as el]
-            [musics.core :as m]
             [musics.domain.resolve :as r]
+            [musics.input.abc-import :as abc]
+            [musics.input.grammar-parser :as gp]
+            [musics.input.guido-import :as guido]
+            [musics.input.lilypond-import :as ly]
+            [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -94,11 +98,9 @@
       (fail "needs the name of something stored, like :motif, got" (p/show x)))
     id))
 
-;; Each prints what its musics.core namesake gives at the REPL.
-
-(defn ids!    "Every stored id, as (musics.core/ids)" [] (prn (m/ids)))
-(defn usages! "The ids whose content uses it directly, as (musics.core/usages id)" [id] (prn (m/usages (stored-id id))))
-(defn ctx!    "A part's context chain, as (musics.core/ctx id)" [id] (m/ctx (stored-id id)))
+(defn ids!    "Every stored id" [] (prn (repo/ids)))
+(defn usages! "The ids whose content uses it directly" [id] (prn (gp/usages (stored-id id))))
+(defn ctx!    "A part's context chain: each ancestor's own settings, nearest first" [id] (r/ctx (stored-id id)))
 
 ;; -- the defaults -----------------------------------------------------------
 
@@ -174,11 +176,38 @@
                              (str n " " eff "\n  " what)
                              (str n " " (:effect entry))))))))
 
+(defn- file-text
+  "The musics text of the file at path: a .mus file as it is, LilyPond
+   (.ly), ABC (.abc) and GUIDO (.gmn, .guido) converted."
+  [^String path]
+  (let [ext (some-> (re-find #"\.([^./]+)$" path) second str/lower-case)
+        src (slurp path)]
+    (case ext
+      "ly"              (ly/ly-text->mus-text src (or (.getParent (java.io.File. path)) "."))
+      "abc"             (abc/abc-text->mus-text src)
+      ("gmn" "guido")   (guido/guido-text->mus-text src)
+      src)))
+
 (defn load!
-  "Read a .mus file into the repo"
+  "Read a file into the repo: musics text (.mus), or LilyPond (.ly), ABC
+   (.abc) or GUIDO (.gmn) converted to it"
   [file]
   (let [path (name-of file)]
     (when-not (.exists (java.io.File. ^String path)) (fail "no such file:" path))
-    (if-let [{:keys [ids]} (m/parse-file path)]
+    (if-let [{:keys [ids]} (gp/parse (file-text path))]
       (println "stored" (str/join " " (map pr-str ids)))
       (fail "the file didn't parse:" path))))
+
+(defn render!
+  "Write what playing the music would sound as to a MIDI file, no clock
+   involved: x \"x.mid\" render; an endless one needs the seconds to
+   write, x \"x.mid\" 60 render"
+  {:mu {:optional {:seconds number?}}}
+  ([x file] (render! x file nil))
+  ([x file seconds]
+   (let [path (name-of file)]
+     (when (and (nil? seconds) (or (mt/endless? x) (mt/loop? x)))
+       (fail "the music is endless -- give the seconds to write: x \"x.mid\" 60 render"))
+     (midi-file/write-events (take-while #(< (:t %) (or seconds 3600)) (mt/events x)) ; an hour at most
+                             path :seed 0)
+     (println "written" path))))

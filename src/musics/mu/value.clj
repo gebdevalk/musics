@@ -26,8 +26,8 @@
 (defn mark? [x] (instance? Mark x))
 
 (defn quotation?
-  "A quotation '( … ), or a Clojure fn standing in for one (from
-   musics.mu.words): it takes the top value and leaves its result."
+  "A quotation '( … ), or a Clojure fn standing in for one: it takes the
+   top value and leaves its result."
   [x]
   (or (instance? Quotation x) (fn? x)))
 

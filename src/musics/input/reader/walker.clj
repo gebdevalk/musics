@@ -144,7 +144,7 @@
 (defn- walk-key-chain
   "Nearest-first vector of every Context still open on the walker's own
    stack right now -- same idea as respell-fn's chain (below) and
-   musics.core's full-ctx-chain, but built from the in-progress walk
+   musics.domain.resolve/full-ctx-chain, but built from the in-progress walk
    stack rather than a finished tree: pitch is resolved eagerly, note
    by note, as the walk descends, so there's no tree yet to search."
   [state]

@@ -135,7 +135,8 @@
 (defn- engine-call [f & args]
   (if engine/*engine*
     (apply (ns-resolve 'musics.engine f) args)
-    (apply (requiring-resolve (symbol "musics.core" (name f))) args)))
+    (do (engine/ensure-connected!)
+        (apply (ns-resolve 'musics.engine f) args))))
 
 (defn live!
   "Bind `name` to `tree` + `tctx`. A generator tree also gets an

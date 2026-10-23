@@ -17,7 +17,7 @@
   (opened/closed automatically as watch!/unwatch! add/remove it from
   musics.gui.state's :watched map), and three more always-available,
   toggle-open/closed windows covering what used to be REPL-only:
-  'Editor' (parse musics text, commits immediately -- musics.core/
+  'Editor' (parse musics text, commits immediately -- musics.input.grammar-parser/
   parse/parse-file), 'Browser' (repo inspection --
   ids/children/leaves/print-structure/ctx), and 'Play
   Builder' (the full play/play-add/play-change mini-language, not just
@@ -350,7 +350,7 @@
    play-change mini-language), Wall (registered algos, assign-algo!),
    Conductor (register-action!/trigger!/schedule!/schedule-tx!) -- same
    toggle pattern as 'Root panel...' above. Assist opens (or refreshes)
-   musics.core/assist's text. The opener whose window takes the next
+   musics.assist/explain's text. The opener whose window takes the next
    step toward hearing something (musics.assist/next-step) is coloured."
   []
   (let [suggested (action->opener (:next (state/assist-facts)))
@@ -392,7 +392,7 @@
          (conj (ui/label {:text (str "Waiting: " (str/join ", " (map name (state/waiting-ids))))})))}))
 
 (defn- midi-input-panel
-  "musics.core's open-midi/close-midi/list-midi-inputs, previously
+  "musics.input.midi's open-midi/close-midi/list-inputs, previously
    REPL-only -- deliberately separate from Record MIDI's own Start/
    Stop below (opening MIDI input and recording it to text are two
    different actions; this is what actually makes Start Recording work
@@ -644,7 +644,7 @@
           (ui/button {:text "Close" :on-action {:event/type :close-editor}})]}}})))
 
 ;; ============================================================
-;; Browser window -- musics.core's own repo-inspection surface
+;; Browser window -- the repo's inspection surface
 ;; (ids/children/leaves/print-structure/ctx). :ids is live-synced
 ;; against musics.repo itself (see musics.gui.state/start-browser-sync!), so
 ;; a concurrent REPL parse! shows up here with no manual refresh.
@@ -902,7 +902,7 @@
           (ui/button {:text "Close" :on-action {:event/type :close-conductor}})]}}})))
 
 ;; ============================================================
-;; Assist popup -- musics.core/assist's text; the Assist button both
+;; Assist popup -- musics.assist/explain's text; the Assist button both
 ;; opens and refreshes it (musics.gui.state/assist!).
 ;; ============================================================
 
@@ -999,7 +999,7 @@
           (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))
 
 ;; ============================================================
-;; Transform workbench window -- musics.core's generative transforms
+;; Transform workbench window -- generative transforms
 ;; (times/transpose/invert/stretch/reverse/shuffle/tonal-*), previously
 ;; REPL-only. Preview (musics.compose/display, no MIDI) is a separate
 ;; step from Commit as New Part, same reasoning musics.gui.state's own

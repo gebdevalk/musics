@@ -27,13 +27,13 @@
 
    (In a real REPL session you'd use (musics/reset) for the first step
    below; these use musics.test-support/with-fresh-session (which seeds :ROOT
-   the same way musics.core/reset itself does) inside its own isolated
+   the same way musics.input.grammar-parser/reset itself does) inside its own isolated
    binding instead, matching the rest of the test suite's convention of
    not printing/disconnecting AND of not leaking state across test
    namespaces."
   (:require [clojure.test :refer [deftest is]]
             [musics.test-support :refer [with-fresh-session]]
-            [musics.core :as m]
+            [musics.input.grammar-parser :as gp]
             [musics.repo :as repo]
             [musics.registries :as reg]
             [musics.conductor :as conductor]
@@ -42,10 +42,10 @@
 (defn- reset-everything! []
   ;; Registry/repo isolation (incl. :ROOT seeding) is handled by
   ;; with-fresh-session, which wraps every test body -- this fn now only
-  ;; resets musics.core's OWN session atom (:auto-ids/:var-map), which is
+  ;; resets musics.registries' session atom (:auto-ids/:var-map), which is
   ;; a plain defonce, not one of musics.registries' ^:dynamic vars, so
   ;; with-fresh-session's own binding never touches it.
-  (reset! m/session {:auto-ids {}}))
+  (reset! reg/session {:auto-ids {}}))
 
 ;; ============================================================
 ;; Fast / direct: nothing is playing when the mutation lands -- a fresh
@@ -59,11 +59,11 @@
   ;; 1. Read two equal-length sequences as ONE atomic committed batch --
   ;;    a single (parse ...) call can define more than one named part;
   ;;    they commit together, immediately.
-  (let [{:keys [ids]} (m/parse "[melody: c4 d e f] [bass: c,4 c c c]")]
+  (let [{:keys [ids]} (gp/parse "[melody: c4 d e f] [bass: c,4 c c c]")]
     (is (= [:melody :bass] ids))
-    (is (some? (m/find :melody)) "visible immediately, parse already committed it")
+    (is (some? (repo/lookup :melody)) "visible immediately, parse already committed it")
 
-    (let [original-pitches (mapv (comp first :pitches) (m/children :melody))
+    (let [original-pitches (mapv (comp first :pitches) (repo/children :melody))
           eng               (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]
 
@@ -83,8 +83,8 @@
         ;;    (Pitches are captured from what was actually committed,
         ;;    not hardcoded -- this test is about the pipeline
         ;;    mechanics, not pitch-resolution arithmetic.)
-        (m/parse "[melody: g4 f e d]")
-        (let [mutated-pitches (mapv (comp first :pitches) (m/children :melody))]
+        (gp/parse "[melody: g4 f e d]")
+        (let [mutated-pitches (mapv (comp first :pitches) (repo/children :melody))]
           (is (not= original-pitches mutated-pitches)
               "the mutation actually changed melody's content")
 
@@ -110,7 +110,7 @@
   ;; 1 plays the original; the cutover armed for melody's exit moves
   ;; that voice on, so pass 2 -- which reads :melody again -- plays the
   ;; rewrite. The bass never crosses melody's exit and stays as it was.
-  (m/parse "[melody: !tempo:960 c4 d e f] [bass: !tempo:960 c,1 c,1]")
+  (gp/parse "[melody: !tempo:960 c4 d e f] [bass: !tempo:960 c,1 c,1]")
   (let [sent (atom [])
         done (promise)]
 ;; fs is a token: with-redefs reaches every engine's thread, and another
@@ -118,11 +118,11 @@
     (with-redefs [engine/send-midi-on!  (fn [fs ev _] (when (= fs ::fs) (swap! sent conj [(:path ev) (first (:pitches ev))])))
                   engine/send-midi-off! (fn [_ _])]
       (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
-        (conductor/register-action! :rewrite (fn [_] (with-out-str (m/parse "[melody: !tempo:960 g4 f e d]"))))
+        (conductor/register-action! :rewrite (fn [_] (with-out-str (gp/parse "[melody: !tempo:960 g4 f e d]"))))
         (conductor/schedule! :melody :enter :rewrite)
         (conductor/register-action! :bass-done (fn [_] (deliver done true)))
         (conductor/schedule! :bass :exit :bass-done)
-        (m/schedule-tx! :melody :exit)
+        (engine/schedule-tx! :melody :exit)
         (engine/play #{[:melody :melody] :bass})
         (is (= true (deref done 4000 :timeout)))))
     (let [by-voice (group-by first @sent)

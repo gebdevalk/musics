@@ -32,7 +32,8 @@
             [musics.domain.resolve :as r]
             [musics.domain.context :as c]
             [musics.domain.ornaments :as orn]
-            [musics.input.reader.leaf-parser :as lp]))
+            [musics.input.reader.leaf-parser :as lp]
+            [musics.repo :as repo]))
 
 (defn live-repo
   "A repo as a map: an IDeref (musics.repo/registry, or a test's own
@@ -318,7 +319,7 @@
 (defn form-tag+items
   "[tag items] for a play-arg form that isn't itself a tagged-form? (see
    play-form/realize-form/validate-ids!, which check that shape first).
-   sq's own :parallel? seq metadata -- how musics.core/sq marks a
+   sq's own :parallel? seq metadata -- how musics.compose/sq marks a
    container's :PAR-vs-:SEQ nature once it's been turned into a bare seq
    of children (mapv'd off the container -- there's no data-level place
    left to carry that at that point, only metadata) -- wins first if
@@ -330,7 +331,7 @@
    :par/:seq leading keyword, no more untagged-vector-defaults-to-:par:
    a set is always :par, a vector is always :seq. Anything else
    sequential but neither (a LazySeq/list -- concretely, whatever
-   musics.core/times or map/filter/etc. produce from sq'd material, which
+   a transform or map/filter/etc. produce from sq'd material, which
    never preserves sq's own metadata) still defaults to :seq: that shape
    is already-linear repeated/transformed material, not a fresh grouping
    of separate parts, and this is what keeps (play (times 4 (sq
@@ -663,3 +664,14 @@
   (let [repo (live-repo repo)]
     (str/join "\n" (map (fn [id [f a]] (str (name id) (when a (str " :algo " a)) "  " (show-form repo f)))
                         (track-ids) (top-level-voices repo form algo)))))
+
+(defn sq
+  "A container's children (any handle musics.repo/lookup takes) as a
+   seq that play takes as a Form, tagged {:parallel? bool :id id :node
+   node} in its metadata: form-tag+items reads :parallel?, so a :PAR's
+   children play at once. A transform that builds a new seq drops the
+   tag and plays in order. nil for anything but a container."
+  [x]
+  (let [c (repo/lookup x)]
+    (when (d/container? c)
+      (with-meta (repo/children x) {:parallel? (= :PAR (:type c)) :id (:id c) :node c}))))

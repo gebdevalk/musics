@@ -5,10 +5,16 @@
             [musics.music :as music]
             [musics.mu.eval :as e]
             [musics.mu.library]
-            [musics.mu.words :as mu]
             [musics.mu.print :as p]))
 
-(defn- run [text] (p/show (mu/mu text)))
+(defn- mu
+  "Run mu text on a fresh stack: the one value it leaves, nil for none."
+  [text]
+  (let [r   (e/read-input text)
+        out (e/run-items [] (:items r) {:locals {} :values (:values r)})]
+    (case (count out) 0 nil 1 (peek out) out)))
+
+(defn- run [text] (p/show (mu text)))
 
 (deftest a-word-is-its-function
   (is (= #'music/retrograde (:var (e/lookup @e/state "[R]"))))
@@ -18,10 +24,10 @@
   (is (= #'music/times (:var (e/lookup @e/state "tool/[*]"))) "in its :ns"))
 
 (deftest called-from-clojure-or-from-mu-alike
-  (let [x (mu/mu "[c d e]")]
-    (is (= "[E4/4 D4 C4]" (p/show (music/retrograde x)) (run "[c d e] [R]") (p/show (mu/R x))))
-    (is (= "repeat 3 [C4/4 D4]" (p/show (music/times (mu/mu "[c d]") 3)) (run "[c d] 3 [*]")))
-    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (music/up (mu/mu "[c e g]") 7)) (run "[c e g] 7 +")))))
+  (let [x (mu "[c d e]")]
+    (is (= "[E4/4 D4 C4]" (p/show (music/retrograde x)) (run "[c d e] [R]")))
+    (is (= "repeat 3 [C4/4 D4]" (p/show (music/times (mu "[c d]") 3)) (run "[c d] 3 [*]")))
+    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (music/up (mu "[c e g]") 7)) (run "[c e g] 7 +")))))
 
 (deftest an-optional-argument-by-its-test
   (testing "n is taken only when the top is a whole number"
@@ -32,16 +38,15 @@
 
 (deftest a-function-done-for-its-effect-leaves-nothing
   (is (= " 40  violin                 vln\n 41  viola                  vla\n"
-         (with-out-str (is (nil? (mu/mu "\"viol\" find-instrument")))))))
+         (with-out-str (is (nil? (mu "\"viol\" find-instrument")))))))
 
 (deftest its-errors-are-mus-named-by-the-word
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: is musical; on numbers write add" (mu/mu "1 2 +")))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: transposes by a whole number" (mu/mu "[c d] 1/2 +"))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: is musical; on numbers write add" (mu "1 2 +")))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: transposes by a whole number" (mu "[c d] 1/2 +"))))
 
 (deftest redefining-the-function-redefines-the-word
   (let [original @#'music/retrograde]
     (try
       (alter-var-root #'music/retrograde (constantly (fn [x] x)))
       (is (= "[C4/4 D4 E4]" (run "[c d e] [R]")) "mu runs the var as it is now")
-      (is (= "[C4/4 D4 E4]" (p/show (mu/retrograde (mu/mu "[c d e]")))) "and so does mu/ from Clojure")
       (finally (alter-var-root #'music/retrograde (constantly original))))))

@@ -67,7 +67,7 @@
 
 (def scales
   "Scale names -> their {:intervals :display :offset ...} record --
-   for a future scale-picker driving musics.core's tonal-* fns rather
+   for a future scale-picker driving musics.domain's tonal-* fns rather
    than a plain Context value, exposed here for the same reason
    articulations is."
   {:items (vec (sort (map name (keys md/scales))))

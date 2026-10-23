@@ -78,35 +78,6 @@
     (is (= 5 (:k (t/params tctx))) "settings made along the way are kept")
     (is (seq (t/run tree tctx)))))
 
-(deftest the-repl-twin-builds-the-same-tree
-  (let [;; numbers are positions in the listings as they stand at each step
-        idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
-        cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d0 (b/draft) d1 (b/place d0 :zip []) d2 (b/place d1 :pulses->durations [0])
-        d3 (b/place d2 :euclid [0 0]) d4 (b/place d3 :cycle> [1])
-        input (str/join "\n" [(cidx d0 "tools") (idx d0 "tools" :zip)
-                              (cidx d1 "workshop") (idx d1 "workshop" :pulses->durations)
-                              (cidx d2 "workshop") (idx d2 "workshop" :euclid)
-                              (cidx d3 "tools") (idx d3 "tools" :cycle>)
-                              (cidx d4 "pitch") (idx d4 "pitch" :scale)
-                              "k :k 5" "f"])
-        [tree tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil)))]
-    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))
-    (is (= 5 (:k (t/params tctx))))))
-
-(deftest the-repl-twin-cancels
-  (is (nil? (with-in-str "q" (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil))))))
-
-(deftest settings-survive-an-incomplete-moment
-  ;; set :k, undo the last step (tree incomplete), redo it: :k stays
-  (let [idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
-        cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d4 (reduce (fn [d s] (b/place d s (:active d))) (b/draft) [:zip :pulses->durations :euclid :cycle>])
-        input (str/join "\n" ["k :k 5" "u" (cidx d4 "pitch") (idx d4 "pitch" :scale) "f"])
-        start (b/place d4 :scale (:active d4))
-        [_ tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= 5 (:k (t/params tctx))))))
-
 (deftest undo-and-redo
   (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
         u3 (-> d b/undo b/undo b/undo)]
@@ -121,12 +92,6 @@
     (is (b/can-undo? (b/remove d [1])) "remove is undoable")
     (is (= "(zip (pulses->durations (euclid)) ①)" (plain (b/redo (b/undo (b/remove d [1])))))
         "... and redo removes again")))
-
-(deftest the-repl-twin-undoes-and-redoes
-  (let [start (build :zip :pulses->durations :euclid :cycle> :scale)
-        [tree _] (with-in-str "u\nu\ny\ny\nf"
-                   (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))))
 
 (deftest a-hole-under-a-same-node-takes-the-slots-type
   ;; cycle> is :in [:any] :out :same -- in zip's pitches slot, its own

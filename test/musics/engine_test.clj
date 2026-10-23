@@ -11,7 +11,7 @@
             [musics.domain :as d]
             [musics.domain.context :as c]
             [musics.common.music-elements :as el]
-            [musics.core :as m]))
+            [musics.input.grammar-parser :as gp]))
 
 (defn- fresh-registries-fixture [f]
   ;; Every test in this file used to open with its own (repo/reset-all!)
@@ -241,7 +241,7 @@
 
 (deftest an-instrument-list-plays-each-note-on-a-channel-per-instrument
   (with-fresh-session
-   (with-out-str (m/parse "[l: !tempo:240 !i:40,73,0 c8 <d f>]"))
+   (with-out-str (gp/parse "[l: !tempo:240 !i:40,73,0 c8 <d f>]"))
    (let [sent (atom [])]
     (with-redefs [engine/send-midi-on!  (fn [fs ev fresh?]
                                           (when (= fs ::fs)
@@ -261,7 +261,7 @@
 
 (deftest an-instrument-list-on-one-note-layers-only-that-note
   (with-fresh-session
-   (with-out-str (m/parse "[l: !tempo:240 !i:0 c8\\i:40,73 d]"))
+   (with-out-str (gp/parse "[l: !tempo:240 !i:0 c8\\i:40,73 d]"))
    (let [sent (atom [])]
      (with-redefs [engine/send-midi-on!  (fn [fs ev _]
                                            (when (= fs ::fs) (swap! sent conj [(:program ev) (:pitches ev)])))
@@ -431,7 +431,7 @@
       (is (= [67] (:pitches (first (second (:voices par-step)))))))))
 
 (deftest display-honors-parallel-metadata-on-a-bare-seq
-  ;; sq (musics.core) tags its own children-of-a-:PAR result {:parallel?
+  ;; sq (musics.compose) tags its own children-of-a-:PAR result {:parallel?
   ;; true} via metadata, since turning a container into a plain seq
   ;; (mapv'd children) leaves no data-level place left to carry a
   ;; :par/:seq tag the way a literal #{...} group has one. display/play
@@ -439,7 +439,7 @@
   ;; vector-vs-set default -- otherwise a genuinely parallel container
   ;; silently plays back sequentially the moment it's passed through sq
   ;; (sq's own output is always a plain vector, never a set). Confirmed
-  ;; live before this test existed: (compose/display tx (m/sq :chorale))
+  ;; live before this test existed: (compose/display tx (compose/sq :chorale))
   ;; used to come back [:seq ...], not [:par ...] -- and this must keep
   ;; working exactly the same after the []=seq/#{}=par redesign, since
   ;; sq's own metadata answer is untouched by it.
@@ -618,7 +618,7 @@
   ;; comment: a throw there is swallowed by core.async, confirmed live
   ;; -- (<!! ch) on a go block that throws just returns nil) -- is what
   ;; has to reject nil specifically. nil is the concrete, real-world
-  ;; case: sq (musics.core) returns nil for an id that doesn't resolve
+  ;; case: sq (musics.compose) returns nil for an id that doesn't resolve
   ;; to a container at all (a typo, or an id that's a leaf rather than
   ;; a composite). Used to silently no-op -- no sound, no error --
   ;; confirmed live before this test existed. Deliberately narrower
@@ -661,7 +661,7 @@
           (compose/display-timed (repo/registry) nil)))))
 
 (deftest display-tolerates-an-inline-assignment-node-in-bare-material
-  ;; Real regression, caught live: sq (musics.core) hands back a
+  ;; Real regression, caught live: sq (musics.compose) hands back a
   ;; container's :children verbatim, which includes inline :assignment
   ;; nodes (the walker's own record of a written !tempo:/!mf/etc.
   ;; instruction -- its real effect already landed on its siblings'

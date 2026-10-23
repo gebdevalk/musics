@@ -133,12 +133,9 @@
         (is (check (if (and (seq? result) (not (counted? result))) (take 64 result) result))
             (str short " doesn't produce " out ": " (pr-str (if (coll? result) (take 8 result) result))))))))
 
-(deftest lib-names-never-shadow-core-or-musics-core
-  (require 'musics.core)
-  (let [lib-names (set (keys (ns-publics 'musics.algo.tree.lib)))
-        taken (set/union (set (keys (ns-publics 'clojure.core)))
-                         (set (keys (ns-publics 'musics.core))))]
-    (is (empty? (set/intersection lib-names taken)))))
+(deftest lib-names-never-shadow-clojure-core
+  (let [lib-names (set (keys (ns-publics 'musics.algo.tree.lib)))]
+    (is (empty? (set/intersection lib-names (set (keys (ns-publics 'clojure.core))))))))
 
 (deftest repeat-and-pull-draw-len-values-reproducibly
   (let [run-seeded (fn [tree m] (rc/seed! 7) (t/run tree m))]

@@ -5,7 +5,7 @@
             [musics.test-support :refer [with-fresh-session]]
             [musics.assist :as a]
             [musics.registries :as reg]
-            [musics.core :as m]))
+            [musics.input.grammar-parser :as gp]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
@@ -43,14 +43,14 @@
 
 (deftest assist-at-the-repl
   (testing "a fresh session points at parse"
-    (let [out (with-out-str (m/assist))]
+    (let [out (with-out-str (a/explain))]
       (is (str/includes? out "Holds: nothing yet"))
       (is (str/includes? out "(parse"))))
   (testing "a goal"
-    (is (str/includes? (with-out-str (m/assist :live)) "(t/live!")))
+    (is (str/includes? (with-out-str (a/explain :live)) "(t/live!")))
   (testing "an action that can't be taken yet"
-    (is (str/includes? (with-out-str (m/assist :render)) "render needs :committed")))
+    (is (str/includes? (with-out-str (a/explain :render)) "render needs :committed")))
   (testing "after parse"
-    (with-out-str (m/parse "[verse: c4 d e]"))
+    (with-out-str (gp/parse "[verse: c4 d e]"))
     (is (= #{:committed} (a/facts)))
-    (is (str/includes? (with-out-str (m/assist :committed)) "holds already"))))
+    (is (str/includes? (with-out-str (a/explain :committed)) "holds already"))))

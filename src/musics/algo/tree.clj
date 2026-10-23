@@ -509,19 +509,12 @@
    [tree tctx] -- blocks until Finalize; nil when the window is closed.
      (build-tree)              a new tree
      (build-tree tree)         edit an existing one
-     (build-tree tree tctx)    ... keeping its settings
-   The same with :repl first -- (build-tree :repl), (build-tree :repl
-   tree) -- composes at the REPL instead, step for step the same
-   (musics.algo.tree.builder/repl-build)."
-  [& args]
+     (build-tree tree tctx)    ... keeping its settings"
+  [& [tree tctx]]
   (registries/log! :build-tree)
-  (let [repl?       (= :repl (first args))
-        [tree tctx] (if repl? (rest args) args)
-        draft       (requiring-resolve 'musics.algo.tree.builder/draft)
-        d           (if tree (draft tree) (draft))]
-    (if repl?
-      ((requiring-resolve 'musics.algo.tree.builder/repl-build) d tctx)
-      @((requiring-resolve 'musics.gui.composer/open!) d tctx))))
+  (let [draft (requiring-resolve 'musics.algo.tree.builder/draft)
+        d     (if tree (draft tree) (draft))]
+    @((requiring-resolve 'musics.gui.composer/open!) d tctx)))
 
 (defn gui
   "A settings window (musics.gui.params): (gui tctx), (gui tree) -- a new

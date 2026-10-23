@@ -11,7 +11,12 @@
   (:require [instaparse.core :as insta]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [musics.input.reader.walker :as tw]))
+            [musics.domain :as d]
+            [musics.engine :as engine]
+            [musics.input.reader.builder :as flat]
+            [musics.input.reader.walker :as tw]
+            [musics.registries :as reg]
+            [musics.repo :as repo]))
 
 ;; ============================================================
 ;; Grammar loading
@@ -132,6 +137,85 @@
       (let [msg (format-parse-error (insta/get-failure tree) text)]
         (throw (ex-info msg {:failure (failure-info tree)}))))
     (tw/walk tree text)))
+
+;; ============================================================
+;; Reading text into the repo
+;; ============================================================
+
+(defn- commit-root!
+  "Commit a fresh :ROOT, with every default."
+  []
+  (repo/commit-node! :ROOT (get (:repo (flat/empty-session)) :ROOT)))
+
+;; A real :ROOT exists before anything is read; defonce, so reloading this
+;; ns keeps what is stored.
+(defonce ^:private _bootstrap
+  (when (nil? (repo/current :ROOT)) (commit-root!)))
+
+(defn usages
+  "Every id whose content references id directly as one of its children
+   -- what else changes when id is read again. parse warns when a
+   redefinition reaches one of these outside what it read itself."
+  [id]
+  (into #{}
+        (keep (fn [[candidate-id node]]
+                (when (and (d/container? node) (some #{id} (:children node)))
+                  candidate-id)))
+        @(repo/registry)))
+
+(defn- root-id-of [child]
+  (if (keyword? child) child (:id child)))
+
+(defn parse
+  "Read musics text against what is stored and store it at once: every id
+   it introduces or changes is committed in one step. Returns {:ids ids},
+   its top-level ids in the order written, or nil when it doesn't parse
+   (the error printed). Warns (without blocking) when a redefined id is
+   also used by a container this text didn't read. Auto-ids and
+   variables carry on from the session (musics.registries/session)."
+  [text]
+  (try
+    (if-let [insta-tree (try-parse text)]
+      (let [session     reg/session
+            old-repo    (into {} @(repo/registry))
+            flat-result (tw/walk insta-tree text
+                                 {:repo old-repo :auto-ids (:auto-ids @session)
+                                  :var-map (:var-map @session)})
+            new-repo    (:tree flat-result)
+            changed-ids (repo/changed-ids old-repo new-repo)
+            edits       (select-keys new-repo changed-ids)
+            ids         (into [] (comp (map root-id-of) (filter changed-ids))
+                              (:children (get new-repo :ROOT)))]
+        (doseq [id changed-ids]
+          (let [affected (remove (into changed-ids #{:ROOT}) (usages id))]
+            (when (seq affected)
+              (println "[musics] Redefining" id "also affects" (vec affected)
+                       "-- give it a new id instead if that's not intended."))))
+        (repo/commit-many! edits)
+        (swap! session assoc
+               :auto-ids (:auto-ids flat-result)
+               :var-map  (:var-map flat-result))
+        (reg/log! :parse)
+        {:ids ids})
+      nil)
+    (catch clojure.lang.ExceptionInfo e
+      (println (.getMessage e))
+      nil)))
+
+(defn parse-file
+  "Read the musics text in the file at path (see parse)."
+  [path]
+  (parse (slurp path)))
+
+(defn reset
+  "Clear everything: what is stored, the session, every registered algo
+   and conductor entry, the MIDI output; a fresh :ROOT is committed."
+  []
+  (repo/reset-all!)
+  (reg/reset-all!)
+  (commit-root!)
+  (engine/disconnect!)
+  (println "[musics] Reset."))
 
 ;; ============================================================
 ;; REPL helpers

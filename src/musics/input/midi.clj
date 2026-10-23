@@ -31,7 +31,7 @@
   (:require [overtone.midi :as omidi]
             [clojure.core.async :as a]
             [musics.midi.live :as live]
-            [musics.core :as m]))
+            [musics.engine :as engine]))
 
 (def thru-channel
   "The fixed MIDI channel midi-through sends on -- a raw pass-through
@@ -49,10 +49,10 @@
 
 (defn- forward-thru!
   [{:keys [command note velocity]}]
-  (when (nil? @m/receiver) (m/connect))
+  (engine/ensure-connected!)
   (case command
-    :note-on  (live/note-on  @m/receiver thru-channel note velocity)
-    :note-off (live/note-off @m/receiver thru-channel note)
+    :note-on  (live/note-on  @engine/receiver thru-channel note velocity)
+    :note-off (live/note-off @engine/receiver thru-channel note)
     nil))
 
 (defn list-inputs
@@ -106,7 +106,7 @@
    (when-let [dev (:device source)]
      (when (.isOpen dev) (.close dev)))
    (a/close! events)
-   (when @m/receiver (live/all-notes-off @m/receiver thru-channel))
+   (when @engine/receiver (live/all-notes-off @engine/receiver thru-channel))
    (println "[musics.input.midi] Closed:" (:name source))
    (when (= source (:source @*handle)) (reset! *handle nil))
    nil))

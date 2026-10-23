@@ -8,6 +8,7 @@
 
      play / play-add / play-change   start voices (see play)
      stop! / pause! / resume!        transport
+     connect! / soundfont! / receiver  the MIDI output *engine* plays through
      schedule-tx!                    cut voices over at a boundary
      voice-at / playing-ids / live-algos / assign-algo!
 
@@ -32,7 +33,9 @@
             [musics.domain.context :as c]
             [musics.domain.resolve :as resolve]
             [musics.common.music-data :as data]
-            [musics.midi.live :as live])
+            [musics.midi.gervill :as gervill]
+            [musics.midi.live :as live]
+            [musics.registries :as reg])
   (:import [java.util PriorityQueue Comparator]
            [java.util.concurrent.locks LockSupport]))
 
@@ -423,7 +426,7 @@
 
 (defn stop!
   "Stop everything: sounding notes get their note-off now."
-  ([] (stop! *engine*))
+  ([] (reg/log! :stop!) (stop! *engine*))
   ([eng]
    (locking (:lock eng)
      (drop-all! eng)
@@ -435,7 +438,7 @@
 
 (defn pause!
   "Hold everything where it is; sounding notes keep sounding."
-  ([] (pause! *engine*))
+  ([] (reg/log! :pause!) (pause! *engine*))
   ([eng]
    (locking (:lock eng)
      (when (= :playing @(:state eng))
@@ -445,7 +448,7 @@
 
 (defn resume!
   "Continue from where pause! held everything."
-  ([] (resume! *engine*))
+  ([] (reg/log! :resume!) (resume! *engine*))
   ([eng]
    (locking (:lock eng)
      (when (= :paused @(:state eng))
@@ -712,3 +715,98 @@
        (drop-voice! eng path)
        (when (empty? @(:streams eng)) (reset! (:state eng) :stopped)))
      nil)))
+
+;; ============================================================
+;; The output: what *engine* plays through
+;; ============================================================
+
+(defonce ^{:doc "The MIDI Receiver *engine* plays through, nil before connect!."}
+  receiver (atom nil))
+(defonce ^{:doc "Gervill's Synthesizer, when playing through it."}
+  synth (atom nil))
+
+(defn connect!
+  "Open a MIDI output and make *engine* an engine playing the repo
+   through it; again, it stops what plays and opens the output anew.
+   (connect!)                    Gervill, Java's own synthesizer, with
+                                 FluidR3_GM (musics.midi.gervill/default-soundfonts)
+   (connect! :gervill)           the same
+   (connect! :fluidsynth)        Fluidsynth, through VirMIDI (doc/md/setup.md)
+   (connect! :gervill \"x.sf2\")  with that soundfont; :latency-ms n after
+                                 it sets Gervill's buffer (default 30)
+   Plays a near-silent warm-up burst first (warm-up!, ~1/3 s)."
+  ([] (connect! :gervill))
+  ([output & [soundfont & {:keys [latency-ms] :or {latency-ms 30}}]]
+   (when-not (#{:fluidsynth :gervill} output)
+     (throw (ex-info (str "connect: " (pr-str output) " -- :fluidsynth or :gervill") {:output output})))
+   (when @receiver (stop!))
+   (gervill/close @synth)
+   (reset! synth nil)
+   (if (= output :gervill)
+     (let [s (gervill/open :soundfont soundfont :latency-ms latency-ms)]
+       (reset! synth s)
+       (reset! receiver (.getReceiver ^javax.sound.midi.Synthesizer s)))
+     (reset! receiver (live/open-receiver)))
+   (let [eng (engine @receiver (core-repo/registry) :ROOT)]
+     (set-engine! eng)
+     (warm-up! eng))
+   (reg/log! :connect)
+   (println "[musics] Connected:" (if (= output :gervill) "Gervill" "Fluidsynth"))))
+
+(defn ensure-connected!
+  "connect! unless connected already."
+  []
+  (when (nil? @receiver) (connect!)))
+
+(defn disconnect!
+  "Forget the MIDI output; what plays isn't stopped (stop! first)."
+  []
+  (reset! receiver nil)
+  (gervill/close @synth)
+  (reset! synth nil))
+
+(defn soundfonts
+  "The .sf2 files soundfont! loads by number, numbered from 0
+   (musics.midi.gervill/soundfont-dirs)."
+  []
+  (vec (gervill/soundfonts)))
+
+(defn soundfont!
+  "Play through Gervill with the soundfont at path (~ for home), or the
+   n-th of (soundfonts), connecting to Gervill first if playing through
+   anything else; what plays goes on, in the new sounds. Returns the
+   soundbank's name."
+  [path-or-n]
+  (let [path (if (integer? path-or-n)
+               (or (get (soundfonts) path-or-n)
+                   (throw (ex-info (str "soundfont: no number " path-or-n " -- soundfonts has "
+                                        (count (soundfonts)))
+                                   {:n path-or-n})))
+               path-or-n)]
+    (if @synth
+      (gervill/load-soundfont! @synth path)
+      (do (connect! :gervill path)
+          (gervill/soundbank-name @synth)))))
+
+(defn all-notes-off!
+  "Silence every MIDI channel of the output."
+  []
+  (when-let [rcv @receiver]
+    (doseq [ch (range 16)]
+      (live/all-notes-off rcv ch))))
+
+(defn play-connected
+  "play, connecting first if nothing is connected."
+  [& args]
+  (ensure-connected!)
+  (let [result (apply play args)]
+    (reg/log! :play)
+    result))
+
+(defn play-add-connected
+  "play-add, connecting first if nothing is connected."
+  [& args]
+  (ensure-connected!)
+  (let [result (apply play-add args)]
+    (reg/log! :play-add)
+    result))

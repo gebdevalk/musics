@@ -1,7 +1,7 @@
 (ns ^:engine musics.events-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.test-support :refer [with-fresh-session]]
-            [musics.core :as m]
+            [musics.persist :as persist]
             [musics.repo :as repo]
             [musics.compose :as compose]
             [musics.events :as ev]
@@ -15,7 +15,7 @@
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))
 
-(defn- parse! [text] (with-out-str (m/parse text)))
+(defn- parse! [text] (with-out-str (gp/parse text)))
 
 (defn- notes [evs] (filter #(= :note (:kind %)) evs))
 
@@ -102,11 +102,11 @@
                           :children [(d/leaf :n1 (c/context) 1/8 [60])]}
                          {:count :infinite})})
   (is (= (map #(* 1/8 %) (range 50))
-         (map :beat (take 50 (notes (m/events :endless)))))))
+         (map :beat (take 50 (notes (ev/events (repo/registry) :endless)))))))
 
 (deftest bars-and-marks
   (parse! "[b: !tempo:240 !Meter:2/4 c4 d4 | e4 f4 || g2 ]")
-  (let [evs (m/events :b)]
+  (let [evs (ev/events (repo/registry) :b)]
     (is (= [[1/2 2] [1 3] [3/2 4]] (map (juxt :beat :n) (filter #(= :bar (:kind %)) evs))))
     (is (= [[1/2 1 1] [1 2 1]] (map (juxt :beat :count :n) (filter #(= :mark (:kind %)) evs))))))
 
@@ -121,19 +121,19 @@
   (parse! "[a: c4 d4 ]")
   (parse! "[b: e4 ]")
   (is (= [[61] [63] [64]]
-         (map :pitches (notes (m/events [[:a :algo :up] :b])))))
-  (is (= [[61] [63]] (map :pitches (notes (m/events :a :algo :up))))))
+         (map :pitches (notes (ev/events (repo/registry) [[:a :algo :up] :b])))))
+  (is (= [[61] [63]] (map :pitches (notes (ev/events (repo/registry) :a :algo :up))))))
 
 (deftest a-top-level-set-mints-top-level-voices-lowest-first
   (parse! "[hi: c'4 ]")
   (parse! "[lo: C3 ]")
   (is (= {[:TA] [[48]] [:TB] [[72]]}
-         (update-vals (group-by :path (notes (m/events #{:hi :lo}))) #(map :pitches %)))))
+         (update-vals (group-by :path (notes (ev/events (repo/registry) #{:hi :lo}))) #(map :pitches %)))))
 
 (deftest render-writes-what-events-says
   (parse! "[r: !tempo:240 { [c4 d4] [e4] } g4 ]")
   (let [f   (java.io.File/createTempFile "musics.events-test" ".mid")
-        _   (midi-file/write-events (m/events :r) f)
+        _   (midi-file/write-events (ev/events (repo/registry) :r) f)
         ons (for [t (.getTracks (MidiSystem/getSequence f))
                   i (range (.size t))
                   :let [e (.get t i) msg (.getMessage e)]
@@ -145,9 +145,9 @@
 
 (deftest an-instrument-list-is-one-event-rendered-once-per-instrument
   (parse! "[r: !tempo:240 !i:40,73 c4 d4 ]")
-  (is (= [[40 73] [40 73]] (map :program (notes (m/events :r)))))
+  (is (= [[40 73] [40 73]] (map :program (notes (ev/events (repo/registry) :r)))))
   (let [f   (java.io.File/createTempFile "musics.events-test" ".mid")
-        _   (midi-file/write-events (m/events :r) f)
+        _   (midi-file/write-events (ev/events (repo/registry) :r) f)
         msgs (for [t (.getTracks (MidiSystem/getSequence f))
                    i (range (.size t))
                    :let [e (.get t i) msg (.getMessage e)]
@@ -161,7 +161,7 @@
 
 (deftest a-layered-drum-sounds-every-key-at-once
   (parse! "[r: x8\\36,39 x\\42 ]")
-  (is (= [[36 39] [42]] (map :pitches (filter #(= :drum (:kind %)) (m/events :r))))))
+  (is (= [[36 39] [42]] (map :pitches (filter #(= :drum (:kind %)) (ev/events (repo/registry) :r))))))
 
 (deftest octave-shifts-pitches-by-twelve-per-step
   (parse! "[t: c4 !octave:1 d4 !octave:-2 e4 ]")
@@ -175,14 +175,14 @@
     (is (= [0 1/4 3/4] (map :beat evs)) "structural beats are untouched")))
 
 (defn- note-times [form]
-  (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (m/events form))))
+  (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (ev/events (repo/registry) form))))
 
 (deftest a-referencing-containers-context-reaches-the-referenced-notes
   (parse! "[mot: c4 d e f]")
   (parse! "[fast: !tempo:240 :mot]")
   (parse! "[loud: !ff :mot]")
   (is (= [0.0 0.25 0.5 0.75] (note-times :fast)))
-  (is (= [102 102 102 102] (map :velocity (notes (m/events :loud))))))
+  (is (= [102 102 102 102] (map :velocity (notes (ev/events (repo/registry) :loud))))))
 
 (deftest a-referenced-containers-own-setting-wins
   (parse! "[own: !tempo:60 c4 d]")
@@ -197,10 +197,10 @@
 
 (deftest extracted-notes-keep-their-containers-context
   (parse! "[own: !tempo:60 !ff c4 d]")
-  (is (= [0.0 1.0] (note-times (m/sq :own))))
-  (is (= [102 102] (map :velocity (notes (m/events (m/sq :own)))))))
+  (is (= [0.0 1.0] (note-times (compose/sq :own))))
+  (is (= [102 102] (map :velocity (notes (ev/events (repo/registry) (compose/sq :own)))))))
 
-(defn- note-pitches [form] (map :pitches (notes (m/events form))))
+(defn- note-pitches [form] (map :pitches (notes (ev/events (repo/registry) form))))
 
 (deftest a-motif-follows-the-key-it-is-played-in
   (parse! "[mot: c d e f g]")
@@ -235,7 +235,7 @@
 (deftest extracted-notes-follow-the-key-they-are-played-in
   (parse! "[mot: c f]")
   (parse! "^{inG: !key:G.major}")
-  (is (= [[60] [66]] (note-pitches [:inG (m/sq :mot)]))))
+  (is (= [[60] [66]] (note-pitches [:inG (compose/sq :mot)]))))
 
 (deftest a-chord-symbol-follows-the-key-by-its-root
   ;; the written quality stays: F major in C plays F# major under G
@@ -286,7 +286,7 @@
   (parse! "[tt: !tempo:60 C4 $ D4 !tempo:120 E4 DS F4 ]")
   (is (= [[60 1.0] [62 1.0] [64 0.5] [62 1.0] [64 0.5] [65 0.5]]
          (map (juxt (comp first :pitches) #(/ (Math/round (* 1000 (:dur-secs %))) 1000.0))
-              (notes (m/events :tt))))))
+              (notes (ev/events (repo/registry) :tt))))))
 
 (deftest a-simile-repeats-the-bar-before-it
   (parse! "[sim: C4 D4 | E4 F4 | ./. | G4 ]")
@@ -308,7 +308,7 @@
                         (gp/parse-domain-string "[repeat ~ [c d] volta [e]]"))))
 
 (defn- drum-hits [form]
-  (map (juxt :beat (comp first :pitches)) (filter #(= :drum (:kind %)) (m/events form))))
+  (map (juxt :beat (comp first :pitches)) (filter #(= :drum (:kind %)) (ev/events (repo/registry) form))))
 
 (deftest a-bare-x-is-the-previous-drum
   (parse! "[kit: x8\\36 x x\\snare x x\\ghost]")
@@ -342,9 +342,9 @@
   (parse! "[z: c d ^{ !ff } e [!pp f g]]")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
-      (with-out-str (m/write (.getPath tmp)))
+      (with-out-str (persist/write (.getPath tmp)))
       (repo/reset-all!)
-      (with-out-str (m/load (.getPath tmp)))
+      (with-out-str (persist/load (.getPath tmp)))
       (is (= [64 64 102 102 102] (map :velocity (notes (ev/events (repo/registry) :z)))))
       (finally (.delete tmp)))))
 

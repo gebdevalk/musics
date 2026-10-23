@@ -3,8 +3,7 @@
    tree with its brackets, a pane of algo categories -> algos on the
    right, drag and drop from the pane onto the canvas.
 
-   The rules are musics.algo.tree.builder's (the same model the REPL twin,
-   repl-build, uses): an algo may go only where its output fits; the
+   The rules are musics.algo.tree.builder's: an algo may go only where its output fits; the
    pane dims what doesn't fit the active slot; dropping on a hole fills
    it, on a node replaces it, on the empty canvas makes the root. Once
    the tree is complete its settings appear under the canvas. Finalize

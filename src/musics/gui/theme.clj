@@ -1,6 +1,6 @@
 (ns musics.gui.theme
   "Dark/light JavaFX theming for the whole GUI, wired via
-  (musics/gui) -> (musics.gui.core/launch! theme). One stylesheet per
+  mu's gui word -> (musics.gui.core/launch! theme). One stylesheet per
   theme, applied to every Scene (see musics.gui.core) -- built on the
   standard JavaFX/Modena trick of overriding a handful of root color
   variables (-fx-base/-fx-background/-fx-control-inner-background/
