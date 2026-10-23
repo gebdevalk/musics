@@ -842,10 +842,17 @@ active slot moves on to the next hole, so a tree grows root to leaves.
 It runs on `musics.algo.tree.builder`, a pure draft model
 (`place`/`place-literal`/`remove`/`undo`/`redo`/`select`, `fits?`,
 `->tree`, `from-tree`, `render`; Ctrl+Z/Ctrl+Y in the window);
-`(t/build-tree tree tctx)` edits an existing tree. Live trees, the
-composer and the params window are reached from Clojure only -- no mu
-word or GUI button starts them -- and are kept for now, to be decided
-(`doc/md/decisions.md`, 2026-10-23). `musics.algo.tree.lib/notes->mus` renders generated notes as musics
+`(t/build-tree tree tctx)` edits an existing tree. In mu (`musics.mu.live`)
+a play word given a **recipe** -- a quotation, or a composer tree
+(`compose`) -- plays live: `x '( 5 + ) :up >`, or from nothing with a mark
+`|` (or nothing) under the recipe, `| '( duration/euclid [c e g] pitches
+zip [~] ) :riff >`. Each note the voice reaches is the next note of what
+the recipe gives now (`musics.algo.tree.live/bind-run!`, the generator's
+cursor per voice); its settings are a tctx per live name, fitted to the
+trees the recipe's algo words build (`musics.mu.algos/*live*`, read
+first in their chain), so `set`/`unset`/`settings`, `retree` (same
+settings, same position), `gui` on a voice and the GUI's Wall window
+work on them (`doc/md/decisions.md`, 2026-10-23). `musics.algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready to read. `doc/html/algo-cookbook.html` (generated and
 verified by `scripts/algo-cookbook.clj`, which runs every recipe;
 printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables

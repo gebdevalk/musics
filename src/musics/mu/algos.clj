@@ -33,6 +33,13 @@
             [musics.mu.value :as v]
             [musics.repo :as repo]))
 
+(def ^:dynamic *live*
+  "While a live voice's recipe runs (musics.mu.live): {:tctx t :chain c}
+   -- every algo word reads t's settings first (fitted to its tree, so t
+   knows every param the recipe reads), then a context on top, then c
+   (the music the voice plays in), then :ROOT's, then the defaults."
+  nil)
+
 (def shelves
   "The shelves whose algos are mu words."
   #{"pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel"})
@@ -90,9 +97,11 @@
           _       (need s n word)
           [args wrap] (around word out (subvec s (- (count s) n)))
           tree    (apply (t/constructor (reg/algo short)) (map input in args))
-          chain   (remove nil? [ctx (:context (repo/current :ROOT))])
+          {src :tctx live-chain :chain} *live*
+          _       (when src (t/fit! src tree))
+          chain   (remove nil? (concat [ctx] live-chain [(:context (repo/current :ROOT))]))
           seed    (some-> ctx (#(c/ctx-value-chain [%] "?seed" Double/POSITIVE_INFINITY)))
-          run     #(try (output out (t/run tree nil chain))
+          run     #(try (output out (t/run tree src chain))
                         (catch clojure.lang.ExceptionInfo ex
                           (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
           result  (if (number? seed) (rc/with-seed (long seed) (run)) (run))]

@@ -616,8 +616,8 @@
    a conductor action replacing what plays at a boundary, origin the
    signal's :at, so the new voice starts exactly there. With join? true,
    like play-add: what plays goes on."
-  [eng origin form & [join?]]
-  (play-top-level! eng form nil (not join?) origin))
+  [eng origin form & [join? algo]]
+  (play-top-level! eng form algo (not join?) origin))
 
 (defn busy?
   "Has eng a voice still going (playing or paused)?"
@@ -652,11 +652,14 @@
 
 (defn play-at!
   "Play form as the voice at path on eng, replacing only that voice (or
-   adding it), its :t 0 at origin (System/nanoTime; now when nil)."
+   adding it), its :t 0 at origin (System/nanoTime; now when nil),
+   through the algo named algo if given."
   ([eng path form] (play-at! eng path form nil))
-  ([eng path form origin]
+  ([eng path form origin] (play-at! eng path form origin nil))
+  ([eng path form origin algo]
    (validate-args! eng [form])
-   (replace-voice! eng (->path path) form nil origin)))
+   (validate-algo-name! algo)
+   (replace-voice! eng (->path path) form algo origin)))
 
 (defn stop-voice!
   "Stop only the voice at path on eng; the others go on."

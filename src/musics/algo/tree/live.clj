@@ -38,13 +38,13 @@
             [musics.wall :as wall]))
 
 (defn- material
-  "Run the tree with the tctx's own settings, then the voice's chain (the
-   music it plays in), then the defaults; nil (with a printed reason) if
-   it throws or is empty."
-  [{:keys [tree params]} chain]
+  "Run the spec -- its tree with the tctx's own settings, or its :run fn
+   with them -- then the voice's chain (the music it plays in), then the
+   defaults; nil (with a printed reason) if it throws or is empty."
+  [{:keys [tree params run label]} chain]
   (try
-    (or (seq (tr/run tree params chain))
-        (println "musics.algo.tree.live:" (pr-str (tr/show tree)) "produced no material"))
+    (or (seq (if run (run params chain) (tr/run tree params chain)))
+        (println "musics.algo.tree.live:" (or label (pr-str (tr/show tree))) "produced no material"))
     (catch Exception e
       (println "musics.algo.tree.live: keeping the previous material --" (.getMessage e)))))
 
@@ -79,7 +79,7 @@
    tagged ::step so musics.wall's batch-then-singleton double call never
    handles a note twice."
   [spec cursors]
-  (let [transform? (some #{:nodes} (map :key (tr/param-keys (:tree spec))))]
+  (let [transform? (and (:tree spec) (some #{:nodes} (map :key (tr/param-keys (:tree spec)))))]
     (fn [nodes ctx-chain voice]
       (cond
         (every? ::step nodes) nodes
@@ -107,17 +107,51 @@
     (swap! reg/*algo-registry* update name assoc :tree tree :tctx tctx :cursors cs)
     name))
 
+(defn- register-run!
+  "(Re)register `name` for a :run fn (run tctx chain) -> leaves,
+   labelled `label`: as register!, the per-voice cursors kept."
+  [name run label tctx]
+  (let [cs   (or (:cursors (entry name)) (atom {}))
+        spec {:run run :label label :params tctx}]
+    (wall/build-algo! name (wall-fn spec cs) label)
+    (swap! reg/*algo-registry* update name assoc :run run :label label :tctx tctx :cursors cs)
+    name))
+
+(defn- reregister!
+  "Register `name` again from its entry: a tree, or a :run fn."
+  [name tctx]
+  (let [{:keys [tree run label]} (entry name)]
+    (cond tree (register! name tree tctx)
+          run  (register-run! name run label tctx))))
+
+(defn- follow!
+  "Follow `tctx` for `name` from now on: every change registers it again."
+  [name tctx]
+  (when-let [old (:tctx (entry name))]
+    (when-not (identical? old tctx) (remove-watch (:envelopes-atom old) [::live name])))
+  (add-watch (:envelopes-atom tctx) [::live name]
+             (fn [_ _ old new] (when (not= old new) (reregister! name tctx)))))
+
 (defn- bind!
   "Bind `name` to `tree` + `tctx` and follow the tctx from now on."
   [name tree tctx]
   (tr/fit! tctx tree)
-  (when-let [old (:tctx (entry name))] (remove-watch (:envelopes-atom old) [::live name]))
+  (follow! name tctx)
+  (swap! reg/*algo-registry* update name dissoc :run)
   (register! name tree tctx)
-  (add-watch (:envelopes-atom tctx) [::live name]
-             (fn [_ _ old new]
-               (when (and (not= old new) (:tree (entry name)))
-                 (register! name (:tree (entry name)) tctx))))
   name)
+
+(defn bind-run!
+  "Bind `name` to `run`, (run tctx chain) -> the leaves to play, and
+   `tctx`, its settings, followed from now on: a voice playing with :algo
+   name plays, note by note, the next leaf of what run gives now -- every
+   change of the tctx, or a new run (bind-run! again), runs it once more,
+   each voice going on at its own position. label names it (the Wall
+   window, a failing run's message)."
+  [name run label tctx]
+  (follow! name tctx)
+  (swap! reg/*algo-registry* update name dissoc :tree)
+  (register-run! name run label tctx))
 
 (defn- source!
   "Commit an endless placeholder -- a one-rest sequence wrapped in a

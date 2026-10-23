@@ -793,7 +793,7 @@
                                  :style "-fx-font-weight: bold;"})
                       (ui/text-area {:text algos-text :pref-row-count 6 :editable? false})
                       (ui/titled-panel
-                        {:title "Live trees (t/live!) -- each change heard on the next note"
+                        {:title "Live voices (a play word with a recipe) -- each change heard on the next note"
                          :children
                          (if (seq trees)
                            (vec (for [{nm :name :keys [tree params]} trees
@@ -801,7 +801,7 @@
                                               (for [{:keys [key value spec]} params]
                                                 (ui/param-control {:name nm} key value spec)))]
                                   c))
-                           [(ui/label {:text "None yet -- (t/live! :riff tree (t/tctx tree))"})])})
+                           [(ui/label {:text "None yet -- in mu: | '( duration/euclid [c e g] pitches zip [~] ) :riff >"})])})
                       (ui/titled-panel
                         {:title "Assign (prepares the NEXT mint at path, not anything already live)"
                          :children

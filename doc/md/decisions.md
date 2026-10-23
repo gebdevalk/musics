@@ -1824,3 +1824,23 @@ pointing at the line it belongs in or the postfix word, rather than
 silently running as words on what is already on the stack (`TopCommand`);
 and storing a line now keeps an inline `^{ }` override's context, which
 `R!` used to drop.
+
+
+## 2026-10-23 — live playback in mu: a play word takes a recipe
+
+The Clojure REPL's live trees (`t/live!`, `setp!`, `retree!`, playing
+music through an `:algo`) come back in mu without new play signs: a play
+word (`>` `>>` `>+` `>>+`) takes an optional recipe, a quotation under the
+voice and context. Each note the voice reaches is then the next note of
+what the recipe gives now -- run on the music under it, or on nothing
+when a mark `|` (or nothing) is under the recipe -- and `set`, `retree` or
+a GUI slider runs it again, the voice going on at its position.
+Considered and dropped on the way: a tree literal `t( … )` (a second
+language inside mu, against its postfix reading), a type-chosen bridge
+`=>` (mu's algo words already deliver half products, named by shelf), a
+separate `live` word and play families `==>`/`~>` (one family with an
+optional recipe covers generators and transforms alike). Repetition stays
+in the music: a recipe ending in `[~]` is endless, once otherwise.
+The recipe's settings are a tctx per live name; mu's algo words, run by
+the recipe, read it first and fit it to their trees, so it knows every
+param the recipe reads -- for `settings`, the checks and the sliders.

@@ -1260,9 +1260,9 @@
    [{:name kw :tree text :params [{:key :value :spec}]}]. The tctx is the
    model; the tree is only its label."
   [m]
-  (vec (for [[nm {:keys [tree tctx]}] (sort-by (comp str first) m) :when tctx]
+  (vec (for [[nm {:keys [tree tctx label]}] (sort-by (comp str first) m) :when tctx]
          {:name   nm
-          :tree   (pr-str (at/show tree))
+          :tree   (or label (pr-str (at/show tree)))
           :params (let [ps (at/params tctx)]
                     (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
                                :when (not= :read (:algo spec))]

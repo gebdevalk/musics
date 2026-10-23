@@ -482,17 +482,19 @@
   "Play x, under a context if given, without storing either; its voice
    id back. Played as a voice -- target, else its own name ([bass: …]) --
    it replaces only that voice, or adds it. Otherwise everything playing
-   stops first, or with join? true x joins it under an id of its own."
-  [x ctx & [join? target]]
+   stops first, or with join? true x joins it under an id of its own.
+   With algo, a live algo's name (musics.mu.live), it plays through it."
+  [x ctx & [join? target algo]]
   (reset! last-played x)
   (let [[eng form mat] (prepared x ctx)
         name (or target (voice-name mat))]
     (reg/log! :play)
     (binding [engine/*engine* eng]
       (cond
-        name  (do (cancel-staged! name) (engine/play-at! eng [name] form) (keep! name x ctx mat))
-        join? (keep! (engine/play-add form) x ctx mat)
-        :else (do (cancel-staged!) (reset! voices {}) (keep! (engine/play form) x ctx mat))))))
+        name  (do (cancel-staged! name) (engine/play-at! eng [name] form nil algo) (keep! name x ctx mat))
+        join? (keep! (if algo (engine/play-add form :algo algo) (engine/play-add form)) x ctx mat)
+        :else (do (cancel-staged!) (reset! voices {})
+                  (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
   "Stop what plays, a staged >> and whatever stoppers hold."
@@ -525,10 +527,10 @@
    with join? true joins it. Plays at once when nothing plays, or when
    no boundary is known: no count, and none of what plays started by mu
    (an audition, a voice from Clojure)."
-  [x ctx count & [join? target]]
+  [x ctx count & [join? target algo]]
   (let [live (live-voices)]
     (if (or (not (engine/busy?)) (and (nil? count) (empty? live)))
-      (play! x ctx join? target)
+      (play! x ctx join? target algo)
       (let [[eng form mat] (prepared x ctx)
             name   (or target (voice-name mat))
             ends   (if-let [v (and name (get live name))] (:ends v) (into #{} (mapcat :ends) (vals live)))
@@ -543,8 +545,8 @@
            (let [at (or (:at event) (System/nanoTime))]
              (binding [engine/*engine* eng]
                (if name
-                 (do (engine/play-at! eng [name] form at) (keep! name x ctx mat))
-                 (let [id (engine/play-from! eng at form join?)]
+                 (do (engine/play-at! eng [name] form at algo) (keep! name x ctx mat))
+                 (let [id (engine/play-from! eng at form join? algo)]
                    (when-not join? (reset! voices {}))
                    (keep! id x ctx mat)))))))
         (doseq [[k phase] ks] (conductor/schedule! k phase action))

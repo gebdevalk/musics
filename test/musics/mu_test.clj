@@ -2,7 +2,8 @@
   "The mu REPL loop: the prompt shows the stack's depth, an unfinished
    input continues, errors are reported and clear the stack, bye and
    the end of input leave, the stack lasts the session."
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
             [musics.input.reader.builder :as builder]
             [musics.mu :as mu]
@@ -71,3 +72,10 @@
       (doseq [line ["[x8\\36 x\\38-> x\\38\\ghost]" "[!mf c4\\f] !! [!vol:mf< c]" "'[60 64] '( dup ) 'name \"s\""]]
         (is (= line (read line)) "backslashes, ! and ' arrive as typed"))
       (finally (java.nio.file.Files/deleteIfExists history)))))
+
+(deftest mu-loads-what-commits-the-root
+  ;; lein mu reads against :ROOT from its first input: musics.mu.store
+  ;; commits it when it loads, so musics.mu must load it (a fixture's
+  ;; :ROOT would hide its absence)
+  (let [ns-form (read-string (slurp (io/resource "musics/mu.clj")))]
+    (is (some #{'musics.mu.store} (flatten (seq ns-form))))))

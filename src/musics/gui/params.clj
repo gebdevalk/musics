@@ -8,8 +8,8 @@
 
    The tctx is the model, both ways: a control calls t/setp! (so the
    validator checks it; a rejected value is shown, not applied), and a
-   change made at the REPL moves the control. A tctx bound with t/live!
-   is heard on the next note. One window per tctx; opening it again
+   change made elsewhere (mu's set) moves the control. A live voice's
+   tctx is heard on the next note. One window per tctx; opening it again
    brings it to the front. Closing it stops watching the tctx."
   (:require [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]

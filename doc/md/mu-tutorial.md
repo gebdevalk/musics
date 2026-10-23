@@ -596,7 +596,7 @@ x8\36 '[36 38 42] 2 combos  → [x8\36,38 x\36,42 x\38,42]
 ```
 
 `sounds` is the way to audition a soundfont: build a line of sounds
-and play it, or rate them (section 16).
+and play it, or rate them (section 17).
 
 ## 13. Keeping things
 
@@ -797,7 +797,52 @@ dup 1 walking-bass {2} >          once through, the end held
 `dup` keeps the chords, `walking-bass` makes the bass from the copy,
 `{2}` sets the two side by side.
 
-## 16. Rating what you hear
+## 16. Live recipes
+
+A play word can take a **recipe** as well as music: a quotation that
+makes the music. Then the voice plays live -- each note it reaches is
+the next note of what the recipe gives now -- and changing the recipe's
+settings changes what you hear on the next note, without starting over.
+
+```
+| '( duration/euclid [c e g] pitches zip [~] ) :riff >
+```
+
+- `'( … )` is the recipe: euclid's rhythm with the pitches of `[c e g]`,
+  looped (`[~]`). The voice plays what it gives -- once, or, as here,
+  endlessly.
+- `|` under the recipe says it starts from nothing; without it, the music
+  under the recipe is what it runs on (below).
+- `:riff` is the voice, as for any play word; it names the recipe's
+  settings too.
+
+```
+:riff ^{ ?k:5 } set        five beats instead of the default three, heard at once
+:riff settings             every setting the recipe's algos read: value, range, default
+:riff '?k unset            back to the recipe's own or the default
+'( duration/euclid [c e g a] pitches shuffle zip [~] ) :riff retree    a new recipe, the same settings, the voice going on
+:riff gui                  a window with a slider per setting
+:riff stop
+```
+
+A setting given with `set` comes first, before a `^{ }` written in the
+recipe; the voice keeps its place, so a change goes on from where it is,
+not from the start.
+
+With music under it, the recipe runs on that music, and the voice plays
+the music's notes as the recipe changes them:
+
+```
+[c d e g] [~] '( 5 + ) :up >     the loop a fourth higher
+'( 7 + ) :up retree              … now a fifth, from the next note
+```
+
+All play words take a recipe: `>>` from the next boundary (`| '( … ) ||
+:riff >>`), `>+` joining what plays. `compose` opens the composer window
+and leaves the tree it builds on the stack, a recipe like a quotation
+(`compose :riff >`); `compose gui` shows its settings with a preview.
+
+## 17. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 
