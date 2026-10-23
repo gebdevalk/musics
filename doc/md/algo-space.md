@@ -138,7 +138,7 @@ Consequences for the aspects, decided the same day:
   indispensability at the pulse's resolution, the meter the music's
   `!Meter:` where it plays) or by its length (`:accent :agogic`, from
   the rhythm alone), so every pulse source is also `volume/euclid`,
-  `articulation/euclid`, ... (`@volume-accent:agogic`).
+  `articulation/euclid`, ... (`?volume-accent:agogic`).
 - **Taking a line apart** is half done: in mu, a leaf reader on a line
   (`pitches`, `durations`, …) gives that half product as a stream, and
   `zip` puts them back (`x durations x pitches zip` is `x`), so one
@@ -331,7 +331,7 @@ without knowing the decision.
 | `musics.algo.tool` | the tools, by plain verb: `cycle`, `take`, `shuffle`, `map`, `filter`, `rescale`, `stretch`, `choose-n`, `sputter`, … A tool works within one type for any type: `:in [:any] :out :same`. |
 | `musics.algo.bridge` | the bridges |
 | `musics.algo.tree.*` | the machinery: registry, builder, live |
-| generator namespaces | stay organised by origin and method (`rhythmic.world`, `random`, `melodic.slonimsky` …), where code that belongs together lives together |
+| generator namespaces | stay organised by origin and method (`rhythmic.world`, `random`, `melodic.serial` …), where code that belongs together lives together |
 
 `rescale` is the tool that maps one number range onto another; `scale`
 stays the source of a key's pitches.

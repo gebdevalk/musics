@@ -202,6 +202,39 @@
     (dotimes [_ 20] (w1))
     (is (<= 9 (w2) 11) "w2 is unaffected by w1's own 20 steps -- fresh, independent atom")))
 
+(deftest random-walk-reflects-off-its-bounds-instead-of-sticking
+  (let [xs (repeatedly 500 (r/random-walk 50 5 :clip-lo 48 :clip-hi 52 :boundary :reflect))]
+    (is (every? #(<= 48 % 52) xs))
+    (is (not-any? #{48 52 48.0 52.0} xs) "clamping would park on an edge; reflecting doesn't")))
+
+;; ============================================================
+;; tendency -- Koenig's tendency mask
+;; ============================================================
+
+(deftest tendency-draws-between-moving-bounds
+  (let [xs (r/tendency 101 0 50 100 50)]
+    (is (= 101 (count xs)))
+    (is (every? true? (map-indexed (fn [i x] (<= (* i 0.5) x (- 100 (* i 0.5)))) xs)))
+    (is (== 50 (last xs)) "the bounds close on 50")))
+
+;; ============================================================
+;; pink-noise -- Voss's 1/f dice
+;; ============================================================
+
+(deftest pink-noise-stays-in-range-and-is-correlated
+  (let [xs  (vec (repeatedly 2000 (r/pink-noise 5 60 72)))
+        avg (fn [v] (/ (reduce + v) (count v)))
+        a   (pop xs) b (subvec xs 1)
+        ma  (avg a) mb (avg b)
+        ss  (fn [v m] (reduce + (map #(let [d (- % m)] (* d d)) v)))
+        r1  (/ (reduce + (map #(* (- %1 ma) (- %2 mb)) a b)) (Math/sqrt (* (ss a ma) (ss b mb))))]
+    (is (every? #(and (<= 60 %) (< % 72)) xs))
+    (is (< 0.4 r1) "neighbours are alike: 1/f, not white noise (whose lag-1 correlation is ~0)")))
+
+(deftest pink-noise-with-one-die-is-white
+  (let [xs (repeatedly 200 (r/pink-noise 1 0 1))]
+    (is (< 150 (count (distinct xs))) "the single die is rolled again every call")))
+
 ;; ============================================================
 ;; smooth-walk -- moves toward a target each call, with inertia
 ;; ============================================================

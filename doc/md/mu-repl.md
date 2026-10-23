@@ -112,7 +112,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 ```
 
 - `: name … ;` defines a word. The colon needs a space after it. The
-  name can't be a leaf (`a`, `c4`, `x`, `R` …).
+  name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
+  (`?empty`); `?name:value` is an algo's param, never a word.
 - **Locals are optional**: with a stack effect `( a b -- c )`, its
   input names are bound as locals; without one, the word is plain stack
   code. Any name may be a local, leaf letters included.
@@ -539,14 +540,14 @@ namespace (`musics.mu.algos`, generated from the registry):
 `parallel/drums`, … — the same names as in trees. The namespaces aren't
 in use, so a word is written qualified, or after `"pitch" use`; `words`
 lists them with their counts, `"duration/emi" see` gives the effect,
-the doc and the `@` params.
+the doc and the `?` params.
 
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
-^{ @k:5 @n:16 } duration/euclid          the context on top is its settings
-[c8 d4 e8] dup durations ^{ @index:1 } duration/necklace swap pitches zip
+^{ ?k:5 ?n:16 } duration/euclid          the context on top is its settings
+[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, the pitches kept
-^{ !key:D.major @len:4 } pitch/walk-degrees   a key param follows the music's !key:
+^{ !key:D.major ?len:4 } pitch/walk-degrees   a key param follows the music's !key:
 ```
 
 - **Inputs**: as many as the algo has (a source none). A line is taken
@@ -557,9 +558,9 @@ duration/euclid                          → '[3/16 3/16 1/8]
   duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
   several inputs must repeat by the same count. A repeat inside a line
   is written out, a loop inside refused.
-- **A shared seed**: `@seed:7` in the settings runs the algo on that
+- **A shared seed**: `?seed:7` in the settings runs the algo on that
   random seed, so two words with one seed and one source read the same
-  run: `^{ @seed:7 } pitch/walk` and `^{ @seed:7 } volume/walk` rise and
+  run: `^{ ?seed:7 } pitch/walk` and `^{ ?seed:7 } volume/walk` rise and
   fall together.
 - **Onto a line**: `[c d e f] volume/euclid with-volumes` gives each
   note the next volume (rests take none); `with-articulations` takes
@@ -569,7 +570,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
   a drum is a key of the kit (`!kit:brush`). `with-instruments` refuses a
   drum and `with-drums` (`'[:kick :hhc 38]`) a note; `as-drums` turns
   notes into drums, keeping their length, volume and accent.
-- **Settings**: a `^{ … }` on top is the algo's settings, `@name:value`
+- **Settings**: a `^{ … }` on top is the algo's settings, `?name:value`
   (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
   defaults. A setting the algo doesn't read is ignored; a value out of

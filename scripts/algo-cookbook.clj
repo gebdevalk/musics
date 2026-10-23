@@ -43,7 +43,7 @@
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
-                      '[musics.algo.melodic.slonimsky :as slon]))))
+                      '[musics.algo.melodic.serial :as slon]))))
 
 (defn esc [s] (-> (str s) (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
 
@@ -73,7 +73,7 @@
              ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
-            ["wrong type" "(try (swap! (:envelopes-atom tctx) assoc \"@k\" 2.5) (catch Exception e (ex-message e)))"]
+            ["wrong type" "(try (swap! (:envelopes-atom tctx) assoc \"?k\" 2.5) (catch Exception e (ex-message e)))"]
             ["what it holds" "@(:envelopes-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
@@ -315,7 +315,7 @@
     :runs [["other, with calm" "other" "calm"]]}
    {:title "Settings in the music: @ params in a context"
     :tree [["riff" "from recipe 1"]]
-    :params [["(m/parse \"^{ riffset: @k:5 @root:67 @euclid.n:16 }\")" "@name:value sets an algo's param where !name: sets the music's"]
+    :params [["(m/parse \"^{ riffset: ?k:5 ?root:67 ?euclid.n:16 }\")" "?name:value sets an algo's param where !name: sets the music's"]
              ["(def music (:context (m/find :riffset)))" "an ordinary context"]
              ["(def mine (t/tctx riff {:k 2}))" "the tctx comes first in the chain"]]
     :runs [["from the music" "riff" "[nil [music]]" "(t/run riff nil [music])"]
@@ -354,7 +354,7 @@
     :extra [["committed" "(:ids (m/parse (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings @ names (\"@k\"); the tree isn't stored, its specs are"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings ? names (\"?k\"); the tree isn't stored, its specs are"]
    ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx or a map, then the contexts in chain, then the defaults; every value checked"]
    ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
    ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]

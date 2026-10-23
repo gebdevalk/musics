@@ -257,8 +257,8 @@ is `x` again. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
-result), a `^{ @k:5 }` on top as its settings (then
-`:ROOT`'s, then the defaults; `@seed:7` runs it on that seed, so two
+result), a `^{ ?k:5 }` on top as its settings (then
+`:ROOT`'s, then the defaults; `?seed:7` runs it on that seed, so two
 words with one seed read one run), and `with-volumes`/
 `with-articulations`/`with-instruments` put such a stream back onto a
 line, a value per note. Instruments and drums stay apart: `instruments`/
@@ -657,13 +657,13 @@ plays unchanged (identity).
 project's algorithms and to play them (see `doc/md/decisions.md`,
 2026-09-27/28). Two separate things: a **tree** (an immutable value —
 what is computed) and a **tctx** (its settings, an ordinary Context
-whose keys are `@` names, also the GUI's model):
+whose keys are `?` names, also the GUI's model):
 
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 (def riff (zip (pulses->durations euclid) (cycle> scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))                          ; {:envelopes-atom (atom {}) :duration nil}
-(t/setp! tctx :k 5)                           ; = (swap! (:envelopes-atom tctx) assoc "@k" 5), validated
+(t/setp! tctx :k 5)                           ; = (swap! (:envelopes-atom tctx) assoc "?k" 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
 (t/run riff tctx [music-ctx])                      ; then the music's contexts, then the defaults
 ```
@@ -678,7 +678,7 @@ its `:arity`. A fn yielding ONE value per call becomes a sequence source
 through metadata alone: `:repeat :len` calls it `:len` times (the
 samplers: `normal`, `triangular`, `int-range`, ...), `:pull {:via :value
 :args [..]}` calls it once for a generator and pulls `:len` values (the
-closures: `walk`, `glide`, `cyclic`, `chain`, `logistic`, `henon`,
+closures: `walk` (`:boundary` clamp, reflect or wrap), `pink` (Voss's 1/f dice), `glide`, `cyclic`, `chain`, `logistic`, `henon`,
 `lorenz`); the count is a param like any other. Every param spec must
 carry `:type` (`:int :double :ratio :string :keyword :vector :map :fn
 :bool :any`) and `:default` (`##NaN` = required — a fitness fn, say), and
@@ -691,7 +691,13 @@ the tctx like any number. The registry maps short ↔ full names
 constructor. `musics.algo.tree.lib` `expose-ns`es every annotated fn in
 `musics.algo.{indispensability,metric}`, `musics/algo/{melodic,random,rhythmic}` and the bridges — about
 130 algos, each under a short name (`euclid`, `cantor`, `tala`,
-`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...) — and
+`markov-gen`, `counterpoint`, `normal`, `walk`, `lorenz`, ...; from Dodge &
+Jerse's chapter 8, `pink`, `tendency`, `ca` (an elementary cellular
+automaton as pulses) and `musics.algo.melodic.serial`: `row` gives pitch
+classes as raw numbers, so the bridges serialise any parameter --
+`classes->pitches`, `time-points->durations` (Babbitt), `numbers->durations` --
+with `row-form`, and `matrix`/`combinatorial`/`prime-form`/`interval-vector`
+as plain fns) — and
 `defalgo`s the tools -- within one type, any material, marked `>` so
 they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
 `map>`/`filter>` with a `:fn` param, `scale>` a range onto another,
@@ -780,28 +786,28 @@ or a literal. Child count and `:in`/`:out` types are checked at once
 **Keys are a pure function of the tree** (`t/param-keys`): a param keeps
 its bare name unless two different algos read it with different specs
 (then `:<short>.<name>`); a named instance's are `:<as>/<name>`. In a
-context each is an `@` name -- `"@k"`, `"@euclid.k"`, `"@bass.k"` --
-written in text as `@k:5` (see Grammar).
+context each is an `?` name -- `"?k"`, `"?euclid.k"`, `"?bass.k"` --
+written in text as `?k:5` (see Grammar).
 **The tctx** is an ordinary Context (`{:envelopes-atom :duration}`)
-holding only what is set, as plain values under `@` names; the tree's
+holding only what is set, as plain values under `?` names; the tree's
 specs ride on the envelopes atom's metadata (`t/specs`), never the tree
 itself: one tree can run against several tctxs, and `(t/fit! tctx
 tree)` adds another tree's specs, keeping the values. The atom's
-validator checks every `@` value against its spec, so even a plain
+validator checks every `?` value against its spec, so even a plain
 `swap!` can't store a bad one. `t/run`/`t/settings` take `(tree src
 chain)`: `src` a tctx or a plain map, then `chain`, contexts nearest
 first (a `^{ }`, a voice's chain), then each param's default. In each
-context the most specific name wins (`@bass.k`, then `@euclid.k`, then
-`@k`); values are read once per run (the latest a context holds -- no
-timing), coerced from text (`@key:D.major`, a bare name, reads as a
+context the most specific name wins (`?bass.k`, then `?euclid.k`, then
+`?k`); values are read once per run (the latest a context holds -- no
+timing), coerced from text (`?key:D.major`, a bare name, reads as a
 string where a string is wanted) and checked. `t/params` is every
 param's value, `t/values` what the tctx sets itself, `t/unsetp!` lets a
 param fall through again. A param whose spec names a music key (`:context :key`
 -- the bridges' key, so `degrees->pitches`, `points->pitches` and their
-specialised algos) reads that key in each context after its `@` names,
-so it plays in the music's `!key:` unless an `@key:` says otherwise. A
+specialised algos) reads that key in each context after its `?` names,
+so it plays in the music's `!key:` unless an `?key:` says otherwise. A
 live voice (`t/live!`, or `play` with `:algo`) runs with what its tctx
-sets, then the chain of the music it plays in (`^{ @k:5 }`, `!key:`),
+sets, then the chain of the music it plays in (`^{ ?k:5 }`, `!key:`),
 then the defaults: a generating tree reads the chain at a voice's first
 note and again after each change.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
@@ -1625,15 +1631,15 @@ pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
 (a chord's next starting from its first tone, as relative chords do),
 chord-symbol roots and bass notes alike; octave 4 at the start.
 
-An algo's param is written `@name:value` (`AlgoAssignment`), where `!`
-sets the music: `^{riff: @k:5 @n:16 @bass.k:3}`, or inline in a line
+An algo's param is written `?name:value` (`AlgoAssignment`), where `!`
+sets the music: `^{riff: ?k:5 ?n:16 ?bass.k:3}`, or inline in a line
 beside `!` keys. It is stored in the same context under its own name
-(`"@k"`), so it never meets a context key or alias (`@k` is not `!k`,
-the key); a qualified name (`@euclid.k`, `@bass.k`, `@pitch/walk.lo`)
+(`"?k"`), so it never meets a context key or alias (`?k` is not `!k`,
+the key); a qualified name (`?euclid.k`, `?bass.k`, `?pitch/walk.lo`)
 names an algo or a named instance. Values: numbers, strings, a bare name
 (a keyword), a comma list or a `( )` list (a vector). No ramps -- an
 algo reads its params once per run. The assignment node's `:key` is the
-string `"@k"` (a keyword `:@k` wouldn't survive `write`/`load`'s EDN).
+string `"?k"` (a keyword `:?k` wouldn't survive `write`/`load`'s EDN).
 Trees read them as their settings (`t/run tree tctx chain`; see
 "Simple composition" below).
 

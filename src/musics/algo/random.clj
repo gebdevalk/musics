@@ -30,6 +30,8 @@
 (def ^:private dof {:type :int :min 1 :max 100 :default 3 :doc "degrees of freedom"})
 (def ^:private clip-lo (assoc num-spec :default ##-Inf :doc "lowest value reached"))
 (def ^:private clip-hi (assoc num-spec :default ##Inf :doc "highest value reached"))
+(def ^:private boundary {:type :keyword :choices [:clamp :reflect :wrap] :default :clamp
+                         :doc "at a clip bound: stop, bounce back or come in at the other end"})
 
 (defn- sampler
   "The :algo metadata of a single-value sampler: :len draws -> :number,
@@ -508,12 +510,13 @@
           :params {:start      (assoc num-spec :default 60.0 :doc "first value")
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
                    :clip-lo    clip-lo
-                   :clip-hi    clip-hi}}}
-  [start step-bound & {:keys [clip-lo clip-hi]}]
+                   :clip-hi    clip-hi
+                   :boundary   boundary}}}
+  [start step-bound & {:keys [clip-lo clip-hi boundary] :or {boundary :clamp}}]
   (let [state (atom start)]
     (fn []
       (let [next (+ @state (uniform (- step-bound) step-bound))]
-        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
+        (reset! state (scaling/bound boundary clip-lo clip-hi next))))))
 
 (defn rising
   "Returns random float between lo and hi with upward bias.
@@ -560,14 +563,53 @@
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
                    :bias       (assoc bias :doc "above 0.5 trends up")
                    :clip-lo    clip-lo
-                   :clip-hi    clip-hi}}}
-  [start step-bound bias & {:keys [clip-lo clip-hi]}]
+                   :clip-hi    clip-hi
+                   :boundary   boundary}}}
+  [start step-bound bias & {:keys [clip-lo clip-hi boundary] :or {boundary :clamp}}]
   (let [state (atom start)]
     (fn []
       (let [dir (if (< (rand-double) bias) 1 -1)
             step (* dir (uniform 0 step-bound))
             next (+ @state step)]
-        (reset! state (scaling/clamp-optional clip-lo clip-hi next))))))
+        (reset! state (scaling/bound boundary clip-lo clip-hi next))))))
+
+(defn pink-noise
+  "Pink (1/f) noise between lo and hi, by Voss's dice.
+   Returns a function, Voss's algorithm as Dodge & Jerse give it (8.1): `dice` dice, the
+   k-th rolled again whenever bit k of a counter changes, the value
+   their sum scaled to [lo hi). The first die changes every call, the
+   last seldom, so it wanders like a walk yet stays in its range:
+   between white noise (uniform) and brown (random-walk)."
+  {:algo {:short :pink :pull {} :in [] :out :number
+          :params {:dice {:type :int :min 1 :max 16 :default 5 :doc "dice: more is slower to change"}
+                   :lo   lo
+                   :hi   hi}}}
+  [dice lo hi]
+  (let [dice  (max 1 (int dice))
+        faces (atom (vec (repeatedly dice rand-double)))
+        n     (atom 0)]
+    (fn []
+      (let [k       (swap! n inc)
+            changed (bit-xor k (dec k))]
+        (swap! faces (fn [fs] (reduce (fn [fs i] (if (bit-test changed i) (assoc fs i (rand-double)) fs))
+                                      fs (range dice))))
+        (+ lo (* (- hi lo) (/ (reduce + @faces) dice)))))))
+
+(defn tendency
+  "Koenig's tendency mask: :len values, each drawn uniformly between a
+   lower and an upper bound that move in a straight line from their
+   start to their end values, so a texture narrows, widens or drifts."
+  {:algo {:in [] :out :number
+          :params {:len      {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}
+                   :lo-start (assoc num-spec :default 48.0 :doc "lower bound at the start")
+                   :lo-end   (assoc num-spec :default 66.0 :doc "lower bound at the end")
+                   :hi-start (assoc num-spec :default 84.0 :doc "upper bound at the start")
+                   :hi-end   (assoc num-spec :default 66.0 :doc "upper bound at the end")}}}
+  [len lo-start lo-end hi-start hi-end]
+  (let [along (fn [a b t] (+ a (* t (- b a))))]
+    (vec (for [i (range len)
+               :let [t (if (> len 1) (/ i (double (dec len))) 0.0)]]
+           (uniform (along lo-start lo-end t) (along hi-start hi-end t))))))
 
 (defn smooth-walk
   "Returns a function that moves toward a target each call with inertia.

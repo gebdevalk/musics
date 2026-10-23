@@ -146,7 +146,7 @@
    [#"(?s)(.*!)([A-Za-z][A-Za-z0-9]*)?" (fn [typed] (concat (instructions (or typed "")) (key-names (or typed ""))))]
    [#"(?s)(.*[^\\\s]\\)([A-Za-z]*)" note-tags]
    [#"(?s)((?:.*[\[{(])?:)([A-Za-z][A-Za-z0-9_]*)?" parts :env]
-   [#"(?s)()([A-Za-z][^\s\[\]{}()'\"\\]*)" words :env]])
+   [#"(?s)()(\??[A-Za-z][^\s\[\]{}()'\"\\]*)" words :env]])
 
 (defn candidates
   "The completions of word (the text up to the cursor, from its last

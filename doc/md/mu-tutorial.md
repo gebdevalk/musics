@@ -664,7 +664,7 @@ isorhythm
 
 The tree only says what is computed. Its settings live apart from it,
 in a **tctx**: an ordinary musics context, the same kind of thing a
-`^{ }` makes, holding the algo settings as `@` names:
+`^{ }` makes, holding the algo settings as `?` names:
 
 ```clojure
 (def tctx (t/tctx isorhythm))
@@ -674,7 +674,7 @@ tctx
 (t/setp! tctx :len 15)             ; take> keeps 15; returns every param's value
 ;; {:len 15}
 tctx
-;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {"@len" 15}}], :duration nil}
+;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {"?len" 15}}], :duration nil}
 
 (t/params tctx)                    ; every param's value, set or default
 ;; {:len 15}
@@ -685,10 +685,10 @@ tctx
 
 - A new tctx is empty (`:val {}`): every param is at its default
   (`take>` keeps 16).
-- `setp!` stores `:len` under its context name, `"@len"`, and checks it
+- `setp!` stores `:len` under its context name, `"?len"`, and checks it
   first: `(t/setp! tctx :len 999)` is refused, the range is 0..256.
 - Since it is a context, the same setting can be written in musics
-  text, `^{ @len:15 }`, and handed to `t/run` after the tctx.
+  text, `^{ ?len:15 }`, and handed to `t/run` after the tctx.
 
 `cycle>`, `zip` and `take>` do what `cycle`, `zip` and `take` do in mu.
 `notes->mus` writes the result as musics text, which mu reads as it
@@ -705,17 +705,17 @@ says what one does and which settings it reads:
 ```
 "duration/euclid" see
 duration/euclid ( [^{ @… }] -- durations )
-  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @k @n @rotation @duration-pulse
+  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  ?k ?n ?rotation ?duration-pulse
 ```
 
 A source takes nothing from the stack. A context on top, `^{ … }`, is
-its settings, each written `@name:value` (`!` sets the music, `@` an
+its settings, each written `?name:value` (`!` sets the music, `?` an
 algo):
 
 ```
 duration/euclid                                        → '[3/16 3/16 1/8]
-^{ @k:5 @n:8 @duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
-^{ @k:3 @n:8 @duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+^{ ?k:5 ?n:8 ?duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
+^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [c e g] pitches zip
                                                        → [C4/4. E4 G4/4]
 ```
 
@@ -728,7 +728,7 @@ apart into what it wants: durations, pitches or the notes themselves.
 `duration/necklace` gives a rotation of a rhythm on its grid:
 
 ```
-[c4. d8 e4] durations ^{ @index:1 @duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] durations ^{ ?index:1 ?duration-pulse:1/8 } duration/necklace
                                                        → '[r4 1/8 1/4 1/8]
 ```
 
@@ -737,9 +737,9 @@ works on what the loop repeats -- so a loop of a rhythm varied is a
 loop of the varied rhythm, ready to zip with a loop of pitches:
 
 ```
-[c4. d8 e4] [~] durations ^{ @index:1 @duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] [~] durations ^{ ?index:1 ?duration-pulse:1/8 } duration/necklace
     → '[r4 1/8 1/4 1/8] [~]
-^{ @k:3 @n:8 @duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
+^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```
 
@@ -753,18 +753,59 @@ note in turn (rests take none). With eight beats among eight eighths,
 `volume/euclid` gives the meter's accents:
 
 ```
-[c8 d e f g a b c] ^{ @k:8 @n:8 @volume-pulse:1/8 @volume-lo:50 @volume-hi:80 } volume/euclid with-volumes
+[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid with-volumes
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
-A random algo runs differently each time. `@seed:7` in its settings
+A random algo runs differently each time. `?seed:7` in its settings
 runs it on that seed, so two words with one seed and one source read
 the same run -- a walk heard as pitch and as volume, rising and
 falling together:
 
 ```
-^{ @seed:7 @len:6 } pitch/walk     → '[48 48 48 53 60 60]
-^{ @seed:7 @len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+^{ ?seed:7 ?len:6 } pitch/walk     → '[48 48 48 53 60 60]
+^{ ?seed:7 ?len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+```
+
+### Noise, masks, rows and automata
+
+From Dodge & Jerse's *Computer Music*, chapter 8. White noise jumps,
+pink noise (Voss's dice: `?dice`, more is slower) wanders but keeps its
+range, a walk (brown) drifts; `?boundary:reflect` bounces it off its
+clip bounds, given as its pitch range too:
+
+```
+[c8] [~] durations ^{ ?len:16 } pitch/uniform zip >
+[c8] [~] durations ^{ ?len:16 ?dice:5 } pitch/pink zip >
+[c8] [~] durations ^{ ?len:16 ?step-bound:3 ?clip-lo:48 ?clip-hi:84 ?boundary:reflect ?pitch-from-lo:48 ?pitch-from-hi:84 ?pitch-lo:48 ?pitch-hi:84 } pitch/walk zip >
+^{ ?seed:4 ?len:16 } duration/pink ^{ ?seed:5 ?len:16 } pitch/pink zip >
+```
+
+A tendency mask draws between two bounds that move, here closing from
+48..84 onto 66 (`?lo-start ?lo-end ?hi-start ?hi-end`):
+
+```
+[c16] [~] durations ^{ ?len:32 } pitch/tendency zip >
+```
+
+`pitch/row-classes` is a twelve-tone row (`?kind:allInterval`: every
+interval once), its forms the row forms of section 4 on the line. One
+seed reads one row, so it can be rhythm too -- Babbitt's time points --
+and volume:
+
+```
+^{ ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
+^{ ?seed:3 ?kind:allInterval } duration/row-time-points ^{ ?seed:3 ?kind:allInterval } pitch/row-classes zip >
+^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row with-volumes >
+```
+
+`duration/ca` is a cellular automaton, a bar of `?width` pulses per
+generation (`?rule:90` Sierpinski, `30` chaos, `110` structure,
+`?start:random`), as notes or drums:
+
+```
+^{ ?rule:90 ?width:16 ?steps:4 ?duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
+^{ ?rule:30 ?width:16 ?steps:4 ?duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
 ```
 
 ### Chords and a walking bass

@@ -33,6 +33,8 @@
     (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cresc" "dim" "cls"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
+    (is (= [[:Word [:WordName "?empty"]] [:Word [:WordName "mine/?x"]]] (items "?empty mine/?x"))
+        "a word may start with ?")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
     (doseq [w [">" ">+" ">>" ">>+" "[[]]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
@@ -65,7 +67,10 @@
   (is (= [[:QuotedName [:VarName "shift"]] [:VarRef [:VarName "shift"]]] (items "'shift \\shift"))
       "a name held, and the value bound to it")
   (is (= [[:LooseInstruction [:BangConst [:Name "mf"]]]] (items "!mf"))
-      "parsed, so it can be refused with a clear message"))
+      "parsed, so it can be refused with a clear message")
+  (is (= [:LooseInstruction] (tags "?k:5")) "?name:value is an algo param, not a word")
+  (is (= [:LooseInstruction :LooseInstruction] (tags "?euclid.n:8 ?pitch/walk.lo:48")) "qualified too")
+  (is (= [:Context] (tags "^{ ?k:5 ?euclid.n:8 }"))))
 
 (deftest definitions
   (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]
