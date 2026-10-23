@@ -6,8 +6,10 @@ not Clojure data. Every input is parsed by instaparse, through a grammar
 that includes `musics.ebnf`, so musics text means in the REPL what it
 means in a `.mus` file.
 
-Decided step by step (2026-10-08) and built on branch `mu`:
-`(mu!)` runs it. Section 9 lists what is still open.
+Decided step by step (2026-10-08) and built on branch `mu`: `lein mu`
+runs it. With the GUI (`gui`) it is the program's only interface: a
+`.mus` file and the GUI editor's text are mu input too. Section 9 lists
+what is still open.
 
 ## 1. Approach
 
@@ -20,8 +22,9 @@ Decided step by step (2026-10-08) and built on branch `mu`:
   `git worktree add ../musics-frepl frepl-standby`. Worth borrowing:
   `musics/lang/runtime.clj` (stack, quotations, executing entries), the
   kernel words as a model, and the REPL loop (JLine, prompt, history).
-- **One grammar for `.mus` and mu.** The REPL grammar includes
-  `musics.ebnf`'s rules and adds only what a stack language needs.
+- **One grammar for `.mus` and mu.** `musics.ebnf` defines the
+  literals; `mu.ebnf`, appended to it, the top level (`MuInput`), the
+  one start rule for a file and the prompt alike.
 
 ## 2. What a line contains
 
@@ -47,7 +50,8 @@ refused, since bare `a` would always be the note.
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
 the text is `.mus` text, unchanged: `transpose c d ( … )` is the text
-command, `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
+command (at the top level it is refused, pointing at
+`[transpose c d ( … )]` or the word, `x c d transpose`), `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
 dynamic, `!mf` an instruction. Text pasted from a `.mus` file means
 what it means in the file.
 
@@ -159,9 +163,10 @@ followed by nothing, a duration or `*n`.
   leaf is itself, a parallel goes in whole. Only music goes in a
   literal; a number bound to a name is pushed with a bare `\name`.
 - `:=` again rebinds: what comes later sees the new value; nothing is
-  changed in place. A literal is read before its input runs, so it sees
-  bindings of earlier inputs: `'m [c d] := [\m e]` on one line is
-  refused -- use `\m` in the next input.
+  changed in place. An input's literals are read up to each `:=`, just
+  before that part runs, so `'m [c d] := [\m e]` works on one line; a
+  literal before the `:=` that binds its name is refused. After a `:=`
+  the reading starts afresh (durations, relative pitch).
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;
@@ -228,12 +233,12 @@ followed by nothing, a duration or `*n`.
   recalled, corrected and run again.
 - **The stack lasts the session**: leaving mu (`bye`, or Ctrl+D) and
   entering it again keeps the stack as it was.
-- **`"song.mus" load`** reads a file and commits it as the file says
-  (every named part stored), as `parse` does, unlike a literal at the
-  prompt, which waits for `R!`.
-- **Entry point**: `(mu!)` in `musics.core`, replacing today's nested
-  musics-text REPL of that name. The implementation lives in its own
-  namespace, `musics.mu`.
+- **`"song.mus" load`** runs a file as mu input on a stack of its own
+  and stores the music it leaves, each part under its name or an auto
+  id (`musics.mu.store`), unlike a literal at the prompt, which waits
+  for `R!`; its bindings and definitions stay. `.ly`, `.abc` and `.gmn`
+  are converted first. `x "x.mid" render` writes a MIDI file.
+- **Entry point**: `lein mu` (`musics.mu/-main`).
 
 ## 8. Words
 
@@ -577,48 +582,6 @@ duration/euclid                          → '[3/16 3/16 1/8]
   range is an error naming the word.
 - **Results**: streams come back as streams, leaves as a line, parts as
   `{ }`. `zip` keeps a rest among an algo's durations a rest.
-
-### From Clojure
-
-mu's words are Clojure functions too (`musics.mu.words`, aliased `mu`
-in `lein repl`'s `user`), so the same vocabulary works from either
-side. A word is a function of what it takes from the stack, in mu's
-order, and returns what it leaves (nil for nothing, a vector for
-several):
-
-```clojure
-(def x (mu/mu "[c d e g]"))          ; mu runs mu text: a literal or a phrase
-(mu/retrograde x)                    ; #mu "[G4/4 E4 D4 C4]"
-(mu/R x)                             ; the short form: R I RI M H T
-(mu/= x (mu/mu "[C4 D4 E4 G4]"))     ; true: = is eq, music by its notes
-(mu/times x 3)                       ; #mu "repeat 3 [C4/4 D4 E4 G4]"
-(mu/head x 2)                        ; an optional count stays optional
-(mu/line x x) (mu/together x x)      ; [n] and {n} count their arguments
-(mu/mute x #(> (mu/pitch %) 63))     ; a Clojure fn stands in for a quotation
-(apply mu/line (take 2 (mu/elements x)))   ; clojure.core's own take, filter, map …
-(mu/play x)
-```
-
-- Every word with a Clojure name is there, but not those that only make
-  sense on mu's own stack or prompt (`dup`, `swap`, `call`, `if`,
-  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …), nor those
-  clojure.core already has by name and meaning, whatever the argument
-  order (`take` `drop` `take-last` `drop-last` `take-while` `drop-while`
-  `filter` `remove` `map` `partition` `split-at` `iterate` `first`
-  `last` `nth` `count` `range` `distinct` `dedupe` `shuffle`
-  `interleave` `min` `max` `mod` `abs` `not` `int` `float`): from
-  Clojure those are Clojure's, on `(mu/elements x)` -- a value's
-  elements as a seq (a loop's endlessly) -- and `mu/line` makes music
-  of the result. `cycle` stays: on music it makes a loop. `repeat`,
-  `key`, `next` and `load` stay too: Clojure's mean something else. The signs without
-  a letter (`[~]`, `[*]`, `+`, …) are reached through their twins
-  (`cycle`, `times`) or through `mu/mu`.
-- A Clojure fn given where a quotation goes takes the top value and
-  gives its result.
-- Values print as mu prints them, tagged `#mu`: a line, a leaf, a stream
-  (an endless one by its start).
-- `musics.mu.bridge` builds the functions from mu's registry when the
-  namespace loads, so a new word is there without further work.
 
 ### First set
 

@@ -37,7 +37,7 @@ pitches literal — the importers always do.
 |---|---|
 | `{ c d e }` | `[c4 d e]` — a sequence |
 | `<< \upper \lower >>` | `{:upper :lower}` — parallel parts |
-| `frag = { … }`, then `\frag` | `frag = [ … ]`, then `\frag` — a variable |
+| `frag = { … }`, then `\frag` | `'frag [ … ] :=`, then `\frag` — a variable |
 | a named part to play or reuse | `[frag: …]`, then `:frag` |
 | `\header`, `\score`, `\layout`, `\midi` | drop the wrappers; a `%{ … %}` comment can keep the title |
 

@@ -1,34 +1,33 @@
 # Parsing: the text notation and its parser
 
 The musics notation is parsed in stages, each in its own module. The
-grammar, `resources/musics/input/musics.ebnf`, is always the source of truth; every
-example in this document is checked against it.
+grammar is always the source of truth: `resources/musics/input/musics.ebnf`
+defines the literals, `resources/musics/mu.ebnf`, appended to it, the
+top level -- a `.mus` file is mu input, read as the mu prompt reads.
+Every example in this document is checked against it.
 
 ```
 text
   │
-  ├─ instaparse (musics.ebnf)        raw parse tree (nested vectors)
+  ├─ instaparse (musics.ebnf + mu.ebnf, from MuInput)
+  │                                  raw parse tree (nested vectors)
   │    comments and variables are grammar rules, not a text
   │    pre-processing step: a parse error's line/column always
   │    matches the text as written
   │
-  ├─ walker/walk            {:tree repo-map :auto-ids … :var-map …}
-  │    a flat {id -> node} map, not a tree of pointers
+  ├─ walker/walk-each       each literal walked, in one state,
+  │    to a value: a flat {id -> node} map, not a tree of pointers
   │
-  └─ musics.repo/commit-many!           new and changed ids land in the
-                                       store in one atomic swap!
+  └─ musics.mu.store/read!   the music left stored; new and changed
+                             ids land in one atomic swap!
 ```
 
-Entry points, in `musics.input.grammar-parser`:
-
-```clojure
-(parse-domain-string text)  ;; parse + walk -> {:tree repo-map :auto-ids ...}; throws on error
-(try-parse text)            ;; parse only; prints a formatted error and returns nil on failure
-```
-
-At the REPL use `musics.core/parse` instead: it walks against what's
-already committed (so references to earlier parts resolve) and commits
-the result immediately.
+In mu, `"song.mus" load` reads a file (`musics.mu.store/read-file!`): it
+runs as mu input on a stack of its own, walked against what is already
+stored (so references to earlier parts resolve), and the music it
+leaves is stored at once. `musics.mu.value/read-domain` walks text made
+only of literals without storing it; `musics.mu.grammar/parse` only
+parses.
 
 ---
 
@@ -324,20 +323,20 @@ repeat ~ [c4 d]                              % endlessly
 
 ## 5. Variables
 
-A variable holds a sequence, defined at the top level and referenced
-with a backslash:
+A variable is mu's: `'name value :=` binds, a backslash references:
 
 ```mus
-motif = [c4 d e f]
+'motif [c4 d e f] :=
 [piano: \motif g a \motif]
 ```
 
 - The reference splices the notes in flat, as direct siblings. An
   instruction inside the definition (`!f`, `c4\f`) takes effect at the
   reference and continues past it.
-- A variable must be defined before it's referenced (one sequential
-  walk); a later definition of the same name replaces it from then on.
-  An undefined reference is an error at its own line and column.
+- A variable must be bound before it's referenced: the literals are
+  read up to each `:=`, just before that part runs; a later binding of
+  the same name replaces it from then on. An unbound reference is an
+  error at its own line and column.
 - Definitions are only allowed at the top level, never inside a bracket.
 - A name is letters, digits and underscores, but not an ornament name or
   a command word (`trill`, `transpose`, `repeat`, …), so `\trill` always
@@ -388,5 +387,4 @@ position, the tokens that were expected, and the line and column:
 ------------------------------------------
 ```
 
-`try-parse` prints this and returns `nil`; `parse-domain-string` throws
-it; `musics.core/parse` prints it.
+mu prints its own form of this report; `read-domain` throws it.

@@ -1775,3 +1775,52 @@ music key (`c4\k:5` is that note's key), so `\k:5` would read as
 either. A bare `k=5` (no prefix, its own sign) was the other candidate.
 A session saved before this keeps its `"@name"` settings, which no
 algo reads any more.
+
+
+## 2026-10-23 — no Clojure REPL: mu and the GUI are the interfaces
+
+The program is used through mu (`lein mu`) and the GUI (`gui`), not a
+Clojure REPL. `musics.core` (the REPL API), `dev/user.clj` and the `mu/…`
+bridge (`musics.mu.words`/`bridge`, mu's words as Clojure functions) are
+gone; what mu and the GUI used from `musics.core` moved to the namespace
+it wrapped: the session to `musics.registries`, the MIDI output
+(`connect!`, `soundfont!`, `receiver`) to `musics.engine`, `ids`/`lookup`/
+`children`/`usages` to `musics.repo`, `sq` to `musics.compose`, `ctx`/
+`ctx-value` to `musics.domain.resolve`, `write`/`load` and the session
+pair to `musics.persist`, `render` to `musics.midi.file`, the assist
+printer to `musics.assist/explain`. What only the REPL reached got a mu
+word instead of being lost: `load` reads `.ly`, `.abc` and `.gmn` too,
+`render` writes a MIDI file. `build-tree`'s REPL mode went with the
+REPL. Kept for now, to be decided: live trees (`t/live!`), the tree
+composer and params windows and the GUI's Wall, which nothing in mu or
+the GUI starts; the GUI windows that do what mu does (Play Builder,
+Transform, Persistence, Assist); the namespaces no entry point reaches.
+A headless nREPL stays as a development tool.
+
+## 2026-10-23 — one language: a .mus file is mu input
+
+`.mus` text and mu input were one grammar file with two start rules:
+`Program` for a file, `MuInput` for the prompt. Now `MuInput` is the only
+one; `musics.ebnf` defines the literals, `mu.ebnf` the top level.
+`musics.mu.store/read!` runs a file's text (or the GUI editor's) as mu
+input on a stack of its own and stores the music it leaves, in one
+batch (`musics.mu.material/store-all!`, with the "redefining" warning
+`parse` had). `Program`, `TopElement`, `VarDef`, `walker/walk`,
+`grammar_parser.clj` and the session's variable map are gone.
+
+Variables are mu's: `'motif [ … ] :=` binds, `\motif` reads -- one store,
+so a file's variables are mu's after `load`. To make that work in a
+file, an input's literals are read up to each `:=`, just before that part
+runs (`musics.mu.eval/segments`), instead of all before the input runs:
+`'m [c d] := [\m e]` now works in one input, at the prompt too. After a
+`:=` the reading starts afresh, as a `VarDef`'s body did. Keeping
+`name = [ … ]` as a second way to bind was the alternative, rejected for
+having two. The corpus and the LilyPond importer write `:=`.
+
+Three readings that differed now agree or are refused: `[R]` is mu's
+retrograde (a bar's rest is `[R1]` or `[ R ]`); a text command at the top
+level (`transpose c d ( … )`, `R ( … )`, `grace …`) is refused,
+pointing at the line it belongs in or the postfix word, rather than
+silently running as words on what is already on the stack (`TopCommand`);
+and storing a line now keeps an inline `^{ }` override's context, which
+`R!` used to drop.

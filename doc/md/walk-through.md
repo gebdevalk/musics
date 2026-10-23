@@ -19,12 +19,12 @@ The piece:
 
 ## 1. Parse — instaparse
 
-`resources/musics/input/musics.ebnf`, through `musics.input.grammar-parser`. Comments and
+`resources/musics/input/musics.ebnf` with `resources/musics/mu.ebnf`, through `musics.mu.grammar`. Comments and
 variables are grammar rules, so nothing is rewritten before parsing and a
 parse error's line and column always match the text as written.
 
 ```clojure
-[:Program
+[:MuInput
  [:Sequence
   [:Id [:Name "verse"]]
   [:BangConst [:Name "mf"]]
@@ -35,7 +35,7 @@ parse error's line and column always match the text as written.
 
 (Whitespace strings between the elements are left out here.)
 
-## 2. Walk — `walker/walk`
+## 2. Walk — `walker/walk-each`
 
 One depth-first walk, pushing and popping containers on a stack
 (`builder`). It resolves relative pitches and inherited
@@ -43,7 +43,7 @@ durations, writes instructions into the current container's context, and
 turns each container into a plain map registered under its id. Unnamed
 containers get an id (`:s1`, `:p1`, …) only when they're popped.
 
-The result is `{:tree :root-id :auto-ids :var-map}`, where `:tree` is a
+The result is `{:tree :root-id :auto-ids :ids}`, where `:tree` is a
 flat map `id -> node`. `:verse` in it:
 
 ```clojure
@@ -92,19 +92,18 @@ the session between `parse` calls). Per node type:
 | an instruction (`!mf`, `!vol:80`, `!key:…`, `partial`) | written into the current container's context |
 | `transpose`, `reverse`, a grace note | a transient container whose children are spliced into the parent |
 | `repeat` | an `Iterator` holding its body (and its volta endings) |
-| `VarDef` / `VarRef` | the body stashed in the var-map / spliced in with its context replayed |
+| `VarRef` | the music bound to the name (mu's `:=`) spliced in, its context replayed |
 | `BarLine` | a zero-duration bar marker |
 | `Comment` | dropped |
 
 ## 3. Commit — `musics.repo`
 
-`musics.core/parse` works out which ids are new or changed and commits
-them with one atomic `swap!` (`commit-many!`); they're visible the moment
-`parse` returns:
+`musics.mu.store/read!` (mu's `load`, the GUI editor's Parse) stores what
+the text leaves with one atomic `swap!` (`commit-many!`); it's visible the
+moment the call returns:
 
-```clojure
-(m/parse "[verse: !mf c4 d e8]")   ;=> {:ids [:verse]}
-;; musics.repo now holds :ROOT and :verse
+```
+[verse: !mf c4 d e8] R!        % the same at the prompt: musics.repo now holds :ROOT and :verse
 ```
 
 `musics.repo` is a flat `id -> node` map holding only the current value of
@@ -118,7 +117,7 @@ engine's sender thread reads every voice's stream about 100 ms ahead of
 the clock and queues what it reads by time.
 
 - **Its own snapshot.** A voice reads from a snapshot of the repo taken
-  when it started. A later `parse` doesn't touch it; only
+  when it started. A later store doesn't touch it; only
   `schedule-tx!` moves a voice to the current repo, at a boundary you
   choose.
 - **Sequence and parallel.** A `:SEQ`'s children play one after another
@@ -164,7 +163,7 @@ The sender queues a note-on at the note's time and a note-off
 `:dur-played` later, and sends each to `musics.midi.live`'s receiver
 when it comes due; the voice's next note starts `:dur-secs` after this
 one. The receiver sends to Fluidsynth through a virtual MIDI port
-(`doc/md/setup.md`). `(render form "x.mid")` writes the same events to a
+(`doc/md/setup.md`). mu's `x "x.mid" render` writes the same events to a
 MIDI file instead, with no clock.
 
 ## Alongside: the conductor
@@ -179,9 +178,8 @@ current repo, works through the same boundaries.
 ## Alongside: composing a tree
 
 Algorithms reach this pipeline as a tree bound to a name (`t/live!`),
-which the wall runs on every note (stage 4). `(build-tree)` and its REPL
-twin put such a tree together; both work on the same data,
-`musics.algo.tree.builder`'s **draft** — a tree that may still have holes.
+which the wall runs on every note (stage 4). `(build-tree)`'s window puts
+such a tree together, working on `musics.algo.tree.builder`'s **draft** — a tree that may still have holes.
 After placing `zip`, then `pulses->durations`:
 
 ```clojure
@@ -194,14 +192,11 @@ After placing `zip`, then `pulses->durations`:
   that position: `[0 0]` needs `:pulse`, `[1]` needs `:pitch`.
 - An algo fits a hole when its output fits that type — the same rule
   the constructors check. `euclid` (→ pulse) fits `[0 0]`; `scale`
-  (→ pitch) doesn't, so the window refuses the drop and the REPL
-  marks it `-`.
+  (→ pitch) doesn't, so the window refuses the drop.
 - After each placement the active path moves to the next hole below it,
   or else the first one left: the tree grows root to leaves.
 - As text the draft is `(zip (pulses->durations ▸①) ②)` — holes
-  numbered, `▸` on the active one; the REPL numbers every slot
-  (`(zip¹ (pulses->durations² ▸③) ④)`) so `s n` can select any of
-  them.
+  numbered, `▸` on the active one.
 
 Once no holes are left, Finalize builds the real nodes through the
 algos' constructors and makes the tctx:

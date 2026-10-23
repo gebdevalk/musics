@@ -39,7 +39,7 @@ Fluidsynth. Gervill's reverb and chorus are plainer than Fluidsynth's;
 the soundfont matters most.
 
 If the default output doesn't open within 5 s -- a Bluetooth speaker
-asleep or out of reach -- `(connect)`, and the first `>` in mu, say so
+asleep or out of reach -- `gervill`, and the first `>` in mu, say so
 instead of waiting: `wpctl status` lists the outputs, `wpctl
 set-default <id>` picks another, and `systemctl --user restart pipewire
 wireplumber` resets a stuck audio server.
@@ -163,20 +163,13 @@ module** — it's a standard USB MIDI class-compliant device, ALSA already
 sees it once plugged in. No `snd-virmidi`, no `aconnect` wiring of your
 own to do; `musics.input.midi/open-midi` handles routing internally.
 
-```clojure
-(require '[musics.input.midi :as midi])
+The GUI's "MIDI Input" panel (`gui` in mu) opens the device and starts
+midi-through at once: play the keyboard, hear it live through the same
+output as everything else; closing it releases the device.
 
-;; Opens the device and immediately starts midi-through: play the
-;; keyboard, hear it live through the same Fluidsynth setup above.
-(midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI picker
-
-(midi/close-midi)   ;; stops midi-through and releases the device
-```
-
-`record-midi` (`musics.input.midi-record`) builds on the same open input to
-record a performance and quantize it into musics-DSL text — see
-`musics.input.midi-record`'s own ns docstring, or the "Record MIDI" panel in
-`(musics.core/gui)`.
+`musics.input.midi-record` builds on the same open input to record a
+performance and quantize it into musics text — the GUI's "Record MIDI"
+panel (`gui` in mu); see that ns's docstring.
 
 ## MIDI output flow
 

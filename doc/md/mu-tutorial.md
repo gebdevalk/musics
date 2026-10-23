@@ -7,7 +7,7 @@ through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
 
-Start mu with `lein mu` (or `(mu!)` from `lein repl`). `bye` or Ctrl+D
+Start mu with `lein mu`. `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
 ## 0. The stack
@@ -385,7 +385,8 @@ the text's `alternate [ … ]`. Weights go on top, one per alternative:
 times as often as the second.
 
 `TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
-in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).
+as words and as the text's commands inside a line (`[c d] 5 TRP`,
+`[TRP 5 ( c d )]`).
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
@@ -650,50 +651,6 @@ Barring it with `[||]` shows the shift: each bar starts on another note
 of the color. The result is an ordinary line, so everything above
 applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
-### The same as an algo tree
-
-In Clojure, the same isorhythm is a tree of three tools, with its
-settings kept apart from it (`lein repl`, where `t` and the tools are
-already referred):
-
-```clojure
-(def isorhythm (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67]))))
-isorhythm
-;; #node (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67])))
-```
-
-The tree only says what is computed. Its settings live apart from it,
-in a **tctx**: an ordinary musics context, the same kind of thing a
-`^{ }` makes, holding the algo settings as `?` names:
-
-```clojure
-(def tctx (t/tctx isorhythm))
-tctx
-;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {}}], :duration nil}
-
-(t/setp! tctx :len 15)             ; take> keeps 15; returns every param's value
-;; {:len 15}
-tctx
-;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {"?len" 15}}], :duration nil}
-
-(t/params tctx)                    ; every param's value, set or default
-;; {:len 15}
-
-(notes->mus (t/run isorhythm tctx))
-;; "[ !acc:explicit C4/4 D4/8 E4/8 F4/4 G4/8 C4/8 D4/4 E4/8 F4/8 G4/4 C4/8 D4/8 E4/4 F4/8 G4/8 ]"
-```
-
-- A new tctx is empty (`:val {}`): every param is at its default
-  (`take>` keeps 16).
-- `setp!` stores `:len` under its context name, `"?len"`, and checks it
-  first: `(t/setp! tctx :len 999)` is refused, the range is 0..256.
-- Since it is a context, the same setting can be written in musics
-  text, `^{ ?len:15 }`, and handed to `t/run` after the tctx.
-
-`cycle>`, `zip` and `take>` do what `cycle`, `zip` and `take` do in mu.
-`notes->mus` writes the result as musics text, which mu reads as it
-is: paste it at the mu prompt and it's a line on the stack.
-
 ## 15. Algos as words
 
 The algos of the trees are mu words too, named by what they deliver:
@@ -704,7 +661,7 @@ says what one does and which settings it reads:
 
 ```
 "duration/euclid" see
-duration/euclid ( [^{ @… }] -- durations )
+duration/euclid ( [^{ ?… }] -- durations )
   Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  ?k ?n ?rotation ?duration-pulse
 ```
 
@@ -847,25 +804,6 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 ```
 c4 '[0 40 73] sounds audition
 ```
-
-## 17. The same words in Clojure
-
-Every word with a Clojure name is also a Clojure function, under `mu/`
-in `lein repl`, taking its arguments in mu's order:
-
-```clojure
-(def x (mu/mu "[c d e g]"))     ; read a literal (or run a phrase)
-(mu/retrograde x)               ; #mu "[G4/4 E4 D4 C4]"
-(mu/R x)                        ; the same, short
-(mu/= x (mu/mu "[C4 D4 E4 G4]")) ; true: = is eq, music by its notes
-(mu/times x 3)                  ; #mu "repeat 3 [C4/4 D4 E4 G4]"
-(mu/mute x #(> (mu/pitch %) 63))         ; a fn where mu takes '( … )
-(apply mu/line (take 2 (mu/elements x))) ; Clojure's own take, filter, map …
-```
-
-What Clojure already has (`take`, `filter`, `first`, `map` …) is
-Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
-`mu/line` makes music of them again.
 
 ## All the music words
 
