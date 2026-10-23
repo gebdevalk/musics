@@ -714,6 +714,15 @@ note in turn (rests take none). With eight beats among eight eighths,
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
+A long param name gets a short one with `:=`, a `?name` bound to a
+`?name`: from then on the short one is read as the long one, and the
+context keeps, and shows, the long one:
+
+```
+'?vp '?volume-pulse :=
+^{ ?vp:1/8 }                       → ^{ ?volume-pulse:1/8 }
+```
+
 A random algo runs differently each time. `?seed:7` in its settings
 runs it on that seed, so two words with one seed and one source read
 the same run -- a walk heard as pitch and as volume, rising and

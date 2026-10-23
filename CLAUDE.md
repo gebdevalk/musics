@@ -1613,6 +1613,10 @@ names an algo or a named instance. Values: numbers, strings, a bare name
 (a keyword), a comma list or a `( )` list (a vector). No ramps -- an
 algo reads its params once per run. The assignment node's `:key` is the
 string `"?k"` (a keyword `:?k` wouldn't survive `write`/`load`'s EDN).
+A `?name` bound to another in mu (`'?dp '?duration-pulse :=`) is a short
+name: `musics.mu.value` hands such bindings to the walker as
+`:param-aliases`, and `?dp:1/8` is stored and written back as
+`?duration-pulse:1/8`.
 Trees read them as their settings (`t/run tree tctx chain`; see
 "Simple composition" below).
 

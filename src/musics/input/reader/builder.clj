@@ -74,6 +74,7 @@
       :stack      [root]
       :auto-ids   (atom (:auto-ids session))
       :var-map    (atom (or (:var-map session) {}))
+      :param-aliases (or (:param-aliases session) {})
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)

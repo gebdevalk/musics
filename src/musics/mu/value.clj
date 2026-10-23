@@ -9,7 +9,8 @@
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
    storing is R! (doc/md/mu-repl.md)."
-  (:require [musics.domain.context :as c]
+  (:require [clojure.string :as str]
+            [musics.domain.context :as c]
             [musics.input.reader.walker :as walker]
             [musics.mu.grammar :as g]))
 
@@ -69,6 +70,15 @@
        :else [vm nodes]))
    [{} {}] bindings))
 
+(defn- param-aliases
+  "The bindings of a ?name to another ?name ('?dp '?duration-pulse :=)
+   as {\"dp\" \"duration-pulse\"}: an algo param written by its short
+   name is read as the long one."
+  [bindings]
+  (into {} (for [[k x] bindings
+                 :when (and (str/starts-with? k "?") (symbol? x) (str/starts-with? (str x) "?"))]
+             [(subs k 1) (subs (str x) 1)])))
+
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
    auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
@@ -83,7 +93,8 @@
      ;; :base stays the repo without the bound nodes: what a bound name
      ;; brings in is the literal's own, stored with it by R!
      (let [[vm bound] (var-map bindings)
-           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm})
+           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm
+                                              :param-aliases (param-aliases bindings)})
            tree (:tree r)]
        {:values (mapv (fn [node id]
                         (cond

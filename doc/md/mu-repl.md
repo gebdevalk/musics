@@ -167,6 +167,9 @@ followed by nothing, a duration or `*n`.
   before that part runs, so `'m [c d] := [\m e]` works on one line; a
   literal before the `:=` that binds its name is refused. After a `:=`
   the reading starts afresh (durations, relative pitch).
+- A `?name` bound to another (`'?dp '?duration-pulse :=`) is a short
+  name for an algo param: `^{ ?dp:1/8 }` is read, kept and shown as
+  `^{ ?duration-pulse:1/8 }`.
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;

@@ -1053,9 +1053,12 @@
 
 (defn- walk-algo-assignment
   "?name:value -- an algo param, stored in the current context under
-   \"?name\", as a point at the current beat (one value, no ramp)."
+   \"?name\", as a point at the current beat (one value, no ramp). A
+   short name bound to a long one (mu's '?dp '?duration-pulse :=, as
+   :param-aliases) is stored, and written back, as the long one."
   [state children]
   (let [nm  (second (find-child children :AlgoName))
+        nm  (get (:param-aliases state) nm nm)
         vn  (first (remove #(tag? % :AlgoName) children))
         v   (algo-value vn)
         raw (str "?" nm ":" (or (node-text state vn) (pr-str v)))]
