@@ -35,6 +35,9 @@
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (is (= [[:Word [:WordName "?empty"]] [:Word [:WordName "mine/?x"]]] (items "?empty mine/?x"))
         "a word may start with ?")
+    (is (= [[:Word [:WordName "+volumes"]] [:Word [:WordName "music/+drums"]]] (items "+volumes music/+drums"))
+        "or with + and a letter")
+    (is (= [[:SignedInt "+5"]] (items "+5")) "+ and a digit stays a number")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
     (doseq [w [">" ">+" ">>" ">>+" "[[]]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))

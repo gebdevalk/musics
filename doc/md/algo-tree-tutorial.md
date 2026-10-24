@@ -112,14 +112,14 @@ the same seed giving both the same run:
 1> '[60 60 60 62 64 64 60 60]
 ```
 
-`with-volumes` puts a stream of volumes onto a line, a value per note.
+`+volumes` puts a stream of volumes onto a line, a value per note.
 With durations underneath, `rot rot` brings them up for `zip`, and
 `swap` puts the volumes on top again:
 
 ```
 [c8 c c c c c c c] durations
 ^{ ?seed:7 ?len:8 ?pitch-lo:60 ?pitch-hi:72 ?volume-lo:40 ?volume-hi:90 }
-dup pitch/walk swap volume/walk rot rot zip swap with-volumes
+dup pitch/walk swap volume/walk rot rot zip swap +volumes
     → [C4/8\volume:40.0 C4\volume:40.0 C4\volume:40.0 D4\volume:47.35… E4\volume:56.76… …]
 ```
 
@@ -144,10 +144,10 @@ and the variation goes back onto pitches with `zip`:
     → [C4/8 D4 E4/8. F4/8 G4/16 A4 B4 C5/8]
 ```
 
-`volume/euclid` gives the meter's accents as volumes, for `with-volumes`:
+`volume/euclid` gives the meter's accents as volumes, for `+volumes`:
 
 ```
-[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid with-volumes
+[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid +volumes
 ```
 
 Every algo is a word on one of these shelves; `words` lists them with
@@ -170,12 +170,12 @@ input, so a value can be used twice without `dup` and `swap`. The swell
 of section 3, as a word:
 
 ```
-: swell ( durs ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk with-volumes ;
+: swell ( durs ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk +volumes ;
 [c8 c c c c c c c] durations ^{ ?seed:7 ?len:8 ?pitch-lo:60 ?pitch-hi:72 ?volume-lo:40 ?volume-hi:90 } swell
 ```
 
 A definition without a stack effect works on the stack directly:
-`: swell2 dup pitch/walk swap volume/walk rot rot zip swap with-volumes ;`
+`: swell2 dup pitch/walk swap volume/walk rot rot zip swap +volumes ;`
 gives the same. A word can leave its settings open, to be given each
 time:
 
@@ -324,7 +324,7 @@ tuned by hand (`set`, a slider), and one voice plays it all the while.
 | `see` | `( "word" -- )` its effect and settings |
 | `durations` `pitches` | `( line -- stream )` a line taken apart |
 | `zip` | `( durations pitches -- line )` notes of them |
-| `with-volumes` | `( line volumes -- line )` a volume per note |
+| `+volumes` | `( line volumes -- line )` a volume per note |
 | `dup` `swap` `over` `rot` | arrange the stack |
 | `: name ( a -- b ) … ;` `$a` | a definition, its inputs as locals |
 | `'( … )` `call` | a recipe kept, run |

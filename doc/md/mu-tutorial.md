@@ -476,7 +476,7 @@ durations and pitches back together:
 
 `pitches` and `durations` give a rest's too (nil, its length), which
 `zip` needs; `volumes`, `articulations`, `instruments` and `drums` leave
-rests out, a value per note, as `with-volumes` and the others take them
+rests out, a value per note, as `+volumes` and the others take them
 (section 15).
 
 A chord's list zips back into a chord, nil into a rest. So
@@ -571,13 +571,13 @@ sound. So the words keep them apart:
 |---|---|---|
 | `instruments` | `( line -- stream )` | each note's own program; nil for a drum |
 | `drums` | `( line -- stream )` | each drum's key; nil for a note |
-| `with-instruments` | `( line programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
-| `with-drums` | `( line keys -- line )` | each drum's sound in turn; a note is refused |
+| `+instruments` | `( line programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
+| `+drums` | `( line keys -- line )` | each drum's sound in turn; a note is refused |
 | `as-drums` | `( line keys -- line )` | each note made a drum, keeping its length, volume and accent |
 
 ```
-[c d e] '[40 :sea 73] with-instruments  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
-[x8\bd1 x8\sna] '[:hhc :cr1] with-drums → [x8\42 x\49]
+[c d e] '[40 :sea 73] +instruments  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
+[x8\bd1 x8\sna] '[:hhc :cr1] +drums → [x8\42 x\49]
 [c8 d e f] '[:kick :hhc :sna :hhc] as-drums → [x8\36 x\42 x\38 x\42]
 ```
 
@@ -705,12 +705,12 @@ twelve: the melody keeps landing on another beat, the color-talea of
 section 14 written with an algo.
 
 A volume, articulation or instrument stream goes back onto a line with
-`with-volumes`, `with-articulations` or `with-instruments`, a value per
+`+volumes`, `+articulations` or `+instruments`, a value per
 note in turn (rests take none). With eight beats among eight eighths,
 `volume/euclid` gives the meter's accents:
 
 ```
-[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid with-volumes
+[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid +volumes
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
@@ -762,7 +762,7 @@ and volume:
 ```
 ^{ ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
 ^{ ?seed:3 ?kind:allInterval } duration/row-time-points ^{ ?seed:3 ?kind:allInterval } pitch/row-classes zip >
-^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row with-volumes >
+^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row +volumes >
 ```
 
 `duration/ca` is a cellular automaton, a bar of `?width` pulses per
@@ -878,7 +878,7 @@ c4 '[0 40 73] sounds audition
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
-| `with-volumes` `with-articulations` `with-instruments` `with-drums` `as-drums` | `( line stream -- line )` |
+| `+volumes` `+articulations` `+instruments` `+drums` `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |

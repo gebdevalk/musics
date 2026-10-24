@@ -1844,3 +1844,13 @@ in the music: a recipe ending in `[~]` is endless, once otherwise.
 The recipe's settings are a tctx per live name; mu's algo words, run by
 the recipe, read it first and fit it to their trees, so it knows every
 param the recipe reads -- for `settings`, the checks and the sliders.
+
+
+## 2026-10-24 — +volumes, not with-volumes
+
+mu's words that put a stream onto a line, a value per note, are
+`+volumes`, `+articulations`, `+instruments` and `+drums` (were
+`with-volumes` …), the names the trees' blend steps already use
+(`+volume`, `+articulation` …). A mu word name may now start with `+`
+and a letter; `+` with a digit stays a number (`+5`). This is the first
+step towards a `zip` that takes every half product at once.

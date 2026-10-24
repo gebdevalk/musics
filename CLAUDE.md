@@ -260,10 +260,10 @@ is `x` again. The algos are words by what they deliver
 into the algo's inputs (a repeat or loop around them kept around the
 result), a `^{ ?k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults; `?seed:7` runs it on that seed, so two
-words with one seed read one run), and `with-volumes`/
-`with-articulations`/`with-instruments` put such a stream back onto a
+words with one seed read one run), and `+volumes`/
+`+articulations`/`+instruments` put such a stream back onto a
 line, a value per note. Instruments and drums stay apart: `instruments`/
-`with-instruments` are programs (a drum has none), `drums`/`with-drums`
+`+instruments` are programs (a drum has none), `drums`/`+drums`
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`

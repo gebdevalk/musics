@@ -215,14 +215,14 @@
 (defn- set-articulation [l a]
   (if-let [{:keys [duration dynamic]} (data/articulations (keyword a))]
     (cond-> (assoc l :dynamic dynamic) (and duration (not= :DRUM (:type l))) (assoc :articulation duration))
-    (e/mu-error "with-articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
+    (e/mu-error "+articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
 
 (defn- set-instrument [l i]
   (when (= :DRUM (:type l))
-    (e/mu-error "with-instruments: a drum has no instrument, its sound is a key of the kit -- use with-drums"))
+    (e/mu-error "+instruments: a drum has no instrument, its sound is a key of the kit -- use +drums"))
   (assoc-in l [:overrides :instrument]
             (or (when (number? i) (int i)) (data/program-of i)
-                (e/mu-error "with-instruments:" (pr-str i) "is not a program or General MIDI name"))))
+                (e/mu-error "+instruments:" (pr-str i) "is not a program or General MIDI name"))))
 
 (defn- drum-key [word i]
   (or (when (number? i) (int i)) (data/resolve-drum (name i))
@@ -230,8 +230,8 @@
 
 (defn- set-drum [l i]
   (when-not (= :DRUM (:type l))
-    (e/mu-error "with-drums: a note is no drum -- as-drums turns notes into drums"))
-  (assoc l :program (drum-key "with-drums" i)))
+    (e/mu-error "+drums: a note is no drum -- as-drums turns notes into drums"))
+  (assoc l :program (drum-key "+drums" i)))
 
 (defn- as-drum
   "The note as the drum i, keeping its length, its articulation's weight
@@ -467,25 +467,25 @@
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a line, volumes"
   [note] (one-note "volume" "volumes" own-volume note))
 (defn volumes
-  "Each note's volume, as a stream, rests left out: x volumes with-volumes is x again"
+  "Each note's volume, as a stream, rests left out: x volumes +volumes is x again"
   [line] (each-note "volumes" own-volume false line))
 (defn articulation
   "Its articulation (:staccato, :accent …), else nil; for a line, articulations"
   [note] (one-note "articulation" "articulations" articulation-name note))
 (defn articulations
-  "Each note's articulation, as a stream, rests left out: x articulations with-articulations is x again"
+  "Each note's articulation, as a stream, rests left out: x articulations +articulations is x again"
   [line] (each-note "articulations" articulation-name false line))
 (defn instrument
   "Its own instrument (c4\\i:40); nil for a drum or none; for a line, instruments"
   [note] (one-note "instrument" "instruments" instrument-of note))
 (defn instruments
-  "Each note's instrument, as a stream, rests left out: x instruments with-instruments is x again"
+  "Each note's instrument, as a stream, rests left out: x instruments +instruments is x again"
   [line] (each-note "instruments" instrument-of false line))
 (defn drum
   "A drum's key (x8\\38: 38); nil for a note; for a line, drums"
   [note] (one-note "drum" "drums" drum-of note))
 (defn drums
-  "Each note's drum, as a stream, rests left out: x drums with-drums is x again"
+  "Each note's drum, as a stream, rests left out: x drums +drums is x again"
   [line] (each-note "drums" drum-of false line))
 
 (defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %)))) leaf))
@@ -495,28 +495,28 @@
 
 ;; -- a stream onto a line ---------------------------------------------------
 
-(defn with-volumes
+(defn +volumes
   "Each note's own volume (0-100) from the stream in turn; rests take
-   none: [c d e] volume/euclid with-volumes"
+   none: [c d e] volume/euclid +volumes"
   [line volumes]
-  (onto "with-volumes" #(assoc-in %1 [:overrides :volume] %2) line volumes))
+  (onto "+volumes" #(assoc-in %1 [:overrides :volume] %2) line volumes))
 
-(defn with-articulations
+(defn +articulations
   "Each note's articulation (:accent, :staccato …) from the stream in turn; rests take none"
   [line articulations]
-  (onto "with-articulations" set-articulation line articulations))
+  (onto "+articulations" set-articulation line articulations))
 
-(defn with-instruments
+(defn +instruments
   "Each note's instrument (a program, a General MIDI name or short name)
-   from the stream in turn; rests take none, a drum is refused (with-drums)"
+   from the stream in turn; rests take none, a drum is refused (+drums)"
   [line instruments]
-  (onto "with-instruments" set-instrument line instruments))
+  (onto "+instruments" set-instrument line instruments))
 
-(defn with-drums
+(defn +drums
   "Each drum's sound, a key of the kit (38, :sna, :kick), from the stream
    in turn; a note is refused (as-drums)"
   [line drums]
-  (onto "with-drums" set-drum line drums))
+  (onto "+drums" set-drum line drums))
 
 (defn as-drums
   "Each note made the drum from the stream in turn, keeping its length

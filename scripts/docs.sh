@@ -29,6 +29,7 @@ declare -A pages=(
   [doc/md/grid.md]=grid
   [doc/md/mu-repl.md]=mu-repl
   [doc/md/mu-tutorial.md]=mu-tutorial
+  [doc/md/algo-tree-tutorial.md]=algo-tree-tutorial
   [doc/md/grammar-notes.md]=grammar-notes
   [doc/md/parsing.md]=parsing
   [doc/md/lilypond.md]=lilypond
