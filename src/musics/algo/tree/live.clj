@@ -88,7 +88,8 @@
         :else (map (fn [node]
                      (if (or (::step node) (not (or (d/leaf? node) (d/rest? node))))
                        node
-                       (assoc (next-part! cursors (:path voice) spec ctx-chain)
+                       ;; no material at all (the only runs failed): the note as written
+                       (assoc (or (next-part! cursors (:path voice) spec ctx-chain) node)
                               :id (:id node) :context (:context node) ::step true)))
                    nodes)))))
 

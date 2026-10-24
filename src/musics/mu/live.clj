@@ -40,7 +40,7 @@
   [recipe x tctx chain]
   (binding [algos/*live* {:tctx tctx :chain chain}]
     (if (t/node? recipe)
-      (mt/line (t/run recipe tctx chain))
+      (do (t/fit! tctx recipe) (mt/line (t/run recipe tctx chain)))
       (let [left (e/call (if (some? x) [x] []) recipe)]
         (when (empty? left) (e/mu-error "the recipe leaves nothing to play"))
         (peek left)))))
@@ -81,7 +81,9 @@
         name  (or named (fresh-name))]
     (bind! name recipe x)
     (let [tctx (:tctx (wall/registered name))
-          form (if (some? x) x (doto (result recipe nil tctx nil) as-leaves))]
+          ;; run once now, so a recipe that fails is refused here, not heard
+          first-run (doto (result recipe x tctx nil) as-leaves)
+          form (if (some? x) x first-run)]
       (if staged
         (mt/stage! form ctx (first staged) join? named name)
         (mt/play! form ctx join? named name)))))

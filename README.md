@@ -50,6 +50,7 @@ them to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in
 |---|---|
 | [doc/md/setup.md](doc/md/setup.md) | Audio setup: once, and every boot |
 | [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step |
+| [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms: composing, settings, live playback |
 | [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 47 worked recipes, each run for real (on GitHub, open it locally) |
