@@ -3,7 +3,7 @@
 Every namespace under `src/`, by directory, with its size in lines and its
 role. The program is used through **mu** (`musics.mu`, `lein mu`) and the
 **GUI** (`musics.gui.core`, mu's `gui`); *unreached* marks a namespace
-neither of them loads (only tests do). 107 namespaces, about 30,650 lines.
+neither of them loads (only tests do). 107 namespaces, about 31,100 lines.
 
 ## The tree
 
@@ -137,18 +137,18 @@ musics.mu                    177   mu, the musical REPL: the prompt loop (JLine)
 ├── mu.eval                  399   the evaluator: literals read up to each :=, items run on the stack
 ├── mu.value                 163   what a literal becomes: a leaf or a Material, not stored
 ├── mu.print                 150   printing, isomorphic to reading
-├── mu.material              740   what the words share: elements, lines, repeats, storing, playing
+├── mu.material              927   what the words share: elements, lines, repeats, zip's leaves, storing, playing
 ├── mu.store                  56   text read into the repo: a file, the GUI editor (commits :ROOT)
 ├── mu.library                52   registers the word namespaces below as mu words
 ├── mu.kernel                218   stack words: dup swap … quotations, :=, the play words
-├── mu.tools                 143   tool words that read the stack's shape: seq par {n} [n] volta …
-├── mu.algos                 129   the algos as words by shelf: pitch/lorenz, duration/euclid …
+├── mu.tools                 153   tool words that read the stack's shape: seq par zip {n} [n] volta …
+├── mu.algos                 132   the algos as words by shelf: pitch/lorenz, duration/euclid …
 ├── mu.live                  127   a play word given a recipe plays live
 ├── mu.complete              163   Tab completion
 └── mu.feedback              151   rating what is heard, audition
-musics.kernel                213   kernel words: numbers, the repo, help, files, load, render
+musics.kernel                252   kernel words: numbers, the repo, namespaces, require, help, files, load, render
 musics.tool                  309   tool words: making, reading, reshaping
-musics.music                 659   music words: transposing, row forms, zip, +volumes …
+musics.music                 604   music words: transposing, row forms, the readers, +volumes …
 musics.play                  178   play words: stop, voices, hush, set, settings, retree, compose, gui
 musics.rate                   74   rate words: like, dislike, audition …
 musics.feedback               92   the ratings file
@@ -168,7 +168,7 @@ musics.assist                263   what can be done now: action facts in core.lo
 ```
 musics.input.reader.walker   1788   the parse tree walked into domain nodes
 ├── reader.builder            406   the container stack, auto-ids, context chains
-└── reader.leaf-parser        469   pitch, duration, articulation, dynamic of one leaf
+└── reader.leaf-parser        477   pitch, duration, articulation, dynamic of one leaf
 musics.input.lilypond-import 2030   LilyPond → musics text (mu's load of .ly)
 musics.input.abc-import       598   ABC → musics text (.abc)
 musics.input.guido-import     562   GUIDO → musics text (.gmn)
@@ -208,7 +208,7 @@ musics.midi.file              230   MIDI files (mu's render)
 musics.algo.tree              524   trees of algos and their tctx: build, check, keys, run
 ├── tree.registry             253   every algo, found by introspection; shelves
 ├── tree.lib                  294   the tools (zip, cycle>, take> …) and every algo exposed
-├── tree.half-products        170   algos as the half products they deliver (duration/euclid …)
+├── tree.half-products        162   algos as the half products they deliver (duration/euclid …)
 ├── tree.live                 228   a name bound to a tree or a recipe, followed live
 └── tree.builder              249   the composer's draft model
 musics.algo.bridge            343   raw material → half products, one way
