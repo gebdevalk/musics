@@ -305,7 +305,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (rests left out); back onto a line, one per note, rests taking none: `+volumes` `+articulations` `+instruments` `+drums`, and `as-drums` (notes made drums) |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil); back onto a line, one per note, a rest's unused: `+volumes` `+articulations` `+instruments` `+drums`, and `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -575,7 +575,7 @@ the doc and the `?` params.
 duration/euclid                          → '[3/16 3/16 1/8]
 ^{ ?k:5 ?n:16 } duration/euclid          the context on top is its settings
 [c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip
-                                         the rhythm rotated, the pitches kept
+                                         the rhythm rotated, a rest's pitch unused
 ^{ !key:D.major ?len:4 } pitch/walk-degrees   a key param follows the music's !key:
 ```
 
@@ -592,7 +592,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
   run: `^{ ?seed:7 } pitch/walk` and `^{ ?seed:7 } volume/walk` rise and
   fall together.
 - **Onto a line**: `[c d e f] volume/euclid +volumes` gives each
-  note the next volume (rests take none); `+articulations` takes
+  note the next volume (0..100, a rest's going unused); `+articulations` takes
   `'[:accent :staccato]` (drums too: an accent is a drum's weight),
   `+instruments` programs and names (`'[40 :sea 73]`). Instruments
   and drums are two worlds: an instrument is a program, its notes pitches;

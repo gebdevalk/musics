@@ -389,7 +389,7 @@
   (is (= "'[60 '[64 67] nil 62]" (top "[c8 <e g>4 r8 d] pitches")))
   (is (= "'[nil 90 nil]" (top "[c d\\vol:90 e] volumes")))
   (is (= "'[nil :accent]" (top "[c d->] articulations")))
-  (is (= "'[30 90]" (top "[c\\vol:30 r d\\vol:90] volumes")) "a rest gives no volume")
+  (is (= "'[30 nil 90]" (top "[c\\vol:30 r d\\vol:90] volumes")) "a rest's volume is nil, as its pitch")
   (is (= "'[60 nil 62]" (top "[c r d] pitches")) "a rest's pitch is nil, for zip")
   (is (= "'[40 nil]" (top "[c\\i:40 x\\38] instruments")) "a drum has no instrument")
   (is (= "'[nil 38]" (top "[c\\i:40 x\\38] drums")) "its key is a drum's")
@@ -480,7 +480,9 @@
   (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))
 
 (deftest a-stream-onto-a-line
-  (is (= "[C4/4\\volume:90 r D4\\volume:50 E4]" (top "[c r d e] '[90 50] +volumes")) "rests take none; past the stream's end as written")
+  (is (= "[C4/4\\volume:90 r E4\\volume:70 F4]" (top "[c r e f] '[90 50 70] +volumes")) "a rest's value unused; past the stream's end as written")
+  (is (re-find #"a volume is 0..100" (top "[c d] '[90 120] +volumes")))
+  (is (re-find #"a volume is 0..100" (top "| '[/4] '[60] :volume '[-1] zip")))
   (is (= "[C4/4-> D4-. E4]" (top "[c d e] '[:accent :staccato] +articulations")))
   (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations +articulations")) "what articulations reads, written back")
   (is (= "[C4/8\\volume:30 r D4\\volume:90 r E4\\volume:50]" (top "[c8\\vol:30 r d\\vol:90 r e\\vol:50] dup volumes +volumes")) "rests too")
@@ -491,7 +493,7 @@
   (is (= "'[:accent :ghost]" (top "[x8\\bd1 x8\\sna] '[:accent :ghost] +articulations articulations")) "drums take accents")
   (is (= "'[:accent nil]" (top "[c8-> d] '[:kick :sna] as-drums articulations")) "as-drums keeps a note's accent")
   (is (re-find #"as-drums" (top "[c d] '[:kick] +drums")) "a note is no drum")
-  (is (= "[x8\\36 x\\42\\volume:90 r x\\38]" (top "[c8 d\\vol:90 r e] '[:kick :hhc :sna] as-drums"))
+  (is (= "[x8\\36 x\\42\\volume:90 r x\\38]" (top "[c8 d\\vol:90 r e] '[:kick :hhc nil :sna] as-drums"))
       "as-drums: notes made drums, keeping length and volume")
   (is (= "[C4/4\\instrument:122 D4\\instrument:11]" (top "[c d] '[:sea :vib] +instruments")) "short names in lowercase: vib the vibraphone")
   (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "[c d] [~] '[90 40] [~] +volumes")) "the line keeps its form")

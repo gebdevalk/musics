@@ -1874,8 +1874,12 @@ apart once there were several; with one rule the n-th value of every
 part belongs to the n-th note. `nil` is explicit "nothing here": a
 rest as a pitch, the context's value as anything else. The durations
 set the length and the other parts cycle (color and talea); durations
-in a loop give a loop of the lcm. `+volumes` and the other writers
-still put one stream onto a finished line, rests taking none.
+in a loop give a loop of the lcm. The same rule holds outside zip:
+`volumes`, `articulations`, `instruments` and `drums` give a rest's
+`nil`, as `pitches` does, and `+volumes` and the other writers use up
+a value at a rest, so a stream read from a line goes back onto it in
+step. A volume is 0..100 as written, any number in it, mapped to MIDI
+when the note is resolved.
 
 A dynamic part is only taken where the text can write it -- the
 articulation's own weight, or -20 alone (a ghost note) -- since the

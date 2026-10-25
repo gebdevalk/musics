@@ -158,18 +158,19 @@
   (when (= :DRUM (:type x)) (:program x)))
 
 (defn- onto
-  "x with (f note value) for each note of the line in written order, the stream's values in turn; a rest takes
-   none, as a generated stream has none for it (volume/euclid), and
-   notes past the stream's end stay as they are. The line keeps its
+  "x with (f note value) for each note of the line in written order, the
+   stream's values in turn, a rest using its value unused, as zip does;
+   a nil writes nothing, and notes past the stream's end stay as they
+   are. The line keeps its
    form: repeats, loops and nested lines."
   [word f x vs]
   (when-not (or (mt/leaf? x) (v/material? x))
     (e/mu-error (str word ":") "puts a stream onto a line or a note, got" (p/show x)))
   (let [cur (volatile! (seq (mt/elements (mt/streamed vs))))
         put (fn [l]
-              (if (= :REST (:type l))
-                l
-                (if-let [[v & more] @cur] (do (vreset! cur more) (if (nil? v) l (f l v))) l)))]
+              (if-let [[v & more] @cur]
+                (do (vreset! cur more) (if (or (nil? v) (= :REST (:type l))) l (f l v)))
+                l))]
     (mt/map-leaves put x)))
 
 (defn- set-drum [l i]
@@ -411,26 +412,26 @@
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a line, volumes"
   [note] (one-note "volume" "volumes" own-volume note))
 (defn volumes
-  "Each note's volume, as a stream, rests left out: x volumes +volumes is x again"
-  [line] (mt/as-part :volume (each-note "volumes" own-volume false line)))
+  "Each note's volume, as a stream, a rest's nil: x volumes +volumes is x again"
+  [line] (mt/as-part :volume (each-note "volumes" own-volume true line)))
 (defn articulation
   "Its articulation (:staccato, :accent …), else nil; for a line, articulations"
   [note] (one-note "articulation" "articulations" articulation-name note))
 (defn articulations
-  "Each note's articulation, as a stream, rests left out: x articulations +articulations is x again"
-  [line] (mt/as-part :articulation (each-note "articulations" articulation-name false line)))
+  "Each note's articulation, as a stream, a rest's nil: x articulations +articulations is x again"
+  [line] (mt/as-part :articulation (each-note "articulations" articulation-name true line)))
 (defn instrument
   "Its own instrument (c4\\i:40); nil for a drum or none; for a line, instruments"
   [note] (one-note "instrument" "instruments" instrument-of note))
 (defn instruments
-  "Each note's instrument, as a stream, rests left out: x instruments +instruments is x again"
-  [line] (mt/as-part :instrument (each-note "instruments" instrument-of false line)))
+  "Each note's instrument, as a stream, a rest's nil: x instruments +instruments is x again"
+  [line] (mt/as-part :instrument (each-note "instruments" instrument-of true line)))
 (defn drum
   "A drum's key (x8\\38: 38); nil for a note; for a line, drums"
   [note] (one-note "drum" "drums" drum-of note))
 (defn drums
-  "Each note's drum, as a stream, rests left out: x drums +drums is x again"
-  [line] (mt/as-part :drum (each-note "drums" drum-of false line)))
+  "Each note's drum, as a stream, a rest's nil: x drums +drums is x again"
+  [line] (mt/as-part :drum (each-note "drums" drum-of true line)))
 
 (defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %)))) leaf))
 (defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %)))) leaf))
@@ -440,19 +441,19 @@
 ;; -- a stream onto a line ---------------------------------------------------
 
 (defn +volumes
-  "Each note's own volume (0-100) from the stream in turn; rests take
-   none: [c d e] volume/euclid +volumes"
+  "Each note's own volume (0-100) from the stream in turn, a rest's
+   unused: [c d e] volume/euclid +volumes"
   [line volumes]
-  (onto "+volumes" #(assoc-in %1 [:overrides :volume] %2) line volumes))
+  (onto "+volumes" #(assoc-in %1 [:overrides :volume] (mt/volume-value "+volumes" %2)) line volumes))
 
 (defn +articulations
-  "Each note's articulation (:accent, :staccato …) from the stream in turn; rests take none"
+  "Each note's articulation (:accent, :staccato …) from the stream in turn, a rest's unused"
   [line articulations]
   (onto "+articulations" (partial mt/articulate "+articulations") line articulations))
 
 (defn +instruments
   "Each note's instrument (a program, a General MIDI name or short name)
-   from the stream in turn; rests take none, a drum is refused (+drums)"
+   from the stream in turn, a rest's unused; a drum is refused (+drums)"
   [line instruments]
   (onto "+instruments" (partial mt/set-instrument "+instruments") line instruments))
 

@@ -772,6 +772,13 @@
             (or (when (number? i) (int i)) (data/program-of i)
                 (e/mu-error (str word ":") (pr-str i) "is not a program or General MIDI name"))))
 
+(defn volume-value
+  "v as a note's own volume: a number 0..100 (resolve maps it to MIDI)."
+  [word v]
+  (if (and (number? v) (<= 0 v 100))
+    v
+    (e/mu-error (str word ":") "a volume is 0..100, got" (p/show v))))
+
 (defn drum-key [word i]
   (or (when (number? i) (int i)) (data/resolve-drum (name i))
       (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
@@ -856,6 +863,7 @@
                         (e/mu-error "zip: a tremolo is 8 16 32 64 or 128, got" (p/show v)))
              :tied (if (= :DRUM (:type l)) (e/mu-error "zip: a drum isn't tied") (assoc l :tied (boolean v)))
              :instrument (set-instrument "zip" l v)
+             :volume (assoc-in l [:overrides :volume] (volume-value "zip" v))
              (assoc-in l [:overrides part] v))))
        (if drum
          (d/drum nil nil dur (drum-key "zip" tone))

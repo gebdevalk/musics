@@ -470,14 +470,14 @@ durations and pitches back together:
 [c8 <e g>4 r8 d] durations       → '[1/8 1/4 1/8 1/8]
 [c8 <e g>4 r8 d] pitches         → '[60 '[64 67] nil 62]
 [c d\vol:90 e] volumes           → '[nil 90 nil]
-[c\vol:30 r d\vol:90] volumes    → '[30 90]
+[c\vol:30 r d\vol:90] volumes    → '[30 nil 90]
 '[/4 /8 /8] '[60 62 64] zip      → [C4/4 D4/8 E4]
 ```
 
-`pitches` and `durations` give a rest's too (nil, its length), which
-`zip` needs; `volumes`, `articulations`, `instruments` and `drums` leave
-rests out, a value per note, as `+volumes` and the others take them
-(section 15).
+Every reader gives a rest's value too -- its length, and nil for the
+rest -- so each stream keeps one value per element, as `zip` and
+`+volumes` and the others take them (section 15): at a rest the value
+goes unused.
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in
@@ -706,7 +706,7 @@ section 14 written with an algo.
 
 A volume, articulation or instrument stream goes back onto a line with
 `+volumes`, `+articulations` or `+instruments`, a value per
-note in turn (rests take none). With eight beats among eight eighths,
+note in turn (a rest's going unused, as in `zip`). With eight beats among eight eighths,
 `volume/euclid` gives the meter's accents:
 
 ```
