@@ -1854,3 +1854,30 @@ mu's words that put a stream onto a line, a value per note, are
 (`+volume`, `+articulation` …). A mu word name may now start with `+`
 and a letter; `+` with a digit stays a number (`+5`). This is the first
 step towards a `zip` that takes every half product at once.
+
+## 2026-10-25 — zip takes every part of a note
+
+mu's `zip` builds leaves from all their parts at once, in the order a
+leaf holds them (duration, pitch or drum, articulation, dynamic,
+ornament, tremolo, tie, then overrides by key), rather than adding
+`with-*`-style words one per part. Above a `|` mark it takes them all,
+as `seq` and `par` gather; without one the top two, so `x durations x
+pitches zip` stays. A stream says what it is by the reader or algo word
+that made it (`:mu/part` metadata), a `:name` before one says it
+explicitly, and the rest are positional; tagging every stream by
+content was rejected, since a volume and a pitch are both numbers.
+
+Every part steps once per note, rests included: a rest's values are
+used up and dropped. An earlier zip let a rest among the durations
+take no pitch, which kept pitches in order but let the parts drift
+apart once there were several; with one rule the n-th value of every
+part belongs to the n-th note. `nil` is explicit "nothing here": a
+rest as a pitch, the context's value as anything else. The durations
+set the length and the other parts cycle (color and talea); durations
+in a loop give a loop of the lcm. `+volumes` and the other writers
+still put one stream onto a finished line, rests taking none.
+
+A dynamic part is only taken where the text can write it -- the
+articulation's own weight, or -20 alone (a ghost note) -- since the
+leaf's `:dynamic` has no spelling of its own; a free weight would be
+lost when the line is printed and read back.

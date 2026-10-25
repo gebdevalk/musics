@@ -343,9 +343,29 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   out, and a loop inside refused.
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
-  changes only that half product of the line. Two loops zip into a loop
-  of the notes they take to line up again: three durations against four
-  pitches give `repeat ~ [ … ]` of twelve notes.
+  changes only that half product of the line.
+- **`zip` builds leaves from their parts**: the top two, or everything
+  above a `|` mark, each part a stream in the order a leaf holds them --
+  durations, pitches (or drums), articulations, dynamics, ornaments,
+  tremolos, ties -- then overrides by key (`:volume`, `:instrument`,
+  `:pan` …). A stream a reader or an algo word gave knows its part
+  (`pitches`, `volume/walk`); a `:name` before a stream names it
+  (`:volume '[90 60]`, plurals too); the others take the free parts in
+  that order. There is one note per duration; the other parts cycle
+  under the durations and step once per note, rests included: at a rest
+  (an `r` among the durations, or a `nil` pitch) their values go
+  unused, so every part's n-th value belongs to the n-th note. A `nil`
+  writes nothing, the note keeping its context's value. Durations in a
+  loop give a loop as long as all the parts take to line up again:
+  three durations against four pitches give `repeat ~ [ … ]` of twelve
+  notes.
+
+  ```
+  | [c8 d e] durations [c e g] pitches :volume '[90 nil 50] :articulation '[:accent] zip
+  ```
+
+  A dynamic is the weight an articulation gives, so only one the text
+  can write is taken (`-20` alone, a ghost note).
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
@@ -585,7 +605,8 @@ duration/euclid                          → '[3/16 3/16 1/8]
   defaults. A setting the algo doesn't read is ignored; a value out of
   range is an error naming the word.
 - **Results**: streams come back as streams, leaves as a line, parts as
-  `{ }`. `zip` keeps a rest among an algo's durations a rest.
+  `{ }`. `zip` keeps a rest among an algo's durations a rest, its pitch
+  going unused.
 
 ### First set
 

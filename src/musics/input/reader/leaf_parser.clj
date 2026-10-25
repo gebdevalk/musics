@@ -228,11 +228,11 @@
   [part]
   (let [t (str (:id part))] (and (str/includes? t "&") (not (str/includes? t "#")))))
 
-(def ^:private drum-accents
+(def drum-accents
   "A drum's :dynamic -> its articulation (musics.common.music-data/articulations)."
   {5 "->" 10 "-^" -20 "\\ghost"})
 
-(def ^:private articulation-spelling
+(def articulation-spelling
   "[length-ratio dynamic] -> how a note's articulation is written: the
    shorthand where there is one (-> -. -^ ...), else \\name. Built from
    musics.common.music-data's own tables; legato reads as tenuto (both 1.0, 0)."
@@ -257,6 +257,12 @@
   [overrides]
   (apply str (for [[k v] (sort-by key overrides)] (str "\\" (name k) ":" (value->mus v)))))
 
+(defn- modifiers->mus
+  "A note's ornament and tremolo as written after it: \\trill, :16."
+  [modifiers]
+  (apply str (for [[tag v] modifiers]
+               (case tag "ornament" (str "\\" v) "tremolo" (str ":" v) ""))))
+
 (defn duration-text
   "A leaf's duration as part->mus writes it: \"4\", \"8.\", \"8*2/3\"."
   [part]
@@ -269,7 +275,8 @@
 (defn part->mus
   "A Leaf/Rest/Drum as musics text: absolute pitch, explicit duration --
    c4 as \"C4/4\", a chord as \"<C4 E4 G4>4\", \"r8\", a drum as
-   \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\".
+   \"x4\\36\" (accented \"x4\\36->\"), a tied note ending in \"~\", an
+   ornament and a tremolo after the articulation (\"C4/4\\trill:16\").
    A note's articulation is written as its shorthand (\"C4/4->\") and its
    overrides as Modifiers (\"C4/4\\volume:90\"), so the text reads back
    the same. A length that is no plain or dotted note value is written
@@ -296,6 +303,7 @@
                          (str "<" (str/join " " (map-indexed #(str/replace (spell-pitch %2 (get toks %1) (:key part) (flat-written? part)) #"/$" "") ps))
                               ">" dur)))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
+                     (modifiers->mus (:modifiers part))
                      (overrides->mus (:overrides part))
                      (when (:tied part) "~"))))))))
 

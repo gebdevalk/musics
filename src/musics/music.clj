@@ -19,7 +19,6 @@
             [musics.common.music-elements :as el]
             [musics.domain :as d]
             [musics.domain.context :as c]
-            [musics.common.music-tools :as mt-tools]
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.material :as mt]
@@ -119,42 +118,6 @@
   "The rounded mean, musics.algo.common.reshape/invert's axis."
   #(Math/round (double (/ (reduce + %) (count %)))))
 
-(defn- zipped
-  "Leaves from durations and pitches: a rest among the durations stays a
-   rest and uses no pitch, as the trees' zip does."
-  [ds ps]
-  (lazy-seq
-   (when-let [[d & ds'] (seq ds)]
-     (if (and (map? d) (= :REST (:type d)))
-       (cons (lib/->part nil (:duration d)) (zipped ds' ps))
-       (when-let [[x & ps'] (seq ps)]
-         (let [p (if (mt/leaf? x) (let [p (:pitches x)] (if (next p) p (first p))) x)]
-           (cons (lib/->part p (if (mt/leaf? d) (:duration d) d)) (zipped ds' ps'))))))))
-
-(defn- zip-items
-  "What zip takes from x: a line's notes as they play (no bar lines, a
-   nested line's notes), else x's elements."
-  [x]
-  (if (mt/music? x) (mt/played-leaves x) (mt/elements (mt/streamed x))))
-
-(defn zip
-  "durations and pitches zipped as a line, a rest among the durations
-   staying a rest, using no pitch; two loops as a loop, of the notes the
-   two take to line up again."
-  [d p]
-  (let [body  #(vec (zip-items (first (mt/repeat-of %))))
-        items #(if (mt/loop? %) (with-meta (clojure.core/cycle (body %)) {:mu/endless true}) (zip-items %))]
-    (if (and (mt/loop? d) (mt/loop? p))
-      (let [dl       (body d)
-            pl       (body p)
-            sounding (count (remove #(and (map? %) (= :REST (:type %))) dl))
-            k        (if (or (zero? sounding) (empty? pl)) 1 (quot (mt-tools/lcm sounding (count pl)) sounding))]
-        (mt/repetition (mt/line (take (* k (count dl)) (zipped (clojure.core/cycle dl) (clojure.core/cycle pl)))) :infinite []))
-      (let [ds (items d) ps (items p)]
-        (when (and (mt/endless? ps) (mt/endless? ds))
-          (e/mu-error "zip: two endless streams, not both loops, never end -- take some first"))
-        (mt/line (zipped ds ps))))))
-
 (defn- read-notes
   "f of every note of x, as a stream: a repeat or a loop around it kept
    (a loop's notes as a loop of their values, printed as '[ … ] [~]), a
@@ -164,9 +127,6 @@
     (mt/repeated (read-notes word f rests? body) n)
     (apply list (map f (cond->> (mt/played-leaves (mt/finite! word x))
                          (not rests?) (remove #(= :REST (:type %))))))))
-
-(def ^:private articulation-order
-  [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
 
 (defn- articulation-name
   "The articulation a leaf was written with, by its length and dynamic
@@ -178,7 +138,7 @@
     (when (or a (not= 0 dyn))
       (some (fn [k] (let [v (data/articulations k)]
                       (when (and (= dyn (:dynamic v)) (or drum? (= a (:duration v)))) k)))
-            articulation-order))))
+            mt/articulation-order))))
 
 (defn- note-pitch
   "A note's pitch, a chord's pitches lowest first, nil for a rest or drum."
@@ -212,26 +172,10 @@
                 (if-let [[v & more] @cur] (do (vreset! cur more) (if (nil? v) l (f l v))) l)))]
     (mt/map-leaves put x)))
 
-(defn- set-articulation [l a]
-  (if-let [{:keys [duration dynamic]} (data/articulations (keyword a))]
-    (cond-> (assoc l :dynamic dynamic) (and duration (not= :DRUM (:type l))) (assoc :articulation duration))
-    (e/mu-error "+articulations:" (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
-
-(defn- set-instrument [l i]
-  (when (= :DRUM (:type l))
-    (e/mu-error "+instruments: a drum has no instrument, its sound is a key of the kit -- use +drums"))
-  (assoc-in l [:overrides :instrument]
-            (or (when (number? i) (int i)) (data/program-of i)
-                (e/mu-error "+instruments:" (pr-str i) "is not a program or General MIDI name"))))
-
-(defn- drum-key [word i]
-  (or (when (number? i) (int i)) (data/resolve-drum (name i))
-      (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
-
 (defn- set-drum [l i]
   (when-not (= :DRUM (:type l))
     (e/mu-error "+drums: a note is no drum -- as-drums turns notes into drums"))
-  (assoc l :program (drum-key "+drums" i)))
+  (assoc l :program (mt/drum-key "+drums" i)))
 
 (defn- as-drum
   "The note as the drum i, keeping its length, its articulation's weight
@@ -240,7 +184,7 @@
   [l i]
   (if (= :DRUM (:type l))
     (set-drum l i)
-    (merge (d/drum nil nil (:duration l) (drum-key "as-drums" i))
+    (merge (d/drum nil nil (:duration l) (mt/drum-key "as-drums" i))
            (select-keys l [:dynamic :tied])
            {:overrides (dissoc (:overrides l) :instrument)})))
 
@@ -455,38 +399,38 @@
   [note] (one-note "pitch" "pitches" note-pitch note))
 (defn pitches
   "Each note's pitch, as a stream, a rest's too: x durations x pitches zip is x again"
-  [line] (each-note "pitches" note-pitch true line))
+  [line] (mt/as-part :pitch (each-note "pitches" note-pitch true line)))
 (defn duration
   "The length, in whole notes; for a line, durations"
   [note] (one-note "duration" "durations" :duration note))
 (defn durations
   "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
-  [line] (each-note "durations" :duration true line))
+  [line] (mt/as-part :duration (each-note "durations" :duration true line)))
 (defn- own-volume [x] (get-in x [:overrides :volume]))
 (defn volume
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a line, volumes"
   [note] (one-note "volume" "volumes" own-volume note))
 (defn volumes
   "Each note's volume, as a stream, rests left out: x volumes +volumes is x again"
-  [line] (each-note "volumes" own-volume false line))
+  [line] (mt/as-part :volume (each-note "volumes" own-volume false line)))
 (defn articulation
   "Its articulation (:staccato, :accent …), else nil; for a line, articulations"
   [note] (one-note "articulation" "articulations" articulation-name note))
 (defn articulations
   "Each note's articulation, as a stream, rests left out: x articulations +articulations is x again"
-  [line] (each-note "articulations" articulation-name false line))
+  [line] (mt/as-part :articulation (each-note "articulations" articulation-name false line)))
 (defn instrument
   "Its own instrument (c4\\i:40); nil for a drum or none; for a line, instruments"
   [note] (one-note "instrument" "instruments" instrument-of note))
 (defn instruments
   "Each note's instrument, as a stream, rests left out: x instruments +instruments is x again"
-  [line] (each-note "instruments" instrument-of false line))
+  [line] (mt/as-part :instrument (each-note "instruments" instrument-of false line)))
 (defn drum
   "A drum's key (x8\\38: 38); nil for a note; for a line, drums"
   [note] (one-note "drum" "drums" drum-of note))
 (defn drums
   "Each note's drum, as a stream, rests left out: x drums +drums is x again"
-  [line] (each-note "drums" drum-of false line))
+  [line] (mt/as-part :drum (each-note "drums" drum-of false line)))
 
 (defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %)))) leaf))
 (defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %)))) leaf))
@@ -504,13 +448,13 @@
 (defn +articulations
   "Each note's articulation (:accent, :staccato …) from the stream in turn; rests take none"
   [line articulations]
-  (onto "+articulations" set-articulation line articulations))
+  (onto "+articulations" (partial mt/articulate "+articulations") line articulations))
 
 (defn +instruments
   "Each note's instrument (a program, a General MIDI name or short name)
    from the stream in turn; rests take none, a drum is refused (+drums)"
   [line instruments]
-  (onto "+instruments" set-instrument line instruments))
+  (onto "+instruments" (partial mt/set-instrument "+instruments") line instruments))
 
 (defn +drums
   "Each drum's sound, a key of the kit (38, :sna, :kick), from the stream

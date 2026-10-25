@@ -17,6 +17,9 @@
             [musics.mu.value :as v]
             [musics.input.reader.leaf-parser :as lp]
             [musics.common.music-data :as data]
+            [musics.common.context-keys :as ck]
+            [musics.common.music-tools :as mtools]
+            [musics.domain.ornaments :as orn]
             [musics.registries :as reg]
             [musics.repo :as repo]))
 
@@ -173,10 +176,11 @@
   "body's elements n times (:infinite: endlessly) as a stream that
    remembers body, so it prints as body n times (body [~])."
   [body n]
-  (let [els (vec (elements body))]
+  (let [els  (vec (elements body))
+        part (select-keys (meta body) [:mu/part])]
     (if (= n :infinite)
-      (with-meta (cycle els) {:mu/endless true :mu/repeat [body n]})
-      (with-meta (apply concat (repeat n els)) {:mu/repeat [body n]}))))
+      (with-meta (cycle els) (merge part {:mu/endless true :mu/repeat [body n]}))
+      (with-meta (apply concat (repeat n els)) (merge part {:mu/repeat [body n]})))))
 
 (defn repeat-of
   "[body n] when x is a repeat or loop of music without endings, or a
@@ -669,6 +673,12 @@
 
 (defn endless? [x] (and (sequential? x) (:mu/endless (meta x))))
 
+(defn as-part
+  "Stream xs marked as the part of a leaf it holds (:pitch, :duration,
+   :volume …), so zip knows it without a name."
+  [part xs]
+  (if (instance? clojure.lang.IObj xs) (vary-meta xs assoc :mu/part part) xs))
+
 (defn streamed
   "x, or an endless repeat (a loop) as the endless stream of what it
    plays, so the tools take from it as from cycle's."
@@ -738,3 +748,172 @@
                            (str (str/upper-case letter) accidental octave)))))))
 
 (defonce echo-agent (agent nil :error-mode :continue))
+
+;; -- leaves from their parts: zip ---------------------------------------------
+
+(def articulation-order
+  [:staccatissimo :stopped :staccato :marcato :portato :accent :tenuto :legato :sfz :fermata :ghost])
+
+(defn articulate
+  "Note l with articulation a (a name): its length and its weight, as
+   c4-> sets them; a drum takes the weight."
+  [word l a]
+  (if-let [{:keys [duration dynamic]} (data/articulations (keyword a))]
+    (cond-> (assoc l :dynamic dynamic) (and duration (not= :DRUM (:type l))) (assoc :articulation duration))
+    (e/mu-error (str word ":") (pr-str a) "is not an articulation --" (str/join " " (map name articulation-order)))))
+
+(defn set-instrument
+  "Note l with its own instrument i: a program, a General MIDI name or
+   short name. A drum has none."
+  [word l i]
+  (when (= :DRUM (:type l))
+    (e/mu-error (str word ":") "a drum has no instrument, its sound is a key of the kit -- use +drums"))
+  (assoc-in l [:overrides :instrument]
+            (or (when (number? i) (int i)) (data/program-of i)
+                (e/mu-error (str word ":") (pr-str i) "is not a program or General MIDI name"))))
+
+(defn drum-key [word i]
+  (or (when (number? i) (int i)) (data/resolve-drum (name i))
+      (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
+
+(def part-ranks
+  "A leaf's parts in the order musics.domain/leaf holds them: a drum in
+   a pitch's place, an ornament and a tremolo its modifiers. An override
+   (a context key: :volume, :instrument, :pan …) comes after them all."
+  {:duration 1 :pitch 2 :drum 2 :articulation 3 :dynamic 4 :ornament 5 :tremolo 5 :tied 6})
+
+(def ^:private plural-parts
+  {:durations :duration :pitches :pitch :drums :drum :articulations :articulation :dynamics :dynamic
+   :ornaments :ornament :tremolos :tremolo :volumes :volume :instruments :instrument})
+
+(defn- label-part
+  "The part a :name written before a stream names: one of part-ranks, or
+   a context key the note overrides."
+  [k]
+  (let [k (get plural-parts k k)]
+    (cond
+      (part-ranks k) k
+      (ck/canonical-key k) (if (try (ck/context-key k) (catch clojure.lang.ExceptionInfo _ nil))
+                             (ck/canonical-key k)
+                             (e/mu-error "zip:" (str k) "is no part of a note -- :duration :pitch :drum :articulation :dynamic :ornament :tremolo :tied, or a context key (:volume :instrument :pan …)")))))
+
+(defn- rank [part] (part-ranks part 7))
+
+(defn- zip-items
+  "What zip takes from x: a line's notes as they play (no bar lines, a
+   nested line's notes), else x's elements."
+  [x]
+  (if (music? x) (played-leaves x) (elements (streamed x))))
+
+(defn- leaf-value
+  "What a note of a line gives the part it is taken as."
+  [part l]
+  (case part
+    :duration (if (= :REST (:type l)) l (:duration l))
+    :pitch    (when (= :LEAF (:type l)) (let [ps (sort (:pitches l))] (if (next ps) (vec ps) (first ps))))
+    :drum     (when (= :DRUM (:type l)) (:program l))
+    (e/mu-error "zip: a line gives durations, pitches or drums -- for the" (name part) "give its stream (x volumes …)")))
+
+(defn- rest-value? [v] (and (map? v) (= :REST (:type v))))
+
+(defn- note-of
+  "The leaf of one position's values {part value}: a rest when the
+   duration is one or the pitch (the drum) is nil -- every other value
+   is then left unused -- else the note, each part written in rank order,
+   a nil writing nothing."
+  [vals]
+  (let [d    (get vals :duration)
+        dur  (if (rest-value? d) (:duration d) d)
+        _    (when-not (and (number? dur) (pos? dur))
+               (e/mu-error "zip: a duration is a length, got" (p/show d)))
+        drum (contains? vals :drum)
+        tone (get vals (if drum :drum :pitch))]
+    (if (or (rest-value? d) (nil? tone))
+      (d/rest* nil nil dur)
+      (reduce
+       (fn [l [part v]]
+         (if (nil? v)
+           l
+           (case part
+             (:duration :pitch :drum) l
+             :articulation (articulate "zip" l v)
+             :dynamic (let [w (when (number? v) (long v))
+                            l' (assoc l :dynamic w)]
+                        (if (and w (if (= :DRUM (:type l))
+                                     (lp/drum-accents w)
+                                     (lp/articulation-spelling [(:articulation l) w])))
+                          l'
+                          (e/mu-error "zip: a dynamic is the weight an articulation gives, one the text writes"
+                                      (if (= :DRUM (:type l)) (str "(a drum's: " (str/join " " (sort (keys lp/drum-accents))) ")")
+                                          "(-20 alone, a ghost note; else the articulation's own)")
+                                      "-- got" (p/show v))))
+             :ornament (let [o (str/replace (name v) #"^\\" "")]
+                         (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no ornament")
+                               (orn/ornament-map o) (update l :modifiers (fnil conj []) ["ornament" o])
+                               :else (e/mu-error "zip:" (pr-str v) "is not an ornament --" (str/join " " (sort (keys orn/ornament-map))))))
+             :tremolo (if (#{8 16 32 64 128} v)
+                        (update l :modifiers (fnil conj []) ["tremolo" v])
+                        (e/mu-error "zip: a tremolo is 8 16 32 64 or 128, got" (p/show v)))
+             :tied (if (= :DRUM (:type l)) (e/mu-error "zip: a drum isn't tied") (assoc l :tied (boolean v)))
+             :instrument (set-instrument "zip" l v)
+             (assoc-in l [:overrides part] v))))
+       (if drum
+         (d/drum nil nil dur (drum-key "zip" tone))
+         (d/leaf nil nil dur (if (coll? tone) (vec tone) [tone])))
+       (sort-by (comp rank key) vals)))))
+
+(defn- parts-of
+  "[[part x] …] of what zip takes: a :name before a stream names its
+   part, a stream a reader or an algo word gave knows its own, and the
+   rest take the free ranks in order."
+  [xs]
+  (let [named (loop [xs (seq xs) out []]
+                (if-let [[x & more] xs]
+                  (if (keyword? x)
+                    (if (seq more)
+                      (recur (next more) (conj out [(label-part x) (first more)]))
+                      (e/mu-error "zip:" (str x) "names no stream -- write it before one"))
+                    (recur more (conj out [(:mu/part (meta x)) x])))
+                  out))
+        taken (set (map (comp rank first) (filter first named)))
+        free  (remove taken [1 2 3 4 5 6])
+        order {1 :duration 2 :pitch 3 :articulation 4 :dynamic 5 :ornament 6 :tied}
+        parts (first (reduce (fn [[out free] [part x]]
+                               (cond part        [(conj out [part x]) free]
+                                     (seq free)  [(conj out [(order (first free)) x]) (rest free)]
+                                     :else       (e/mu-error "zip: more streams than a note has parts -- name the overrides (:volume …)")))
+                             [[] free] named))
+        slots (map (fn [[part]] (if (#{:pitch :drum} part) :pitch part)) parts)]
+    (when-not (apply distinct? slots)
+      (e/mu-error "zip: two streams for one part --" (str/join " " (map (comp str first) parts))))
+    (when-not (some #(= :duration (first %)) parts)
+      (e/mu-error "zip: needs durations"))
+    (when-not (some #(#{:pitch :drum} (first %)) parts)
+      (e/mu-error "zip: needs pitches or drums beside the durations"))
+    parts))
+
+(defn zip-parts
+  "Leaves from their parts, xs as zip takes them: one note per duration,
+   every other part cycling under the durations and stepping once per
+   note, a rest using its value without writing it. Durations in a loop
+   give a loop, as long as all the parts take to line up again."
+  [xs]
+  (let [ps   (for [[part x] (parts-of xs)
+                   :let [lp  (loop? x)
+                         src (if lp (first (repeat-of x)) x)
+                         els (zip-items src)]]
+               {:part part :loop lp :endless (and (not lp) (endless? (streamed x)))
+                :els (if (music? src) (map #(leaf-value part %) els) els)})
+        dur  (first (filter #(= :duration (:part %)) ps))
+        _    (when (:endless dur) (e/mu-error "zip: endless durations, not a loop -- take some first"))
+        n    (when-not (:loop dur) (count (vec (:els dur))))
+        ps   (for [{:keys [part els endless] :as p} ps]
+               (cond
+                 (and endless (:loop dur)) (e/mu-error "zip: the" (name part) "are endless, not a loop -- take some first")
+                 :else (let [els (vec (if endless (take n els) els))]
+                         (when (empty? els) (e/mu-error "zip: no" (name part) "to take"))
+                         (assoc p :els els))))
+        n    (or n (apply mtools/lcm-multiple (map (comp count :els) ps)))
+        notes (line (for [i (range n)]
+                      (note-of (into {} (for [{:keys [part els]} ps] [part (els (mod i (count els)))])))))]
+    (if (:loop dur) (repetition notes :infinite []) notes)))

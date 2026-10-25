@@ -254,7 +254,9 @@ halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 note's as a stream, a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
-is `x` again. The algos are words by what they deliver
+is `x` again; above a `|` mark `zip` takes every part of a note
+(`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`),
+each stepping once per note, a rest's values unused. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the

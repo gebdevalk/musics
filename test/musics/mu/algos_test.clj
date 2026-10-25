@@ -53,7 +53,7 @@
       "a rotation keeps the length")
   (let [out (top "[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
-    (is (= ["C4" "D4" "E4"] (re-seq #"[A-G]4" out)) "the pitches kept, in order")))
+    (is (= "[r16 D4/4 E4/8 C4/16]" out) "its rest takes c unused, the pitches cycling on")))
 
 (deftest a-repeat-stays-around-the-result
   (let [once (top "[c8 d e4 f8] durations ^{ ?index:1 } duration/necklace")]

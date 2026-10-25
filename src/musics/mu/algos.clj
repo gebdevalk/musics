@@ -65,7 +65,7 @@
   (case out
     :leaf (mt/line v)
     :part (mt/read-text (str "{" (str/join " " (map #(p/show (mt/line %)) v)) "}"))
-    (if (sequential? v) (apply list v) v)))
+    (if (sequential? v) (mt/as-part out (apply list v)) v)))
 
 (defn- settings
   "[stack ctx]: a context on top is the word's settings."

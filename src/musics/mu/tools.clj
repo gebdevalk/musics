@@ -60,6 +60,16 @@
            (conj (subvec s 0 (- (count s) (count leaves)))
                  (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
+;; -- zip: leaves from their parts ------------------------------------------------
+
+(word! "music" "zip" "( durations pitches -- line ) or ( | [:part] stream … -- line )  leaves from their parts: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip"
+       (fn [s]
+         (if (some v/mark? s)
+           (let [[below xs] (e/to-mark s "zip")]
+             (conj below (mt/zip-parts xs)))
+           (do (need s 2 "zip")
+               (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
+
 ;; -- a stream onto a line: volumes, articulations, instruments -----------------
 
 (defn- above-repeat

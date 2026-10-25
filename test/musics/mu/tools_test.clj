@@ -405,11 +405,44 @@
   (is (= "repeat ~ [C4/8 D4/4 G4/8 A4 C4/4 D4/8 G4 A4/4 C4/8 D4 G4/4 A4/8]"
          (top "[c8 d4 e8] [~] durations [c d g a] [~] pitches zip"))
       "two loops zip into a loop of the notes they take to line up again")
-  (is (= "[C4/4 D4]" (top "[c d e] [~] durations [c d] pitches zip")) "a finite one ends it")
+  (is (= "repeat ~ [C4/4 D4 C4 D4 C4 D4]" (top "[c d e] [~] durations [c d] pitches zip"))
+      "looping durations give a loop, a finite part cycling in it")
   (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "[c8 d4 | e8] [~] [c d] [~] pitches zip"))
       "a loop of a line gives its notes, not its bar lines")
   (is (= "repeat ~ [C4/8 D4 G4/4]" (top "[[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
   (is (re-find #"take some first" (top "1 '( 1 add ) iterate dup zip")) "endless, not loops"))
+
+(deftest zip-builds-leaves-from-their-parts
+  (testing "the durations set the length, the other parts cycle"
+    (is (= "[C4/4 D4/8 C4/4 D4]" (top "'[/4 /8 /4 /4] '[60 62] zip"))))
+  (testing "at a rest every part steps on, its value unused"
+    (is (= "[C4/4 r E4 F4]" (top "[c4 r e g] '[60 62 64 65] zip")) "a rest among the durations")
+    (is (= "[C4/4\\volume:90 r E4\\volume:30]" (top "| '[/4 /4 /4] '[60 nil 64] :volume '[90 60 30] zip")) "a nil pitch"))
+  (testing "above a | mark: a :name names a part, a reader's or algo word's stream knows its own"
+    (is (= "[C4/4->\\volume:90 D4-. E4->\\volume:30]"
+           (top "| '[/4 /4 /4] '[60 62 64] :volume '[90 nil 30] :articulation '[:accent :staccato] zip"))
+        "a nil writes nothing")
+    (is (= "[C4/8-> D4/4->]" (top "| [c d e] pitches '[/8 /4] '[:accent] zip"))
+        "pitches know their part; the untagged take the free ones in order")
+    (is (= "[C4/8\\volume:30 D4/4\\volume:90]" (top "| [c8 d4] durations [c\\vol:30 d\\vol:90] volumes [c d] pitches zip")))
+    (is (= "[C4/4 D4]" (top "| '[60 62] :durations '[/4 /4] zip")) "a plural name too")
+    (is (= "| [C4/4]" (top "| | '[/4] '[60] zip")) "only back to the nearest mark"))
+  (testing "every part of a note"
+    (is (= "[C4/4\\trill D4:16]" (top "| '[/4 /4] '[60 62] :ornament '[:trill nil] :tremolo '[nil 16] zip")))
+    (is (= "[C4/4~ D4]" (top "| '[/4 /4] '[60 62] :tied '[1 nil] zip")))
+    (is (= "[C4/4\\ghost D4]" (top "| '[/4 /4] '[60 62] :dynamic '[-20 nil] zip")))
+    (is (= "[x8\\36\\volume:90 x\\38\\volume:90]" (top "| '[/8 /8] :drum '[:kick :sna] :volume '[90] zip")) "drums")
+    (is (= "[C4/4\\instrument:73 D4\\panning:-1.0]"
+           (top "| '[/4 /4] '[60 62] :instrument '[:flute nil] :pan '[nil -1.0] zip")) "overrides by key"))
+  (testing "refused"
+    (is (re-find #"two streams for one part" (top "| '[/4] :pitch '[60] :pitch '[62] zip")))
+    (is (re-find #"needs pitches or drums" (top "| '[/4] :volume '[60] zip")))
+    (is (re-find #"no part of a note" (top "| '[/4] '[60] :bogus '[1] zip")))
+    (is (re-find #"is not an articulation" (top "| '[/4] '[60] '[60] zip")) "a third untagged stream is the articulations")
+    (is (re-find #"weight an articulation gives" (top "| '[/4] '[60] :dynamic '[3] zip")))
+    (is (re-find #"not an ornament" (top "| '[/4] '[60] :ornament '[:nope] zip")))
+    (is (re-find #"a drum has no ornament" (top "| '[/4] :drum '[:kick] :ornament '[:trill] zip")))
+    (is (re-find #"take some first" (top "| [c d] [~] durations 1 '( 1 add ) iterate zip")) "an endless part under looping durations")))
 
 (deftest data-repeats-print-as-repeats
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
