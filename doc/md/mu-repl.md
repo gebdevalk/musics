@@ -573,8 +573,11 @@ Every algo on a half-product or product shelf is a word in that shelf's
 namespace (`musics.mu.algos`, generated from the registry):
 `pitch/lorenz`, `pitch/walk-degrees`, `duration/euclid`,
 `duration/emi`, `volume/walk`, `articulation/tala`, `leaf/pocket`,
-`parallel/drums`, … — the same names as in trees. The namespaces aren't
-in use, so a word is written qualified, or after `"pitch" use`; `words`
+`parallel/drums`, … — the same names as in trees. A word is its
+algo's registry name: `euclid` is written once (its `:algo` metadata),
+`musics.algo.tree.half-products` derives `:duration/euclid` from it
+(euclid, then `pulses->durations`), and that key is the word
+`duration/euclid`. The namespaces aren't in use, so a word is written qualified, or after `"pitch" use`; `words`
 lists them with their counts, `"duration/emi" see` gives the effect,
 the doc and the `?` params.
 

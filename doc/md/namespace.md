@@ -3,14 +3,13 @@
 Every namespace under `src/`, by directory, with its size in lines and its
 role. The program is used through **mu** (`musics.mu`, `lein mu`) and the
 **GUI** (`musics.gui.core`, mu's `gui`); *unreached* marks a namespace
-neither of them loads (only tests do). 112 namespaces, about 30,700 lines.
+neither of them loads (only tests do). 107 namespaces, about 30,650 lines.
 
 ## The tree
 
 ```
 musics
 ├── algo
-│   ├── articulation
 │   ├── bridge
 │   ├── clam
 │   ├── common
@@ -27,12 +26,10 @@ musics
 │   │   ├── transient-ops
 │   │   ├── trig
 │   │   └── zfilter
-│   ├── duration
 │   ├── harmonic
 │   │   ├── progression
 │   │   └── walking-bass
 │   ├── indispensability
-│   ├── instrument
 │   ├── logic
 │   │   ├── counterpoint
 │   │   │   ├── intervals
@@ -43,7 +40,6 @@ musics
 │   │   ├── melody
 │   │   └── serial
 │   ├── metric
-│   ├── pitch
 │   ├── random
 │   │   ├── core
 │   │   ├── henon
@@ -65,13 +61,12 @@ musics
 │   │   ├── stochastic
 │   │   ├── transform
 │   │   └── world
-│   ├── tree
-│   │   ├── builder
-│   │   ├── half
-│   │   ├── lib
-│   │   ├── live
-│   │   └── registry
-│   └── volume
+│   └── tree
+│       ├── builder
+│       ├── half-products
+│       ├── lib
+│       ├── live
+│       └── registry
 ├── assist
 ├── common
 │   ├── context-keys
@@ -213,7 +208,7 @@ musics.midi.file              230   MIDI files (mu's render)
 musics.algo.tree              524   trees of algos and their tctx: build, check, keys, run
 ├── tree.registry             253   every algo, found by introspection; shelves
 ├── tree.lib                  294   the tools (zip, cycle>, take> …) and every algo exposed
-├── tree.half                 170   algos by the half product they deliver (pitch/lorenz …)
+├── tree.half-products        170   algos as the half products they deliver (duration/euclid …)
 ├── tree.live                 228   a name bound to a tree or a recipe, followed live
 └── tree.builder              249   the composer's draft model
 musics.algo.bridge            343   raw material → half products, one way
@@ -272,6 +267,4 @@ musics.algo.common.trig        124   waves
 musics.algo.common.zfilter     128   recurrence filters
 musics.algo.clam               136   (nothing requires it)
 musics.algo.harmonic.progression 153 roman-numeral progressions
-musics.algo.{pitch,duration,volume,articulation,instrument}  9-10 each
-                                     constructors by half product, for Clojure
 ```

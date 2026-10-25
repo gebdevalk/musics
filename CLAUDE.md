@@ -746,7 +746,7 @@ its own defaults and gives its declared `:out`, and no lib name shadows
 of one material, or on leaves, where `remove>` drops a note (later
 ones move earlier) and `mute>` makes it a rest of its duration.
 
-**Algos deliver half products** (`musics.algo.tree.half`,
+**Algos deliver half products** (`musics.algo.tree.half-products`,
 `doc/md/algo-space.md`). Pitch, duration, volume, articulation and
 instrument are half products, leaves/lines/parallels products, numbers/pulses/onsets/
 points/weights raw material. Every source of raw material is also
@@ -764,12 +764,12 @@ defaults (probed seeded). Two with the same `:as` and source read one
 run of it within a `t/run` -- x as pitch, y as volume of one attractor.
 An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
 `oblique`, `rnn`, `tuplets`, `necklace`, `bracelet`, `crossover`,
-`tiling`) is lifted onto durations the same way (`half/lift`):
+`tiling`) is lifted onto durations the same way (`half-products/lift`):
 `duration/emi` takes durations, its `:via :lift` lays them on a grid of
-`:duration-pulse` (`half/durations->pulses`), and `pulses->durations`
+`:duration-pulse` (`half-products/durations->pulses`), and `pulses->durations`
 reads the result back.
-`musics.algo.{pitch,duration,volume,articulation,instrument}` hold their
-constructors (`defhalf`).
+A specialised algo's registry key is its mu word: `:duration/euclid`
+is `duration/euclid` (`musics.mu.algos`).
 `musics.algo.tree.registry/shelf` places every algo in the catalogue by
 what it delivers -- `pitch`/`duration`/`volume`/`articulation`/`leaf`/
 `parallel`, `tools`, or `workshop` for anything that takes or gives

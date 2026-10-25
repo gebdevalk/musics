@@ -41,9 +41,9 @@
      degrees->pitches numbers->pitches points->pitches
      numbers->volumes points->volumes weights->volumes weights->articulations weights->pulses
    Specialised: every source of raw material, as each half product a
-   bridge makes of it (musics.algo.tree.half) -- pitch/lorenz,
-   duration/euclid, volume/walk, ... in musics.algo.pitch, .duration,
-   .volume and .articulation.
+   bridge makes of it (musics.algo.tree.half-products) -- pitch/lorenz,
+   duration/euclid, volume/walk, ... -- registered by that name, mu's
+   word for it.
    Raw to raw:
      threshold    :level               :number -> :pulse (onset above :level of the range)
      layer        :index               :layer -> one :pulse layer
@@ -53,7 +53,7 @@
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
   (:require [musics.algo.tree :refer [defalgo expose-ns]]
-            [musics.algo.tree.half :as half]
+            [musics.algo.tree.half-products :as hp]
             [musics.algo.random :as random]
             [musics.common.music-data :as data :refer [quantity]]
             [musics.compose :as compose]
@@ -291,4 +291,4 @@
       (throw (ex-info (str "notes->mus: MIDI " m " is outside musics text's octaves 1-8 (MIDI 24-119)") {}))))
   (str "[ !acc:explicit " (str/join " " (keep lp/part->mus parts)) " ]"))
 
-(half/register-all!)
+(hp/register-all!)

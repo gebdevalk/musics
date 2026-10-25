@@ -86,7 +86,7 @@
 
 (defn- label
   "An algo's short name as written: euclid, or pitch/lorenz for a
-   specialised one (musics.algo.tree.half)."
+   specialised one (musics.algo.tree.half-products)."
   [short]
   (symbol short))
 

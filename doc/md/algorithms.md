@@ -232,7 +232,7 @@ lines and parallels **products**; numbers, pulses, onsets, points and
 weights **raw material**. An algo is chosen by what it delivers, not by
 how it works inside: every source of raw material is also offered as
 each half product a bridge makes of it, a **specialised algo**
-(`musics.algo.tree.half`), named by that half product:
+(`musics.algo.tree.half-products`), named by that half product:
 
 ```clojure
 (def riff (zip (duration/euclid) (pitch/lorenz)))     ; euclid as durations, lorenz as pitches
@@ -244,8 +244,8 @@ each half product a bridge makes of it, a **specialised algo**
 - **Names:** `pitch/<source>`, `duration/<source>`, `volume/<source>`,
   `articulation/<source>`; a raw type's second bridge to the same half
   product adds its input word: `pitch/walk` maps a range,
-  `pitch/walk-degrees` takes scale steps. At `lein repl` the four
-  namespaces (`musics.algo.pitch`, ...) are aliased by those names.
+  `pitch/walk-degrees` takes scale steps. The name is its registry key
+  (`:duration/euclid`) and its mu word (`duration/euclid`).
 - **Params:** the source's, then the bridge's, prefixed with the half
   product (`:pitch-lo`, `:pitch-key`, `:duration-pulse`). The input
   range (`:pitch-from-lo`/`:pitch-from-hi`) defaults to what the source

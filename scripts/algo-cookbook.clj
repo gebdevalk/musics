@@ -29,14 +29,17 @@
 ;; the engine above has no receiver at all, so nothing is sent anywhere
 (reset! engine/receiver ::no-midi)
 
+;; each half product's specialised algos as constructors under their
+;; registry names, so a recipe writes (duration/euclid) as mu does
+(require '[musics.algo.tree :as t] '[musics.algo.tree.lib] '[musics.algo.tree.registry :as reg])
+(doseq [[short] (reg/algos) :let [half (namespace short)] :when half]
+  (intern (create-ns (symbol (str "cookbook." half))) (symbol (name short)) (t/constructor (reg/algo short))))
+
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
   (eval '(do (clojure.core/refer-clojure)
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
-                      '[musics.algo.pitch :as pitch]
-                      '[musics.algo.duration :as duration]
-                      '[musics.algo.volume :as volume]
                       '[musics.mu.store :as store]
                       '[musics.repo :as repo]
                       '[musics.compose :as compose]
@@ -46,7 +49,10 @@
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
-                      '[musics.algo.melodic.serial :as slon]))))
+                      '[musics.algo.melodic.serial :as slon])
+             (alias 'pitch 'cookbook.pitch)
+             (alias 'duration 'cookbook.duration)
+             (alias 'volume 'cookbook.volume))))
 
 (defn esc [s] (-> (str s) (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
 
@@ -403,7 +409,7 @@
          (esc (str/join ", " (map spec-text (:params e)))) "</code></td></tr>")))
 
 (defn half-rows
-  "Per half product, the specialised algos (musics.algo.tree.half), by bridge."
+  "Per half product, the specialised algos (musics.algo.tree.half-products), by bridge."
   []
   (for [half ["pitch" "duration" "volume" "articulation"]
         [bridge es] (sort-by key (group-by (comp :bridge :via val)
@@ -605,7 +611,7 @@
        "<table class=\"tbl\"><tr><th>Name</th><th>Function</th><th>In → out</th><th>Params (range = default)</th></tr>\n" (apply str (exposed-rows)) "</table>\n"
        "<p><b>Defined in <code>musics.algo.tree.lib</code></b>:</p>\n"
        "<table class=\"tbl\"><tr><th>Name</th><th>In → out</th><th>Params (range = default)</th><th>Does</th></tr>\n" (apply str (lib-rows)) "</table>\n"
-       "<p><b>Specialised: every source as the half products it delivers</b> (<code>musics.algo.tree.half</code>). Each is its source then a bridge, the bridge's params prefixed with the half product (<code>:pitch-lo</code>), its input range defaulting to what the source gives; at <code>lein repl</code>, <code>pitch/</code>, <code>duration/</code>, <code>volume/</code> and <code>articulation/</code> are aliased. The same <code>:as</code> on two of them means one run of their source.</p>\n"
+       "<p><b>Specialised: every source as the half products it delivers</b> (<code>musics.algo.tree.half-products</code>). Each is its source then a bridge, the bridge's params prefixed with the half product (<code>:pitch-lo</code>), its input range defaulting to what the source gives; it is named by its registry key, <code>duration/euclid</code> for <code>:duration/euclid</code>, as in mu. The same <code>:as</code> on two of them means one run of their source.</p>\n"
        "<table class=\"tbl\"><tr><th>Half product</th><th>Bridge</th><th>Specialised algos</th></tr>\n" (apply str (half-rows)) "</table>\n"
 
        "<h2>4. What feeds what</h2>\n"

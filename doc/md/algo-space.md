@@ -106,7 +106,7 @@ onset, …) is how an algo works, not what it offers.
   a workshop behind them for whoever opens the box.
 
 In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
-31 half products, 13 products. Built the same day (`musics.algo.tree.half`):
+31 half products, 13 products. Built the same day (`musics.algo.tree.half-products`):
 148 specialised algos, named `pitch/lorenz`, `pitch/walk-degrees` (a
 second bridge), `duration/euclid`; the catalogue groups by what an algo
 delivers, raw material in a workshop shelf. The number → volume gap

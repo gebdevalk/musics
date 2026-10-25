@@ -3,8 +3,11 @@
    8): every algo on a half-product or product shelf
    (musics.algo.tree.registry/shelf) is a word in that shelf's namespace
    -- pitch/lorenz, duration/euclid, duration/emi, volume/walk,
-   leaf/pocket, parallel/drums. Raw material and the bridges stay in the
-   trees' workshop; the tools are mu's own.
+   leaf/pocket, parallel/drums. The word is the algo's registry name: a
+   specialised algo (musics.algo.tree.half-products) is keyed by its
+   half product, :duration/euclid, and its shelf is that namespace. Raw
+   material and the bridges stay in the trees' workshop; the tools are
+   mu's own.
 
    A word takes as many inputs as its algo (a source none): a line is
    taken apart into what the algo wants -- durations (a rest as itself),

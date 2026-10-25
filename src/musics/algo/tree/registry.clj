@@ -141,7 +141,7 @@
 
 (defn call
   "Apply `entry`'s fn to its children's data and param values. A
-   specialised algo (:via, musics.algo.tree.half) runs its source, then
+   specialised algo (:via, musics.algo.tree.half-products) runs its source, then
    its bridge on that; its :lift, when it has one, first turns each
    child into what the source takes (given the bridge's values).
    `source-run` (a fn of the source entry and its values) may run a
@@ -174,7 +174,7 @@
       :else  (f))))
 
 (defn register-entry!
-  "Register a ready-made entry (a specialised algo, musics.algo.tree.half)
+  "Register a ready-made entry (a specialised algo, musics.algo.tree.half-products)
    under its short and full names. Returns it."
   [{:keys [short full] :as e}]
   (when-let [other (get @by-short short)]

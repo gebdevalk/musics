@@ -119,9 +119,10 @@
 
 (deftest every-algo-runs-with-its-defaults
   (rc/seed! 2026)
-  (doseq [[short {:keys [full in out]}] (t/algos)
-          :when (and (str/starts-with? (namespace full) "musics.algo.")      ; not other tests' algos
-                     (not (str/ends-with? (namespace full) "-test")))
+  (doseq [[short {:keys [full in out via]}] (t/algos)
+          :when (or via                                                    ; a specialised one
+                    (and (str/starts-with? (namespace full) "musics.algo.")  ; not other tests' algos
+                         (not (str/ends-with? (namespace full) "-test"))))
           :let [tree (apply (t/constructor (t/algo short)) (map samples in))
                 required (into {} (for [{:keys [key default]} (t/param-keys tree) :when (t/nan? default)]
                                     [key (fn [p] (reduce + p))]))

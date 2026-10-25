@@ -7,9 +7,6 @@
  ;; metadata, which clj-kondo can't read -- so it can't see musics.algo.tree.lib's
  ;; exposed names (euclid, indisp, tilt, ...).
  ;; musics.algo.tree/expose-ns takes namespace names as bare symbols.
- ;; musics.algo.tree.half/defhalf defines the specialised algos'
- ;; constructors (musics.algo.pitch/lorenz, ...) from the registry.
  ;; musics.mu.words interns mu's words from its registry (musics.mu.bridge).
- :linters {:unresolved-var {:exclude [musics.algo.tree.lib musics.algo.pitch musics.algo.duration
-                                      musics.algo.volume musics.algo.articulation musics.mu.words]}
+ :linters {:unresolved-var {:exclude [musics.algo.tree.lib musics.mu.words]}
            :unresolved-symbol {:exclude [(musics.algo.tree/expose-ns)]}}}

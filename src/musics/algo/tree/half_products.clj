@@ -1,22 +1,23 @@
-(ns musics.algo.tree.half
-  "Algos as the half products they deliver (doc/md/algo-space.md, \"Algos
-   deliver half products\").
-
-   Leaves, lines and parallels are products; pitch, duration, volume and
-   articulation half products; numbers, pulses, onsets, points and
-   weights raw material. A source that makes raw material is offered as
-   each half product a bridge (musics.algo.bridge) makes of it: a
-   specialised algo, derived here, never written by hand.
+(ns musics.algo.tree.half-products
+  "Algos as the half products they deliver. Material comes in three
+   stages (doc/md/algo-space.md): raw material (numbers, points, pulses,
+   onsets, weights), which exists only inside algos; half products
+   (pitch, duration, volume, articulation, instrument), a leaf's fields;
+   and products (leaves, lines, parallels), what musics writes and
+   plays. A source that makes raw material is offered as each half
+   product a bridge (musics.algo.bridge) makes of it: a specialised
+   algo, derived here, never written by hand.
 
      pitch/lorenz          lorenz, its points onto the steps of a key
      duration/euclid       euclid, each onset lasting until the next
      pitch/walk            walk, each number's place in a range
      pitch/walk-degrees    walk, each number a scale step
 
-   A specialised algo is named by its half product (its namespace:
-   musics.algo.pitch, .duration, .volume, .articulation) and its source;
-   when a raw type has a second bridge to the same half product, that
-   one adds the bridge's input word (`-degrees`). Its params are the
+   A specialised algo is named by its half product and its source; that
+   name is its registry key (:duration/euclid) and its mu word
+   (duration/euclid, musics.mu.algos). When a raw type has a second
+   bridge to the same half product, that one adds the bridge's input
+   word (`-degrees`). Its params are the
    source's, then the bridge's, each prefixed with the half product
    (:pitch-lo, :duration-pulse), so two half products of one source never
    share a bridge setting. A bridge's input range (:pitch-from-lo ..
@@ -93,7 +94,7 @@
   [[source-short source] [raw half bridge-short bridge] range]
   (let [short (specialised-name half source-short raw bridge-short)]
     {:short    short
-     :full     (symbol (str "musics.algo." (name half)) (name short))
+     :full     (symbol (namespace short) (name short))
      :category (name half)
      :works    (:works bridge)
      :doc      (str (:doc source) " As " (name half) ", by " (name bridge-short) ".")
@@ -127,7 +128,7 @@
    (pulses->durations)."
   [[source-short source] bridge-short bridge]
   {:short    (keyword "duration" (name source-short))
-   :full     (symbol "musics.algo.duration" (name source-short))
+   :full     (symbol "duration" (name source-short))
    :category "duration"
    :works    :whole
    :doc      (str (:doc source) " On durations, laid on a grid of :duration-pulse.")
@@ -159,12 +160,3 @@
   "Register every specialised algo. Returns their short names."
   []
   (mapv (comp :short reg/register-entry!) (specialised)))
-
-(defmacro defhalf
-  "Define a constructor in this namespace for every specialised algo
-   delivering `half`, named without its namespace: in musics.algo.pitch,
-   `lorenz` is pitch/lorenz."
-  [half]
-  `(do ~@(for [[short] (reg/algos)
-               :when (= (name half) (namespace short))]
-           `(def ~(symbol (name short)) (t/constructor (reg/algo ~short))))))

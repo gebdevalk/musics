@@ -1899,3 +1899,31 @@ file's namespace is removed before it is loaded again, so a function
 taken out of the file goes too; a classpath namespace is reloaded with
 `:reload`, as Clojure does, since other namespaces hold its vars. An
 alias may not take over one of mu's own namespaces.
+
+## 2026-10-25 — half-products, and no constructor namespaces
+
+From an algo to its mu word is three steps, each with one job: a
+source is written once with its `:algo` metadata (`euclid`);
+`musics.algo.tree.half-products` derives each half product a bridge
+makes of it (`:duration/euclid`, euclid then `pulses->durations`); and
+`musics.mu.algos` makes the word under that same registry name
+(`duration/euclid`). The namespace was called `half`, which read as
+"half of something" without algo-space's vocabulary (raw material,
+half products, products); it is `half-products` now.
+
+`musics.algo.{pitch,duration,volume,articulation,instrument}` and their
+`defhalf` macro went: they held the specialised algos as Clojure
+constructors so `(duration/euclid)` could be typed at `lein repl`, and
+with no Clojure REPL only a test and the cookbook script used them (the
+test now builds nodes from the registry, the script makes its own
+aliases). A specialised algo's `:full` is its key as a symbol,
+`duration/euclid`.
+
+Two further collapses were weighed and rejected. Deriving during
+registration, folding half-products into the registry, would give the
+registry two jobs and make derivation depend on load order (a source
+can only be specialised once its bridges are registered, which is why
+it runs as one pass after them). mu looking algos up in the registry
+directly, instead of copying them into its word table, would give mu
+two tables and a rule for the second in `words`, `see` and completion;
+the short copy is the simpler of the two.
