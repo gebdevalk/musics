@@ -1885,3 +1885,17 @@ A dynamic part is only taken where the text can write it -- the
 articulation's own weight, or -20 alone (a ghost note) -- since the
 leaf's `:dynamic` has no spelling of its own; a free weight would be
 lost when the line is printed and read back.
+
+## 2026-10-25 — require: Clojure words while mu runs
+
+With no Clojure REPL, mu's `require` is how Clojure code becomes words
+without a restart: `"ns" require` loads (and on a second call reloads)
+a namespace from the classpath or a `.clj` file and registers its
+public functions as `musics.mu.library` registers the built-in ones, in
+a mu namespace named by the last segment or by a short alias written
+after it (`'r`), Clojure's `:as`. The alias is an optional second
+argument rather than a separate `require-as`, one word for both. A
+file's namespace is removed before it is loaded again, so a function
+taken out of the file goes too; a classpath namespace is reloaded with
+`:reload`, as Clojure does, since other namespaces hold its vars. An
+alias may not take over one of mu's own namespaces.

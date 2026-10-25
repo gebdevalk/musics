@@ -6,6 +6,7 @@
    and printing the stack stay stack words in musics.mu.kernel."
   (:refer-clojure :exclude [min max mod abs not int float])
   (:require [clojure.core :as core]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [musics.common.music-elements :as el]
             [musics.domain.resolve :as r]
@@ -140,6 +141,44 @@
   "Make namespace ns's words usable without ns/: \"pitch\" use, or 'pitch use"
   [ns]
   (let [n (name-of ns)] (swap! e/state update :use #(vec (distinct (conj % n))))))
+
+(defn- clj-ns
+  "The Clojure namespace a .clj file declares, from its (ns …) form."
+  [path]
+  (let [form (with-open [r (java.io.PushbackReader. (io/reader path))]
+               (binding [*read-eval* false] (read r)))]
+    (if (and (seq? form) (= 'ns (first form)) (symbol? (second form)))
+      (second form)
+      (fail "not a Clojure namespace (no ns form first):" path))))
+
+(defn- short-name? [x]
+  (and (or (string? x) (symbol? x)) (re-matches #"[a-zA-Z][a-zA-Z0-9_\-]*" (str x))))
+
+(defn require!
+  "Load a Clojure namespace now, its public functions mu's words under
+   its last name or a short alias: \"musics.algo.random\" require gives
+   random/uniform, \"musics.algo.random\" 'r require r/uniform; a .clj
+   file too (\"my/words.clj\" require). Requiring again reloads it, a
+   file afresh."
+  {:mu {:optional {:alias short-name?}}}
+  ([ns] (require! ns nil))
+  ([ns alias]
+   (let [n      (name-of ns)
+         file?  (str/ends-with? n ".clj")
+         _      (when (and file? (core/not (.exists (java.io.File. ^String n)))) (fail "no such file:" n))
+         sym    (if file? (clj-ns n) (symbol n))
+         alias  (str (or alias (last (str/split (str sym) #"\."))))
+         st     @e/state
+         owner  (get-in st [:required alias])]
+     (when (and (contains? (:ns st) alias) (core/not= owner sym))
+       (fail (str "'" alias) "is a namespace already" (if owner (str "(" owner ")") "of mu's own")
+             (str "-- give a short alias: \"" sym "\" 'x require")))
+     ;; a file's namespace is loaded afresh, so a function taken out of it goes
+     (try (if file? (do (remove-ns sym) (load-file n)) (core/require sym :reload))
+          (catch java.io.FileNotFoundException _ (fail "no namespace" (str sym) "on the classpath")))
+     (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym)))
+     ((requiring-resolve 'musics.mu.library/register!) sym alias)
+     (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
 
 (defn in!
   "Put new definitions into namespace ns"

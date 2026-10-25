@@ -131,6 +131,13 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - a word is qualified as `ns/word` (`tool/cycle`, `duration/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
+- `"musics.algo.random" require` loads a Clojure namespace while mu runs,
+  its public functions words under its last name (`random/uniform`), or
+  under a short alias given after it (`"musics.algo.random" 'r require`,
+  `r/uniform`); a `.clj` file too (`"my/words.clj" require`, named by its
+  `ns` form). Requiring again reloads it, a file afresh, so an edit is
+  heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
+  an alias;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel` (the stack, quotations, numbers,
   binding, the repo, help, files), `tool`, `music`, `play` (playback and
@@ -259,7 +266,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
-| **defining, namespaces** | `:` `;` `use` `in` |
+| **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<`, `playing` or `<`, `hush`, `solo` |
 | **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff ^{ ?k:5 } set`), `unset` (`:riff '?k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window) -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |

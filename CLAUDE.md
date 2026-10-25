@@ -291,7 +291,9 @@ namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 gathered into a line, `| … seq`). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
-`musics.play` and `musics.rate` -- `musics.mu.library` registers each
+`musics.play` and `musics.rate` (and any namespace mu's `require`
+loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
+too) -- `musics.mu.library` registers each
 public function under its name, a trailing `!` left off, and its
 `:mu :names`, signs like `[R]` and `+`, and
 `musics.mu.eval` runs such a `{:var v}` word by taking its arguments
