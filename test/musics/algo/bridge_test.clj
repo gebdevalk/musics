@@ -50,26 +50,31 @@
         "agogic: by length -- three eighths, three, then two (log of the length against a bar's)")
     (is (= [80.0 80.0] (take 2 (b/pulses->volumes (cycle [1 0 0 0 0 0 0 0]) :metric 1/8 "4/4" 40.0 80.0)))
         "lazy: an endless stream, a downbeat each bar")
-    (is (= 3 (count (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "one per onset, none for the rest before")))
+    (is (= 4 (count (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "one per note pulses->durations makes")
+    (is (nil? (first (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "nil for the rest before the first onset")
+    (is (nil? (first (b/pulses->articulations [0 1 1] :metric 1/16 "4/4" [:ghost nil :accent :marcato]))))))
 
 (deftest every-bridge-says-how-it-works
   (doseq [[k e] (t/algos) :when (= "bridge" (:category e)) :when (= "musics.algo.bridge" (namespace (:full e)))]
     (is (#{:value :shape :whole} (:works e)) (str k))))
 
 (deftest leaves-blend-the-materials
-  (let [parts (t/run (lib/zip [(d/rest* nil nil 1/4) 1/8 1/8 1/4] [60 [62 65] nil]) {})]
-    (testing "a Rest in the durations uses no pitch; a collection is a chord; nil a rest"
+  (let [parts (t/run (lib/zip [(d/rest* nil nil 1/4) 1/8 1/8 1/4] [nil 60 [62 65] nil]) {})]
+    (testing "a collection is a chord; nil a rest"
       (is (= [[:REST 1/4 nil] [:LEAF 1/8 [60]] [:LEAF 1/8 [62 65]] [:REST 1/4 nil]]
              (map (juxt :type :duration :pitches) parts))))
-    (testing "blend steps skip rests"
-      (is (= [nil 70 50 nil] (map (comp :volume :overrides) (t/run (lib/+volume parts [70 50 90]) {})))))
+    (testing "a Rest in the durations uses its pitch unwritten; ends with the shorter"
+      (is (= [[:REST nil] [:LEAF [62]] [:LEAF [64]]]
+             (map (juxt :type :pitches) (t/run (lib/zip [(d/rest* nil nil 1/8) 1/8 1/8 1/8] [60 62 64]) {})))))
+    (testing "blend steps use a rest's value unwritten"
+      (is (= [nil 50 90 nil] (map (comp :volume :overrides) (t/run (lib/+volume parts [70 50 90 10]) {})))))
     (testing "articulation sets length and adds its dynamic"
       (is (= [[nil nil] [0.55 10] [nil -20] [nil nil]]
-             (map (juxt :articulation :dynamic) (t/run (lib/+articulation parts [:marcato :ghost]) {})))))
+             (map (juxt :articulation :dynamic) (t/run (lib/+articulation parts [nil :marcato :ghost nil]) {})))))
     (testing "instrument: a program, a General MIDI name (0-based) or a short name; a drum by +drum"
-      (is (= [nil 40] (map (comp :instrument :overrides) (t/run (lib/+instrument parts [40]) {}))) "ends at the first note with no value left")
-      (is (= [40 122 nil] (map (comp :instrument :overrides) (rest (t/run (lib/+instrument parts ["violin" "sea"]) {})))) "a name, a short name; past its end as written")
-      (let [[_ a b] (t/run (lib/+drum parts ["kick" 38]) {})]
+      (is (= [nil 40] (map (comp :instrument :overrides) (t/run (lib/+instrument parts [nil 40]) {}))) "ends where the values do")
+      (is (= [40 122 nil] (map (comp :instrument :overrides) (rest (t/run (lib/+instrument parts [nil "violin" "sea" nil]) {})))) "a name, a short name; nil writes nothing")
+      (let [[_ a b] (t/run (lib/+drum parts [nil "kick" 38]) {})]
         (is (= [:DRUM 36 1/8] ((juxt :type :program :duration) a)) "+drum makes a note a drum")
         (is (= [:DRUM 38] ((juxt :type :program) b))))
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"a drum has no instrument"

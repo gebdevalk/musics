@@ -498,7 +498,7 @@
    [:pitch nil "zip with durations" "modulating gives pitch classes 0–11: transpose (+60) first" "(zip (cycle> [1/16]) (transpose modulating))"]
    [:number nil "numbers->pitches / numbers->durations, scale> then degrees->pitches, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; give its range as :from-lo/:from-hi" "(zip (cycle> [1/16]) (degrees->pitches (scale> walk)))"]
    [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle> scale))"]
-   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses no pitch" "(zip split (cycle> scale))"]
+   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses its pitch unwritten" "(zip split (cycle> scale))"]
    [:point nil "points->pitches / points->durations, or axis → :number" "henon/lorenz give a point per step" "(zip (cycle> [1/16]) (degrees->pitches (scale> (axis lorenz))))"]
    [:layer nil "layer (:index) → one :pulse layer, then as pulses; parts joins the voices" "name each layer you pick (:as) so each has its own :index" "(parts (zip (pulses->durations (layer polyrhythm :as :a)) …) (zip (pulses->durations (layer polyrhythm :as :b)) …))"]
    [:part nil "already leaves, in parallel: play it; part (:index) → one part's leaves" "drums, counterpoint, species, parts and +part give parts" "(part (counterpoint …))"]

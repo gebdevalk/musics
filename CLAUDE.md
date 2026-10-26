@@ -724,7 +724,10 @@ metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
 finite stream first; registry entries carry it, `show-algos` prints it).
 Keys are spelled as `!key:` spells them; a number bridge takes its input
 range as `:from-lo`/`:from-hi`. `zip` zips `:duration` and `:pitch` into
-notes, chords and rests (a Rest in the durations uses no pitch), and
+notes, chords and rests (a Rest in the durations uses its pitch
+unwritten, as the blend steps use a rest's value, so every stream's
+n-th value is the n-th note's; `pulses->volumes`/`pulses->articulations`
+give nil for the leading Rest `pulses->durations` makes), and
 the blend steps add one material each: `+articulation` (a name from
 `musics.common.music-data/articulations`, the leaf's `:articulation`/
 `:dynamic` as `c4->` sets them), and the per-note overrides `+volume`

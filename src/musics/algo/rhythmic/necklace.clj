@@ -1,7 +1,20 @@
 ;; necklace.clj
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 5-6 -- rhythm necklaces/bracelets (rotation/reversal equivalence
 ;; classes of a binary pattern) and rhythmic tiling canons (Vuza).
+
+;; Rhythm necklaces and bracelets intersect across combinatorics (mathematical structures of circular patterns) and musical geometry (algorithmic polyrhythms).
+
+;; 1. Combinatorics: Necklaces and Bracelets
+
+;; In mathematics and computer science, a necklace is a circular sequence of beads that is equivalent under rotation (cyclic group). A bracelet (or free necklace) adds equivalence under reflection (dihedral group, meaning you can flip it over).
+;; • Necklaces (\(N_n(k)\)): Represent n circularly connected beads using k different colors, counted using Pólya's enumeration theorem via Wikipedia.
+;; • Bracelets (\(B_n(k)\)): Account for both rotation and flip symmetry, making the number of distinct patterns slightly different depending on whether n is even or odd.
+;; • Applications: These algorithms are used to list non-isomorphic patterns, study DNA/RNA sequences, and analyze cyclic structures.
+
+;; 2. Musical Geometry: The "Rhythm Necklace" App & Theory
+
+;; In ethnomusicology and algorithmic composition, circular rhythm patterns are visualized as necklaces where beats (onsets) and rests are distributed around a ring.
+;; • Godfried Toussaint's Work: Explored in The Geometry of Musical Rhythm, showing how Euclidean algorithms generate traditional world music rhythms (like the clave or aksak) by evenly spacing pulses around a circle.
+;; • Rhythm Necklace App: Created by Meara O'Reilly and Sam Tarakajian, this iOS geometric sequencer turns circular rhythm necklaces into playable musical patterns. It maps beats to visual beads on up to four concentric circles, allowing users to adjust pulses, rotation, scale, and Euclidean evenness in real time.
 
 (ns musics.algo.rhythmic.necklace
   (:require [musics.algo.common.rotate :refer [rotate]]))

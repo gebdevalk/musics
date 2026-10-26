@@ -112,7 +112,7 @@
    :stroke  #(every? string? %)
    :pair    #(every? vector? %)
    :leaf    #(every? :type %)
-   :volume  #(every? number? %)
+   :volume  #(every? (some-fn nil? number?) %)
    :articulation #(every? (some-fn nil? keyword?) %)
    :instrument #(every? (some-fn number? string? keyword?) %)
    :index   integer?})

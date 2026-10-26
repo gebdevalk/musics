@@ -209,8 +209,10 @@ one more material:
   `degree->pitch`, `number->pitch`, `number->duration`, `number->volume`. The stream
   bridges map them; use them directly at the REPL.
 - **`zip`** zips the two streams into leaves: a collection is a chord
-  and nil a rest. A Rest in the durations uses no pitch. It ends with
-  the shorter stream, so cycle a source for an isorhythm.
+  and nil a rest. A Rest in the durations uses its pitch unwritten, and
+  the blend steps use a rest's value the same way, so every stream's
+  n-th value belongs to the n-th note. It ends with the shorter stream,
+  so cycle a source for an isorhythm.
 - **`+articulation`** sets a name from `musics.common.music-data/articulations`
   (`:accent`, `:staccato`, `:ghost`, ...), as `c4->` does.
 - **`+volume`** sets each note's own volume (0–100), overriding the

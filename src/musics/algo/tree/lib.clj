@@ -162,20 +162,19 @@
 
 ;; -- leaves: the product, assembled from half products ------------------------
 
-(defn- zip-skipping-rests
-  "f applied to each part and the next value of xs; a Rest passes through
-   without using a value. Ends with the shorter."
+(defn- zip-stepping
+  "f applied to each part and the next value of xs; a Rest passes through,
+   using its value unwritten, so every part's n-th value belongs to the
+   n-th note (as mu's zip and +volumes). Ends with the shorter."
   [f parts xs]
   (lazy-seq
    (when-let [[p & ps] (seq parts)]
-     (if (d/rest? p)
-       (cons p (zip-skipping-rests f ps xs))
-       (when-let [[x & more] (seq xs)]
-         (cons (f p x) (zip-skipping-rests f ps more)))))))
+     (when-let [[x & more] (seq xs)]
+       (cons (if (d/rest? p) p (f p x)) (zip-stepping f ps more))))))
 
-(defalgo zip "Durations and pitches zipped into leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, which uses no pitch). Ends with the shorter -- cycle a source for an isorhythm."
+(defalgo zip "Durations and pitches zipped into leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, whose pitch goes unused). Ends with the shorter -- cycle a source for an isorhythm."
   {:algo {:category "output" :in [:duration :pitch] :out :leaf}}
-  [durs pitches] (zip-skipping-rests (fn [dur p] (->part p dur)) durs pitches))
+  [durs pitches] (zip-stepping (fn [dur p] (->part p dur)) durs pitches))
 
 (defn- override
   "p with its own value v for context key k (written c4\\k:v); nil leaves it."
@@ -186,19 +185,19 @@
   "The numeric context keys playback reads per note (musics.domain.resolve/played-keys)."
   [:panning :transposition :octave :Tempo :durScale :micro :humanization :swing :swingUnit :volume :instrument])
 
-(defalgo +override "Each note's own value for a context key it plays with (as c4\\pan:-1.0 writes it): :key picks which. Rests take none."
+(defalgo +override "Each note's own value for a context key it plays with (as c4\\pan:-1.0 writes it): :key picks which. A rest uses its value unwritten."
   {:algo {:category "output" :in [:leaf :number] :out :leaf
           :params {:key {:type :keyword :default :panning :choices overridable :doc "the context key overridden"}}}}
-  [parts xs key] (zip-skipping-rests #(override %1 key %2) parts xs))
+  [parts xs key] (zip-stepping #(override %1 key %2) parts xs))
 
-(defalgo +volume "Each note's own volume (the !vol: 0-100 scale, written c4\\vol:90); rests take none."
+(defalgo +volume "Each note's own volume (the !vol: 0-100 scale, written c4\\vol:90); a rest uses its value unwritten."
   {:algo {:category "output" :in [:leaf :volume] :out :leaf}}
-  [parts volumes] (zip-skipping-rests #(override %1 :volume %2) parts volumes))
+  [parts volumes] (zip-stepping #(override %1 :volume %2) parts volumes))
 
-(defalgo +articulation "Each note's articulation, a name from musics.common.music-data/articulations (as c4-> writes :accent); nil plays plain. Rests take none."
+(defalgo +articulation "Each note's articulation, a name from musics.common.music-data/articulations (as c4-> writes :accent); nil plays plain. A rest uses its value unwritten."
   {:algo {:category "output" :in [:leaf :articulation] :out :leaf}}
   [parts arts]
-  (zip-skipping-rests
+  (zip-stepping
    (fn [p a]
      (if-let [{:keys [duration dynamic]} (some-> a keyword data/articulations)]
        (cond-> p
@@ -207,10 +206,10 @@
        p))
    parts arts))
 
-(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127), a General MIDI name or its short name. A drum has none: its sound is a key of the kit (+drum). Rests take none."
+(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127), a General MIDI name or its short name. A drum has none: its sound is a key of the kit (+drum). A rest uses its value unwritten."
   {:algo {:category "output" :in [:leaf :instrument] :out :leaf}}
   [parts instruments]
-  (zip-skipping-rests
+  (zip-stepping
    (fn [p i]
      (cond (nil? i) p
            (d/drum? p) (throw (ex-info "+instrument: a drum has no instrument -- its sound is a key of the kit (+drum)" {:instrument i}))
@@ -218,10 +217,10 @@
                                              (throw (ex-info (str "+instrument: not a program or General MIDI name: " (pr-str i)) {:instrument i}))))))
    parts instruments))
 
-(defalgo +drum "Each note made a drum (written x8\\38): a key of the kit (35-81) or a drum's name (kick, bd1, hhc), keeping its length, articulation weight and own settings; a drum gets the new key. Rests take none."
+(defalgo +drum "Each note made a drum (written x8\\38): a key of the kit (35-81) or a drum's name (kick, bd1, hhc), keeping its length, articulation weight and own settings; a drum gets the new key. A rest uses its value unwritten."
   {:algo {:category "output" :in [:leaf :drum] :out :leaf}}
   [parts drums]
-  (zip-skipping-rests
+  (zip-stepping
    (fn [p k]
      (if (nil? k)
        p

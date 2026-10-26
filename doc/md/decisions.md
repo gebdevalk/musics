@@ -1879,7 +1879,12 @@ in a loop give a loop of the lcm. The same rule holds outside zip:
 `nil`, as `pitches` does, and `+volumes` and the other writers use up
 a value at a rest, so a stream read from a line goes back onto it in
 step. A volume is 0..100 as written, any number in it, mapped to MIDI
-when the note is resolved.
+when the note is resolved. The trees follow the same rule: their `zip` and blend steps
+(`+volume`, `+articulation`, `+instrument`, `+drum`, `+override`) use a
+rest's value unwritten, and `pulses->volumes`/`pulses->articulations`
+give `nil` for the Rest `pulses->durations` makes of the 0s before the
+first onset, so a rhythm's accents still land on its notes. A melody
+under a rhythm that opens with a rest now starts on its second pitch.
 
 A dynamic part is only taken where the text can write it -- the
 articulation's own weight, or -20 alone (a ghost note) -- since the
