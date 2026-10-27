@@ -407,16 +407,16 @@
       "two loops zip into a loop of the notes they take to line up again")
   (is (= "repeat ~ [C4/4 D4 C4 D4 C4 D4]" (top "[c d e] [~] durations [c d] pitches zip"))
       "looping durations give a loop, a finite part cycling in it")
-  (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "[c8 d4 | e8] [~] [c d] [~] pitches zip"))
+  (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "| :duration [c8 d4 | e8] [~] [c d] [~] pitches zip"))
       "a loop of a line gives its notes, not its bar lines")
-  (is (= "repeat ~ [C4/8 D4 G4/4]" (top "[[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
+  (is (= "repeat ~ [C4/8 D4 G4/4]" (top "| :duration [[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
   (is (re-find #"take some first" (top "1 '( 1 add ) iterate dup zip")) "endless, not loops"))
 
 (deftest zip-builds-leaves-from-their-parts
   (testing "the durations set the length, the other parts cycle"
     (is (= "[C4/4 D4/8 C4/4 D4]" (top "'[/4 /8 /4 /4] '[60 62] zip"))))
   (testing "at a rest every part steps on, its value unused"
-    (is (= "[C4/4 r E4 F4]" (top "[c4 r e g] '[60 62 64 65] zip")) "a rest among the durations")
+    (is (= "[C4/4 r E4 F4]" (top "| :duration [c4 r e g] '[60 62 64 65] zip")) "a rest among the durations, a named line giving them")
     (is (= "[C4/4\\volume:90 r E4\\volume:30]" (top "| '[/4 /4 /4] '[60 nil 64] :volume '[90 60 30] zip")) "a nil pitch"))
   (testing "above a | mark: a :name names a part, a reader's or algo word's stream knows its own"
     (is (= "[C4/4->\\volume:90 D4-. E4->\\volume:30]"
@@ -436,7 +436,6 @@
            (top "| '[/4 /4] '[60 62] :instrument '[:flute nil] :pan '[nil -1.0] zip")) "overrides by key"))
   (testing "refused"
     (is (re-find #"two streams for one part" (top "| '[/4] :pitch '[60] :pitch '[62] zip")))
-    (is (re-find #"needs pitches or drums" (top "| '[/4] :volume '[60] zip")))
     (is (re-find #"no part of a note" (top "| '[/4] '[60] :bogus '[1] zip")))
     (is (re-find #"is not an articulation" (top "| '[/4] '[60] '[60] zip")) "a third untagged stream is the articulations")
     (is (re-find #"weight an articulation gives" (top "| '[/4] '[60] :dynamic '[3] zip")))
@@ -479,27 +478,49 @@
 (deftest a-setting-at-a-bar-line-opens-the-next-bar
   (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))
 
-(deftest a-stream-onto-a-line
-  (is (= "[C4/4\\volume:90 r E4\\volume:70 F4]" (top "[c r e f] '[90 50 70] +volumes")) "a rest's value unused; past the stream's end as written")
-  (is (re-find #"a volume is 0..100" (top "[c d] '[90 120] +volumes")))
-  (is (re-find #"a volume is 0..100" (top "| '[/4] '[60] :volume '[-1] zip")))
-  (is (= "[C4/4-> D4-. E4]" (top "[c d e] '[:accent :staccato] +articulations")))
-  (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations +articulations")) "what articulations reads, written back")
-  (is (= "[C4/8\\volume:30 r D4\\volume:90 r E4\\volume:50]" (top "[c8\\vol:30 r d\\vol:90 r e\\vol:50] dup volumes +volumes")) "rests too")
-  (is (= "[C4/4\\instrument:40 D4\\instrument:122 E4\\instrument:73]" (top "[c d e] '[40 :Sea 73] +instruments"))
-      "programs, names and short names, a keyword beside numbers")
-  (is (= "[x8\\42 x\\49]" (top "[x8\\bd1 x8\\sna] '[:hhc 49] +drums")) "a drum takes a drum's key or short name")
-  (is (re-find #"a drum has no instrument" (top "[x8\\bd1] '[40] +instruments")) "the two worlds stay apart")
-  (is (= "'[:accent :ghost]" (top "[x8\\bd1 x8\\sna] '[:accent :ghost] +articulations articulations")) "drums take accents")
+(deftest zip-writes-onto-a-line
+  (testing "an unnamed line is written on, each part cycling and stepping once per note"
+    (is (= "[C4/4\\volume:90 r E4\\volume:70 F4\\volume:90]" (top "| [c r e f] :volume '[90 50 70] zip")) "a rest's value unused")
+    (is (re-find #"a volume is 0..100" (top "| [c d] :volume '[90 120] zip")))
+    (is (re-find #"a volume is 0..100" (top "| '[/4] '[60] :volume '[-1] zip")))
+    (is (= "[C4/4-> D4-. E4->]" (top "| [c d e] :articulation '[:accent :staccato] zip")))
+    (is (= "[C4/4 D4-> E4-.]" (top "[c d-> e-.] dup articulations zip")) "what articulations reads, written back")
+    (is (= "[C4/8\\volume:30 r D4\\volume:90 r E4\\volume:50]" (top "[c8\\vol:30 r d\\vol:90 r e\\vol:50] dup volumes zip")) "rests too")
+    (is (= "[C4/4\\instrument:40 D4\\instrument:122 E4\\instrument:73]" (top "| [c d e] :instrument '[40 :Sea 73] zip"))
+        "programs, names and short names, a keyword beside numbers")
+    (is (= "[C4/4\\instrument:122 D4\\instrument:11]" (top "| [c d] :instrument '[:sea :vib] zip")) "short names in lowercase: vib the vibraphone")
+    (is (= "[x8\\42 x\\49]" (top "| [x8\\bd1 x8\\sna] :drum '[:hhc 49] zip")) "a drum takes a drum's key or short name")
+    (is (= "'[:accent :ghost]" (top "| [x8\\bd1 x8\\sna] :articulation '[:accent :ghost] zip articulations")) "drums take accents")
+    (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "| [c d] [~] :volume '[90 40] [~] zip")) "the line keeps its form")
+    (is (= "[!ff C4/4\\volume:90 | D4\\volume:40]" (top "| [!ff c | d] :volume '[90 40] zip")) "its instructions and bar lines too"))
+  (testing "a part given replaces the line's own"
+    (is (= "[C4/8 D4 E4]" (top "| [c d e] :duration '[/8] zip")))
+    (is (= "[G4/4 A4 G4]" (top "| [c d e] :pitch '[67 69] zip")))
+    (is (= "[C4/4\\volume:20 D4\\volume:20]" (top "| [c\\vol:90 d] :volume '[20] zip")))
+    (is (= "[C4/4 r E4]" (top "| [c d e] :duration [c r e] zip")) "a rest's duration makes a rest"))
+  (testing "refused"
+    (is (re-find #"a drum has no instrument" (top "| [x8\\bd1] :instrument '[40] zip")) "the two worlds stay apart")
+    (is (re-find #"as-drums" (top "| [c d] :drum '[:kick] zip")) "a note is no drum")
+    (is (re-find #"not an articulation" (top "| [c d] :articulation '[:nonsense] zip")))
+    (is (re-find #"name each stream's part" (top "[c d] '[90 40] zip")) "an untagged stream onto a line")
+    (is (re-find #"two lines to write on" (top "[c d] [e f] zip"))))
   (is (= "'[:accent nil]" (top "[c8-> d] '[:kick :sna] as-drums articulations")) "as-drums keeps a note's accent")
-  (is (re-find #"as-drums" (top "[c d] '[:kick] +drums")) "a note is no drum")
   (is (= "[x8\\36 x\\42\\volume:90 r x\\38]" (top "[c8 d\\vol:90 r e] '[:kick :hhc nil :sna] as-drums"))
       "as-drums: notes made drums, keeping length and volume")
-  (is (= "[C4/4\\instrument:122 D4\\instrument:11]" (top "[c d] '[:sea :vib] +instruments")) "short names in lowercase: vib the vibraphone")
-  (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "[c d] [~] '[90 40] [~] +volumes")) "the line keeps its form")
-  (is (re-find #"not an articulation" (top "[c d] '[:nonsense] +articulations")))
   (is (= "'[nil :accent]" (top "'[nil :accent]")) "keywords in data read back as they print"))
 
+(deftest zip-without-what-a-note-needs-gives-a-bundle
+  (is (= "'[:pitch '[60 62] :volume '[90 70]]" (top "| :pitch '[60 62 64] :volume '[90 70] zip")) "as long as the shortest part")
+  (is (= "'[:duration '[1/4] :volume '[60]]" (top "| '[/4] :volume '[60] zip")) "durations alone too: rests would drop the volumes")
+  (is (= "'[:pitch '[60 62 60] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop taken to that length")
+  (is (re-find #"every part is endless" (top "| :pitch '[60 62] [~] zip")))
+  (testing "zip takes it again as its parts"
+    (is (= "[C4/8\\volume:90 D4/4\\volume:70]" (top "'[/8 /4] | :pitch '[60 62 64] :volume '[90 70] zip zip")))
+    (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a line"))
+  (testing "it can't sound"
+    (doseq [in ["| :pitch '[60] zip [c d] {2}" "| | :pitch '[60] zip [c d] par" "| | :pitch '[60] zip [c d] seq" "| :pitch '[60] zip [c d] [2]"]]
+      (is (re-find #"can't sound -- it has no durations" (top in)) in))
+    (is (re-find #"no pitches or drums" (top "| '[/4] :volume '[60] zip \"x.mid\" render")))))
 
 (def ^:private blues
   "The jazz blues in F, written relative, a repeat with its endings."

@@ -245,6 +245,7 @@
   ([x file] (render! x file nil))
   ([x file seconds]
    (let [path (name-of file)]
+     (mt/sounding! "render" x)
      (when (and (nil? seconds) (or (mt/endless? x) (mt/loop? x)))
        (fail "the music is endless -- give the seconds to write: x \"x.mid\" 60 render"))
      (midi-file/write-events (take-while #(< (:t %) (or seconds 3600)) (mt/events x)) ; an hour at most

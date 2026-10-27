@@ -137,7 +137,7 @@ musics.mu                    177   mu, the musical REPL: the prompt loop (JLine)
 ├── mu.eval                  399   the evaluator: literals read up to each :=, items run on the stack
 ├── mu.value                 163   what a literal becomes: a leaf or a Material, not stored
 ├── mu.print                 150   printing, isomorphic to reading
-├── mu.material              927   what the words share: elements, lines, repeats, zip's leaves, storing, playing
+├── mu.material             1022   what the words share: elements, lines, repeats, zip's leaves and bundles, storing, playing
 ├── mu.store                  56   text read into the repo: a file, the GUI editor (commits :ROOT)
 ├── mu.library                52   registers the word namespaces below as mu words
 ├── mu.kernel                218   stack words: dup swap … quotations, :=, the play words
@@ -146,9 +146,9 @@ musics.mu                    177   mu, the musical REPL: the prompt loop (JLine)
 ├── mu.live                  127   a play word given a recipe plays live
 ├── mu.complete              163   Tab completion
 └── mu.feedback              151   rating what is heard, audition
-musics.kernel                252   kernel words: numbers, the repo, namespaces, require, help, files, load, render
+musics.kernel                253   kernel words: numbers, the repo, namespaces, require, help, files, load, render
 musics.tool                  309   tool words: making, reading, reshaping
-musics.music                 604   music words: transposing, row forms, the readers, +volumes …
+musics.music                 576   music words: transposing, row forms, the readers, as-drums …
 musics.play                  178   play words: stop, voices, hush, set, settings, retree, compose, gui
 musics.rate                   74   rate words: like, dislike, audition …
 musics.feedback               92   the ratings file

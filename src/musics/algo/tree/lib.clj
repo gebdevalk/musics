@@ -165,7 +165,7 @@
 (defn- zip-stepping
   "f applied to each part and the next value of xs; a Rest passes through,
    using its value unwritten, so every part's n-th value belongs to the
-   n-th note (as mu's zip and +volumes). Ends with the shorter."
+   n-th note (as mu's zip). Ends with the shorter."
   [f parts xs]
   (lazy-seq
    (when-let [[p & ps] (seq parts)]

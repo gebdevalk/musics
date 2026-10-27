@@ -312,7 +312,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil); back onto a line, one per note, a rest's unused: `+volumes` `+articulations` `+instruments` `+drums`, and `as-drums` (notes made drums) |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -373,6 +373,23 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 
   A dynamic is the weight an articulation gives, so only one the text
   can write is taken (`-20` alone, a ghost note).
+- **Onto a line**: an unnamed line (or note) among zip's inputs is
+  written on, keeping its form -- repeats, loops, nested lines,
+  instructions, bar lines. Its notes set the length; each part cycles
+  and steps once per note, a rest's value unused, and a part given
+  replaces the line's own: `[c d e f] volume/euclid zip` gives each note
+  the next volume, `| [c d e] :duration '[/8] zip` makes them eighths.
+  A line under `:name` gives only that part (`| :duration [c4 r e g]
+  '[60 62 64 65] zip`); onto a line every stream needs its part known,
+  and only one line is written on.
+- **A bundle**: without durations and pitches (or drums) `zip` gives
+  the parts as columns, as long as the shortest finite part (a loop or
+  an endless stream taken to that length): `| :pitch '[60 62 64]
+  :volume '[90 70] zip` is `'[:pitch '[60 62] :volume '[90 70]]`. A
+  bundle is data, so it reads back as it prints, and `zip` takes it
+  again as its parts. It can't sound: the play words, `render`, `par`,
+  `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
+  default duration.
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
@@ -601,14 +618,12 @@ duration/euclid                          → '[3/16 3/16 1/8]
   random seed, so two words with one seed and one source read the same
   run: `^{ ?seed:7 } pitch/walk` and `^{ ?seed:7 } volume/walk` rise and
   fall together.
-- **Onto a line**: `[c d e f] volume/euclid +volumes` gives each
-  note the next volume (0..100, a rest's going unused); `+articulations` takes
-  `'[:accent :staccato]` (drums too: an accent is a drum's weight),
-  `+instruments` programs and names (`'[40 :sea 73]`). Instruments
-  and drums are two worlds: an instrument is a program, its notes pitches;
-  a drum is a key of the kit (`!kit:brush`). `+instruments` refuses a
-  drum and `+drums` (`'[:kick :hhc 38]`) a note; `as-drums` turns
-  notes into drums, keeping their length, volume and accent.
+- **Instruments and drums** are two worlds: an instrument is a program,
+  its notes pitches; a drum is a key of the kit (`!kit:brush`). Zipped
+  onto a line, `:instrument` (programs and names, `'[40 :sea 73]`)
+  refuses a drum and `:drum` (`'[:kick :hhc 38]`) a note; `as-drums`
+  turns notes into drums, keeping their length, volume and accent.
+  `:articulation` takes drums too: an accent is a drum's weight.
 - **Settings**: a `^{ … }` on top is the algo's settings, `?name:value`
   (`doc/md/algo-space.md`, the tctx as a context): read first, then the
   music's own (`:ROOT`'s, so `!key:` reaches a key param), then the

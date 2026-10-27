@@ -475,9 +475,8 @@ durations and pitches back together:
 ```
 
 Every reader gives a rest's value too -- its length, and nil for the
-rest -- so each stream keeps one value per element, as `zip` and
-`+volumes` and the others take them (section 15): at a rest the value
-goes unused.
+rest -- so each stream keeps one value per element, as `zip` takes
+them (section 15): at a rest the value goes unused.
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in
@@ -571,13 +570,13 @@ sound. So the words keep them apart:
 |---|---|---|
 | `instruments` | `( line -- stream )` | each note's own program; nil for a drum |
 | `drums` | `( line -- stream )` | each drum's key; nil for a note |
-| `+instruments` | `( line programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
-| `+drums` | `( line keys -- line )` | each drum's sound in turn; a note is refused |
+| `zip` with `:instrument` | `( \| line :instrument programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
+| `zip` with `:drum` | `( \| line :drum keys -- line )` | each drum's sound in turn; a note is refused |
 | `as-drums` | `( line keys -- line )` | each note made a drum, keeping its length, volume and accent |
 
 ```
-[c d e] '[40 :sea 73] +instruments  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
-[x8\bd1 x8\sna] '[:hhc :cr1] +drums → [x8\42 x\49]
+| [c d e] :instrument '[40 :sea 73] zip  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
+| [x8\bd1 x8\sna] :drum '[:hhc :cr1] zip → [x8\42 x\49]
 [c8 d e f] '[:kick :hhc :sna :hhc] as-drums → [x8\36 x\42 x\38 x\42]
 ```
 
@@ -705,14 +704,27 @@ twelve: the melody keeps landing on another beat, the color-talea of
 section 14 written with an algo.
 
 A volume, articulation or instrument stream goes back onto a line with
-`+volumes`, `+articulations` or `+instruments`, a value per
-note in turn (a rest's going unused, as in `zip`). With eight beats among eight eighths,
-`volume/euclid` gives the meter's accents:
+`zip`, a value per note in turn, cycling (a rest's going unused): given
+a line, `zip` writes the stream's part on each note and keeps the
+line's form. With eight beats among eight eighths, `volume/euclid`
+gives the meter's accents:
 
 ```
-[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid +volumes
+[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid zip
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
+
+Without durations and pitches, `zip` gives a bundle: the parts side by
+side as columns, as long as the shortest. It is data, waiting for what
+it lacks -- a contour with its dynamics waiting for a rhythm -- and
+`zip` takes it again as its parts:
+
+```
+| :pitch '[60 62 64] :volume '[90 70] zip   → '[:pitch '[60 62] :volume '[90 70]]
+'[/8 /4] swap zip                          → [C4/8\volume:90 D4/4\volume:70]
+```
+
+A bundle can't sound: playing it is refused, saying what it lacks.
 
 A long param name gets a short one with `:=`, a `?name` bound to a
 `?name`: from then on the short one is read as the long one, and the
@@ -762,7 +774,7 @@ and volume:
 ```
 ^{ ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
 ^{ ?seed:3 ?kind:allInterval } duration/row-time-points ^{ ?seed:3 ?kind:allInterval } pitch/row-classes zip >
-^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row +volumes >
+^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row zip >
 ```
 
 `duration/ca` is a cellular automaton, a bar of `?width` pulses per
@@ -878,7 +890,7 @@ c4 '[0 40 73] sounds audition
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
-| `+volumes` `+articulations` `+instruments` `+drums` `as-drums` | `( line stream -- line )` |
+| `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |
@@ -893,7 +905,7 @@ c4 '[0 40 73] sounds audition
 | `vary` | `( repeat q … -- line )` |
 | `volta` | `( repeat ending … -- repeat )` |
 | `with` | `( x ^{ }\|key -- x )` |
-| `zip` | `( durations pitches -- line )` |
+| `zip` | `( durations pitches -- line )`, `( line stream -- line )`, `( \| parts … -- line\|bundle )` |
 
 `"word" see` shows any of them with what it does; `words` lists them
 all.

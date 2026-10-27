@@ -124,6 +124,28 @@
                       (line x))
     :else (e/mu-error "not material:" (p/show x))))
 
+(defn bundle-columns
+  "[[part column] …] of a bundle -- data written as columns, a :part
+   before each stream, '[:pitch '[60 62] :volume '[90 70]], what zip
+   gives without what a note needs -- else nil."
+  [x]
+  (when (and (v/material? x) (= :DATA (kind x)))
+    (let [els (elements x)]
+      (when (and (seq els) (even? (count els))
+                 (every? keyword? (take-nth 2 els))
+                 (every? sequential? (take-nth 2 (rest els))))
+        (mapv vector (take-nth 2 els) (take-nth 2 (rest els)))))))
+
+(defn sounding!
+  "x, refused when it is a bundle: it can't sound until zip gives it
+   durations and pitches (or drums)."
+  [word x]
+  (when-let [cols (bundle-columns x)]
+    (let [has (set (map (comp #({:durations :duration :pitches :pitch :drums :drum} % %) first) cols))]
+      (e/mu-error (str word ":") "a bundle of parts can't sound -- it has no"
+                  (if (has :duration) "pitches or drums" "durations") "yet: zip it with some")))
+  x)
+
 (defn repetition? [x] (and (v/material? x) (d/iterator? (v/node x))))
 
 (defn as-line
@@ -402,7 +424,7 @@
    storing either: the engine reads a repo of what is stored plus their
    own nodes."
   [x ctx]
-  (let [mat  (->material x)
+  (let [mat  (->material (sounding! "play" x))
         _    (engine/ensure-connected!)
         snap (merge (into {} @(repo/registry)) (v/own-nodes mat) (when ctx (v/own-nodes ctx)))]
     [(assoc engine/*engine* :repo (atom snap)) (if ctx [(:id ctx) (:id mat)] (:id mat)) mat]))
@@ -720,7 +742,7 @@
   (read-text (str "[" (str/join " " (map #(str (lp/spell-pitch % nil ks) "4") pitches)) "]")))
 
 (defn par-of [xs]
-  (read-text (str "{" (apply str (interpose " " (map #(p/show (->material %)) xs))) "}")))
+  (read-text (str "{" (apply str (interpose " " (map #(p/show (->material (sounding! "par" %))) xs))) "}")))
 
 (defn marker? [x] (or (d/bar? x) (d/jump? x)))
 
@@ -767,7 +789,7 @@
    short name. A drum has none."
   [word l i]
   (when (= :DRUM (:type l))
-    (e/mu-error (str word ":") "a drum has no instrument, its sound is a key of the kit -- use +drums"))
+    (e/mu-error (str word ":") "a drum has no instrument, its sound is a key of the kit -- zip a :drum stream onto it"))
   (assoc-in l [:overrides :instrument]
             (or (when (number? i) (int i)) (data/program-of i)
                 (e/mu-error (str word ":") (pr-str i) "is not a program or General MIDI name"))))
@@ -823,6 +845,55 @@
 
 (defn- rest-value? [v] (and (map? v) (= :REST (:type v))))
 
+(defn- write-part
+  "Leaf l with part's value v written on it, a nil writing nothing: its
+   duration (a rest's makes it a rest), pitch (a chord's pitches), drum
+   key, articulation, dynamic, ornament, tremolo or tie, or a context
+   key it overrides."
+  [l part v]
+  (if (nil? v)
+    l
+    (case part
+      :duration (let [dur (if (rest-value? v) (:duration v) v)]
+                  (when-not (and (number? dur) (pos? dur))
+                    (e/mu-error "zip: a duration is a length, got" (p/show v)))
+                  (if (rest-value? v) (d/rest* nil nil dur) (-> l (assoc :duration dur) (dissoc :ratio))))
+      :pitch (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no pitch")
+                   (not (or (number? v) (coll? v))) (e/mu-error "zip: a pitch is a MIDI number, got" (p/show v))
+                   :else (-> l (assoc :pitches (if (coll? v) (vec v) [v])) (dissoc :key :key-shift :key-root)))
+      :drum (if (= :DRUM (:type l))
+              (assoc l :program (drum-key "zip" v))
+              (e/mu-error "zip: a note is no drum -- as-drums turns notes into drums"))
+      :articulation (articulate "zip" l v)
+      :dynamic (let [w (when (number? v) (long v))
+                     l' (assoc l :dynamic w)]
+                 (if (and w (if (= :DRUM (:type l))
+                              (lp/drum-accents w)
+                              (lp/articulation-spelling [(:articulation l) w])))
+                   l'
+                   (e/mu-error "zip: a dynamic is the weight an articulation gives, one the text writes"
+                               (if (= :DRUM (:type l)) (str "(a drum's: " (str/join " " (sort (keys lp/drum-accents))) ")")
+                                   "(-20 alone, a ghost note; else the articulation's own)")
+                               "-- got" (p/show v))))
+      :ornament (let [o (str/replace (name v) #"^\\" "")]
+                  (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no ornament")
+                        (orn/ornament-map o) (update l :modifiers (fnil conj []) ["ornament" o])
+                        :else (e/mu-error "zip:" (pr-str v) "is not an ornament --" (str/join " " (sort (keys orn/ornament-map))))))
+      :tremolo (if (#{8 16 32 64 128} v)
+                 (update l :modifiers (fnil conj []) ["tremolo" v])
+                 (e/mu-error "zip: a tremolo is 8 16 32 64 or 128, got" (p/show v)))
+      :tied (if (= :DRUM (:type l)) (e/mu-error "zip: a drum isn't tied") (assoc l :tied (boolean v)))
+      :instrument (set-instrument "zip" l v)
+      :volume (assoc-in l [:overrides :volume] (volume-value "zip" v))
+      (assoc-in l [:overrides part] v))))
+
+(defn- written
+  "Leaf l with each part's value of vals {part value} written on it in
+   rank order; a rest stays a rest, every value unused."
+  [l vals]
+  (reduce (fn [l [part v]] (if (= :REST (:type l)) l (write-part l part v)))
+          l (sort-by (comp rank key) vals)))
+
 (defn- note-of
   "The leaf of one position's values {part value}: a rest when the
    duration is one or the pitch (the drum) is nil -- every other value
@@ -837,52 +908,33 @@
         tone (get vals (if drum :drum :pitch))]
     (if (or (rest-value? d) (nil? tone))
       (d/rest* nil nil dur)
-      (reduce
-       (fn [l [part v]]
-         (if (nil? v)
-           l
-           (case part
-             (:duration :pitch :drum) l
-             :articulation (articulate "zip" l v)
-             :dynamic (let [w (when (number? v) (long v))
-                            l' (assoc l :dynamic w)]
-                        (if (and w (if (= :DRUM (:type l))
-                                     (lp/drum-accents w)
-                                     (lp/articulation-spelling [(:articulation l) w])))
-                          l'
-                          (e/mu-error "zip: a dynamic is the weight an articulation gives, one the text writes"
-                                      (if (= :DRUM (:type l)) (str "(a drum's: " (str/join " " (sort (keys lp/drum-accents))) ")")
-                                          "(-20 alone, a ghost note; else the articulation's own)")
-                                      "-- got" (p/show v))))
-             :ornament (let [o (str/replace (name v) #"^\\" "")]
-                         (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no ornament")
-                               (orn/ornament-map o) (update l :modifiers (fnil conj []) ["ornament" o])
-                               :else (e/mu-error "zip:" (pr-str v) "is not an ornament --" (str/join " " (sort (keys orn/ornament-map))))))
-             :tremolo (if (#{8 16 32 64 128} v)
-                        (update l :modifiers (fnil conj []) ["tremolo" v])
-                        (e/mu-error "zip: a tremolo is 8 16 32 64 or 128, got" (p/show v)))
-             :tied (if (= :DRUM (:type l)) (e/mu-error "zip: a drum isn't tied") (assoc l :tied (boolean v)))
-             :instrument (set-instrument "zip" l v)
-             :volume (assoc-in l [:overrides :volume] (volume-value "zip" v))
-             (assoc-in l [:overrides part] v))))
-       (if drum
-         (d/drum nil nil dur (drum-key "zip" tone))
-         (d/leaf nil nil dur (if (coll? tone) (vec tone) [tone])))
-       (sort-by (comp rank key) vals)))))
+      (written (if drum
+                 (d/drum nil nil dur (drum-key "zip" tone))
+                 (d/leaf nil nil dur (if (coll? tone) (vec tone) [tone])))
+               (dissoc vals :duration :pitch :drum)))))
 
 (defn- parts-of
-  "[[part x] …] of what zip takes: a :name before a stream names its
-   part, a stream a reader or an algo word gave knows its own, and the
-   rest take the free ranks in order."
+  "[base [[part x] …]] of what zip takes: an unnamed line (or note) is
+   the base, written on; a bundle gives its columns; a :name before a
+   stream (or a line) names its part, a stream a reader or an algo word
+   gave knows its own, and without a base the rest take the free ranks
+   in order."
   [xs]
-  (let [named (loop [xs (seq xs) out []]
-                (if-let [[x & more] xs]
-                  (if (keyword? x)
-                    (if (seq more)
-                      (recur (next more) (conj out [(label-part x) (first more)]))
-                      (e/mu-error "zip:" (str x) "names no stream -- write it before one"))
-                    (recur more (conj out [(:mu/part (meta x)) x])))
-                  out))
+  (let [[base named]
+        (loop [xs (seq xs) base nil out []]
+          (if-let [[x & more] xs]
+            (cond
+              (keyword? x) (if (seq more)
+                             (recur (next more) base (conj out [(label-part x) (first more)]))
+                             (e/mu-error "zip:" (str x) "names no stream -- write it before one"))
+              (bundle-columns x) (recur more base (into out (map (fn [[k c]] [(label-part k) c]) (bundle-columns x))))
+              (music? x) (if base
+                           (e/mu-error "zip: two lines to write on -- name the part the other gives (:pitch x)")
+                           (recur more x out))
+              :else (recur more base (conj out [(:mu/part (meta x)) x])))
+            [base out]))
+        _     (when (and base (some (comp nil? first) named))
+                (e/mu-error "zip: onto a line, name each stream's part (:volume '[…]) -- a reader or an algo word names its own"))
         taken (set (map (comp rank first) (filter first named)))
         free  (remove taken [1 2 3 4 5 6])
         order {1 :duration 2 :pitch 3 :articulation 4 :dynamic 5 :ornament 6 :tied}
@@ -892,27 +944,42 @@
                                      :else       (e/mu-error "zip: more streams than a note has parts -- name the overrides (:volume …)")))
                              [[] free] named))
         slots (map (fn [[part]] (if (#{:pitch :drum} part) :pitch part)) parts)]
-    (when-not (apply distinct? slots)
+    (when (and (seq slots) (not (apply distinct? slots)))
       (e/mu-error "zip: two streams for one part --" (str/join " " (map (comp str first) parts))))
-    (when-not (some #(= :duration (first %)) parts)
-      (e/mu-error "zip: needs durations"))
-    (when-not (some #(#{:pitch :drum} (first %)) parts)
-      (e/mu-error "zip: needs pitches or drums beside the durations"))
-    parts))
+    [base parts]))
 
-(defn zip-parts
-  "Leaves from their parts, xs as zip takes them: one note per duration,
-   every other part cycling under the durations and stepping once per
-   note, a rest using its value without writing it. Durations in a loop
-   give a loop, as long as all the parts take to line up again."
-  [xs]
-  (let [ps   (for [[part x] (parts-of xs)
-                   :let [lp  (loop? x)
-                         src (if lp (first (repeat-of x)) x)
-                         els (zip-items src)]]
-               {:part part :loop lp :endless (and (not lp) (endless? (streamed x)))
-                :els (if (music? src) (map #(leaf-value part %) els) els)})
-        dur  (first (filter #(= :duration (:part %)) ps))
+(defn- streams-of
+  "{:part :loop :endless :els} of each [part x]: a loop's elements are
+   what it repeats, a line's what its notes give the part."
+  [parts]
+  (for [[part x] parts
+        :let [lp  (loop? x)
+              src (if lp (first (repeat-of x)) x)
+              els (zip-items src)]]
+    {:part part :loop lp :endless (and (not lp) (endless? (streamed x)))
+     :els (if (music? src) (map #(leaf-value part %) els) els)}))
+
+(defn- onto-base
+  "base with each part's values written on its notes in written order,
+   each part cycling and stepping once per note, a rest using its values
+   unwritten; base keeps its form (map-leaves)."
+  [base ps]
+  (let [cur (volatile! (into {} (for [{:keys [part els endless]} ps]
+                                  (let [s (seq els)]
+                                    (when-not s (e/mu-error "zip: no" (name part) "to take"))
+                                    [part (if endless s (cycle (vec s)))]))))]
+    (map-leaves (fn [l]
+                  (let [vals (update-vals @cur first)]
+                    (vswap! cur update-vals rest)
+                    (written l vals)))
+                base)))
+
+(defn- notes-of
+  "Leaves from their parts: one note per duration, every other part
+   cycling under the durations; durations in a loop give a loop, as long
+   as all the parts take to line up again."
+  [ps]
+  (let [dur  (first (filter #(= :duration (:part %)) ps))
         _    (when (:endless dur) (e/mu-error "zip: endless durations, not a loop -- take some first"))
         n    (when-not (:loop dur) (count (vec (:els dur))))
         ps   (for [{:keys [part els endless] :as p} ps]
@@ -925,3 +992,31 @@
         notes (line (for [i (range n)]
                       (note-of (into {} (for [{:keys [part els]} ps] [part (els (mod i (count els)))])))))]
     (if (:loop dur) (repetition notes :infinite []) notes)))
+
+(defn- bundle-of
+  "The parts as a bundle, columns in rank order, as long as the shortest
+   finite part: an endless one (a loop too) taken to that length."
+  [ps]
+  (let [fin (remove #(or (:endless %) (:loop %)) ps)
+        _   (when (empty? ps) (e/mu-error "zip: nothing to zip"))
+        _   (when (empty? fin) (e/mu-error "zip: every part is endless and there are no durations -- take some first"))
+        n   (apply min (map (comp count vec :els) fin))
+        _   (when (zero? n) (e/mu-error "zip: no" (name (:part (first (filter #(empty? (:els %)) fin)))) "to take"))]
+    (read-text (str "'[" (str/join " " (for [{:keys [part els loop]} (sort-by (comp rank :part) ps)]
+                                         (str part " '[" (str/join " " (map p/show (take n (if loop (cycle els) els)))) "]")))
+                    "]"))))
+
+(defn zip-parts
+  "What zip gives of xs, as zip takes them: onto a line (the base), its
+   notes with the parts written on them; else notes from durations and
+   pitches (or drums); else a bundle, the parts as columns. Every part
+   steps once per note, a rest using its value unwritten; a part given
+   again replaces the base's."
+  [xs]
+  (let [[base parts] (parts-of xs)
+        ps  (streams-of parts)
+        has (set (map :part ps))]
+    (cond
+      base (onto-base base ps)
+      (and (has :duration) (or (has :pitch) (has :drum))) (notes-of ps)
+      :else (bundle-of ps))))

@@ -256,16 +256,19 @@ values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note
 (`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`),
-each stepping once per note, a rest's values unused. The algos are words by what they deliver
+each stepping once per note, a rest's values unused; an unnamed line
+among them is written on, keeping its form, a part given replacing its
+own (`x volume/walk zip`), and without durations and pitches it gives a
+bundle, the parts as columns as long as the shortest (`'[:pitch '[60
+62] :volume '[90 70]]`), which zip takes again and which can't sound. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
 result), a `^{ ?k:5 }` on top as its settings (then
 `:ROOT`'s, then the defaults; `?seed:7` runs it on that seed, so two
-words with one seed read one run), and `+volumes`/
-`+articulations`/`+instruments` put such a stream back onto a
-line, a value per note. Instruments and drums stay apart: `instruments`/
-`+instruments` are programs (a drum has none), `drums`/`+drums`
+words with one seed read one run), and `zip` puts such a stream back
+onto a line, a value per note. Instruments and drums stay apart: `instruments`/
+`:instrument` are programs (a drum has none), `drums`/`:drum`
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`

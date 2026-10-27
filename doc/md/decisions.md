@@ -1932,3 +1932,46 @@ it runs as one pass after them). mu looking algos up in the registry
 directly, instead of copying them into its word table, would give mu
 two tables and a rule for the second in `words`, `see` and completion;
 the short copy is the simpler of the two.
+
+## 2026-10-27 — Combining algos: four joints, zip recursive, bundles as columns
+
+A fresh look at combining algos named four joints, after the musical
+analogy: a **chain** (words in a row, one material), **zip** (the parts
+of a note into a line, step by step), **par** (lines side by side,
+meeting only in time) and **seq** (lines one after another). At the
+level of lines `par` and `seq` are `:PAR` and `:SEQ`; `par` stays the
+name, mu's word already, rather than a new `merge` -- `blend` already
+means what zip does and `fuse` suggests losing identity, while lines
+in a `par` keep theirs.
+
+zip is recursive: it takes parts or bundles and gives a bundle, a line
+being the bundle that can sound. An unnamed line among its inputs is
+written on, keeping its form, so `+volumes`, `+articulations`,
+`+instruments` and `+drums` became `zip` (`x volume/walk zip`); a part
+given replaces the line's own. An unnamed line used to give zip its
+durations by rank; a line now gives that one part only when named
+(`:duration x`), and onto a line every stream must name its part, so
+an untagged number stream can't silently become durations.
+
+Duration is the one obligatory part of something that sounds, and has
+no default: a quarter by default would make time the one part that
+appears unasked and hide a forgotten rhythm. Without durations and
+pitches (or drums) zip gives a **bundle**, valid material refused only
+where sound is needed (the play words, `render`, `par`, `seq`, `{n}`,
+`[n]`), as long as its shortest finite part. Durations without pitches
+give a bundle too, not rests: rests would drop every other part, and
+a groove of durations and volumes would lose its volumes. A bundle is
+written as **columns**, one stream per part, `'[:pitch '[60 62]
+:volume '[90 70]]` -- data mu already reads and prints, the same shape
+as zip's own input, each part keeping its own length until it is
+pulled; rows would need a notation for a note without a duration. A
+loop inside a bundle (`'[:pitch '[60 62] [~]]`) is open, so a bundle
+of endless parts only is refused for now.
+
+Processing stays pull-based dataflow on lazy seqs: the voice pulls, a
+node computes when asked; a change is heard at the next note (one note
+later at fast tempi, within the lookahead). Settings flow down as
+context rather than a threaded map of algo keys and material. Still to
+come: the trees' zip made recursive (their blend steps folded in), a
+pass inserting bridges where types differ, recomputation per branch,
+time alignment (a part sampled by beat), and the loop inside a bundle.
