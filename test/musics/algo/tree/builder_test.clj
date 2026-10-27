@@ -102,3 +102,23 @@
     (is (not (b/fits? d [1 0] :euclid)) "a grid source no longer slips in")
     (is (thrown-with-msg? Exception #"euclid gives :pulse, this slot wants :pitch"
                           (b/place d :euclid [1 0])))))
+
+(deftest a-join-takes-one-more-child
+  (let [d (b/widen (build :zip) [])]
+    (is (= "(zip ① ② ③)" (plain d)) "+ adds a hole")
+    (is (= [2] (:active d)) "the new hole is the active slot")
+    (is (b/joins? d []))
+    (is (not (b/joins? (build :euclid) [])) "only a join widens")
+    (let [d (-> d (b/place :pulses->durations [0]) (b/place :euclid [0 0]) (b/place :scale [1])
+                (b/place :volume/walk [2]))]
+      (is (b/complete? d))
+      (is (= '(zip (pulses->durations (euclid)) (scale) (volume/walk)) (t/show (b/->tree d)))
+          "built as the constructor folds it, printed as one")
+      (is (= :leaf (t/out-type (b/->tree d))))
+      (is (= (plain d) (plain (b/draft (b/->tree d)))) "a folded join reads back into one slot"))))
+
+(deftest an-as-part-slot-reads-back
+  (let [tree (lib/zip [1/4] [60] (lib/as-part :volume [90]))
+        d    (b/draft tree)]
+    (is (= "(zip [1/4] [60] (as-part :volume [90]))" (plain d)))
+    (is (= (t/show tree) (t/show (b/->tree d))))))

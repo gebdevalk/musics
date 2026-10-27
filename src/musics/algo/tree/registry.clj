@@ -131,6 +131,7 @@
      :doc      (some-> (:doc m) str/split-lines first str/trim)
      :in       (vec (:in a))
      :out      (:out a :any)
+     :join     (:join a)
      :children (vec kids)
      :args     (mapv #(cond-> (select-keys % [:name :kind]) (kid? (:name %)) (assoc :kind :child)) as)
      :params   (mapv spec (concat (remove (comp kid? :name) as) (extra-params a)))
@@ -248,6 +249,6 @@
   "Every registered algo: short -> {:full :category :shelf :works :doc :in :out :params :via}."
   []
   (into (sorted-map)
-        (map (fn [[k e]] [k (-> (select-keys e [:full :category :works :doc :in :out :params :via])
+        (map (fn [[k e]] [k (-> (select-keys e [:full :category :works :doc :in :out :join :params :via])
                                 (assoc :shelf (shelf e)))]))
         @by-short))

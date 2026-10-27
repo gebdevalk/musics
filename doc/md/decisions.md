@@ -1988,3 +1988,30 @@ cache would hold its head. Still to come: the trees' zip made recursive
 (their blend steps folded in), a pass inserting bridges where types
 differ, time alignment (a part sampled by beat), and the loop inside a
 bundle.
+
+## 2026-10-27 — The trees' zip joins any parts; the blend steps go
+
+The trees' `zip` is a **join**: two children, each one part's stream,
+leaves or a bundle, giving leaves (durations with pitches or drums, or
+leaves with a part written on, replacing their own) or a bundle of the
+parts. More children fold from the left, `(zip d p v)` being `(zip (zip
+d p) v)`, so the tree stays binary underneath -- the type checker, the
+core.logic typing and the composer see a join of two -- while it is
+written, printed and shown in the composer as one, with a `+` for one
+more child. A multimethod was considered and isn't the shape: nothing
+dispatches on a value, the extra arity folds. `+volume`,
+`+articulation`, `+instrument`, `+drum` and `+override` became `zip`,
+one family of words.
+
+A join's type follows its children, as `:same` follows the first: the
+parts a child gives are its type, a bundle's type carries its parts
+(`[:bundle :pitch :volume]`), so a missing or doubled part is refused
+when the tree is built, not when it runs. A literal (`:any`) has no
+type to say its part; it takes durations, then pitches, by its place
+(as in mu), and `(as-part :articulation x)` names any other -- a node of
+its own, since a keyword child already means a param read, and a part
+name can't be a param (tctx values come at run time, the type is needed
+when the tree is built). `+override`'s `:key` param became that name.
+`as-part`, not `part`: `part` already picks one of a `:part`'s
+streams. In the composer a join's holes are any part of a note,
+durations then pitches first, so raw material still dims there.

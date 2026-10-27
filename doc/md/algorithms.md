@@ -123,7 +123,7 @@ is kept as `name*`):
 |---|---|
 | Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `musics.algo.tree` |
 | Introspection and the short ↔ full registry | `musics.algo.tree.registry` |
-| Ready-made algos (`euclid`, `scale`, `zip`, the `+…` blend steps, the tools, `transpose`, indispensability, ...) | `musics.algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Ready-made algos (`euclid`, `scale`, `zip` and `as-part`, the tools, `transpose`, indispensability, ...) | `musics.algo.tree.lib` (referred in `lein repl`'s `user` ns) |
 | Bridges (`pulses->durations`, `degrees->pitches`, ...) | `musics.algo.bridge` (exposed through `musics.algo.tree.lib`) |
 | Live playback by name | `musics.algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `musics.wall` |
@@ -175,16 +175,16 @@ articulation, instrument. A **bridge** (`musics.algo.bridge`) turns
 **raw material** (numbers, pulses, onsets, points, weights) into a half
 product, one way only. A type names one value (`:pitch`); a tree carries **streams** of
 them, so the bridges in a tree are stream bridges, named in the plural.
-`zip` zips durations and pitches into leaves, and each blend step adds
-one more material:
+`zip` joins a note's parts -- durations and pitches into leaves, and
+any more parts written on them:
 
 ```clojure
-(def mel (+volume (+articulation (zip (pulses->durations euclid)
-                                      (degrees->pitches (cycle> [0 2 4 7])))
-                                 (cycle> (weights->articulations indisp)))
-                  (cycle> (weights->volumes indisp))))
+(def mel (zip (pulses->durations euclid)
+              (degrees->pitches (cycle> [0 2 4 7]))
+              (cycle> (weights->articulations indisp))
+              (cycle> (weights->volumes indisp))))
 (notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
-;; "[ !acc:explicit D4/8 F#4/16 A4/8 D5/16 D4/8 ]"
+;; "[ !acc:explicit D4/8-^\\volume:80.0 F#4/16\\ghost\\volume:40.0 A4/8\\volume:54.5… D5/16->\\volume:69.0… D4/8\\ghost\\volume:47.2… ]"
 ```
 
 | Stream bridge | From → to | Works |
@@ -208,20 +208,27 @@ one more material:
 - **Value bridges** convert one value and are named in the singular:
   `degree->pitch`, `number->pitch`, `number->duration`, `number->volume`. The stream
   bridges map them; use them directly at the REPL.
-- **`zip`** zips the two streams into leaves: a collection is a chord
-  and nil a rest. A Rest in the durations uses its pitch unwritten, and
-  the blend steps use a rest's value the same way, so every stream's
-  n-th value belongs to the n-th note. It ends with the shorter stream,
-  so cycle a source for an isorhythm.
-- **`+articulation`** sets a name from `musics.common.music-data/articulations`
-  (`:accent`, `:staccato`, `:ghost`, ...), as `c4->` does.
-- **`+volume`** sets each note's own volume (0–100), overriding the
-  context's, as `c4\vol:90` does.
-- **`+instrument`** sets a MIDI program (0–127) or a General MIDI name
-  (`c4\i:40`). A drum name (or a number with `:drum?`) turns the note
-  into that drum.
-- **`+override`** sets any other key playback reads, chosen by `:key`
-  (`:panning`, `:transposition`, `:Tempo`, ...), as `c4\pan:-1.0` does.
+- **`zip`** joins two children at a time; more fold from the left,
+  `(zip d p v)` being `(zip (zip d p) v)`, and print as written.
+  - **Durations and pitches** give leaves: a collection is a chord and
+    nil a rest. A Rest in the durations, or a nil pitch, uses the other
+    values unwritten, so every stream's n-th value belongs to the n-th
+    note. It ends with the shortest stream, so cycle a source for an
+    isorhythm.
+  - **Leaves and a part** give the leaves with that part written on,
+    replacing their own: an articulation from
+    `musics.common.music-data/articulations` (`:accent`, `:staccato`,
+    `:ghost`, ..., as `c4->` does), a volume (0–100, as `c4\vol:90`), an
+    instrument (a MIDI program 0–127 or a General MIDI name, as
+    `c4\i:40`), a drum (the note made that drum), or any other key
+    playback reads (`:panning`, `:transposition`, `:Tempo`, ..., as
+    `c4\pan:-1.0` does).
+  - **Anything else** gives a bundle of the parts, typed by them
+    (`[:bundle :pitch :volume]`), for a later zip to join.
+  - A child's part is its type (`weights->volumes` gives volumes); a
+    literal gives durations, then pitches, and `(as-part :articulation
+    (cycle> [:staccato]))` names another -- `:leaf` for notes, or any
+    key above.
 - These are the note's own overrides, the same thing a written
   `\name:value` holds. `notes->mus` writes them back, so generated
   leaves read back the same from text.
@@ -239,8 +246,8 @@ each half product a bridge makes of it, a **specialised algo**
 ```clojure
 (def riff (zip (duration/euclid) (pitch/lorenz)))     ; euclid as durations, lorenz as pitches
 (t/run riff {:k 5 :n 16})
-(def coupled (+volume (zip (cycle> [1/8]) (pitch/walk :as :w))
-                      (volume/walk :as :w)))         ; one :as, one run: higher is louder
+(def coupled (zip (cycle> [1/8]) (pitch/walk :as :w)
+                  (volume/walk :as :w)))             ; one :as, one run: higher is louder
 ```
 
 - **Names:** `pitch/<source>`, `duration/<source>`, `volume/<source>`,

@@ -96,7 +96,9 @@
 
 (deftest construction-checks-child-count-and-types
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"euclid takes 0 children, got 1" (euclid scale)))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"zip: child 1 should be :duration, \(tilt \(indisp\)\) gives :weight"
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pulses->durations: child 1 should be :pulse, \(scale\) gives :pitch"
+                        (pulses->durations scale)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"zip: child 1, \(tilt \(indisp\)\), gives :weight, not a part of a note"
                         (zip (tilt indisp) scale)))
   (is (some? (zip (pulses->durations (weights->pulses (tilt indisp))) scale)) "durations from pulses fit")
   (is (some? (zip [1/4 1/8] :ps)) "a literal and a param read fit any slot")

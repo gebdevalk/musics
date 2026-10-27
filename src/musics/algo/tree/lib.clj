@@ -32,9 +32,11 @@
      pick                              :weight -> one weighted :index
    Leaves, the product, assembled from half products (musics.algo.bridge
    makes those from raw material):
-     zip                               :duration :pitch -> leaves: notes, chords, rests
-     +volume +articulation +instrument :leaf + that material -> :leaf
-     +override    :key                 :leaf :number -> each note's own value for :key
+     zip                               a note's parts joined, two or more: durations and
+                                       pitches -> notes, chords, rests; leaves + a part ->
+                                       leaves with it written on; else a bundle of parts
+     as-part      a part name          a literal's or a :number stream's part for zip:
+                                       :volume :articulation :instrument :drum :panning …
      parts +part                       leaves in parallel -> :part; part :index picks one back
    Stream bridges, raw material -> half product (musics.algo.bridge, category bridge):
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
@@ -52,7 +54,7 @@
 
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
-  (:require [musics.algo.tree :refer [defalgo expose-ns]]
+  (:require [musics.algo.tree :as t :refer [defalgo expose-ns]]
             [musics.algo.tree.half-products :as hp]
             [musics.algo.random :as random]
             [musics.common.music-data :as data :refer [quantity]]
@@ -162,75 +164,92 @@
 
 ;; -- leaves: the product, assembled from half products ------------------------
 
-(defn- zip-stepping
-  "f applied to each part and the next value of xs; a Rest passes through,
-   using its value unwritten, so every part's n-th value belongs to the
-   n-th note (as mu's zip). Ends with the shorter."
-  [f parts xs]
-  (lazy-seq
-   (when-let [[p & ps] (seq parts)]
-     (when-let [[x & more] (seq xs)]
-       (cons (if (d/rest? p) p (f p x)) (zip-stepping f ps more))))))
+(def as-part
+  "(as-part :volume child): child giving that part of a note, for zip."
+  t/as-part)
 
-(defalgo zip "Durations and pitches zipped into leaves: a note, a chord (several pitches), or a rest (nil pitch, or a Rest in the durations, whose pitch goes unused). Ends with the shorter -- cycle a source for an isorhythm."
-  {:algo {:category "output" :in [:duration :pitch] :out :leaf}}
-  [durs pitches] (zip-stepping (fn [dur p] (->part p dur)) durs pitches))
+;; zip joins two children, each a stream of one part (:part, the value
+;; and the part it gives, as musics.algo.tree's evaluate hands it), leaves
+;; or a bundle: {:type :BUNDLE :parts {part stream}}.
+
+(defn- streams-of [{:keys [part value]}]
+  (case part
+    :leaf   {::base value}
+    :bundle (:parts value)
+    {part value}))
+
+(defn- steps
+  "{part value} per step of streams {part stream}, lazily, each stepping
+   once; ends with the shortest."
+  [streams]
+  (lazy-seq
+   (let [ss (update-vals streams seq)]
+     (when (every? some? (vals ss))
+       (cons (update-vals ss first) (steps (update-vals ss rest)))))))
+
+(defn- drum-key [k]
+  (or (when (number? k) (int k)) (data/resolve-drum (name k))
+      (throw (ex-info (str "zip: not a drum: " (pr-str k)) {:drum k}))))
 
 (defn- override
-  "p with its own value v for context key k (written c4\\k:v); nil leaves it."
+  "p with its own value v for context key k (written c4\\k:v)."
   [p k v]
-  (if (some? v) (assoc-in p [:overrides k] v) p))
+  (assoc-in p [:overrides k] v))
 
-(def ^:private overridable
-  "The numeric context keys playback reads per note (musics.domain.resolve/played-keys)."
-  [:panning :transposition :octave :Tempo :durScale :micro :humanization :swing :swingUnit :volume :instrument])
+(defn- write
+  "Note p with part's value v written on it; a nil writes nothing, and a
+   rest takes nothing (its values go unused)."
+  [p part v]
+  (cond
+    (or (nil? v) (d/rest? p)) p
+    :else
+    (case part
+      :duration (if (d/rest? v) v (assoc p :duration v))
+      :pitch    (if (d/drum? p)
+                  (throw (ex-info "zip: a drum has no pitch" {:pitch v}))
+                  (-> p (assoc :pitches (if (coll? v) (vec v) [v])) (dissoc :key :key-shift :key-root)))
+      :drum     (if (d/drum? p)
+                  (assoc p :program (drum-key v))
+                  (merge (d/drum nil nil (:duration p) (drum-key v)) (select-keys p [:dynamic])
+                         {:overrides (dissoc (:overrides p) :instrument)}))
+      :articulation (if-let [{:keys [duration dynamic]} (some-> v keyword data/articulations)]
+                      (cond-> p
+                        duration             (assoc :articulation duration)
+                        (pos? (abs dynamic)) (update :dynamic #(+ (or % 0) dynamic)))
+                      p)
+      :instrument (if (d/drum? p)
+                    (throw (ex-info "zip: a drum has no instrument -- its sound is a key of the kit (as-part :drum …)" {:instrument v}))
+                    (override p :instrument (or (when (number? v) (int v)) (data/program-of v)
+                                                (throw (ex-info (str "zip: not a program or General MIDI name: " (pr-str v)) {:instrument v})))))
+      (override p part v))))
 
-(defalgo +override "Each note's own value for a context key it plays with (as c4\\pan:-1.0 writes it): :key picks which. A rest uses its value unwritten."
-  {:algo {:category "output" :in [:leaf :number] :out :leaf
-          :params {:key {:type :keyword :default :panning :choices overridable :doc "the context key overridden"}}}}
-  [parts xs key] (zip-stepping #(override %1 key %2) parts xs))
+(defn- written
+  "Note p with each part of step st written on it, in rank order."
+  [p st]
+  (reduce (fn [p [part v]] (write p part v)) p (sort-by (comp t/part-rank key) st)))
 
-(defalgo +volume "Each note's own volume (the !vol: 0-100 scale, written c4\\vol:90); a rest uses its value unwritten."
-  {:algo {:category "output" :in [:leaf :volume] :out :leaf}}
-  [parts volumes] (zip-stepping #(override %1 :volume %2) parts volumes))
+(defn- note-of
+  "The leaf of one step: a rest for a Rest duration or a nil pitch (or
+   drum), its other values unused; else the note with them written on."
+  [{dur :duration :as st}]
+  (let [drum? (contains? st :drum)
+        tone  (get st (if drum? :drum :pitch))]
+    (cond
+      (d/rest? dur) dur
+      (nil? tone)   (d/rest* nil nil dur)
+      :else         (written (if drum? (d/drum nil nil dur (drum-key tone)) (->part tone dur))
+                             (dissoc st :duration :pitch :drum)))))
 
-(defalgo +articulation "Each note's articulation, a name from musics.common.music-data/articulations (as c4-> writes :accent); nil plays plain. A rest uses its value unwritten."
-  {:algo {:category "output" :in [:leaf :articulation] :out :leaf}}
-  [parts arts]
-  (zip-stepping
-   (fn [p a]
-     (if-let [{:keys [duration dynamic]} (some-> a keyword data/articulations)]
-       (cond-> p
-         duration          (assoc :articulation duration)
-         (pos? (abs dynamic)) (update :dynamic #(+ (or % 0) dynamic)))
-       p))
-   parts arts))
-
-(defalgo +instrument "Each note's instrument (written c4\\i:40): a MIDI program (0-127), a General MIDI name or its short name. A drum has none: its sound is a key of the kit (+drum). A rest uses its value unwritten."
-  {:algo {:category "output" :in [:leaf :instrument] :out :leaf}}
-  [parts instruments]
-  (zip-stepping
-   (fn [p i]
-     (cond (nil? i) p
-           (d/drum? p) (throw (ex-info "+instrument: a drum has no instrument -- its sound is a key of the kit (+drum)" {:instrument i}))
-           :else (override p :instrument (or (when (number? i) (int i)) (data/program-of i)
-                                             (throw (ex-info (str "+instrument: not a program or General MIDI name: " (pr-str i)) {:instrument i}))))))
-   parts instruments))
-
-(defalgo +drum "Each note made a drum (written x8\\38): a key of the kit (35-81) or a drum's name (kick, bd1, hhc), keeping its length, articulation weight and own settings; a drum gets the new key. A rest uses its value unwritten."
-  {:algo {:category "output" :in [:leaf :drum] :out :leaf}}
-  [parts drums]
-  (zip-stepping
-   (fn [p k]
-     (if (nil? k)
-       p
-       (let [key (or (when (number? k) (int k)) (data/resolve-drum (name k))
-                     (throw (ex-info (str "+drum: not a drum: " (pr-str k)) {:drum k})))]
-         (if (d/drum? p)
-           (assoc p :program key)
-           (merge (d/drum nil nil (:duration p) key) (select-keys p [:dynamic])
-                  {:overrides (dissoc (:overrides p) :instrument)})))))
-   parts drums))
+(defalgo zip "A note's parts joined, two at a time -- (zip durs pitches vols) is (zip (zip durs pitches) vols): durations and pitches (or drums) into notes, a chord for several pitches, a rest for a nil pitch or a Rest duration (its other values unused); onto notes, a part written on each, replacing its own; anything else a bundle of its parts, joined again later. A literal gives durations, then pitches -- (as-part :volume …) names another. Ends with the shortest -- cycle a source for an isorhythm."
+  {:algo {:category "output" :in [:duration :pitch] :out :leaf :join true}}
+  [a b]
+  (let [sa (streams-of a) sb (streams-of b)
+        base (or (::base sa) (::base sb))
+        ps (dissoc (merge sa sb) ::base)]
+    (cond
+      base (map (fn [st] (written (::base st) (dissoc st ::base))) (steps (assoc ps ::base base)))
+      (and (ps :duration) (or (ps :pitch) (ps :drum))) (map note-of (steps ps))
+      :else {:type :BUNDLE :parts ps})))
 
 ;; -- bridges between types ----------------------------------------------------
 

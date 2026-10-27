@@ -727,18 +727,26 @@ mapping a singular value bridge where one exists (`degree->pitch`,
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
 finite stream first; registry entries carry it, `show-algos` prints it).
 Keys are spelled as `!key:` spells them; a number bridge takes its input
-range as `:from-lo`/`:from-hi`. `zip` zips `:duration` and `:pitch` into
-notes, chords and rests (a Rest in the durations uses its pitch
-unwritten, as the blend steps use a rest's value, so every stream's
-n-th value is the n-th note's; `pulses->volumes`/`pulses->articulations`
-give nil for the leading Rest `pulses->durations` makes), and
-the blend steps add one material each: `+articulation` (a name from
+range as `:from-lo`/`:from-hi`. `zip` joins a note's parts, two at a
+time -- `(zip durs pitches vols)` is `(zip (zip durs pitches) vols)`,
+folded when built and printed as written (`:join` in its metadata):
+durations and pitches (or drums) into notes, chords and rests (a Rest in
+the durations, or a nil pitch, uses the other values unwritten, so
+every stream's n-th value is the n-th note's; `pulses->volumes`/
+`pulses->articulations` give nil for the leading Rest
+`pulses->durations` makes); notes and a part into the notes with it
+written on, replacing their own -- an articulation (a name from
 `musics.common.music-data/articulations`, the leaf's `:articulation`/
-`:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
-(0-100), `+instrument` (a MIDI program, a General MIDI name or its short
-name; a drum has none), `+drum` (a note made a drum, a key of the kit or
-a drum's name) and `+override` (any played key,
-chosen by `:key`); `parts`/`+part` join leaf streams as parallel parts
+`:dynamic` as `c4->` sets them), a volume (0-100), an instrument (a
+MIDI program, a General MIDI name or its short name; a drum has none),
+a drum (a note made a drum, a key of the kit or a drum's name) or any
+key playback reads per note (`t/overridable`); anything else into a
+bundle, `{:type :BUNDLE :parts {part stream}}`, typed by its parts
+(`[:bundle :pitch :volume]`, `t/bundle-type`), joined again later. A
+child's part is its type; a literal gives durations, then pitches, and
+`(as-part :volume x)` (or `:leaf`, `:panning` …) names another. The
+composer shows a zip as one node with a `+` for one more child
+(`builder/widen`); `parts`/`+part` join leaf streams as parallel parts
 (`:part`, which `t/play!` plays at once and `part` picks one of), and
 `layer` picks one pulse layer of a `:layer` (`polyrhythm`, `hemiola`,
 ...) -- named with `:as`, each pick routes its layer into its own part -- written into the leaf's `:overrides`, exactly what

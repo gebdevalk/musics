@@ -55,7 +55,7 @@ Material comes in three stages, as in a factory:
 
 Raw material exists inside algos only; half products and products are
 what musics writes and plays. A bridge turns raw material into a half
-product, one way only; `zip` and the blend steps assemble half products
+product, one way only; `zip` assembles half products
 into a leaf, `parts` lines into a parallel. What a person chooses
 between is half products and products (see "Algos deliver half
 products" below). In the code `:part` keeps its name. Still to place:
@@ -176,7 +176,7 @@ converts what it is given.
 | **selection** | values, as a test | `filter`, `remove`, `mute`, `take-while`, `distinct`, `choose-n`, `choose-from`, `select` (the weighted draw, `pick` in today's code: renamed, since `pick` is mu's stack word) | elimination, thinning, choosing |
 | **analyse** | material, into the structure behind it, without an idea | none yet: `iso-strength`, once listed here, only cycles a given list of strengths over a rhythm's onsets, so it reads nothing of the rhythm | — |
 | **convert** | the material's kind | the bridges | interpretation |
-| **assemble** | several into one | `zip`, the blend steps, `seq`, `par`, `parts` | the note, the line, the texture |
+| **assemble** | several into one | `zip`, `seq`, `par`, `parts` | the note, the line, the texture |
 | **access** | one element or part | `first`, `last`, `nth`, `row`, `part` | — |
 
 - **Form** acts on positions (`take`: the first n), **selection** on
@@ -261,7 +261,6 @@ function:
 | **generator** (makes) | after what it makes or how, like `range`, `iterate` | its method, a noun | `euclid`, `lorenz`, `counterpoint` |
 | **tool** (transforms) | a verb, like `map`, `filter` | a plain verb | `cycle`, `take`, `shuffle`, `rescale` |
 | **bridge** (converts) | an arrow, like `str->int` | `from->to`; singular for one value, plural for a stream | `degree->pitch`, `pulses->durations` |
-| **blend step** (adds) | — | `+` a material | `+volume`, `+articulation` |
 | **combination** | a noun | what it builds | `zip`, `parts` |
 
 The arrow is the bridge's verb: `pulses->durations` reads "turn pulses
@@ -304,7 +303,7 @@ Each step up the rungs has its own kind of operation:
 |---|---|---|
 | primitive → atom | a value gets a role | generators |
 | atom → parameter | a role gets a musical meaning | **bridges** |
-| parameters → leaf | they are bound into a note | `zip`, the blend steps |
+| parameters → leaf | they are bound into a note | `zip` |
 | leaves → line | they follow one another | succession (missing: `then`) |
 | lines → parallel | they sound together | `parts`, `+part` |
 
@@ -395,7 +394,7 @@ From the signature alone, every algo falls into one of these shapes:
 | **Interpretation** (up a rung) | atom → parameter, or primitive → atom | 19 | the bridges, threshold, axis, konnakol, swing, metric-mod, data-rhythm, trend-rhythm, markov-gen |
 | **Analysis** (back down) | τ → the structure behind τ | 2 | markov-train (pitch → model), iso-strength (pulse → weight) |
 | **Expansion** (one → several) | τ → grid or parallel | 4 | counterpoint, species (cantus → parallel), duet, phases (pattern → grid) |
-| **Combination** | τ × σ → ρ | 12 | zip, the blend steps, parts, +part, infra/inter/ultra, crossover, tiling |
+| **Combination** | τ × σ → ρ | 12 | zip, parts, +part, infra/inter/ultra, crossover, tiling |
 | **Projection** (several → one) | grid or parallel → τ, or τ → one value | 3 | row, part, pick |
 
 Only interpretation deserves the name *bridge*.
@@ -408,7 +407,7 @@ The leaf principle forbids crossing between parameters (pitch to
 duration). It doesn't forbid analysis.
 
 **Combination splits in two:**
-- **Product**: `zip` and the blend steps bind *different* parameters
+- **Product**: `zip` binds *different* parameters
   into one leaf. A leaf *is* a product of parameters.
 - **Algebra within a type**: `infra`/`inter`/`ultra` (pitch × pitch),
   `crossover` and `tiling` (pulse × pulse) combine two values of the
@@ -546,7 +545,7 @@ aspect, genericity, locality, extent and principle:
 | Musical space | Algo space |
 |---|---|
 | parameters: pitch, duration, dynamics, articulation, timbre | the parameter rung |
-| a note: one value of each parameter | a leaf: the product (`zip`, blend steps) |
+| a note: one value of each parameter | a leaf: the product (`zip`) |
 | a melodic line, a voice | a line |
 | texture: monophony, polyphony | lines and parallels; expansion and projection |
 | a step sequencer's pattern | a grid with rows |
@@ -581,15 +580,11 @@ aspect, genericity, locality, extent and principle:
    a whole-stream operation after an endless source.
 8. **Over rows and lines.** Nothing applies one subtree to *each* row
    of a grid; named picks work, but don't scale to n rows.
-9. **Variadic `zip` and `parts`.** No operation takes more than two
-   streams. A leaf binds up to five parameters, but `zip` takes two and
-   the rest come one blend step at a time (`+volume`, `+articulation`,
-   `+instrument`); a parallel holds any number of lines, but `parts`
-   takes two and `+part` adds one more. A variadic `zip` (durations,
-   pitches, volumes, …) and a variadic `parts` would say each in one
-   operation, and could make `+part`, and perhaps the blend steps,
-   unnecessary. Tree constructors have a fixed `:in` count, so this
-   needs variadic support in the registry and the builder.
+9. **Variadic `parts`.** `zip` takes any number of parts, folded into
+   joins of two (`(zip d p v)` is `(zip (zip d p) v)`), the builder
+   showing it as one node with a `+`. A parallel holds any number of
+   lines, but `parts` takes two and `+part` adds one more; the same
+   folding would say it in one operation.
 
 ## 9. How to get a grip on it
 

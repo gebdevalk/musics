@@ -94,7 +94,7 @@
 
    {:title "Algos as half products: what they deliver, not how"
     :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]
-           ["(def same (+volume (zip (cycle> [1/8]) (pitch/walk :as :w)) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
+           ["(def same (zip (cycle> [1/8]) (pitch/walk :as :w) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
     :params [["(def p {:k 5 :n 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
     :runs [["euclid × lorenz" "hp" "p"] ["walk as pitch and volume" "same" "{}"]]
     :extra [["a bridge's params carry the half product" "(mapv :key (t/param-keys (pitch/walk)))"]]}
@@ -105,7 +105,7 @@
     :params [["(def p {:k 5 :n 16 :rotation 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Legato by default, detached by articulation"
-    :tree [["(def det (+articulation riff (cycle> [:staccato])))" "every note staccato: the onsets stay, the notes sound shorter"]]
+    :tree [["(def det (zip riff (as-part :articulation (cycle> [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
@@ -494,7 +494,7 @@
 (def post
   "What must follow an algo before its result is leaves: [type-or-names label steps then note]."
   [[:pulse nil "pulses->durations → :duration, then zip with pitches" "each onset lasts until the next; a nonzero value (2 = accent) is an onset" "(zip (pulses->durations euclid) (cycle> scale))"]
-   [:weight nil "weights->pulses → :pulse, weights->volumes / weights->articulations → a blend step, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(zip (pulses->durations (weights->pulses (tilt indisp))) …)"]
+   [:weight nil "weights->pulses → :pulse, weights->volumes / weights->articulations → zip onto leaves, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(zip (pulses->durations (weights->pulses (tilt indisp))) …)"]
    [:pitch nil "zip with durations" "modulating gives pitch classes 0–11: transpose (+60) first" "(zip (cycle> [1/16]) (transpose modulating))"]
    [:number nil "numbers->pitches / numbers->durations, scale> then degrees->pitches, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; give its range as :from-lo/:from-hi" "(zip (cycle> [1/16]) (degrees->pitches (scale> walk)))"]
    [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle> scale))"]
@@ -505,10 +505,10 @@
    [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
    [:stroke nil "strokes->durations → :duration, then zip" "a syllable starts a note, \"-\" lengthens it" "(zip (strokes->durations (konnakol euclid)) …)"]
-   [:volume nil "+volume onto leaves" "the note's own volume, 0–100" "(+volume riff (cycle> (weights->volumes indisp)))"]
-   [:articulation nil "+articulation onto leaves" "staccato, accent, ghost …" "(+articulation riff (cycle> [:staccato]))"]
-   [:instrument nil "+instrument onto leaves" "a MIDI program, a General MIDI name or its short name" "(+instrument riff (cycle> [\"violin\"]))"]
-   [:drum nil "+drum onto leaves" "each note made a drum: a key of the kit or a drum's name" "(+drum riff (cycle> [\"kick\" \"hhc\"]))"]
+   [:volume nil "zip onto leaves" "the note's own volume, 0–100" "(zip riff (cycle> (weights->volumes indisp)))"]
+   [:articulation nil "zip onto leaves" "staccato, accent, ghost …" "(zip riff (as-part :articulation (cycle> [:staccato])))"]
+   [:instrument nil "zip onto leaves" "a MIDI program, a General MIDI name or its short name" "(zip riff (as-part :instrument (cycle> [\"violin\"])))"]
+   [:drum nil "zip onto leaves" "each note made a drum: a key of the kit or a drum's name" "(zip riff (as-part :drum (cycle> [\"kick\" \"hhc\"])))"]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2: pulses->durations takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
    [:leaf nil "none — t/play!, t/live!, or notes->mus → store/read!" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
@@ -619,7 +619,7 @@
        "<table class=\"tbl\"><tr><th>Type</th><th>Produced by</th><th>Consumed by</th></tr>\n" (apply str (type-rows)) "</table>\n"
 
        "<h2 class=\"pb\">5. From an algo to leaves: the steps that must follow</h2>\n"
-       "<p>A tree ends in leaves: <code>zip</code> makes them from durations and pitches (drums and counterpoint make their own), and the blend steps add volume, articulation and instrument. Every other result needs particular steps first; this is the chain, per result type, one way only. Algos that produce the type are listed from the registry.</p>\n"
+       "<p>A tree ends in leaves: <code>zip</code> makes them from durations and pitches (drums and counterpoint make their own), and zip writes volume, articulation and instrument onto them (<code>as-part</code> names a literal's part). Every other result needs particular steps first; this is the chain, per result type, one way only. Algos that produce the type are listed from the registry.</p>\n"
        "<table class=\"tbl\"><tr><th>Result</th><th>Produced by</th><th>Must be followed by</th><th>Example</th></tr>\n" (apply str (post-rows)) "</table>\n"
 
        "<h2>6. Writing an algorithm</h2>\n"
@@ -650,7 +650,7 @@
        "<span class=\"btn\">Close</span></div></div>\n"
 
        "<h2>9. Limits worth knowing</h2>\n<ul>\n"
-       "<li>Generated leaves carry what the tree gives them: duration and pitch, and with the blend steps their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
+       "<li>Generated leaves carry what the tree gives them: duration and pitch, and with zip their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
        "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
        "<li>All random algos share one RNG (<code>musics.algo.random.core/default-rng</code>). <code>(musics.algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"

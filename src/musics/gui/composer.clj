@@ -58,15 +58,21 @@
               :style (str (slot-style style) hole-extra)}
              (drop-props path))
 
-      (:algo slot)
+      (or (:algo slot) (:as-part slot))
       {:fx/type :v-box
        :spacing 2
        :children
        (concat
-         [(merge {:fx/type :label
-                  :text (str "( " (symbol (:algo slot)) (when (:as slot) (str "  :as " (:as slot))))
-                  :style (str (slot-style style) "-fx-font-weight: bold; ")}
-                 (drop-props path))]
+         [(let [head (merge {:fx/type :label
+                             :text (str "( " (if (:algo slot) (symbol (:algo slot)) (str "as-part " (:as-part slot)))
+                                        (when (:as slot) (str "  :as " (:as slot))))
+                             :style (str (slot-style style) "-fx-font-weight: bold; ")}
+                            (drop-props path))]
+            (if (b/joins? draft path)
+              ;; a join (zip) takes one more child: + adds a hole
+              {:fx/type :h-box :spacing 6
+               :children [head (ui/button {:text "+" :on-action {:event/type ::widen :path path}})]}
+              head))]
          [{:fx/type :v-box
            :spacing 2
            :style "-fx-padding: 0 0 0 26;"
@@ -246,6 +252,7 @@
                                   (= k javafx.scene.input.KeyCode/Z) (change! st b/undo)
                                   (= k javafx.scene.input.KeyCode/Y) (change! st b/redo))))
         ::remove        (change! st #(b/remove % (:active %)))
+        ::widen         (change! st #(b/widen % (:path event)))
 
         ::drag-start
         (let [^javafx.scene.input.MouseEvent e (:fx/event event)

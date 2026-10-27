@@ -5,7 +5,9 @@
    A draft is plain data:
      {:root slot :active path :history [..] :future [..]}
      slot = nil (a hole) | {:algo :euclid :children [slot ..]}
-          | {:literal v} | {:param :k}
+          | {:as-part :volume :children [slot]} | {:literal v} | {:param :k}
+   A join (zip) holds all its children in one slot -- (zip ① ② ③) --
+   and widen gives it one more; ->tree folds them as the constructor does.
    A path is a vector of child indexes from the root ([] is the root).
 
    Every operation returns a new draft. place fills a hole (or replaces a
@@ -44,7 +46,7 @@
   "Every slot's path -- nodes, literals, params and holes -- depth first."
   [d]
   (letfn [(walk [slot path]
-            (cons path (when (:algo slot)
+            (cons path (when (or (:algo slot) (:as-part slot))
                          (mapcat #(walk %1 (conj path %2)) (:children slot) (range)))))]
     (vec (walk (:root d) []))))
 
@@ -145,6 +147,23 @@
   (let [d' (set-slot (remember d) path (if (keyword? v) {:param v} {:literal v}))]
     (assoc d' :active (or (next-hole d' path) path))))
 
+(defn joins?
+  "Whether the slot at `path` is a join (zip), which widen can give one
+   more child."
+  [d path]
+  (boolean (some-> (slot-at d path) :algo entry :join)))
+
+(defn widen
+  "One more hole in the join at `path` -- (zip ① ②) becomes (zip ① ② ③)
+   -- made the active slot."
+  [d path]
+  (when-not (joins? d path)
+    (throw (ex-info "Only a join (zip) takes one more child" {:path path})))
+  (let [n (count (:children (slot-at d path)))]
+    (-> (remember d)
+        (set-slot path (update (slot-at d path) :children conj nil))
+        (assoc :active (conj path n)))))
+
 (defn remove
   "Empty the slot at `path` (its subtree goes with it)."
   [d path]
@@ -178,18 +197,24 @@
   [d]
   (when-not (complete? d)
     (throw (ex-info "The tree still has open slots" {:holes (holes d)})))
-  (letfn [(build [{:keys [algo children as literal param]}]
-            (cond algo    (apply (t/constructor (entry algo))
-                                 (concat (map build children) (when as [:as as])))
-                  param   param
-                  :else   literal))]
+  (letfn [(build [{:keys [algo children as literal param] :as slot}]
+            (cond algo            (apply (t/constructor (entry algo))
+                                         (concat (map build children) (when as [:as as])))
+                  (:as-part slot) (t/as-part (:as-part slot) (build (first children)))
+                  param           param
+                  :else           literal))]
     (t/as-node (build (:root d)))))
 
 (defn- from-tree [tree]
   (letfn [(conv [n]
             (case (:kind n)
-              :algo    (cond-> {:algo (get-in n [:entry :short]) :children (mapv conv (:children n))}
-                         (:as n) (assoc :as (:as n)))
+              :algo    (let [[c & cs] (:children n)
+                             ;; a join of a join is one slot, as it prints
+                             fold?    (and (get-in n [:entry :join]) (identical? (:entry c) (:entry n)) (nil? (:as c)))]
+                         (cond-> {:algo (get-in n [:entry :short])
+                                  :children (if fold? (into (:children (conv c)) (map conv cs)) (mapv conv (:children n)))}
+                           (:as n) (assoc :as (:as n))))
+              :as-part {:as-part (:name n) :children [(conv (first (:children n)))]}
               :param   {:param (:key n)}
               :literal {:literal (:value n)}))]
     (conv (t/as-node tree))))
@@ -217,10 +242,11 @@
                (let [n (when numbered? (sup (pos path)))]
                  (cond
                    (nil? slot)      (mark path (if numbered? (hole-mark (pos path)) (hole-mark (hnum path))))
-                   (:algo slot)     (mark path (str "(" (symbol (:algo slot)) n
-                                                    (apply str (map (fn [c i] (str " " (r c (conj path i))))
-                                                                    (:children slot) (range)))
-                                                    ")"))
+                   (or (:algo slot) (:as-part slot))
+                   (mark path (str "(" (if (:algo slot) (symbol (:algo slot)) (str "as-part " (:as-part slot))) n
+                                   (apply str (map (fn [c i] (str " " (r c (conj path i))))
+                                                   (:children slot) (range)))
+                                   ")"))
                    (:param slot)    (mark path (str (:param slot) n))
                    :else            (mark path (str (pr-str (:literal slot)) n)))))]
        (r (:root d) [])))))

@@ -55,9 +55,9 @@
   (apply <= (map (comp first :pitches) (sort-by (comp :volume :overrides) notes))))
 
 (deftest one-as-one-run
-  (let [notes (fn [as] (t/run (lib/+volume (lib/zip (lib/cycle> [1/8])
-                                                    (if as (algo :pitch/normal :as as) (algo :pitch/normal)))
-                                           (if as (algo :volume/normal :as as) (algo :volume/normal)))
+  (let [notes (fn [as] (t/run (lib/zip (lib/cycle> [1/8])
+                                       (if as (algo :pitch/normal :as as) (algo :pitch/normal))
+                                       (if as (algo :volume/normal :as as) (algo :volume/normal)))
                               {}))]
     (rc/seed! 5)
     (let [ns (notes :a)]

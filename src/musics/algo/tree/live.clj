@@ -16,7 +16,7 @@
    Two modes, chosen by what the tree reads:
    - GENERATOR (the tree doesn't read :nodes): each note the voice would
      play is replaced by the next leaf the tree makes -- so the tree must
-     end in :leaf (zip, a blend step, drums, counterpoint). A finite
+     end in :leaf (zip, drums, counterpoint). A finite
      result starts over when exhausted.
    - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
      voice's own notes arrive as :nodes and the tree's data replaces them.
