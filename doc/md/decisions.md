@@ -1977,7 +1977,14 @@ finite ones is taken to the longest one's length.
 Processing stays pull-based dataflow on lazy seqs: the voice pulls, a
 node computes when asked; a change is heard at the next note (one note
 later at fast tempi, within the lookahead). Settings flow down as
-context rather than a threaded map of algo keys and material. Still to
-come: the trees' zip made recursive (their blend steps folded in), a
-pass inserting bridges where types differ, recomputation per branch,
-time alignment (a part sampled by beat), and the loop inside a bundle.
+context rather than a threaded map of algo keys and material. A change
+to a live recipe reruns only what it reaches: each algo word keeps its
+last result, by the word and how many times it ran before in the run,
+and gives it again while its inputs (the same value, or one printing
+the same) and its settings are as they were -- so a branch the change
+doesn't reach keeps its random values, and a heavy one isn't computed
+again on the sender thread. An endless result isn't kept, since the
+cache would hold its head. Still to come: the trees' zip made recursive
+(their blend steps folded in), a pass inserting bridges where types
+differ, time alignment (a part sampled by beat), and the loop inside a
+bundle.

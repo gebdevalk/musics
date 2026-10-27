@@ -37,11 +37,38 @@
             [musics.repo :as repo]))
 
 (def ^:dynamic *live*
-  "While a live voice's recipe runs (musics.mu.live): {:tctx t :chain c}
-   -- every algo word reads t's settings first (fitted to its tree, so t
-   knows every param the recipe reads), then a context on top, then c
-   (the music the voice plays in), then :ROOT's, then the defaults."
+  "While a live voice's recipe runs (musics.mu.live): {:tctx t :chain c
+   :cache a :seen s} -- every algo word reads t's settings first (fitted
+   to its tree, so t knows every param the recipe reads), then a context
+   on top, then c (the music the voice plays in), then :ROOT's, then the
+   defaults. a (an atom, kept across runs) holds each word's last
+   result, by the word and how many times it ran before in this run (s,
+   an atom, new each run): a word whose inputs and settings are as they
+   were gives that result again, so a change reruns only the words it
+   reaches, and the others keep their random values."
   nil)
+
+(defn- same?
+  "Inputs alike: the same value, or a finite one printing the same
+   (printing is isomorphic to reading)."
+  [a b]
+  (or (identical? a b)
+      (and (not (mt/endless? a)) (not (mt/endless? b)) (= (p/show a) (p/show b)))))
+
+(defn- cached
+  "What the word gives on args with settings vals, from the live run's
+   cache when it gave it before on the same, else (f), remembered unless
+   endless (the cache would hold its head)."
+  [word args vals f]
+  (if-let [{:keys [cache seen]} (when vals *live*)]
+    (let [k   [word ((swap! seen update word (fnil inc 0)) word)]
+          hit (get @cache k)]
+      (if (and hit (= vals (:vals hit)) (= (count args) (count (:args hit))) (every? true? (map same? args (:args hit))))
+        (:result hit)
+        (let [r (f)]
+          (when-not (mt/endless? r) (swap! cache assoc k {:args args :vals vals :result r}))
+          r)))
+    (f)))
 
 (def shelves
   "The shelves whose algos are mu words."
@@ -107,7 +134,8 @@
           run     #(try (output out (t/run tree src chain))
                         (catch clojure.lang.ExceptionInfo ex
                           (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
-          result  (if (number? seed) (rc/with-seed (long seed) (run)) (run))]
+          vals    (when *live* (try [(t/settings tree src chain) seed] (catch Exception _ nil)))
+          result  (cached word args vals #(if (number? seed) (rc/with-seed (long seed) (run)) (run)))]
       (conj (subvec s 0 (- (count s) n)) (wrap result)))))
 
 (def ^:private plural

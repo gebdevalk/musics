@@ -36,17 +36,18 @@
 
 (defn- result
   "What recipe gives on x (nil: on nothing), run with tctx's settings
-   first and chain (the music the voice plays in): a mu value."
-  [recipe x tctx chain]
-  (binding [algos/*live* {:tctx tctx :chain chain}]
+   first and chain (the music the voice plays in): a mu value. cache
+   keeps each algo word's last result across runs (musics.mu.algos/*live*)."
+  [recipe x tctx chain cache]
+  (binding [algos/*live* {:tctx tctx :chain chain :cache cache :seen (atom {})}]
     (if (t/node? recipe)
       (do (t/fit! tctx recipe) (mt/line (t/run recipe tctx chain)))
       (let [left (e/call (if (some? x) [x] []) recipe)]
         (when (empty? left) (e/mu-error "the recipe leaves nothing to play"))
         (peek left)))))
 
-(defn- run-fn [recipe x]
-  (fn [tctx chain] (as-leaves (result recipe x tctx chain))))
+(defn- run-fn [recipe x cache]
+  (fn [tctx chain] (as-leaves (result recipe x tctx chain cache))))
 
 (defn- empty-tctx
   "A tctx with no params yet: the recipe's algo words fit it."
@@ -54,8 +55,8 @@
   (t/tctx (t/as-node 0)))
 
 (def ^:private sources
-  "Live name -> {:x x :recipe r}: the recipe and the music it runs on
-   (nil: none)."
+  "Live name -> {:x x :recipe r :cache c}: the recipe, the music it runs
+   on (nil: none) and its algo words' last results."
   (atom {}))
 
 (def ^:private counter (atom 0))
@@ -67,9 +68,10 @@
   "Bind live name to recipe on x (nil: none), keeping the name's settings
    when it has some. Returns the name."
   [name recipe x]
-  (let [tctx (or (:tctx (wall/registered name)) (empty-tctx))]
-    (swap! sources assoc name {:x x :recipe recipe})
-    (tree-live/bind-run! name (run-fn recipe x) (p/show recipe) tctx)
+  (let [tctx  (or (:tctx (wall/registered name)) (empty-tctx))
+        cache (atom {})]
+    (swap! sources assoc name {:x x :recipe recipe :cache cache})
+    (tree-live/bind-run! name (run-fn recipe x cache) (p/show recipe) tctx)
     name))
 
 (defn play!
@@ -82,7 +84,7 @@
     (bind! name recipe x)
     (let [tctx (:tctx (wall/registered name))
           ;; run once now, so a recipe that fails is refused here, not heard
-          first-run (doto (result recipe x tctx nil) as-leaves)
+          first-run (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves)
           form (if (some? x) x first-run)]
       (if staged
         (mt/stage! form ctx (first staged) join? named name)

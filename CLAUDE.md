@@ -863,7 +863,11 @@ cursor per voice); its settings are a tctx per live name, fitted to the
 trees the recipe's algo words build (`musics.mu.algos/*live*`, read
 first in their chain), so `set`/`unset`/`settings`, `retree` (same
 settings, same position), `gui` on a voice and the GUI's Wall window
-work on them (`doc/md/decisions.md`, 2026-10-23). `musics.algo.tree.lib/notes->mus` renders generated notes as musics
+work on them (`doc/md/decisions.md`, 2026-10-23). A change runs the
+recipe again, but an algo word whose inputs and settings are as they
+were gives its last result (`*live*`'s `:cache`, by word and
+occurrence), so only the words the change reaches run, and the others
+keep their random values. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready to read. `doc/html/algo-cookbook.html` (generated and
 verified by `scripts/algo-cookbook.clj`, which runs every recipe;
 printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables

@@ -12,6 +12,7 @@
             [musics.mu.store]
             [musics.mu.value :as v]
             [musics.repo :as repo]
+            [musics.wall]
             [musics.test-support :refer [with-fresh-session]]))
 
 (use-fixtures :each
@@ -101,3 +102,16 @@
 (deftest recipe-values
   (is (live/recipe? (peek (run "'( 5 + )"))))
   (is (not (live/recipe? (peek (run "[c d]"))))))
+
+(deftest a-change-reruns-only-the-words-it-reaches
+  (run "| '( ^{ ?len:8 } pitch/walk [c8] [~] durations swap zip volume/walk zip ) :swell >")
+  (let [run!   (:run (musics.wall/registered :swell))
+        tctx   (live/tctx-of "set" :swell)
+        played #(take 8 (run! tctx nil))
+        before (played)]
+    (run ":swell ^{ ?volume-lo:70 ?volume-hi:90 } set")
+    (let [after (played)]
+      (is (= (map :pitches before) (map :pitches after)) "the walk heard as pitch keeps its random values")
+      (is (not= (map #(get-in % [:overrides :volume]) before) (map #(get-in % [:overrides :volume]) after))
+          "the volumes, which the change reaches, run again")
+      (is (every? #(<= 70 (get-in % [:overrides :volume]) 90) after)))))
