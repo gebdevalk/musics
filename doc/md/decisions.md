@@ -1958,7 +1958,12 @@ no default: a quarter by default would make time the one part that
 appears unasked and hide a forgotten rhythm. Without durations and
 pitches (or drums) zip gives a **bundle**, valid material refused only
 where sound is needed (the play words, `render`, `par`, `seq`, `{n}`,
-`[n]`), as long as its shortest finite part. Durations without pitches
+`[n]`). Its parts keep their own lengths: a bundle has nothing that
+sets a length until durations join it, and then each part cycles on
+its own, as loose parts do, so zipping a bundle later gives what
+zipping its parts now gives -- cutting it to the shortest part would
+throw material away and turn a color against a talea into one length.
+Durations without pitches
 give a bundle too, not rests: rests would drop every other part, and
 a groove of durations and volumes would lose its volumes. A bundle is
 written as **columns**, one stream per part, `'[:pitch '[60 62]
@@ -1966,7 +1971,8 @@ written as **columns**, one stream per part, `'[:pitch '[60 62]
 as zip's own input, each part keeping its own length until it is
 pulled; rows would need a notation for a note without a duration. A
 loop inside a bundle (`'[:pitch '[60 62] [~]]`) is open, so a bundle
-of endless parts only is refused for now.
+of endless parts only is refused for now, and an endless part beside
+finite ones is taken to the longest one's length.
 
 Processing stays pull-based dataflow on lazy seqs: the voice pulls, a
 node computes when asked; a change is heard at the next note (one note

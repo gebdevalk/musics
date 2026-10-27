@@ -259,8 +259,9 @@ is `x` again; above a `|` mark `zip` takes every part of a note
 each stepping once per note, a rest's values unused; an unnamed line
 among them is written on, keeping its form, a part given replacing its
 own (`x volume/walk zip`), and without durations and pitches it gives a
-bundle, the parts as columns as long as the shortest (`'[:pitch '[60
-62] :volume '[90 70]]`), which zip takes again and which can't sound. The algos are words by what they deliver
+bundle, the parts as columns, each as long as it is (`'[:pitch '[60
+62 64] :volume '[90 70]]`), which zip takes again as its parts and
+which can't sound. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the

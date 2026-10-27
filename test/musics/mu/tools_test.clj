@@ -510,12 +510,15 @@
   (is (= "'[nil :accent]" (top "'[nil :accent]")) "keywords in data read back as they print"))
 
 (deftest zip-without-what-a-note-needs-gives-a-bundle
-  (is (= "'[:pitch '[60 62] :volume '[90 70]]" (top "| :pitch '[60 62 64] :volume '[90 70] zip")) "as long as the shortest part")
+  (is (= "'[:pitch '[60 62 64] :volume '[90 70]]" (top "| :pitch '[60 62 64] :volume '[90 70] zip")) "each part as long as it is")
   (is (= "'[:duration '[1/4] :volume '[60]]" (top "| '[/4] :volume '[60] zip")) "durations alone too: rests would drop the volumes")
-  (is (= "'[:pitch '[60 62 60] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop taken to that length")
+  (is (= "'[:pitch '[60 62 60] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop taken to the longest finite part's length")
   (is (re-find #"every part is endless" (top "| :pitch '[60 62] [~] zip")))
   (testing "zip takes it again as its parts"
     (is (= "[C4/8\\volume:90 D4/4\\volume:70]" (top "'[/8 /4] | :pitch '[60 62 64] :volume '[90 70] zip zip")))
+    (is (= (top "| '[/4 /4 /4 /4 /4 /4] :pitch '[60 62 64] :volume '[90 70] zip")
+           (top "| :pitch '[60 62 64] :volume '[90 70] zip '[/4 /4 /4 /4 /4 /4] swap zip"))
+        "a bundle zipped later is its parts zipped now: each cycles on its own, a color against a talea")
     (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a line"))
   (testing "it can't sound"
     (doseq [in ["| :pitch '[60] zip [c d] {2}" "| | :pitch '[60] zip [c d] par" "| | :pitch '[60] zip [c d] seq" "| :pitch '[60] zip [c d] [2]"]]

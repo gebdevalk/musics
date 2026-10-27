@@ -715,12 +715,12 @@ gives the meter's accents:
 ```
 
 Without durations and pitches, `zip` gives a bundle: the parts side by
-side as columns, as long as the shortest. It is data, waiting for what
+side as columns, each as long as it is. It is data, waiting for what
 it lacks -- a contour with its dynamics waiting for a rhythm -- and
 `zip` takes it again as its parts:
 
 ```
-| :pitch '[60 62 64] :volume '[90 70] zip   → '[:pitch '[60 62] :volume '[90 70]]
+| :pitch '[60 62 64] :volume '[90 70] zip   → '[:pitch '[60 62 64] :volume '[90 70]]
 '[/8 /4] swap zip                          → [C4/8\volume:90 D4/4\volume:70]
 ```
 
