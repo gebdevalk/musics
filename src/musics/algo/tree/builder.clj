@@ -86,6 +86,25 @@
   [d path short]
   (lt/fits? (:root (with-algo d path short))))
 
+(defn- bridged-slot
+  "The slot holding algo `short` inside the smallest chain of bridges from
+   what it gives to what the slot at `path` wants
+   (musics.algo.logic.tree/bridge), when the draft type-checks with it;
+   else nil."
+  [d path short]
+  (when-let [term (lt/bridge (:out (entry short)) (slot-type d path))]
+    (let [inner (fn inner [t] (if (seq? t)
+                                {:algo (first t) :children [(inner (second t))]}
+                                {:algo short :children (vec (repeat (count (:in (entry short))) nil))}))
+          slot  (inner term)]
+      (when (lt/fits? (:root (set-slot d path slot))) slot))))
+
+(defn takes?
+  "Whether the slot at `path` takes algo `short`: it fits there, or fits
+   inside a chain of bridges placed with it."
+  [d path short]
+  (or (fits? d path short) (some? (bridged-slot d path short))))
+
 ;; ---------------------------------------------------------------------------
 ;; The pane: shelves and their algos
 ;; ---------------------------------------------------------------------------
@@ -105,7 +124,7 @@
   (->> (t/algos)
        (filter #(= c (:shelf (val %))))
        (map (fn [[short {:keys [in out doc]}]]
-              {:short short :in in :out out :doc doc :fits? (fits? d (:active d) short)}))
+              {:short short :in in :out out :doc doc :fits? (takes? d (:active d) short)}))
        (sort-by (comp str :short))
        vec))
 
@@ -116,7 +135,7 @@
   (->> (t/algos)
        (group-by (comp :shelf val))
        (map (fn [[c es]] {:name c :count (count es)
-                          :fit (count (filter #(fits? d (:active d) (key %)) es))}))
+                          :fit (count (filter #(takes? d (:active d) (key %)) es))}))
        (sort-by (comp shelf-rank :name))
        vec))
 
@@ -132,13 +151,15 @@
   (-> d (update :history (fnil conj []) (state-of d)) (assoc :future [])))
 
 (defn place
-  "Put algo `short` in the slot at `path` (a hole, or a node it replaces);
+  "Put algo `short` in the slot at `path` (a hole, or a node it replaces)
+   -- inside a chain of bridges when what it gives needs one there
+   (euclid's pulses where durations go: (pulses->durations (euclid)));
    :active moves to its first child slot, or the next hole."
   [d short path]
   (when-not (entry short) (throw (ex-info (str "No algo " short) {:algo short})))
-  (when-not (fits? d path short)
-    (throw (ex-info (lt/why-not short (slot-type d path)) {:algo short :path path})))
-  (let [d' (with-algo (remember d) path short)]
+  (let [d' (cond (fits? d path short)                 (with-algo (remember d) path short)
+                 (bridged-slot d path short)          (set-slot (remember d) path (bridged-slot d path short))
+                 :else (throw (ex-info (lt/why-not short (slot-type d path)) {:algo short :path path})))]
     (assoc d' :active (or (next-hole d' path) path))))
 
 (defn place-literal

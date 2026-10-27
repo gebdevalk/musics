@@ -67,8 +67,13 @@ is kept as `name*`):
 (t/trace riff tctx)             ; every node's result
 ```
 
-- **Checked when built:** a wrong child fails at once, e.g.
-  `(zip (tilt indisp) scale)` → "zip: child 1 should be :duration".
+- **Checked when built:** a child of the wrong type gets the smallest
+  chain of bridges that turns it into what its slot wants --
+  `(zip euclid scale)` is built as `(zip (pulses->durations (euclid))
+  (scale))`, `(zip (tilt indisp) scale)` with `weights->pulses` too --
+  and where no chain does, it fails at once: `(zip [1/4] (pick indisp))`
+  → "zip: child 2, (pick (indisp)), gives :index, not a part of a
+  note". The composer places an algo inside its bridges the same way.
 - **Swapping a stage** is editing the expression; combining two sources
   is a second child.
 - **Two instances of one algo:** name one, `(euclid :as :bass)` →

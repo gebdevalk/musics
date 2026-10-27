@@ -2015,3 +2015,20 @@ when the tree is built). `+override`'s `:key` param became that name.
 `as-part`, not `part`: `part` already picks one of a `:part`'s
 streams. In the composer a join's holes are any part of a note,
 durations then pitches first, so raw material still dims there.
+
+## 2026-10-27 — Bridges inserted where a child doesn't fit
+
+A child whose type doesn't fit its slot gets the smallest chain of
+one-input bridges from its type to the slot's, found by `how` and
+cached per registry state, before the type check: `(zip euclid scale)`
+is built as `(zip (pulses->durations (euclid)) (scale))`. The bridge is
+a real node, so the tree prints with it: what runs is what is shown,
+and the printed tree reads back the same -- hiding it would make a
+tree's text and its run differ. Only single-input chains count: a
+chain that brought in a second source would add material nobody wrote.
+In a join the bridge goes to the part neither child gives yet,
+durations then pitches, the same place rule a literal follows. Where no
+chain reaches (an `:index`), the build fails as before. The builder
+offers an algo wherever it fits inside its bridges and places the chain
+with it, so the composer stops dimming what a bridge can reach. mu's
+algo words take half products already, so nothing there changes.

@@ -86,11 +86,18 @@
             ["what it holds" "@(:envelopes-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
-    :tree [["(zip (tilt indisp) scale)" "tilt gives weights, zip wants durations"]
+    :tree [["(zip [1/4] (pick indisp))" "pick gives one index, no part of a note, and no bridge makes it one"]
            ["(euclid scale)" "euclid is a source: no children"]]
     :no-params "none: these trees fail before any settings exist"
-    :extra [["error" "(try (zip (tilt indisp) scale) (catch Exception e (ex-message e)))"]
+    :extra [["error" "(try (zip [1/4] (pick indisp)) (catch Exception e (ex-message e)))"]
             ["error" "(try (euclid scale) (catch Exception e (ex-message e)))"]]}
+
+   {:title "Raw material gets its bridges"
+    :tree [["(def br (zip euclid scale))" "euclid gives pulses where durations go: the smallest chain of bridges goes around it"]
+           ["(def br2 (zip (tilt indisp) scale))" "weights take two: weights->pulses, then pulses->durations"]]
+    :params [["(def p {:k 3 :n 8})" "three onsets in eight"]]
+    :runs [["bridged" "br" "p"]]
+    :extra [["the tree as built" "(t/show br)"] ["two bridges" "(t/show br2)"]]}
 
    {:title "Algos as half products: what they deliver, not how"
     :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]

@@ -263,13 +263,13 @@
         ::drag-over
         (let [^javafx.scene.input.DragEvent e (:fx/event event)]
           (when-let [s (dragged e)]
-            (when (b/fits? d (:path event) s)
+            (when (b/takes? d (:path event) s)
               (.acceptTransferModes e (into-array TransferMode [TransferMode/COPY]))))
           (.consume e))
 
         ::drag-entered
         (let [e (:fx/event event) s (dragged e)]
-          (when s (swap! st assoc :over [(:path event) (if (b/fits? d (:path event) s) :fits :no)])))
+          (when s (swap! st assoc :over [(:path event) (if (b/takes? d (:path event) s) :fits :no)])))
 
         ::drag-exited   (swap! st assoc :over nil)
 

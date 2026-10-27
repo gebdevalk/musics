@@ -295,6 +295,27 @@
      ;; a depth no type chain reaches is skipped, not searched
      (smallest n 3 #(if (reachable? es %1 from to) (bridgeo es %1 %2 to from) fail)))))
 
+(def ^:private bridges
+  "[registry-state {[from to] term}]: bridge's answers."
+  (atom nil))
+
+(defn bridge
+  "The smallest chain of one-input algos turning a `from` into a `to`,
+   as a term with :input where the child goes -- (pulses->durations
+   :input) -- or nil when there is none, or nothing to bridge. Cached per
+   registry state: the trees and the builder ask it whenever a child
+   doesn't fit."
+  [from to]
+  (when (and (keyword? from) (keyword? to) (not= from to) (not-any? #{:any :same} [from to]))
+    (let [st (reg/state)
+          m  (let [[st' m] @bridges] (if (identical? st st') m {}))]
+      (if (contains? m [from to])
+        (m [from to])
+        (let [chain? (fn chain? [term] (or (= :input term) (and (seq? term) (= 2 (count term)) (chain? (second term)))))
+              term   (first (filter chain? (how from to 10)))]
+          (reset! bridges [st (assoc m [from to] term)])
+          term)))))
+
 (defn steps
   "The fewest algos that turn a `from` into a `to` (0 for the same type),
    or nil when no chain of at most max-steps (default 4) does. Types

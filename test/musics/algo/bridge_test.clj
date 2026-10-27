@@ -102,7 +102,7 @@
   (testing "refused when built"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"name the part a literal gives" (lib/zip (lib/zip [1/4] [60]) [90])))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"two streams for one part" (lib/zip (lib/as-part :pitch [60]) (lib/as-part :pitch [62]))))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a part of a note" (lib/zip [1/4] lib/euclid)) "pulses are raw material")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a part of a note" (lib/zip [1/4] (lib/pick lib/indisp))) "nothing turns an index into a part")
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"two streams of notes" (lib/zip (lib/zip [1/4] [60]) (lib/zip [1/4] [62]))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no part of a note" (lib/as-part :bogus [1])))))
 

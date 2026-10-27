@@ -167,13 +167,43 @@
                     (and (ps :duration) (or (ps :pitch) (ps :drum)))       :leaf
                     :else                                                   (bundle-type ps)))}))
 
+(declare constructor)
+
+(defn- bridged
+  "child inside the smallest bridge chain from what it gives to `want`
+   (musics.algo.logic.tree/bridge: (pulses->durations child) for pulses
+   where durations go), or nil when there is none."
+  [want child]
+  (when-let [term ((requiring-resolve 'musics.algo.logic.tree/bridge) (out-type child) want)]
+    (letfn [(build [t] (if (seq? t) ((constructor (reg/algo (first t))) (build (second t))) child))]
+      (build term))))
+
+(defn- bridge-children
+  "children with each that doesn't fit its slot (`wants`, a type each)
+   bridged, where a chain of bridges turns what it gives into what the
+   slot wants; the rest as they are."
+  [wants children]
+  (mapv (fn [want c] (if (or (nil? want) (fits? want (out-type c))) c (or (bridged want c) c)))
+        (concat wants (repeat nil)) children))
+
+(defn- join-wants
+  "What a join's two children are bridged to when one gives raw material:
+   the first part neither gives yet, durations then pitches."
+  [a b]
+  (let [taken (set (mapcat #(let [g (given (out-type %))] (when (set? g) g)) [a b]))
+        free  (remove #(or (taken %) (and (= % :pitch) (taken :drum))) [:duration :pitch])
+        raw?  #(= ::none (given (out-type %)))]
+    [(when (raw? a) (first free)) (when (raw? b) (first (if (raw? a) (rest free) free)))]))
+
 (defn- join
   "A join node (zip) of children: two, or more folded from the left --
    (zip d p v) is (zip (zip d p) v); as names the outermost."
   [{:keys [short] :as entry} children as]
   (when (< (count children) 2)
     (throw (ex-info (str "musics.algo.tree: " (label short) " takes 2 or more children, got " (count children)) {:algo short})))
-  (let [node (fn [a b as] (map->Node (merge {:kind :algo :entry entry :children [a b] :as as} (join-type short a b))))
+  (let [node (fn [a b as]
+               (let [[a b] (bridge-children (join-wants a b) [a b])]
+                 (map->Node (merge {:kind :algo :entry entry :children [a b] :as as} (join-type short a b)))))
         [a b & more] children]
     (if (seq more)
       (node (reduce #(node %1 %2 nil) (node a b nil) (butlast more)) (last more) as)
@@ -211,8 +241,9 @@
             children  (mapv #(->node (label short) %) args)]
         (if (:join entry)
           (join entry children as)
-          (do (check! entry children)
-              (map->Node {:kind :algo :entry entry :children children :as as})))))
+          (let [children (if (= (count (:in entry)) (count children)) (bridge-children (:in entry) children) children)]
+            (check! entry children)
+            (map->Node {:kind :algo :entry entry :children children :as as})))))
     {::entry entry :type ::algo}))
 
 (defn show

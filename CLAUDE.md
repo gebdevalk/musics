@@ -797,6 +797,13 @@ or a literal. Child count and `:in`/`:out` types are checked at once
 (`:pulse`/`:weight`/`:pitch`/`:number`/`:duration`/`:onset`/
 `:pair`/`:point`/`:layer`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
+A child of the wrong type first gets the smallest chain of one-input
+bridges from its type to the slot's (`musics.algo.logic.tree/bridge`,
+from `how`, cached per registry state), so `(zip euclid scale)` is built
+as `(zip (pulses->durations (euclid)) (scale))` and prints so; in a
+join the bridge goes to the part neither child gives yet, durations then
+pitches. The builder places an algo inside its bridges the same way
+(`builder/takes?`, `place`), so the composer offers it there.
 `(euclid :as :bass)` names an instance.
 
 **Keys are a pure function of the tree** (`t/param-keys`): a param keeps

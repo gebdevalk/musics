@@ -6,7 +6,7 @@
             [musics.test-support :refer [with-fresh-registries]]
             [musics.algo.tree :as t :refer [defalgo]]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.tree.lib :refer [euclid scale cycle> shuffle> take> transpose zip pulses->durations
+            [musics.algo.tree.lib :refer [lorenz euclid scale cycle> shuffle> take> transpose zip pulses->durations
                                            indisp tilt power weights->pulses pick degrees->pitches]]
             [musics.algo.tree.live :as live]
             [musics.algo.indispensability :as indisp]
@@ -98,8 +98,8 @@
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"euclid takes 0 children, got 1" (euclid scale)))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pulses->durations: child 1 should be :pulse, \(scale\) gives :pitch"
                         (pulses->durations scale)))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"zip: child 1, \(tilt \(indisp\)\), gives :weight, not a part of a note"
-                        (zip (tilt indisp) scale)))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"zip: child 2, \(pick \(indisp\)\), gives :index, not a part of a note"
+                        (zip [1/4] (pick indisp))))
   (is (some? (zip (pulses->durations (weights->pulses (tilt indisp))) scale)) "durations from pulses fit")
   (is (some? (zip [1/4 1/8] :ps)) "a literal and a param read fit any slot")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (cycle> inc))))
@@ -337,3 +337,13 @@
     (swap! (:envelopes-atom music) assoc "?key" "C.major")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {} [])) "no context: the default")))
+
+(deftest raw-material-gets-its-bridges
+  (is (= '(zip (pulses->durations (euclid)) (scale)) (t/show (zip euclid scale)))
+      "pulses where durations go: the smallest chain of bridges goes around them")
+  (is (= '(zip (pulses->durations (weights->pulses (tilt (indisp)))) (scale)) (t/show (zip (tilt indisp) scale)))
+      "two bridges when one doesn't reach")
+  (is (= '(zip (pulses->durations (euclid)) (points->pitches (lorenz))) (t/show (zip (pulses->durations euclid) lorenz)))
+      "a join bridges to the part neither child gives yet")
+  (is (= '(degrees->pitches (cycle> [0 2])) (t/show (degrees->pitches (cycle> [0 2])))) "what fits stays as it is")
+  (is (= 3 (count (t/run (zip euclid scale) {:k 3 :n 8})))))

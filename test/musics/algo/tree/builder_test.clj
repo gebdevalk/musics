@@ -122,3 +122,11 @@
         d    (b/draft tree)]
     (is (= "(zip [1/4] [60] (as-part :volume [90]))" (plain d)))
     (is (= (t/show tree) (t/show (b/->tree d))))))
+
+(deftest an-algo-is-placed-inside-its-bridges
+  (let [d (build :zip)]
+    (is (b/takes? d [0] :euclid) "pulses can reach a durations slot")
+    (is (not (b/fits? d [0] :euclid)) "though they don't fit it as they are")
+    (let [d (b/place d :euclid [0])]
+      (is (= "(zip (pulses->durations (euclid)) ①)" (plain d)) "the holes left, numbered")
+      (is (= [1] (:active d)) "on to the next hole"))))
