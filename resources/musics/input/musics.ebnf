@@ -126,10 +126,12 @@ type        = Name
 
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
-<DataElement>         = Atom | Primitive | Nil | Data | Keyword
+<DataElement>         = Atom | Primitive | Nil | DataLoop | Data | Keyword
 (* nil (no value: a rest's pitch), a list inside data ('[60 64], a
-   chord's pitches) and a keyword (:accent, :Sea), so a stream of values
-   reads back as it prints *)
+   chord's pitches), a loop of one ('[60 62] [~], a bundle's column that
+   repeats) and a keyword (:accent, :Sea), so a stream of values reads
+   back as it prints *)
+DataLoop              = Data ws? <'[~]'>
 Nil                   = <'nil'>
 <Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
 <Primitive>           = SignedRatio | SignedFloat | SignedInt

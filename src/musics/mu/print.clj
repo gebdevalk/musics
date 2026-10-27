@@ -35,6 +35,7 @@
     :string   (pr-str x)
     (cond (keyword? x)    (if (= data-type :name) (name x) (str x))
           (nil? x)        "nil"
+          (= :LOOP (:type x)) (str (data-element nil (:items x)) " [~]")
           (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
           :else           (str x))))
 

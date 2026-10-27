@@ -48,7 +48,7 @@
     (assoc (v/->Material k repo) :base base)
     (assoc (v/->Material (:id k) (assoc repo (:id k) k)) :base base)))
 
-(declare repetition? repeat-parts endings-of)
+(declare repetition? repeat-parts endings-of repeated)
 
 (defn elements
   "The elements of a value: a container's children without its
@@ -67,7 +67,9 @@
                                        (range n))))))
     (v/material? x) (let [{:keys [repo base]} x
                           data? (= :DATA (:type (v/node x)))]
-                      (mapv (fn [k] (if (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value repo base k) k))
+                      (mapv (fn [k] (cond (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value repo base k)
+                                          (= :LOOP (:type k)) (repeated (apply list (:items k)) :infinite) ; '[60 62] [~]
+                                          :else k))
                             (remove instruction? (:children (v/node x)))))
     (leaf? x)       [x]
     (sequential? x) x
@@ -994,17 +996,22 @@
     (if (:loop dur) (repetition notes :infinite []) notes)))
 
 (defn- bundle-of
-  "The parts as a bundle, columns in rank order, each finite one as it
-   is -- they cycle on their own once durations join them -- an endless
-   one (a loop too) taken to the longest finite one's length."
+  "The parts as a bundle, columns in rank order, each as it is -- they
+   cycle on their own once durations join them; a loop stays a loop
+   ('[60 62] [~]); an endless stream that isn't one is taken to the
+   longest finite part's length."
   [ps]
-  (let [fin (remove #(or (:endless %) (:loop %)) ps)
-        _   (when (empty? ps) (e/mu-error "zip: nothing to zip"))
-        _   (when (empty? fin) (e/mu-error "zip: every part is endless and there are no durations -- take some first"))
-        _   (when-let [p (first (filter #(empty? (:els %)) fin))] (e/mu-error "zip: no" (name (:part p)) "to take"))
-        n   (apply max (map (comp count vec :els) fin))]
+  (let [fin  (remove #(or (:endless %) (:loop %)) ps)
+        _    (when (empty? ps) (e/mu-error "zip: nothing to zip"))
+        _    (when-let [p (first (filter #(empty? (:els %)) fin))] (e/mu-error "zip: no" (name (:part p)) "to take"))
+        _    (when (and (empty? fin) (some :endless ps))
+               (e/mu-error "zip: an endless part and nothing finite beside it -- take some first, or make it a loop"))
+        n    (when (seq fin) (apply max (map (comp count vec :els) fin)))
+        col  (fn [els] (str "'[" (str/join " " (map p/show els)) "]"))]
     (read-text (str "'[" (str/join " " (for [{:keys [part els loop endless]} (sort-by (comp rank :part) ps)]
-                                         (str part " '[" (str/join " " (map p/show (cond loop (take n (cycle els)) endless (take n els) :else els))) "]")))
+                                         (str part " " (cond loop    (str (col els) " [~]")
+                                                             endless (col (take n els))
+                                                             :else   (col els)))))
                     "]"))))
 
 (defn zip-parts

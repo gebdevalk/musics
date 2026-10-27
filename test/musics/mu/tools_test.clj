@@ -512,8 +512,17 @@
 (deftest zip-without-what-a-note-needs-gives-a-bundle
   (is (= "'[:pitch '[60 62 64] :volume '[90 70]]" (top "| :pitch '[60 62 64] :volume '[90 70] zip")) "each part as long as it is")
   (is (= "'[:duration '[1/4] :volume '[60]]" (top "| '[/4] :volume '[60] zip")) "durations alone too: rests would drop the volumes")
-  (is (= "'[:pitch '[60 62 60] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop taken to the longest finite part's length")
-  (is (re-find #"every part is endless" (top "| :pitch '[60 62] [~] zip")))
+  (is (= "'[:pitch '[60 62] [~] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop stays a loop")
+  (is (= "'[:pitch '[60 62] [~]]" (top "| :pitch '[60 62] [~] zip")) "loops alone too")
+  (is (= "'[:pitch '[1 2 3] :volume '[90 80 70]]" (top "| :pitch 1 '( 1 add ) iterate :volume '[90 80 70] zip"))
+      "an endless stream that isn't a loop taken to the longest finite part's length")
+  (is (re-find #"an endless part and nothing finite" (top "| :pitch 1 '( 1 add ) iterate zip")))
+  (testing "a loop inside data reads back as it prints, and plays as one"
+    (is (= "'[:pitch '[60 62] [~] :volume '[90 80 70]]" (top "'[:pitch '[60 62] [~] :volume '[90 80 70]]")))
+    (is (= "[C4/4\\volume:90 D4\\volume:80 C4\\volume:70 D4\\volume:90 C4\\volume:80]"
+           (top "'[:pitch '[60 62] [~] :volume '[90 80 70]] '[/4 /4 /4 /4 /4] swap zip")))
+    (is (= "repeat ~ [C4/8 D4]" (top "'[/8] [~] '[:pitch '[60 62] [~]] zip")) "looping durations, a looping column")
+    (is (= "'[:pitch '[60 62] [~]]" (top "'[:pitch '[60 62] [~]] R! R@")) "stored and fetched"))
   (testing "zip takes it again as its parts"
     (is (= "[C4/8\\volume:90 D4/4\\volume:70]" (top "'[/8 /4] | :pitch '[60 62 64] :volume '[90 70] zip zip")))
     (is (= (top "| '[/4 /4 /4 /4 /4 /4] :pitch '[60 62 64] :volume '[90 70] zip")

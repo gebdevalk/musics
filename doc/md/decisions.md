@@ -1970,9 +1970,13 @@ written as **columns**, one stream per part, `'[:pitch '[60 62]
 :volume '[90 70]]` -- data mu already reads and prints, the same shape
 as zip's own input, each part keeping its own length until it is
 pulled; rows would need a notation for a note without a duration. A
-loop inside a bundle (`'[:pitch '[60 62] [~]]`) is open, so a bundle
-of endless parts only is refused for now, and an endless part beside
-finite ones is taken to the longest one's length.
+loop inside a bundle is written as a looped stream prints, `'[:pitch
+'[60 62] [~]]` -- the grammar's `DataLoop`, a list followed by `[~]`
+inside data -- and stored as `{:type :LOOP :items (60 62)}`, plain data
+that survives `write`/`load`, rather than as metadata that would not.
+An endless stream that isn't a loop has no text, so it is taken to the
+longest finite part's length, and refused with nothing finite beside
+it.
 
 Processing stays pull-based dataflow on lazy seqs: the voice pulls, a
 node computes when asked; a change is heard at the next note (one note

@@ -621,6 +621,11 @@
                          (-> s (update :stack pop) (flat/append-child (apply list (:children (peek (:stack s))))))
                          (flat/pop-container s)))
         :Nil         (flat/append-child state nil)
+        ;; a list inside data that loops: {:type :LOOP :items (…)}
+        :DataLoop    (let [s   (walk-element state (first (filter #(and (vector? %) (= :Data (first %))) children)))
+                           idx (dec (count (:stack s)))]
+                       (update-in s [:stack idx :children]
+                                  (fn [cs] (conj (pop cs) {:type :LOOP :items (peek cs)}))))
         ;; ---- Container identifying field (Data's `type`) ----
         ;; Wraps a bare Name and identifies the container, not its
         ;; content -- stamp it onto the container being built rather

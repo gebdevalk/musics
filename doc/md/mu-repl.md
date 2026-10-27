@@ -386,8 +386,10 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   the parts as columns, each as long as it is: they cycle on their own
   once durations join them, as loose parts do, so zipping a bundle later
   gives what zipping its parts now gives (a color against a talea). A
-  loop or an endless stream is taken to the longest finite part's
-  length. `| :pitch '[60 62 64] :volume '[90 70] zip` is `'[:pitch
+  loop stays a loop, written as a looped stream is: `'[:pitch '[60 62]
+  [~] :volume '[90 80 70]]`. An endless stream that isn't a loop is
+  taken to the longest finite part's length, and refused with nothing
+  finite beside it. `| :pitch '[60 62 64] :volume '[90 70] zip` is `'[:pitch
   '[60 62 64] :volume '[90 70]]`. A bundle is data, so it reads back as it prints, and `zip` takes it
   again as its parts. It can't sound: the play words, `render`, `par`,
   `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
