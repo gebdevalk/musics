@@ -727,6 +727,29 @@ it lacks -- a contour with its dynamics waiting for a rhythm -- and
 
 A bundle can't sound: playing it is refused, saying what it lacks.
 
+What changes over time -- volume, tempo, panning, the key -- isn't a
+part of each note but a context, `^{ }`. `>ctx` makes one from a
+control: above a `|` mark, `:duration` and one or more context keys,
+each a stream. Each value holds from where the durations put it until
+the next:
+
+```
+| :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx    → ^{ !volume:50 !volume:70@1 !volume:90@2 }
+```
+
+`./.` in data is idem, the value before once more, and `@1` after an
+instruction puts its point a whole note from the start (`@3/8` three
+eighths in). A looping duration gives a step of that length each time,
+`'[1/1] [~]` a new value every bar, and the longest finite column sets
+how many steps there are, the shorter ones cycling. With `:curve '[:lin]`
+(or `:smooth`, `:in`, `:out`; `:step` holds) each value glides to the
+next. `with` lays the context under a line:
+
+```
+[c4 d e f g a b c] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with >
+| :duration '[1/4] [~] @{ len:8 } volume/uniform :volume swap >ctx    an algo's volumes, a new one each quarter
+```
+
 A long setting name gets a short one with `:=`, a name bound to a
 name: from then on the short one is read as the long one in an `@{ }`,
 which keeps, and shows, the long one:

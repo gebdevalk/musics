@@ -261,7 +261,14 @@ among them is written on, keeping its form, a part given replacing its
 own (`x volume/walk zip`), and without durations and pitches it gives a
 bundle, the parts as columns, each as long as it is (`'[:pitch '[60
 62 64] :volume '[90 70]]`), which zip takes again as its parts and
-which can't sound. The algos are words by what they deliver
+which can't sound. What changes over time is a context, not a note's
+part: `>ctx` (`musics.mu.material/control->ctx`) turns a control above a
+`|` -- `:duration` and one or more context keys (`:volume`, `:Tempo`,
+`:pan`, `:Key` …), each a stream, and an optional `:curve` (`step` `lin`
+`smooth` `in` `out`) -- into a `^{ }` of points at their times (`|
+:duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx` is `^{ !volume:50
+!volume:70@1 !volume:90@2 }`), the longest finite column setting how
+many steps, the shorter ones cycling; `with` lays it under a line. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
@@ -1468,7 +1475,7 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `@{ }`    | `Settings`    | an algo's settings, `@{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }` |
-| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, a `:keyword` beside any value) |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
@@ -1700,6 +1707,17 @@ already parses today as `Assignment`(`AssignName` "p") + `Ramp`(bare
 `DynamicMark` word (pianissimo) — a directly demonstrable ambiguity, not
 a hypothetical one. A direction is always bare (`<`/`>`, no `\`), since
 `!` already marks "this is an instruction".
+
+A point can carry its time, `@t` (`At`), after a value form --
+`!vol:mf@3/8`, `!vol:50<@1`, `!mf@1`, `!K:D.major@2` -- in whole notes
+from the start of the container it is written in, as a timed ramp's
+duration counts them (`@4` four whole notes, `@3/8` three eighths): so a
+`^{ }`, which holds no notes and had every point at its start, can hold
+values that change later, `^{ !vol:50< !vol:70@1 !vol:90@2 }`, a ramp
+mark gliding to the next point wherever its `@` puts it. The walker's
+`point-time` reads it, and `with-at` keeps it on the instruction's
+`:raw`, so the context prints back as written. In a line it counts from
+the line's start too -- where `with` puts a context's instructions.
 
 A bare (unmarked) pitch letter resolves against the active `Key`'s own
 implied accidental by default — real staff-notation behavior: under

@@ -312,7 +312,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `then` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
+| **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with`; `times` `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -395,6 +395,26 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   again as its parts. It can't sound: the play words, `render`, `par`,
   `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
   default duration.
+- **A context from a control**: what changes over time -- volume, tempo,
+  pan, the key -- is a context, not a part of each note. `>ctx` takes,
+  above a `|` mark, `:duration` and one or more context keys, each a
+  stream, and an optional `:curve` (`step`, the default, `lin` `smooth`
+  `in` `out`), and gives a `^{ }` whose points stand at their times:
+
+  ```
+  | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx    → ^{ !volume:50 !volume:70@1 !volume:90@2 }
+  | :duration '[1/4] [~] volume/walk :volume swap >ctx   an algo's volumes, a new one each quarter
+  [c4 d e f] | :duration '[1/2] :volume '[30 90] :curve '[:lin] >ctx with
+  ```
+
+  The steps follow each other by the durations; each value holds until
+  the next or, with a curve, glides to it. The longest finite column
+  sets how many steps there are, the shorter ones cycling; a loop or an
+  endless stream is taken to that length, and all of them looping is
+  refused. `with` lays the result under a line. `@t` after an
+  instruction is where a point stands, in whole notes from the start
+  (`!volume:70@1`, `@3/8`); `./.` in data is idem, the value before once
+  more (`'[1/1 ./. 2/1]` is `'[1 1 2]`).
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both

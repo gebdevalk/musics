@@ -551,7 +551,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare walk-algo-assignment walk-settings walk-context walk-reference
+(declare with-at walk-algo-assignment walk-settings walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
@@ -621,6 +621,11 @@
                          (-> s (update :stack pop) (flat/append-child (apply list (:children (peek (:stack s))))))
                          (flat/pop-container s)))
         :Nil         (flat/append-child state nil)
+        ;; ./. inside data: idem, the value before once more
+        :Idem        (let [cs (:children (peek (:stack state)))]
+                       (when (empty? cs)
+                         (throw (ex-info "./.: idem repeats the value before it -- there is none" {})))
+                       (flat/append-child state (peek cs)))
         ;; a list inside data that loops: {:type :LOOP :items (…)}
         :DataLoop    (let [s   (walk-element state (first (filter #(and (vector? %) (= :Data (first %))) children)))
                            idx (dec (count (:stack s)))]
@@ -657,11 +662,11 @@
         ;; ---- Instructions ---- (no :Time/:Tempo/:Key -- this grammar
         ;; dropped those LilyPond-conformity concessions entirely,
         ;; !Meter:/!tempo:/!key: remain the only spelling)
-        :BangConst    (walk-bang-const    state children)
-        :Assignment   (walk-assignment    state children)
+        :BangConst    (with-at walk-bang-const state children)
+        :Assignment   (with-at walk-assignment state children)
         :AlgoAssignment (walk-algo-assignment state children)
         :Settings    (walk-settings state children)
-        :KeyAssignment (walk-key-assignment state children)
+        :KeyAssignment (with-at walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
         :BarLine      (flat/append-child state (d/bar (count (first children))))
@@ -861,6 +866,29 @@
   [state]
   (d/written-duration (:repo state) (peek (:stack state))))
 
+(defn- at-time
+  "The time an instruction's @ gives it (@4, @3/8: whole notes from its
+   context's start), else nil."
+  [children]
+  (some->> (find-child children :At) rest (#(find-child % :DurationExpr)) parse-duration-expr-node))
+
+(defn- point-time
+  "When an instruction's point is: its @ time, from the start of the
+   container it is written in (a ^{ }, or a line: with puts a context's
+   instructions at a line's start), else where it is written."
+  [state children]
+  (or (at-time children) (duration state)))
+
+(defn- with-at
+  "walk on an instruction, its written @ kept on what it appends (:raw),
+   so the context prints back as written."
+  [walk state children]
+  (let [s (walk state children)]
+    (if-let [t (at-time children)]
+      (let [i (dec (count (:stack s)))]
+        (update-in s [:stack i :children] (fn [cs] (conj (pop cs) (update (peek cs) :raw str "@" t)))))
+      s)))
+
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)
         name-val  (when name-node (second name-node))
@@ -868,7 +896,7 @@
     (if name-val
       (let [obj    {:type :instruction :const kw :raw (str "!" name-val)}
             ctx    (flat/current-context state)
-            t      (duration state)
+            t      (point-time state children)
             state' (flat/append-child state obj)]
         (when-let [[ctx-key ctx-val] (data/instruction-context kw)]
           (c/ctx-append ctx ctx-key t ctx-val :fixed))
@@ -921,7 +949,7 @@
             val       (when val-node (second val-node))
             ctx       (flat/current-context state)
             chain     (flat/current-context-chain state)
-            t         (duration state)
+            t         (point-time state children)
             ctx-key   (ck/canonical-key (keyword name-val))
             dir       (ramp-direction children)
             curve     (ramp-curve     children)
@@ -1093,7 +1121,7 @@
       (let [ctx    (flat/current-context state)
             ks     (or (el/parse-key key-val) (el/parse-key (str key-val ".major")))
             obj    {:type :assignment :key :Key :val key-val :raw (str "!" written ":" key-val)}
-            t      (duration state)
+            t      (point-time state children)
             state' (flat/append-child state obj)]
         (when-not ks
           (throw (ex-info (str "!" written ":" key-val " names no key -- write a tonic, # or & and a scale: !K:B&.minor, !K:F#.dorian")

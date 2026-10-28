@@ -2069,3 +2069,37 @@ exception, so a word's settings are always its local `@{ }`, the live
 voice's, the head, then the defaults. Recipes are trees already -- the
 stack builds them -- so this covers trees written as recipes; the
 composer's trees keep their tctx and naming (`bass.k`).
+
+## 2026-10-28 — An algo's results as context: >ctx, points at @time, ./. as idem in data
+
+zip lays values on notes, one per note; what changes over time --
+volume, tempo, pan, key, anything a context holds -- is a context
+instead, and an algo had no way to make one. `>ctx` turns a control, a
+`:duration` column beside one or more context keys (and an optional
+`:curve`), into a `^{ }`; the existing `with` lays it under music. No
+separate timeline type or time-aligned joint: a context already is a
+timeline, sampled at each note's onset, so the one missing piece was
+the step from values to a context. It makes a ctx only; making an
+`@{ }` from the stack belongs with modulating an algo's settings, still
+to be discussed.
+
+Time comes from durations as a column, so the durations can be
+generated too, and a fixed step is a looping one (`'[1/1] [~]`). The
+longest finite column sets the length, the shorter ones cycling --
+unlike zip, where durations count notes and so set it: here they only
+mark when values change, so none is lost by being longer. Steps first;
+ramps by the `:curve` column, written with the ramp marks a context
+already has.
+
+A `^{ }` could hold no later point: everything in it was at its start,
+so chained timed ramps overwrote one another. `@t` after an
+instruction places its point, in whole notes as a timed ramp's duration
+counts them (`@4`, `@3/8`). Spacers (`s1`, LilyPond's) were weighed:
+they are relative and need a carry-over, where `@t` maps one to one onto
+a context's points and reads alone. In a line `@t` counts from the
+line's start, where `with` writes a context's instructions.
+
+`./.` inside data is idem, the value before once more (`'[1/1 ./.
+2/1]`), expanded when read; in a line it stays the bar simile. `>ctx`
+is named as `>` reads, "to a context"; word names may now start with
+`>` before a letter, the play words `>` `>>` `>+` `>>+` unchanged.

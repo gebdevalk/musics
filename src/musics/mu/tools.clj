@@ -70,6 +70,11 @@
            (do (need s 2 "zip")
                (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
 
+(word! "music" ">ctx" "( | :duration d :key v … -- ^{ } )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
+       (fn [s]
+         (let [[below xs] (e/to-mark s ">ctx")]
+           (conj below (mt/control->ctx xs)))))
+
 ;; -- repeats: their endings and their passes ----------------------------------
 
 (defn- above-repeat
