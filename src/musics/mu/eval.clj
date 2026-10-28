@@ -163,13 +163,27 @@
             locals (zipmap ins (subvec stack n))]
         (run-items (subvec stack 0 n) (:body entry) {:locals locals :values (:values entry)})))))
 
+(def ^:dynamic *head*
+  "While a quotation that opens with an @{ } runs: that @{ }'s settings,
+   {name value}, read by every algo word in it (musics.mu.algos) after its
+   own local @{ } -- the recipe's head. The nearest quotation's wins."
+  nil)
+
+(defn head-of
+  "The settings of a quotation's opening @{ }, {name value}, else nil."
+  [{:keys [body env]}]
+  (when-let [i (some-> (first body) (#(when (= :Settings (first %)) %)) meta :mu/index)]
+    (into {} (:params (v/node (nth (:values env) i))))))
+
 (defn call
-  "Run a quotation on stack."
+  "Run a quotation on stack; one that opens with an @{ } runs with it as
+   its head (*head*)."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
-  (if (fn? q)
-    (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
-    (run-items stack (:body q) (:env q))))
+  (cond
+    (fn? q)      (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
+    (head-of q)  (binding [*head* (head-of q)] (run-items stack (rest (:body q)) (:env q)))
+    :else        (run-items stack (:body q) (:env q))))
 
 (defn- node-name [node]
   (let [x (second node)]

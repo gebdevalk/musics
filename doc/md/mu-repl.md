@@ -117,7 +117,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 - `: name … ;` defines a word. The colon needs a space after it. The
   name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
-  (`?empty`); `?name:value` is an algo's param, never a word.
+  (`?empty`). `@{ name:value }` is an algo's settings, a value of its
+  own; `?name:value` is refused (music holds `!` keys only).
 - **Locals are optional**: with a stack effect `( a b -- c )`, its
   input names are bound as locals; without one, the word is plain stack
   code. Any name may be a local, leaf letters included.
@@ -174,9 +175,9 @@ followed by nothing, a duration or `*n`.
   before that part runs, so `'m [c d] := [\m e]` works on one line; a
   literal before the `:=` that binds its name is refused. After a `:=`
   the reading starts afresh (durations, relative pitch).
-- A `?name` bound to another (`'?dp '?duration-pulse :=`) is a short
-  name for an algo param: `^{ ?dp:1/8 }` is read, kept and shown as
-  `^{ ?duration-pulse:1/8 }`.
+- A name bound to another (`'dp 'duration-pulse :=`) is a short
+  name for an algo param: `@{ dp:1/8 }` is read, kept and shown as
+  `@{ duration-pulse:1/8 }`.
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;
@@ -268,7 +269,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<`, `playing` or `<`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff ^{ ?k:5 } set`), `unset` (`:riff '?k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
@@ -600,14 +601,15 @@ algo's registry name: `euclid` is written once (its `:algo` metadata),
 (euclid, then `pulses->durations`), and that key is the word
 `duration/euclid`. The namespaces aren't in use, so a word is written qualified, or after `"pitch" use`; `words`
 lists them with their counts, `"duration/emi" see` gives the effect,
-the doc and the `?` params.
+the doc and the settings it reads, `@{ k n … }`.
 
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
-^{ ?k:5 ?n:16 } duration/euclid          the context on top is its settings
-[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip
+@{ k:5 n:16 } duration/euclid            the settings on top are its own
+[c8 d4 e8] dup durations @{ index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, a rest's pitch unused
-^{ !key:D.major ?len:4 } pitch/walk-degrees   a key param follows the music's !key:
+[!key:D.major c d e f] '( @{ len:4 } pitch/walk-degrees zip ) :deg >
+                                         played in a line, a key param follows its !key:
 ```
 
 - **Inputs**: as many as the algo has (a source none). A line is taken
@@ -618,9 +620,9 @@ duration/euclid                          → '[3/16 3/16 1/8]
   duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
   several inputs must repeat by the same count. A repeat inside a line
   is written out, a loop inside refused.
-- **A shared seed**: `?seed:7` in the settings runs the algo on that
+- **A shared seed**: `seed:7` in the settings runs the algo on that
   random seed, so two words with one seed and one source read the same
-  run: `^{ ?seed:7 } pitch/walk` and `^{ ?seed:7 } volume/walk` rise and
+  run: `@{ seed:7 } pitch/walk` and `@{ seed:7 } volume/walk` rise and
   fall together.
 - **Instruments and drums** are two worlds: an instrument is a program,
   its notes pitches; a drum is a key of the kit (`!kit:brush`). Zipped
@@ -628,10 +630,14 @@ duration/euclid                          → '[3/16 3/16 1/8]
   refuses a drum and `:drum` (`'[:kick :hhc 38]`) a note; `as-drums`
   turns notes into drums, keeping their length, volume and accent.
   `:articulation` takes drums too: an accent is a drum's weight.
-- **Settings**: a `^{ … }` on top is the algo's settings, `?name:value`
-  (`doc/md/algo-space.md`, the tctx as a context): read first, then the
-  music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
-  defaults. A setting the algo doesn't read is ignored; a value out of
+- **Settings** are an algo's own, `@{ name:value … }` -- the tctx,
+  apart from the music's `^{ }`, which an algo word refuses. A word
+  reads, first found: an `@{ }` right before it, its own; a live
+  voice's settings (`set`); the head of the recipe it runs in, the
+  `@{ }` the recipe opens with, which reaches every word in it; then
+  the defaults. Only a key and a meter param read the music -- the
+  line a live voice plays in, `:ROOT`'s otherwise -- after the
+  settings. A setting the algo doesn't read is ignored; a value out of
   range is an error naming the word.
 - **Results**: streams come back as streams, leaves as a line, parts as
   `{ }`. `zip` keeps a rest among an algo's durations a rest, its pitch

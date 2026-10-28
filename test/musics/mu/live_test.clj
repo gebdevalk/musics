@@ -61,19 +61,19 @@
   (is (= [60] (pitches "[r4]" :g)) "the recipe ran on nothing"))
 
 (deftest settings-are-heard-and-checked
-  (run "| '( ^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [c e g] pitches zip [~] ) :riff >")
+  (run "| '( @{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip [~] ) :riff >")
   (is (= [3/8 3/8 1/4] (durations "[c8 c c c] [~]" :riff 3)) "the recipe's own settings")
   ;; the voice keeps its position (one cursor per voice path), so a
   ;; change goes on mid-pattern: the values tell the patterns apart
-  (testing "set comes first, before the recipe's ^{ }"
-    (run ":riff ^{ ?k:5 } set")
+  (testing "set comes first, before the recipe's head"
+    (run ":riff @{ k:5 } set")
     (is (= #{1/4 1/8} (set (durations "[c8 c c c c c c] [~]" :riff 6)))))
   (testing "settings lists what the recipe reads"
     (is (str/includes? (with-out-str (run ":riff settings")) ":k")))
   (testing "a value out of range is refused"
-    (is (thrown? clojure.lang.ExceptionInfo (run ":riff ^{ ?k:9999 } set"))))
-  (testing "unset leaves it to the recipe's ^{ } again"
-    (run ":riff '?k unset")
+    (is (thrown? clojure.lang.ExceptionInfo (run ":riff @{ k:9999 } set"))))
+  (testing "unset leaves it to the recipe's head again"
+    (run ":riff 'k unset")
     (is (= #{3/8 1/4} (set (durations "[c8 c c c c c c] [~]" :riff 6))))))
 
 (deftest retree-keeps-the-name
@@ -83,7 +83,7 @@
 
 (deftest a-voice-without-a-recipe-has-no-settings
   (run "[c d] :plain >")
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plays no recipe" (run ":plain ^{ ?k:5 } set"))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plays no recipe" (run ":plain @{ k:5 } set"))))
 
 (deftest a-recipe-that-fails-is-refused-when-played
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs" (run "[c d] [~] '( pitch/walk zip zip ) :bad >")))
@@ -96,7 +96,7 @@
   (let [tree (lib/zip (lib/pulses->durations lib/euclid) (lib/cycle> lib/scale))]
     (live/play! nil tree nil false :tr nil)
     (is (= :tr (:algo (engine/voice-at :tr))))
-    (run ":tr ^{ ?k:5 } set")
+    (run ":tr @{ k:5 } set")
     (is (= 5 (:k (t/params (live/tctx-of "set" :tr)))) "its settings know the tree's params")))
 
 (deftest recipe-values
@@ -104,14 +104,27 @@
   (is (not (live/recipe? (peek (run "[c d]"))))))
 
 (deftest a-change-reruns-only-the-words-it-reaches
-  (run "| '( ^{ ?len:8 } pitch/walk [c8] [~] durations swap zip volume/walk zip ) :swell >")
+  (run "| '( @{ len:8 } pitch/walk [c8] [~] durations swap zip volume/walk zip ) :swell >")
   (let [run!   (:run (musics.wall/registered :swell))
         tctx   (live/tctx-of "set" :swell)
         played #(take 8 (run! tctx nil))
         before (played)]
-    (run ":swell ^{ ?volume-lo:70 ?volume-hi:90 } set")
+    (run ":swell @{ volume-lo:70 volume-hi:90 } set")
     (let [after (played)]
       (is (= (map :pitches before) (map :pitches after)) "the walk heard as pitch keeps its random values")
       (is (not= (map #(get-in % [:overrides :volume]) before) (map #(get-in % [:overrides :volume]) after))
           "the volumes, which the change reaches, run again")
       (is (every? #(<= 70 (get-in % [:overrides :volume]) 90) after)))))
+
+(deftest a-recipes-head-is-the-voices-settings
+  (run "| '( @{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip [~] ) :head >")
+  (let [tctx (live/tctx-of "settings" :head)]
+    (is (= [3 8 1/8] ((juxt :k :n :duration-pulse) (t/params tctx))) "settings show the head as written")
+    (run ":head @{ k:5 } set")
+    (is (= 5 (:k (t/params tctx))))
+    (run ":head 'k unset")
+    (is (= #{3/8 1/4} (set (durations "[c8 c c c c c c] [~]" :head 6))) "unset: the head's k:3 again")))
+
+(deftest a-key-param-plays-in-the-music-a-voice-plays-in
+  (run "[!key:D.major c d e] '( @{ start:0.0 step-bound:0.0 len:3 } pitch/walk-degrees zip ) :deg >")
+  (is (= 62 (first (pitches "[!key:D.major c d e]" :deg))) "!key: of the line reaches the bridge's key: D major's tonic"))

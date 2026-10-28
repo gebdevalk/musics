@@ -13,22 +13,24 @@
    taken apart into what the algo wants -- durations (a rest as itself),
    pitches (a chord's lowest, nil for a rest) or leaves -- and a stream
    is taken as it is; a repeat or loop around the inputs is run on what
-   it repeats and put back around the result. A context on top, ^{ ?k:5 ?n:16 }, is its
-   settings: read first, then the music's own (the :ROOT context, so a
-   key param follows !key:), then the defaults. ?seed:7 in it runs the
-   algo on that random seed, so two words with one seed and one source
-   read the same run (pitch and volume of one walk). Streams come back as
-   streams, leaves as a line, parts as { }.
+   it repeats and put back around the result. Its settings, first found
+   wins: an @{ k:5 n:16 } on top, its own; a live voice's (set); the
+   head of the recipe it runs in, the @{ } it opens with
+   (musics.mu.eval/*head*); for a param that names a music key (key,
+   meter), the music's (a live voice's chain, :ROOT's: !key:); the
+   defaults. seed:7 among them runs the algo on that random seed, so two
+   words with one seed and one source read the same run (pitch and
+   volume of one walk). Streams come back as streams, leaves as a line,
+   parts as { }.
 
      duration/euclid                    ( -- durations )
-     ^{ ?k:5 ?n:16 } duration/euclid    ( ctx -- durations )
+     @{ k:5 n:16 } duration/euclid      ( settings -- durations )
      [c8 d e f g] durations duration/emi ( durations -- durations )"
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib]
             [musics.algo.tree.registry :as reg]
             [musics.algo.random.core :as rc]
-            [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
@@ -38,10 +40,10 @@
 
 (def ^:dynamic *live*
   "While a live voice's recipe runs (musics.mu.live): {:tctx t :chain c
-   :cache a :seen s} -- every algo word reads t's settings first (fitted
-   to its tree, so t knows every param the recipe reads), then a context
-   on top, then c (the music the voice plays in), then :ROOT's, then the
-   defaults. a (an atom, kept across runs) holds each word's last
+   :cache a :seen s} -- every algo word reads t's settings after its own
+   @{ } (t is fitted to its tree, so it knows every param the recipe
+   reads), then the recipe's head, then -- for key and meter -- c (the
+   music the voice plays in) and :ROOT's, then the defaults. a (an atom, kept across runs) holds each word's last
    result, by the word and how many times it ran before in this run (s,
    an atom, new each run): a word whose inputs and settings are as they
    were gives that result again, so a change reruns only the words it
@@ -98,10 +100,12 @@
     (if (sequential? v) (mt/as-part out (apply list v)) v)))
 
 (defn- settings
-  "[stack ctx]: a context on top is the word's settings."
-  [s]
-  (if (and (seq s) (= :CONTEXT (mt/kind (peek s))))
-    [(pop s) (:context (v/node (peek s)))]
+  "[stack local]: an @{ } on top is the word's own settings, {name value};
+   a ^{ } there is the music's, refused."
+  [word s]
+  (case (when (seq s) (mt/kind (peek s)))
+    :TCONTEXT [(pop s) (into {} (:params (v/node (peek s))))]
+    :CONTEXT  (e/mu-error (str word ":") "^{ } is the music's -- an algo's settings are @{ k:5 }")
     [s nil]))
 
 (defn- around
@@ -122,19 +126,20 @@
 
 (defn- algo-word [word short {:keys [in out]}]
   (fn [s]
-    (let [[s ctx] (settings s)
+    (let [[s local] (settings word s)
           n       (count in)
           _       (need s n word)
           [args wrap] (around word out (subvec s (- (count s) n)))
           tree    (apply (t/constructor (reg/algo short)) (map input in args))
           {src :tctx live-chain :chain} *live*
           _       (when src (t/fit! src tree))
-          chain   (remove nil? (concat [ctx] live-chain [(:context (repo/current :ROOT))]))
-          seed    (some-> ctx (#(c/ctx-value-chain [%] "?seed" Double/POSITIVE_INFINITY)))
-          run     #(try (output out (t/run tree src chain))
+          srcs    [local src e/*head*]
+          chain   (remove nil? (concat live-chain [(:context (repo/current :ROOT))]))
+          seed    (some #(get (if (t/tctx? %) @(:params-atom %) %) "seed") (remove nil? srcs))
+          run     #(try (output out (t/run tree srcs chain))
                         (catch clojure.lang.ExceptionInfo ex
                           (e/mu-error (str word ":") (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
-          vals    (when *live* (try [(t/settings tree src chain) seed] (catch Exception _ nil)))
+          vals    (when *live* (try [(t/settings tree srcs chain) seed] (catch Exception _ nil)))
           result  (cached word args vals #(if (number? seed) (rc/with-seed (long seed) (run)) (run)))]
       (conj (subvec s 0 (- (count s) n)) (wrap result)))))
 
@@ -143,11 +148,11 @@
    :leaf "line" :part "parallel"})
 
 (defn- effect
-  "The stack effect and what the word is: ( durations [^{ ?… }] --
-   durations )  its doc  @its @params."
+  "The stack effect and what the word is: ( durations [@{ … }] --
+   durations )  its doc  @{ its params }."
   [{:keys [in out doc params]}]
-  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[^{ ?… }] -- " (plural out (name out)) " )  "
-       doc "  " (str/join " " (map #(str "?" (name (:name %))) params))))
+  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[@{ … }] -- " (plural out (name out)) " )  "
+       doc "  @{ " (str/join " " (map #(name (:name %)) params)) " }"))
 
 (defn register-all!
   "A word for every algo on a shelf in `shelves`. Returns how many."

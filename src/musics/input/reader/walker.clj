@@ -551,7 +551,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare walk-algo-assignment walk-context walk-reference
+(declare walk-algo-assignment walk-settings walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
@@ -660,6 +660,7 @@
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)
         :AlgoAssignment (walk-algo-assignment state children)
+        :Settings    (walk-settings state children)
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
@@ -1043,7 +1044,7 @@
       state)))
 
 (defn- algo-value
-  "An AlgoAssignment's value as plain data: a number, a string, a
+  "A setting's value (@{ name:value }) as plain data: a number, a string, a
    keyword (a bare name), a vector (a comma list or a ( ) list)."
   [[tag v :as node]]
   (case tag
@@ -1054,21 +1055,35 @@
     :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
     :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
     :StructValue   (extract-struct-values node)
-    (throw (ex-info (str "?: not a value an algo param takes: " (pr-str node)) {:node node}))))
+    (throw (ex-info (str "@{ }: not a value an algo param takes: " (pr-str node)) {:node node}))))
 
 (defn- walk-algo-assignment
-  "?name:value -- an algo param, stored in the current context under
-   \"?name\", as a point at the current beat (one value, no ramp). A
-   short name bound to a long one (mu's '?dp '?duration-pulse :=, as
-   :param-aliases) is stored, and written back, as the long one."
+  "?name:value -- refused: an algo's params are @{ name:value }, apart
+   from the music's keys."
+  [_state children]
+  (let [nm (second (find-child children :AlgoName))]
+    (throw (ex-info (str "?" nm ": an algo's settings are @{ " nm ":… } -- music holds ! keys only")
+                    {:name nm}))))
+
+(defn- walk-settings
+  "@{ name:value … } -- an algo's settings: a :TCONTEXT holding :params,
+   [name value] pairs as written, and :text, the text that writes them
+   back. A short name bound to a long one (mu's 'dp 'duration-pulse :=,
+   as :param-aliases) is kept, and written back, as the long one."
   [state children]
-  (let [nm  (second (find-child children :AlgoName))
-        nm  (get (:param-aliases state) nm nm)
-        vn  (first (remove #(tag? % :AlgoName) children))
-        v   (algo-value vn)
-        raw (str "?" nm ":" (or (node-text state vn) (pr-str v)))]
-    (c/ctx-append (flat/current-context state) (str "?" nm) (duration state) v :fixed)
-    (flat/append-child state {:type :assignment :key (str "?" nm) :val v :raw raw})))
+  (let [ps (vec (for [c children :when (tag? c :Setting)
+                      :let [kids (rest c)
+                            nm   (second (find-child kids :AlgoName))
+                            nm   (get (:param-aliases state) nm nm)
+                            vn   (first (remove #(tag? % :AlgoName) kids))
+                            v    (algo-value vn)]]
+                  [nm v (str nm ":" (or (node-text state vn) (pr-str v)))]))
+        s  (flat/push-container state :TCONTEXT)
+        i  (dec (count (:stack s)))
+        s  (update-in s [:stack i] #(assoc (flat/ensure-id s %)
+                                           :params (mapv (fn [[n v]] [n v]) ps)
+                                           :text (str/join " " (map peek ps))))]
+    (flat/pop-container s)))
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)

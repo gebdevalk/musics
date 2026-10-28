@@ -136,38 +136,33 @@
 
 (deftest a-tctx-holds-settings-not-the-tree
   (let [tctx (t/tctx riff)]
-    (is (= #{:envelopes-atom :duration} (set (keys tctx))) "an ordinary Context")
-    (is (= {} @(:envelopes-atom tctx)) "it sets nothing yet")
+    (is (= #{:params-atom} (set (keys tctx))) "its own shape, not a music context")
+    (is (= {} @(:params-atom tctx)) "it sets nothing yet")
     (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
     (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
     (t/setp! tctx :k 5)
-    (is (= {"?k" 5} @(:envelopes-atom tctx)) "a setting is a ? name")
+    (is (= {"k" 5} @(:params-atom tctx)) "a setting is the name an @{ } writes")
     (is (= {:k 5} (t/values tctx)))))
 
-(deftest a-param-falls-through-the-chain
-  (let [tctx  (t/tctx riff)
-        music (c/context)
-        _     (swap! (:envelopes-atom music) assoc "?k" 5 "?root" 62)]
-    (is (= 5 (count (t/run riff tctx [music]))) "the music's ?k: five onsets")
+(deftest settings-come-from-sources-nearest-first
+  (let [tctx (t/tctx riff)]
     (t/setp! tctx :k 2)
-    (is (= 2 (count (t/run riff tctx [music]))) "the tctx comes first")
+    (is (= 2 (count (t/run riff [nil tctx]))) "the tctx")
+    (is (= 5 (count (t/run riff [{"k" 5} tctx]))) "a nearer source wins: a word's own @{ } over the voice's")
     (t/unsetp! tctx :k)
-    (is (= 62 (first (:pitches (first (t/run riff tctx [music]))))) "unset again, the chain counts"))
-  (testing "the most specific name wins within a context; written values are coerced"
-    (let [music (c/context)]
-      (swap! (:envelopes-atom music) assoc "?k" 5 "?euclid.k" 4)
-      (is (= 4 (count (t/run riff nil [music]))))
-      (let [bad (c/context)]
-        (swap! (:envelopes-atom bad) assoc "?k" :x)
-        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) nil [bad]))))
-      (let [txt (c/context)]
-        (swap! (:envelopes-atom txt) assoc "?key" :D.major)
-        (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) nil [txt]))) "a bare name read as a string"))))
+    (is (= 3 (count (t/run riff [nil tctx]))) "unset again, the default"))
+  (testing "the most specific name wins within a source; written values are coerced"
+    (is (= 4 (count (t/run riff {"k" 5 "euclid.k" 4}))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) {"k" :x})))
+    (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) {"key" :D.major}))) "a bare name read as a string"))
   (testing "a named instance reads its own name first"
-    (let [music (c/context)
-          two   (zip (pulses->durations (euclid :as :a)) (cycle> scale))]
-      (swap! (:envelopes-atom music) assoc "?a.k" 2 "?k" 7)
-      (is (= 2 (count (t/run two nil [music])))))))
+    (let [two (zip (pulses->durations (euclid :as :a)) (cycle> scale))]
+      (is (= 2 (count (t/run two {"a.k" 2 "k" 7}))))))
+  (testing "the music gives only what names a music key"
+    (let [music (c/context)]
+      (c/ctx-append music :Key 0 (el/parse-key "D.major") :fixed)
+      (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) nil [music]))) "the bridges' key reads !key:")
+      (is (= 3 (count (t/run riff nil [music]))) "everything else takes its default"))))
 
 (deftest one-tree-runs-against-several-tctxs
   (let [a (t/tctx riff) b (t/tctx riff {:k 2})]
@@ -178,7 +173,7 @@
   (let [tctx (t/tctx riff)]
     (is (= 5 (:k (t/setp! tctx :k 5))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":k 99 should be at most 32 \(euclid, onsets\)"
-                          (swap! (:envelopes-atom tctx) assoc "?k" 99)) "even a plain swap!")
+                          (swap! (:params-atom tctx) assoc "k" 99)) "even a plain swap!")
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/setp! tctx :k 1.5)))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/setp! tctx :nope 1)))
     (is (= 5 (:k (t/params tctx))) "a rejected change leaves the value as it was")
@@ -294,16 +289,14 @@
       (is (= out (f out nil {:path [:TA]})) "already-transformed notes pass through"))))
 
 (deftest a-live-tree-reads-the-music-it-plays-in
-  (let [music (doto (c/context) (c/ctx-append "?semitones" 0 5 :fixed) (c/ctx-append "?root" 0 72 :fixed))]
-    (t/live! :up (transpose :nodes) (t/tctx (transpose :nodes)))
-    (is (= [[65]] (map :pitches ((wall/algo :up) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TA]})))
-        "a setting the tctx leaves comes from the music")
+  (let [music (doto (c/context) (c/ctx-append :Key 0 (el/parse-key "D.major") :fixed))
+        degs  (zip (cycle> [1/4]) (degrees->pitches (cycle> [0 1 2])))]
     (t/live! :up7 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 7}))
     (is (= [[67]] (map :pitches ((wall/algo :up7) [(d/leaf :n1 nil 1/4 [60])] [[music 0]] {:path [:TA]})))
-        "what the tctx sets comes first (a voice's chain holds [ctx offset] links)")
-    (#'live/bind! :mel (t/as-node melody) (t/tctx melody))
-    (is (<= 72 (first (:pitches (first ((wall/algo :mel) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TB]})))))
-        "a generating tree too")))
+        "what the tctx sets (a voice's chain holds [ctx offset] links)")
+    (#'live/bind! :deg (t/as-node degs) (t/tctx degs))
+    (is (= [62] (:pitches (first ((wall/algo :deg) [(d/leaf :n1 nil 1/4 [60])] [music] {:path [:TB]}))))
+        "a key param plays in the music's key")))
 
 (deftest the-wall-window-offers-a-control-per-live-param
   (let [tctx (t/tctx riff)]
@@ -334,8 +327,7 @@
   (let [music (c/context)]
     (c/ctx-append music :Key 0 (el/parse-key "D.major") :fixed)
     (is (= [62 64 66] (t/run (degrees->pitches [0 1 2]) nil [music])) "degrees->pitches plays in the music's key")
-    (swap! (:envelopes-atom music) assoc "?key" "C.major")
-    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) nil [music])) "an @key in the same context comes first")
+    (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {"key" "C.major"} [music])) "the settings' key comes first")
     (is (= [60 62 64] (t/run (degrees->pitches [0 1 2]) {} [])) "no context: the default")))
 
 (deftest raw-material-gets-its-bridges

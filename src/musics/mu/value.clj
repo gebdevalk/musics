@@ -9,8 +9,7 @@
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
    storing is R! (doc/md/mu-repl.md)."
-  (:require [clojure.string :as str]
-            [musics.domain.context :as c]
+  (:require [musics.domain.context :as c]
             [musics.input.reader.walker :as walker]
             [musics.mu.grammar :as g]))
 
@@ -35,7 +34,7 @@
 
 (def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
-  (into leaf-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
+  (into leaf-tags #{:Sequence :Parallel :Context :Settings :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -71,13 +70,11 @@
    [{} {}] bindings))
 
 (defn- param-aliases
-  "The bindings of a ?name to another ?name ('?dp '?duration-pulse :=)
-   as {\"dp\" \"duration-pulse\"}: an algo param written by its short
-   name is read as the long one."
+  "The bindings of a name to another name ('dp 'duration-pulse :=) as
+   {\"dp\" \"duration-pulse\"}: an algo param written by its short name
+   in an @{ } is read as the long one."
   [bindings]
-  (into {} (for [[k x] bindings
-                 :when (and (str/starts-with? k "?") (symbol? x) (str/starts-with? (str x) "?"))]
-             [(subs k 1) (subs (str x) 1)])))
+  (into {} (for [[k x] bindings :when (symbol? x)] [k (str x)])))
 
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and

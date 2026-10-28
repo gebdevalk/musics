@@ -8,7 +8,6 @@
             [musics.compose :as compose]
             [musics.wall :as wall]
             [musics.domain :as d]
-            [musics.domain.context :as c]
             [musics.domain.resolve :as r]
             [musics.domain.ornaments :as orn]
             [musics.algo.tree :as t]
@@ -541,16 +540,16 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-algo-params
-  (parse! "^{riff: ?k:5 ?style:rock ?iv:0,2,4 ?key:\"D.major\"}")
+  (parse! "@{ k:5 style:rock iv:0,2,4 key:\"D.major\" }")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (persist/write (.getPath tmp)))
       (repo/reset-all!)
       (reset! reg/session {:auto-ids {}})
       (with-out-str (persist/load (.getPath tmp)))
-      (let [ctx (:context (repo/lookup :riff))]
-        (is (= [5 :rock [0 2 4] "D.major"]
-               (mapv #(c/ctx-value-chain [ctx] % 0) ["?k" "?style" "?iv" "?key"]))))
+      (let [settings (some #(when (= :TCONTEXT (:type %)) %) (vals @(repo/registry)))]
+        (is (= [["k" 5] ["style" :rock] ["iv" [0 2 4]] ["key" "D.major"]] (:params settings)))
+        (is (= "k:5 style:rock iv:0,2,4 key:\"D.major\"" (:text settings)) "written back as written"))
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record

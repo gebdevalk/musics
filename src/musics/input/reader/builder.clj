@@ -36,8 +36,8 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   Currently only :CONTEXT (^{ } grammar rule)."
-  #{:CONTEXT})
+   :CONTEXT (^{ }) and :TCONTEXT (@{ }, an algo's settings)."
+  #{:CONTEXT :TCONTEXT})
 
 ;; ============================================================
 ;; State initialization
@@ -94,6 +94,7 @@
   {:SEQ     "s"
    :PAR     "p"
    :CONTEXT "c"
+   :TCONTEXT "t"
    :DATA    "d"})
 
 (defn next-auto-id

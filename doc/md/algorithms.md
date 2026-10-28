@@ -80,15 +80,15 @@ is kept as `name*`):
   `:bass/k`.
 - **Tree and tctx are separate:** one tree runs against several tctxs,
   and `(t/fit! tctx other-tree)` prepares a tctx for another tree.
-- **Settings are a context:** the tctx is an ordinary Context, its
-  settings `?` names (`"?k"`, `"?euclid.k"`, `"?bass.k"`). A param it
-  doesn't set falls through to the contexts given to `run`, then to its
-  default, so settings can live in the music: `^{ riffset: ?k:5
-  ?root:67 }` is text, saved with the rest, and `(t/run riff tctx
-  [(:context (find :riffset))])` reads it. In each context the most
-  specific name wins (`?bass.k` before `?euclid.k` before `?k`), once
-  per run. A param that means a music key reads it too: `degrees->pitches`
-  plays in the context's `!key:` unless an `?key:` is set.
+- **Settings are their own:** a tctx holds an algo's settings under the
+  names an `@{ }` writes (`"k"`, `"euclid.k"`, `"bass.k"`), apart from
+  the music's context. `run` takes a tctx, a plain map, or a vector of
+  them nearest first (`(t/run riff [mine written])`); a param none of
+  them sets takes its default. In each the most specific name wins
+  (`bass.k` before `euclid.k` before `k`), once per run. Only a param
+  that means a music key reads the music: `degrees->pitches` plays in
+  the `!key:` of the contexts given as `run`'s chain, unless the
+  settings give a `key`.
 
 ## Three ways to sound
 

@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu.algos-test
   "The algos as mu words: by what they deliver, a line taken apart into
-   their inputs, a ^{ ?… } on top as their settings."
+   their inputs, a @{ … } on top as their settings."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is use-fixtures]]
             [musics.input.reader.builder :as builder]
@@ -38,28 +38,28 @@
   (is (nil? (get-in @e/state [:ns "workshop"])) "raw material stays out"))
 
 (deftest instruments-and-accents-as-words
-  (is (re-matches #"'\[(\d+ ?)+\]" (top "^{ ?instrument-palette:(40 73 seashore) ?len:8 } instrument/walk")) "a stream of programs")
-  (is (every? #{"40" "73" "122"} (re-seq #"\d+" (top "^{ ?instrument-palette:(40 73 seashore) ?len:8 } instrument/walk"))) "from the palette")
+  (is (re-matches #"'\[(\d+ ?)+\]" (top "@{ instrument-palette:(40 73 seashore) len:8 } instrument/walk")) "a stream of programs")
+  (is (every? #{"40" "73" "122"} (re-seq #"\d+" (top "@{ instrument-palette:(40 73 seashore) len:8 } instrument/walk"))) "from the palette")
   (is (= "'[80.0 50.666666666666664 66.66666666666666]" (top "volume/euclid")) "a rhythm's accents, metric"))
 
 (deftest a-source-with-its-defaults-or-a-context
   (is (= "'[3/16 3/16 1/8]" (top "duration/euclid")))
-  (is (= "'[1/8 1/8 1/8 1/8]" (top "^{ ?k:4 ?n:4 ?duration-pulse:1/8 } duration/euclid")) "a context on top is its settings")
-  (is (re-find #"duration/euclid: :k 99 should be at most 32" (top "^{ ?k:99 } duration/euclid"))))
+  (is (= "'[1/8 1/8 1/8 1/8]" (top "@{ k:4 n:4 duration-pulse:1/8 } duration/euclid")) "a context on top is its settings")
+  (is (re-find #"duration/euclid: :k 99 should be at most 32" (top "@{ k:99 } duration/euclid"))))
 
 (deftest a-line-taken-apart-into-an-algos-input
   (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] durations")))
-  (is (= "1/2" (top "[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip durations 0 '( add ) reduce"))
+  (is (= "1/2" (top "[c8 d4 e8] dup durations @{ index:1 } duration/necklace swap pitches zip durations 0 '( add ) reduce"))
       "a rotation keeps the length")
-  (let [out (top "[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip")]
+  (let [out (top "[c8 d4 e8] dup durations @{ index:1 } duration/necklace swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
     (is (= "[r16 D4/4 E4/8 C4/16]" out) "its rest takes c unused, the pitches cycling on")))
 
 (deftest a-repeat-stays-around-the-result
-  (let [once (top "[c8 d e4 f8] durations ^{ ?index:1 } duration/necklace")]
-    (is (= (str once " [~]") (top "[c8 d e4 f8] [~] durations ^{ ?index:1 } duration/necklace"))
+  (let [once (top "[c8 d e4 f8] durations @{ index:1 } duration/necklace")]
+    (is (= (str once " [~]") (top "[c8 d e4 f8] [~] durations @{ index:1 } duration/necklace"))
         "the algo runs on what the loop repeats; the loop goes around its result")
-    (is (= (str once " 2 times") (top "[c8 d e4 f8] 2 times durations ^{ ?index:1 } duration/necklace"))))
+    (is (= (str once " 2 times") (top "[c8 d e4 f8] 2 times durations @{ index:1 } duration/necklace"))))
   (is (str/starts-with? (top "[c d e] [~] leaf/pocket") "repeat ~ [") "a line in a loop gives a loop")
   (is (str/ends-with? (top "[c d e] [~] [e f g] [~] pitch/inter") "] [~]") "two loops by the same count")
   (is (re-find #"repeat differently" (top "[c d e] [~] [e f g] pitch/inter")))
@@ -72,11 +72,11 @@
   (is (str/starts-with? (top "[: c d :] leaf/pocket") "[: ") "repeat signs stay"))
 
 (deftest a-param-follows-the-music
-  (is (= "'[62]" (top "^{ !key:D.major ?start:0.0 ?step-bound:0.0 ?len:1 } pitch/walk-degrees"))
-      "the key of the context on top: D major's tonic")
-  (is (= "'[64]" (top "^{ !key:D.major ?pitch-key:E.minor ?start:0.0 ?step-bound:0.0 ?len:1 } pitch/walk-degrees"))
-      "an @ setting comes first")
-  (is (= "'[60]" (top "^{ ?start:0.0 ?step-bound:0.0 ?len:1 } pitch/walk-degrees")) "else :ROOT's C major"))
+  (is (= "'[64]" (top "@{ pitch-key:E.minor start:0.0 step-bound:0.0 len:1 } pitch/walk-degrees"))
+      "the settings' key: E minor's tonic")
+  (is (re-find #"\^\{ \} is the music's -- an algo's settings are @\{" (top "^{ !key:D.major } pitch/walk-degrees"))
+      "a music context on top is refused")
+  (is (= "'[60]" (top "@{ start:0.0 step-bound:0.0 len:1 } pitch/walk-degrees")) "else :ROOT's C major"))
 
 (deftest products
   (rc/seed! 3)
@@ -90,10 +90,17 @@
       (is (re-find #"\)\s\s\S" (str effect)) (str ns "/" w " has no description: " effect)))))
 
 (deftest a-shared-seed-reads-one-run
-  (let [a (top "^{ ?seed:7 ?len:8 } pitch/walk")]
-    (is (= a (top "^{ ?seed:7 ?len:8 } pitch/walk")) "one seed, one run")
-    (is (not= a (top "^{ ?seed:8 ?len:8 } pitch/walk")) "another seed, another")
+  (let [a (top "@{ seed:7 len:8 } pitch/walk")]
+    (is (= a (top "@{ seed:7 len:8 } pitch/walk")) "one seed, one run")
+    (is (not= a (top "@{ seed:8 len:8 } pitch/walk")) "another seed, another")
     (let [rises #(map (fn [[x y]] (compare y x)) (partition 2 1 (map read-string (re-seq #"[\d.]+" %))))]
-      (is (every? (fn [[p v]] (or (zero? p) (= p v))) (map vector (rises a) (rises (top "^{ ?seed:7 ?len:8 } volume/walk"))))
+      (is (every? (fn [[p v]] (or (zero? p) (= p v))) (map vector (rises a) (rises (top "@{ seed:7 len:8 } volume/walk"))))
           "pitch and volume of one walk move together (pitch in whole steps, so it may hold where volume moves)"))))
 
+
+(deftest a-recipes-head-reaches-every-word-a-local-one-only-the-next
+  (is (= "'[1/16 1/16 1/16 1/16 1/16]" (top "'( @{ k:5 n:5 } duration/euclid ) call")) "the head reaches the word")
+  (is (= "'[1/16 1/16 1/16]" (top "'( @{ k:5 n:5 } @{ k:3 n:3 } duration/euclid ) call")) "a local @{ } wins over the head")
+  (is (= "2 4" (top "'( @{ len:4 } pitch/walk @{ len:2 } volume/walk ) call count swap count")) "the head for one, a local one for the other")
+  (is (= (top "@{ seed:7 len:8 } pitch/walk") (top "'( @{ seed:7 len:8 } pitch/walk ) call")) "a seed in the head")
+  (is (= "'[3/16 3/16 1/8]" (top "@{ k:5 } duration/euclid pop duration/euclid")) "outside a recipe, used up by the next word"))

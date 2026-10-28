@@ -111,6 +111,7 @@
     (case (:type node)
       :PAR     (str "{" (id-prefix node) (show-children repo node) "}")
       :CONTEXT (str "^{ " (id-prefix node) (show-children repo node) " }")
+      :TCONTEXT (if (seq (:text node)) (str "@{ " (:text node) " }") "@{ }")
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))

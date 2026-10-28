@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Parallels / Lines / QuotedName
-         / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
+         / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,

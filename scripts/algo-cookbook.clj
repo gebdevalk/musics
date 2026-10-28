@@ -41,6 +41,8 @@
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
                       '[musics.mu.store :as store]
+                      '[musics.mu.material :as mt]
+                      '[musics.mu.value :as v]
                       '[musics.repo :as repo]
                       '[musics.compose :as compose]
                       '[musics.engine :as engine]
@@ -82,8 +84,8 @@
              ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
-            ["wrong type" "(try (swap! (:envelopes-atom tctx) assoc \"?k\" 2.5) (catch Exception e (ex-message e)))"]
-            ["what it holds" "@(:envelopes-atom tctx)"]]}
+            ["wrong type" "(try (swap! (:params-atom tctx) assoc \"k\" 2.5) (catch Exception e (ex-message e)))"]
+            ["what it holds" "@(:params-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
     :tree [["(zip [1/4] (pick indisp))" "pick gives one index, no part of a note, and no bridge makes it one"]
@@ -329,13 +331,12 @@
     :tree [["(def other (transpose (take> (zip (cycle> [1/8]) (cycle> scale)))))" "reads :len and :semitones too"]]
     :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
-   {:title "Settings in the music: @ params in a context"
+   {:title "Settings written as @{ }, from several sources"
     :tree [["riff" "from recipe 1"]]
-    :params [["(store/read! \"^{ riffset: ?k:5 ?root:67 ?euclid.n:16 }\")" "?name:value sets an algo's param where !name: sets the music's"]
-             ["(def music (:context (repo/lookup :riffset)))" "an ordinary context"]
-             ["(def mine (t/tctx riff {:k 2}))" "the tctx comes first in the chain"]]
-    :runs [["from the music" "riff" "[nil [music]]" "(t/run riff nil [music])"]
-           ["the tctx first" "riff" "[mine [music]]" "(t/run riff mine [music])"]]}
+    :params [["(def written (into {} (:params (v/node (mt/read-text \"@{ k:5 root:67 euclid.n:16 }\")))))" "@{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
+             ["(def mine (t/tctx riff {:k 2}))" "a tctx that sets k itself"]]
+    :runs [["the written settings" "riff" "written" "(t/run riff written)"]
+           ["the tctx first, nearest first" "riff" "[mine written]" "(t/run riff [mine written])"]]}
    {:title "Look inside: describe and trace"
     :tree [["grid" "from recipe 10"]]
     :params [["(def grid-tctx (t/tctx grid))" ""]
@@ -370,8 +371,8 @@
     :extra [["committed" "(:ids (store/read! (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings ? names (\"?k\"); the tree isn't stored, its specs are"]
-   ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx or a map, then the contexts in chain, then the defaults; every value checked"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @{ } writes (\"k\"); the tree isn't stored, its specs are"]
+   ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx, a map or a vector of them nearest first, then -- for key and meter -- the music's contexts in chain, then the defaults; every value checked"]
    ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
    ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]
    ["(t/fit! tctx tree)" "" "add a tree's missing specs, keep values"]
@@ -436,12 +437,9 @@
 
 (defn full-params
   "Every param `tree` reads, with the value it runs with: given in `src`
-   (a map or a tctx, or [src chain] -- then the chain counts too), else
-   its default."
+   (a tctx, a map, or a vector of them nearest first), else its default."
   [tree src]
-  (let [given (cond (vector? src) (t/settings tree (first src) (second src))
-                    (t/tctx? src) (t/params src)
-                    :else src)]
+  (let [given (t/settings tree src)]
     (str "{" (str/join ", " (for [{:keys [key default]} (t/param-keys tree)
                                   :let [v (get given key default)]]
                               (str (pr-str key) " "

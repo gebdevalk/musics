@@ -7,10 +7,8 @@
    position (musics.algo.tree.live/bind-run!). The settings are a tctx
    per live name, fitted to the algo words the recipe runs
    (musics.mu.algos/*live*), so they know every param it reads."
-  (:require [clojure.string :as str]
-            [musics.algo.tree :as t]
+  (:require [musics.algo.tree :as t]
             [musics.algo.tree.live :as tree-live]
-            [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.mu.algos :as algos]
             [musics.mu.eval :as e]
@@ -74,6 +72,17 @@
     (tree-live/bind-run! name (run-fn recipe x cache) (p/show recipe) tctx)
     name))
 
+(defn- seed-from-head!
+  "The voice's settings take the recipe's head (the @{ } it opens with)
+   for every param it doesn't set yet, so settings and gui show them; an
+   unset goes back to the head as written."
+  [tctx recipe]
+  (when-let [head (and (v/quotation? recipe) (e/head-of recipe))]
+    (let [known (into #{"seed"} (map :own (vals (t/specs tctx))))
+          set   @(:params-atom tctx)
+          new   (into {} (for [[n v] head :when (and (known n) (not (contains? set n)))] [n v]))]
+      (when (seq new) (t/setp! tctx new)))))
+
 (defn play!
   "A play word given a recipe: bind a live name (the voice's own, or a
    fresh one) and play x -- or, on nothing, the recipe's first result --
@@ -86,6 +95,7 @@
           ;; run once now, so a recipe that fails is refused here, not heard
           first-run (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves)
           form (if (some? x) x first-run)]
+      (seed-from-head! tctx recipe)
       (if staged
         (mt/stage! form ctx (first staged) join? named name)
         (mt/play! form ctx join? named name)))))
@@ -114,11 +124,9 @@
 (defn tctx-of [word voice] (:tctx (wall/registered (live-name word voice))))
 
 (defn settings-of
-  "{\"?k\" 5 …}: the ? settings a context holds."
-  [ctx]
-  (let [cx (:context (v/node ctx))]
-    (into {} (for [k (keys @(:envelopes-atom cx)) :when (and (string? k) (str/starts-with? k "?"))]
-               [k (c/ctx-value-chain [cx] k Double/POSITIVE_INFINITY)]))))
+  "{\"k\" 5 …}: the settings an @{ } holds."
+  [x]
+  (into {} (:params (v/node x))))
 
 (defn retree!
   "A new recipe for the voice's live name: its settings and its voices'

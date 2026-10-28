@@ -27,12 +27,12 @@
 
 (deftest a-short-name-for-an-algo-param
   (let [run #(peek (e/run-text [] %))]
-    (e/run-text [] "'?dp '?duration-pulse :=")
-    (is (= "^{ ?duration-pulse:1/8 }" (p/show (run "^{ ?dp:1/8 }"))) "stored, and shown, by its long name")
-    (is (= (p/show (run "^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid"))
-           (p/show (run "^{ ?k:3 ?n:8 ?dp:1/8 } duration/euclid")))
+    (e/run-text [] "'dp 'duration-pulse :=")
+    (is (= "@{ duration-pulse:1/8 }" (p/show (run "@{ dp:1/8 }"))) "stored, and shown, by its long name")
+    (is (= (p/show (run "@{ k:3 n:8 duration-pulse:1/8 } duration/euclid"))
+           (p/show (run "@{ k:3 n:8 dp:1/8 } duration/euclid")))
         "the algo reads it")
-    (is (= "^{ ?duration-pulse:1/16 }" (p/show (run "'?p '?duration-pulse := ^{ ?p:1/16 }")))
+    (is (= "@{ duration-pulse:1/16 }" (p/show (run "'p 'duration-pulse := @{ p:1/16 }")))
         "bound and used in one input")))
 
 (deftest what-is-not-music-is-refused

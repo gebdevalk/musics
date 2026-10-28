@@ -21,8 +21,9 @@
    - TRANSFORM (the tree reads :nodes, e.g. (transpose :nodes)): the
      voice's own notes arrive as :nodes and the tree's data replaces them.
 
-   The tree runs with what the tctx sets, then the settings of the music
-   the voice plays in (its chain: ^{ ?k:5 }, !key:), then the defaults --
+   The tree runs with what the tctx sets -- a param that names a music
+   key (key, meter) then reading the music the voice plays in (!key:,
+   !M:) -- then the defaults --
    read, for a generating tree, at the voice's first note and after each
    change. Each voice keeps its own position; a change re-runs the tree once and
    continues at the same position. A tree that fails to run keeps the
@@ -129,8 +130,8 @@
   "Follow `tctx` for `name` from now on: every change registers it again."
   [name tctx]
   (when-let [old (:tctx (entry name))]
-    (when-not (identical? old tctx) (remove-watch (:envelopes-atom old) [::live name])))
-  (add-watch (:envelopes-atom tctx) [::live name]
+    (when-not (identical? old tctx) (remove-watch (:params-atom old) [::live name])))
+  (add-watch (:params-atom tctx) [::live name]
              (fn [_ _ old new] (when (not= old new) (reregister! name tctx)))))
 
 (defn- bind!
@@ -218,7 +219,7 @@
             :when (and (= name (:algo v)) (= path (:root-path v)))]
       (engine-call 'play-change path [])))
   (some-> (:cursors (entry name)) (reset! {}))
-  (some-> (:tctx (entry name)) :envelopes-atom (remove-watch [::live name]))
+  (some-> (:tctx (entry name)) :params-atom (remove-watch [::live name]))
   nil)
 
 (defn uninstall!

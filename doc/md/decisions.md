@@ -2036,3 +2036,36 @@ chain reaches (an `:index`), the build fails as before. The builder
 offers an algo wherever it fits inside its bridges and places the chain
 with it, so the composer stops dimming what a bridge can reach. mu's
 algo words take half products already, so nothing there changes.
+
+## 2026-10-28 — An algo's settings are @{ }, apart from the music's ^{ }
+
+There are two kinds of context. A **ctx**, `^{ }`, holds the music's
+`!` keys as timelines; a **tctx**, `@{ k:5 bass.k:3 }`, holds an algo's
+params, one plain value each with its spec. They used to share one
+container, told apart by a `?` prefix, so `^{ ?k:5 !mf }` and `[c ?k:5
+d]` were both accepted -- the 2026-10-14 decision that an algo's
+settings are "a scope like any other", settable in the music where it
+plays. That mixing is reversed: looking at a context, you know at once
+what it is for, and a `?k` written in a line can no longer reach an
+algo somewhere else. `?name:value` is parsed only to be refused.
+
+`@` comes back: `@k:5` was dropped on 2026-10-22 because a sign on every
+key didn't look good, while one sign before a whole container, `@{ }`,
+reads well. Inside it the names are bare.
+
+An algo reads its settings and its defaults. From the music it reads
+only what a param's spec names as a music key -- the bridges' `key` and
+`meter` -- and only when it works in music; nothing an algo does
+writes a context.
+
+In a recipe, an `@{ }` is either the **head** -- the item the quotation
+opens with, reaching every algo word in it, what `set`, `settings` and
+the GUI work on -- or **local**, right before one word and used up by
+it. Threading every `@{ }` down the recipe (each holding from where it
+stands) was weighed: it reads in order, but what a word receives is
+then the sum of everything above it, and `set` could no longer say
+which `len` it changes. The head is the broadcast, a local one the
+exception, so a word's settings are always its local `@{ }`, the live
+voice's, the head, then the defaults. Recipes are trees already -- the
+stack builds them -- so this covers trees written as recipes; the
+composer's trees keep their tctx and naming (`bass.k`).

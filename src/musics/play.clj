@@ -138,21 +138,20 @@
 ;; -- live voices: a play word given a recipe (musics.mu.live) ----------------
 
 (defn set-settings!
-  "Change a live voice's settings, heard on its next note: :riff ^{ ?k:5 } set"
+  "Change a live voice's settings, heard on its next note: :riff @{ k:5 } set"
   {:mu {:names ["set"]}}
-  [voice ctx]
-  (when-not (= :CONTEXT (mt/kind ctx))
-    (fail "takes a voice and a context of settings, :riff ^{ ?k:5 } set -- got" (p/show ctx)))
-  (let [m (live/settings-of ctx)]
-    (when (empty? m) (fail "the context sets no ?name -- write ^{ ?k:5 }"))
+  [voice settings]
+  (when-not (= :TCONTEXT (mt/kind settings))
+    (fail "takes a voice and settings, :riff @{ k:5 } set -- got" (p/show settings)))
+  (let [m (live/settings-of settings)]
+    (when (empty? m) (fail "the settings are empty -- write @{ k:5 }"))
     (t/setp! (live/tctx-of "set" voice) m)))
 
 (defn unset!
-  "Leave a live voice's setting to the music and the defaults again: :riff '?k unset"
+  "Leave a live voice's setting to its recipe's head and the defaults again: :riff 'k unset"
   [voice nm]
-  (let [n (str nm)]
-    (when-not (str/starts-with? n "?") (fail "takes a setting's name, '?k -- got" (p/show nm)))
-    (t/unsetp! (live/tctx-of "unset" voice) n)))
+  (when-not (symbol? nm) (fail "takes a setting's name, 'k -- got" (p/show nm)))
+  (t/unsetp! (live/tctx-of "unset" voice) (str nm)))
 
 (defn settings!
   "A live voice's settings: each param its recipe reads, its value, range,
