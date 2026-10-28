@@ -35,6 +35,7 @@
     :string   (pr-str x)
     (cond (keyword? x)    (if (= data-type :name) (name x) (str x))
           (nil? x)        "nil"
+          (= :LOOP (:type x)) (str (data-element nil (:items x)) " [~]")
           (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
           :else           (str x))))
 
@@ -110,6 +111,7 @@
     (case (:type node)
       :PAR     (str "{" (id-prefix node) (show-children repo node) "}")
       :CONTEXT (str "^{ " (id-prefix node) (show-children repo node) " }")
+      :TCONTEXT (if (seq (:text node)) (str "@{ " (:text node) " }") "@{ }")
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))

@@ -11,8 +11,7 @@
 ;; fixed point, no ##Inf/##NaN) over hundreds of steps at its own
 ;; defaults.
 
-(ns musics.algo.random.lorenz
-  (:require [musics.algo.common.scaling :as scaling]))
+(ns musics.algo.random.lorenz)
 
 (defn- lorenz-derivs
   "[dx dy dz] for the real Lorenz system at [x y z], given sigma/rho/beta."

@@ -3,7 +3,7 @@
    of unequal length together, medieval motet technique still used
    generatively today. Distinct from musics.algo.common.reshape: reshape's own
    functions (invert/retrograde/arpeggiate/hocket) all operate on already-
-   resolved domain material (parts/leaves produced by musics.core/sq).
+   resolved domain material (parts/leaves produced by musics.compose/sq).
    color-talea below works one level earlier -- on bare pitch/duration
    values, before anything has been built into a Leaf at all -- so it
    lives in its own file rather than stretching reshape's documented
@@ -22,8 +22,7 @@
    zip-parts below is the N-way generalization -- any number of named,
    independently-cycling streams (not just a fixed pitch+duration
    pair), combined the same lcm-of-all-lengths way."
-  (:require [musics.domain :as d]
-            [musics.algo.common.numeric :as num]))
+  (:require [musics.algo.common.numeric :as num]))
 
 (defn color-talea
   "Combine a color (pitch sequence) and a talea (duration sequence) into

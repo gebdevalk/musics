@@ -1,7 +1,7 @@
 (ns ^:domain musics.common.music-data-test
   (:require [clojure.test :refer [deftest is are testing]]
             [musics.common.music-data :as data]
-            [musics.input.grammar-parser :as gp]))
+            [musics.mu.value :as v]))
 
 (deftest smart-get-finds-what-a-start-can-only-mean
   (is (= 120 (data/smart-get {:tempo 120 :timbre 42} :te)))
@@ -32,9 +32,9 @@
   (is (thrown-with-msg? Exception #"sfx or standard" (data/kit-of "s"))))
 
 (deftest in-musics-text
-  (is (thrown-with-msg? Exception #"'viol' could be viola or violin" (gp/parse-domain-string "[!i:viol c]")))
-  (is (thrown-with-msg? Exception #"'nope' is not a drum" (gp/parse-domain-string "[x8\\nope]")))
-  (is (= [56 42] (->> (gp/parse-domain-string "[x8\\cow x\\closed]") :tree vals (mapcat :children) (keep :program)))))
+  (is (thrown-with-msg? Exception #"'viol' could be viola or violin" (v/read-domain "[!i:viol c]")))
+  (is (thrown-with-msg? Exception #"'nope' is not a drum" (v/read-domain "[x8\\nope]")))
+  (is (= [56 42] (->> (v/read-domain "[x8\\cow x\\closed]") :tree vals (mapcat :children) (keep :program)))))
 
 (deftest the-matches-listed
   (is (= [{:program 40 :name "violin" :short "vln"} {:program 41 :name "viola" :short "vla"}] (data/instrument-matches "viol")))

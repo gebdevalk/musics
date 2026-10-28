@@ -3,7 +3,7 @@
    playback (on a silent engine), namespaces, help, files, defaults."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
-            [musics.core :as m]
+            [musics.events :as ev] [musics.mu.store :as store] [musics.domain.resolve :as r]
             [musics.engine :as engine]
             [musics.input.reader.builder :as builder]
             [musics.conductor :as conductor]
@@ -102,7 +102,8 @@
   (is (re-find #"nothing is bound to zz" (:error (run "\\zz"))))
   (is (re-find #"nothing is bound to zz" (:error (run "[\\zz]"))))
   (is (re-find #"holds 7 -- only music" (:error (run "'q 7 :=" "[\\q]"))))
-  (is (re-find #"bound in this input" (:error (run "'m [c d] := [\\m e]"))))
+  (is (= "[C4/4 D4 E4]" (p/show (peek (:ok (run "'m [c d] := [\\m e]"))))) "bound, then used, in one input")
+  (is (re-find #"bound by the := it comes before" (:error (run "[\\fresh e] 'fresh [c d] :="))))
   (is (re-find #":=: needs a name under the value" (:error (run "3 4 :=")))))
 
 (deftest storing-and-fetching
@@ -132,7 +133,7 @@
 
 (deftest playing-stores-nothing
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (let [before (set (keys @(repo/registry)))]
         (is (:ok (run "[c4 d e] play")))
         (is (= 1 (count @(:voices engine/*engine*))) "a voice started")
@@ -151,6 +152,24 @@
         (engine/stop!)
         (is (= "nothing plays\n" (out "pause")) "with nothing playing it says so")))))
 
+(deftest require-loads-clojure-words
+  (is (= "musics.algo.common.numeric as numeric/ (3 words)\n" (out "\"musics.algo.common.numeric\" require")))
+  (is (= [6] (:ok (run "12 18 numeric/gcd"))) "under its last name")
+  (out "\"musics.algo.common.numeric\" 'n require")
+  (is (= [12] (:ok (run "4 6 n/lcm"))) "or a short alias")
+  (let [dir (doto (java.io.File/createTempFile "mu-words" "") (.delete) (.mkdirs))
+        f   (java.io.File. dir "words.clj")]
+    (spit f "(ns mu-test.words) (defn add3 \"plus three\" [n] (+ n 3))")
+    (out (str "\"" f "\" 'w require"))
+    (is (= [7] (:ok (run "4 w/add3"))) "a .clj file")
+    (spit f "(ns mu-test.words) (defn add4 \"plus four\" [n] (+ n 4))")
+    (out (str "\"" f "\" 'w require"))
+    (is (= [8] (:ok (run "4 w/add4"))) "required again, reloaded")
+    (is (re-find #"unknown word: w/add3" (:error (run "4 w/add3"))) "its old words gone"))
+  (is (re-find #"no namespace musics.nope" (:error (run "\"musics.nope\" require"))))
+  (is (re-find #"'kernel is a namespace already" (:error (run "\"musics.algo.common.numeric\" 'kernel require")))
+      "mu's own namespaces are kept"))
+
 (deftest namespaces-help-files
   (run "\"song\" in" ": tune 1 ;")
   (is (= [1] (:ok (run "song/tune"))))
@@ -162,6 +181,33 @@
     (spit f "[loaded: c4 d e]")
     (is (str/includes? (out (pr-str (.getPath f)) " load") ":loaded"))
     (is (repo/current :loaded) "load stores what the file says")))
+
+(defn- temp-file [ext text]
+  (doto (java.io.File/createTempFile "mu-test" ext) (spit text) (.deleteOnExit)))
+
+(deftest load-converts-lilypond-abc-and-guido
+  (testing "ABC"
+    (out (pr-str (.getPath (temp-file ".abc" "X:1\nT:Test\nM:4/4\nL:1/8\nK:C\nC2 D2 E2 F2 |]\n"))) " load")
+    (is (repo/current :tune1_test) "the converted tune is stored under its own id"))
+  (testing "LilyPond and GUIDO store their music too"
+    (doseq [[ext text] [[".ly" "{ c4 d4 e4 f4 }"] [".gmn" "[ c1/4 d e f ]"]]]
+      (let [before (count (repo/root-children))]
+        (is (str/includes? (out (pr-str (.getPath (temp-file ext text))) " load") "stored") ext)
+        (is (< before (count (repo/root-children))) ext)))))
+
+(deftest render-writes-a-midi-file
+  (let [f (java.io.File/createTempFile "mu-test" ".mid")]
+    (.deleteOnExit f)
+    (is (str/includes? (out "[c d e]" (str " " (pr-str (.getPath f)) " render")) "written"))
+    (is (pos? (.length f)))
+    (is (= 3 (count (filter #(= javax.sound.midi.ShortMessage/NOTE_ON (.getCommand ^javax.sound.midi.ShortMessage %))
+                            (for [t (.getTracks (javax.sound.midi.MidiSystem/getSequence f))
+                                  i (range (.size t))
+                                  :let [m (.getMessage (.get t i))]
+                                  :when (and (instance? javax.sound.midi.ShortMessage m)
+                                             (pos? (.getData2 ^javax.sound.midi.ShortMessage m)))]
+                              m)))))
+    (is (re-find #"endless" (:error (run "[c d] [~] \"x.mid\" render"))) "a loop needs its seconds")))
 
 (deftest clear-clears-the-stack
   (is (= [] (:ok (run "1 2 [c d] clear"))))
@@ -184,7 +230,7 @@
   (is (= "[!K:E.major D#4/4 !f E4]" (p/show (first (:ok (run "[!K:D.major c !f d] 2 +"))))) "its own key moves, instructions stay")
   (is (= "{!K:G.major [G4/4 A4] [B4 C5]}" (p/show (first (:ok (run "{[c d] [e f]} 7 +"))))) "a { } takes the key too")
   (run "[c d e f] 1 + ^{ !K:D.major } with :moved R!")
-  (is (= [61 63 65 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (m/events :moved))))
+  (is (= [61 63 65 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (ev/events (repo/registry) :moved))))
       "the notes keep their own key under another: e moved up is F, not F#")
   (is (= "C4/8" (p/show (first (:ok (run "c4 1/2 *"))))) "* scales durations")
   (is (= "[C4/8 D4]" (p/show (first (:ok (run "[c d] 2 /"))))) "/ divides them")
@@ -236,18 +282,18 @@
 
 (deftest inspecting-the-repo
   (run "[!tempo:90 [inner: c d] e] :verse R!" "[repeat 2 [:inner] f] :chorus R!" "^{ !ff } :loud R!")
-  (testing "each prints what its musics.core namesake gives at the REPL"
-    (is (= (with-out-str (prn (m/ids))) (out "ids")))
-    (is (= (with-out-str (prn (m/usages :inner))) (out ":inner usages")))
-    (is (= (with-out-str (m/ctx :inner)) (out ":inner ctx")))
-    (is (= (with-out-str (m/ctx :verse)) (out ":verse R@ ctx")) "fetched material works too"))
+  (testing "each prints what it reads"
+    (is (= (with-out-str (prn (repo/ids))) (out "ids")))
+    (is (= (with-out-str (prn (repo/usages :inner))) (out ":inner usages")))
+    (is (= (with-out-str (r/ctx :inner)) (out ":inner ctx")))
+    (is (= (with-out-str (r/ctx :verse)) (out ":verse R@ ctx")) "fetched material works too"))
   (is (= ":inner: (empty)\n:verse: Tempo=90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
   (is (re-find #"ctx: needs the name of something stored" (:error (run ":nope ctx"))))
   (is (re-find #"usages: needs the name of something stored" (:error (run "[c d] usages")))))
 
 (deftest staged-play-waits-for-its-boundary
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
         (run "[!tempo:240 c16 d | e f | g a] >")
           (run "[b16 c] | >>")
@@ -266,7 +312,7 @@
 
 (deftest soundfont-words
   (testing "soundfonts numbers the files soundfont takes"
-    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (m/soundfonts))) (out "soundfonts"))))
+    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (engine/soundfonts))) (out "soundfonts"))))
   (testing "soundfont refuses what is neither a file nor a number, and a number too high"
     (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
     (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
@@ -276,7 +322,7 @@
   (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.material/echo-line {:channel 2 :pitches [60 64 67] :program 40})))
   (let [lines (atom [])]
     (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-      (with-redefs [m/receiver (atom :silent)
+      (with-redefs [engine/receiver (atom :silent)
                     e/print-above (atom #(swap! lines conj %))]
         (try
           (is (= "echo on\n" (out "echo")))
@@ -293,7 +339,7 @@
 
 (deftest named-music-is-its-own-voice
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (try
         (let [ids #(set (keys (mt/live-voices)))]
           (run "[bass: !tempo:60 c1 d1] >")
@@ -332,7 +378,7 @@
 
 (deftest a-voice-alone-plays-its-own-music-again
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (try
         (run "[bass: !tempo:60 c1 d1] [~] >")
         (run "[mel: !tempo:60 e'1 f1] ^{ !mf } >")
@@ -356,7 +402,7 @@
 
 (deftest a-named-voice-changes-at-its-own-boundary
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
         (try
           (run "[bass: !tempo:240 c16 d] [~] >")
@@ -370,7 +416,7 @@
 
 (deftest voices-by-index-low-to-high-drums-from-0-down
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (try
         (run "[!tempo:60 C5/1 D5] >")
         (run "[!tempo:60 C3/1 D3] >+")
@@ -412,7 +458,7 @@
     (is (re-find #"nothing to gather" (:error (run "( )"))))
     (is (re-find #"gathers music into a line, and left 1" (:error (run "( 1 2 )"))))
     (run "( [c d] 2 repeat [e] [f] volta ) 1 + ^{ !K:D.major } with :grouped R!")
-    (is (= [61 63 65 61 63 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (m/events :grouped))))
+    (is (= [61 63 65 61 63 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (ev/events (repo/registry) :grouped))))
         "the first ending's F stays F under another key")))
 
 (deftest a-name-on-top-of-play-is-a-voice
@@ -420,11 +466,11 @@
 
 (deftest staged-play-with-no-boundary-plays-at-once
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
-    (with-redefs [m/receiver (atom :silent)]
+    (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
         (try
           (mt/stop-all!)
-          (engine/play [(first (:ids (m/parse "[!tempo:60 c1 d1]")))])
+          (engine/play [(first (:ids (store/read! "[!tempo:60 c1 d1]")))])
           (run "[e f] >>")
           (is (empty? (conductor/scheduled)) "mu knows no pass of what plays: no wait for a | that may never come")
           (is (= 1 (count (mt/live-voices))))

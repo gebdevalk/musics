@@ -107,8 +107,7 @@
    ns's own state (the repo registry) -- redundant with, but harmless
    alongside, a direct (musics.registries/reset-all!) call, which also
    wipes musics.wall/core.conductor/core.assist's own state; that wider
-   reset is musics.core/reset's job, not this fn's (see its own
-   docstring for why both calls are made there)."
+   reset is musics.mu.store/reset-all!'s job, not this fn's."
   []
   (clojure.core/reset! reg/*repo-registry* {})
   nil)
@@ -122,3 +121,45 @@
   (reset-all!)
   (clojure.core/reset! reg/*repo-registry* id->node)
   nil)
+
+(defn lookup
+  "The node a handle names: a keyword or string id (looked up), a map
+   (a node already), nil for nil."
+  [x]
+  (cond
+    (nil? x)     nil
+    (keyword? x) (current x)
+    (string? x)  (current (keyword x))
+    (map? x)     x
+    :else        (throw (ex-info (str "Cannot resolve: " (pr-str x)) {:arg x}))))
+
+(defn ids
+  "Every stored id but :ROOT, sorted."
+  []
+  (sort (remove #{:ROOT} (keys @(registry)))))
+
+(defn root-children
+  "The ids of :ROOT's own children, in the order they were read; an
+   inline child without an id shows as nil."
+  []
+  (mapv (fn [child] (if (keyword? child) child (:id child)))
+        (:children (current :ROOT))))
+
+(defn children
+  "A container's children (any handle lookup takes), ids looked up."
+  [x]
+  (let [view @(registry)
+        c    (lookup x)]
+    (when (and (map? c) (contains? c :children))
+      (mapv (fn [child] (if (keyword? child) (get view child) child))
+            (:children c)))))
+
+(defn usages
+  "Every id whose content references id directly as one of its children
+   -- what else changes when id is stored again."
+  [id]
+  (into #{}
+        (keep (fn [[candidate-id node]]
+                (when (and (map? node) (some #{id} (:children node)))
+                  candidate-id)))
+        @(registry)))

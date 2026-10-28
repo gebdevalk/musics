@@ -128,6 +128,6 @@ played with `>`/`play` when that is a single note, chord or drum.
     REPL.
   - **Later:** signature bits become facts too (register, interval, …),
     with rules over them.
-- **Steering.** The ratings weight generation, so that `+instrument`
-  picks liked programs and `surprise` favours trees whose output scores
+- **Steering.** The ratings weight generation, so that the instruments zipped
+  onto notes are liked programs and `surprise` favours trees whose output scores
   well, each taking only what `suggesto` or `avoid` allow.

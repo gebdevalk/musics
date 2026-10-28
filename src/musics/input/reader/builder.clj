@@ -36,8 +36,8 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   Currently only :CONTEXT (^{ } grammar rule)."
-  #{:CONTEXT})
+   :CONTEXT (^{ }) and :TCONTEXT (@{ }, an algo's settings)."
+  #{:CONTEXT :TCONTEXT})
 
 ;; ============================================================
 ;; State initialization
@@ -49,7 +49,7 @@
 
    This is the one true root context -- constructed once, here, at
    session-start (or reset), so the rest of the code (resolve/root-seed,
-   the engine, musics.core) can rely on repo always having a real :ROOT
+   the engine, musics.mu.store) can rely on repo always having a real :ROOT
    context instead of separately constructing or being handed one."
   []
   (let [root-ctx (c/context-root (ck/root-defaults))]
@@ -63,10 +63,9 @@
    already containing :ROOT), continues it instead: the stack is seeded
    with the session's own :ROOT (so new top-level elements append to the
    same root), :auto-ids continues from the session's counts (so ids
-   never collide with what's already in the repo), and :var-map
-   continues too (so a variable defined in an earlier parse call is
-   still referenceable in a later one, matching the old text-level
-   var-registry's persistence)."
+   never collide with what's already in the repo), and :var-map holds
+   the variables a \\name can splice (musics.mu.value/var-map, from
+   mu's bindings)."
   ([input] (initial-state input nil))
   ([input session]
    (let [session (or session (empty-session))
@@ -75,6 +74,7 @@
       :stack      [root]
       :auto-ids   (atom (:auto-ids session))
       :var-map    (atom (or (:var-map session) {}))
+      :param-aliases (or (:param-aliases session) {})
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
@@ -94,6 +94,7 @@
   {:SEQ     "s"
    :PAR     "p"
    :CONTEXT "c"
+   :TCONTEXT "t"
    :DATA    "d"})
 
 (defn next-auto-id
@@ -147,38 +148,12 @@
    would have had, so leaves that were originally contiguous stay
    correctly spaced relative to each other even after extraction --
    verified against the existing ramp-rebasing test suite, not just
-   reasoned through.
-   Returns nil -- deliberately skipping the bake -- whenever a :VARDEF
-   scratch frame is anywhere on the stack: a VarDef body is walked once,
-   in isolation, at its own definition site, always BEFORE any \\name
-   reference ever splices its leaves somewhere real (variables must be
-   defined before they're referenced -- see this ns's own comment on
-   walk-var-def/walk-var-ref) -- so 'baking its whole ancestry in once,
-   here' (the assumption the rest of this docstring rests on) is exactly
-   backwards for this content: the ancestry captured would only ever be
-   the scratch frame itself (plus, at most, one real nested Sequence
-   inside it, e.g. a braced motif) -- never whatever !instrument:/
-   !tempo:/!mf:/etc. is in effect wherever the variable actually gets
-   spliced in later. Confirmed live: a bass line built from
-   VarDef-defined motifs kept sounding on MIDI program 0 even with
-   !i:32 written directly on the real container each motif was spliced
-   into, because every one of its leaves carried a baked chain reaching
-   back only to that motif's own, nearly-empty definition-time ancestry.
-   A leaf with no baked chain here falls back to whatever ctx-chain the
-   traversal threads in at resolve time (musics.domain.resolve/
-   effective-chain), same as an ornament/algo-helper-generated leaf
-   already does -- which for a VarRef-spliced leaf means the REAL
-   splice site's ctx-chain, built fresh by the traversal exactly like an
-   inline-authored leaf's would be, since VarRef-spliced children are
-   ordinary, no-longer-VarDef-nested children by the time a real
-   traversal ever reaches them."
+   reasoned through."
   [state]
-  (if (some #(= :VARDEF (:type %)) (:stack state))
-    nil
-    (into [] (keep (fn [container]
-                      (when-let [ctx (:context container)]
-                        [ctx (d/written-duration (:repo state) container)])))
-          (rseq (:stack state)))))
+  (into [] (keep (fn [container]
+                   (when-let [ctx (:context container)]
+                     [ctx (d/written-duration (:repo state) container)])))
+        (rseq (:stack state))))
 
 (defn replay-context!
   "Copy every envelope point from src-ctx onto target-ctx, each point re-
@@ -419,12 +394,9 @@
 
 (defn finish
   "Pop all remaining containers until only root remains, then register it.
-   Returns {:tree map :root-id keyword :auto-ids map :var-map map} where
-   :tree is the id->container map, :auto-ids is the final id-counter
-   snapshot, and :var-map is the final {name -> {:children :context}}
-   snapshot (both to be threaded into the next session's initial-state,
-   so ids keep counting up and variables stay defined instead of
-   resetting)."
+   Returns {:tree map :root-id keyword :auto-ids map} where :tree is the
+   id->container map and :auto-ids the final id-counter snapshot, to be
+   threaded into the next walk so ids keep counting up."
   [state]
   (let [final-state (loop [s state]
                       (if (> (count (:stack s)) 1)
@@ -433,5 +405,4 @@
         registered  (pop-container final-state)]
     {:tree     (:repo registered)
      :root-id  (:id (get-in registered [:repo :ROOT]))
-     :auto-ids @(:auto-ids registered)
-     :var-map  @(:var-map registered)}))
+     :auto-ids @(:auto-ids registered)}))

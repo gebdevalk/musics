@@ -7,7 +7,7 @@ through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
 
-Start mu with `lein mu` (or `(mu!)` from `lein repl`). `bye` or Ctrl+D
+Start mu with `lein mu`. `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
 ## 0. The stack
@@ -385,7 +385,8 @@ the text's `alternate [ … ]`. Weights go on top, one per alternative:
 times as often as the second.
 
 `TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`,
-in mu and in a `.mus` file alike (`[c d] 5 TRP`, `TRP 5 ( c d )`).
+as words and as the text's commands inside a line (`[c d] 5 TRP`,
+`[TRP 5 ( c d )]`).
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
@@ -469,14 +470,13 @@ durations and pitches back together:
 [c8 <e g>4 r8 d] durations       → '[1/8 1/4 1/8 1/8]
 [c8 <e g>4 r8 d] pitches         → '[60 '[64 67] nil 62]
 [c d\vol:90 e] volumes           → '[nil 90 nil]
-[c\vol:30 r d\vol:90] volumes    → '[30 90]
+[c\vol:30 r d\vol:90] volumes    → '[30 nil 90]
 '[/4 /8 /8] '[60 62 64] zip      → [C4/4 D4/8 E4]
 ```
 
-`pitches` and `durations` give a rest's too (nil, its length), which
-`zip` needs; `volumes`, `articulations`, `instruments` and `drums` leave
-rests out, a value per note, as `with-volumes` and the others take them
-(section 15).
+Every reader gives a rest's value too -- its length, and nil for the
+rest -- so each stream keeps one value per element, as `zip` takes
+them (section 15): at a rest the value goes unused.
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in
@@ -570,13 +570,13 @@ sound. So the words keep them apart:
 |---|---|---|
 | `instruments` | `( line -- stream )` | each note's own program; nil for a drum |
 | `drums` | `( line -- stream )` | each drum's key; nil for a note |
-| `with-instruments` | `( line programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
-| `with-drums` | `( line keys -- line )` | each drum's sound in turn; a note is refused |
+| `zip` with `:instrument` | `( \| line :instrument programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
+| `zip` with `:drum` | `( \| line :drum keys -- line )` | each drum's sound in turn; a note is refused |
 | `as-drums` | `( line keys -- line )` | each note made a drum, keeping its length, volume and accent |
 
 ```
-[c d e] '[40 :sea 73] with-instruments  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
-[x8\bd1 x8\sna] '[:hhc :cr1] with-drums → [x8\42 x\49]
+| [c d e] :instrument '[40 :sea 73] zip  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
+| [x8\bd1 x8\sna] :drum '[:hhc :cr1] zip → [x8\42 x\49]
 [c8 d e f] '[:kick :hhc :sna :hhc] as-drums → [x8\36 x\42 x\38 x\42]
 ```
 
@@ -595,7 +595,7 @@ x8\36 '[36 38 42] 2 combos  → [x8\36,38 x\36,42 x\38,42]
 ```
 
 `sounds` is the way to audition a soundfont: build a line of sounds
-and play it, or rate them (section 16).
+and play it, or rate them (section 17).
 
 ## 13. Keeping things
 
@@ -650,50 +650,6 @@ Barring it with `[||]` shows the shift: each bar starts on another note
 of the color. The result is an ordinary line, so everything above
 applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
-### The same as an algo tree
-
-In Clojure, the same isorhythm is a tree of three tools, with its
-settings kept apart from it (`lein repl`, where `t` and the tools are
-already referred):
-
-```clojure
-(def isorhythm (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67]))))
-isorhythm
-;; #node (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67])))
-```
-
-The tree only says what is computed. Its settings live apart from it,
-in a **tctx**: an ordinary musics context, the same kind of thing a
-`^{ }` makes, holding the algo settings as `?` names:
-
-```clojure
-(def tctx (t/tctx isorhythm))
-tctx
-;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {}}], :duration nil}
-
-(t/setp! tctx :len 15)             ; take> keeps 15; returns every param's value
-;; {:len 15}
-tctx
-;; {:envelopes-atom #object[clojure.lang.Atom 0x719de15f {:status :ready, :val {"?len" 15}}], :duration nil}
-
-(t/params tctx)                    ; every param's value, set or default
-;; {:len 15}
-
-(notes->mus (t/run isorhythm tctx))
-;; "[ !acc:explicit C4/4 D4/8 E4/8 F4/4 G4/8 C4/8 D4/4 E4/8 F4/8 G4/4 C4/8 D4/8 E4/4 F4/8 G4/8 ]"
-```
-
-- A new tctx is empty (`:val {}`): every param is at its default
-  (`take>` keeps 16).
-- `setp!` stores `:len` under its context name, `"?len"`, and checks it
-  first: `(t/setp! tctx :len 999)` is refused, the range is 0..256.
-- Since it is a context, the same setting can be written in musics
-  text, `^{ ?len:15 }`, and handed to `t/run` after the tctx.
-
-`cycle>`, `zip` and `take>` do what `cycle`, `zip` and `take` do in mu.
-`notes->mus` writes the result as musics text, which mu reads as it
-is: paste it at the mu prompt and it's a line on the stack.
-
 ## 15. Algos as words
 
 The algos of the trees are mu words too, named by what they deliver:
@@ -704,31 +660,32 @@ says what one does and which settings it reads:
 
 ```
 "duration/euclid" see
-duration/euclid ( [^{ @… }] -- durations )
-  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  ?k ?n ?rotation ?duration-pulse
+duration/euclid ( [@{ … }] -- durations )
+  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @{ k n rotation duration-pulse }
 ```
 
-A source takes nothing from the stack. A context on top, `^{ … }`, is
-its settings, each written `?name:value` (`!` sets the music, `?` an
-algo):
+A source takes nothing from the stack. Settings on top, `@{ … }`, are
+its own, each written `name:value` -- an algo's settings, kept apart
+from the music's `^{ }`:
 
 ```
 duration/euclid                                        → '[3/16 3/16 1/8]
-^{ ?k:5 ?n:8 ?duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
-^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+@{ k:5 n:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
+@{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
                                                        → [C4/4. E4 G4/4]
 ```
 
-Three beats among eight eighths is the tresillo. A setting the context
-doesn't give falls back to the music's own (so `!key:` reaches an algo
-that reads a key), then to the algo's default.
+Three beats among eight eighths is the tresillo. A setting the `@{ }`
+doesn't give takes the algo's default. Only two settings read the
+music, a key and a meter: played in a line, an algo that turns scale
+steps into pitches plays in the line's `!key:`.
 
 An algo that varies something takes it from the stack, a line taken
 apart into what it wants: durations, pitches or the notes themselves.
 `duration/necklace` gives a rotation of a rhythm on its grid:
 
 ```
-[c4. d8 e4] durations ^{ ?index:1 ?duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] durations @{ index:1 duration-pulse:1/8 } duration/necklace
                                                        → '[r4 1/8 1/4 1/8]
 ```
 
@@ -737,9 +694,9 @@ works on what the loop repeats -- so a loop of a rhythm varied is a
 loop of the varied rhythm, ready to zip with a loop of pitches:
 
 ```
-[c4. d8 e4] [~] durations ^{ ?index:1 ?duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] [~] durations @{ index:1 duration-pulse:1/8 } duration/necklace
     → '[r4 1/8 1/4 1/8] [~]
-^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
+@{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```
 
@@ -748,64 +705,86 @@ twelve: the melody keeps landing on another beat, the color-talea of
 section 14 written with an algo.
 
 A volume, articulation or instrument stream goes back onto a line with
-`with-volumes`, `with-articulations` or `with-instruments`, a value per
-note in turn (rests take none). With eight beats among eight eighths,
-`volume/euclid` gives the meter's accents:
+`zip`, a value per note in turn, cycling (a rest's going unused): given
+a line, `zip` writes the stream's part on each note and keeps the
+line's form. With eight beats among eight eighths, `volume/euclid`
+gives the meter's accents:
 
 ```
-[c8 d e f g a b c] ^{ ?k:8 ?n:8 ?volume-pulse:1/8 ?volume-lo:50 ?volume-hi:80 } volume/euclid with-volumes
+[c8 d e f g a b c] @{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
-A random algo runs differently each time. `?seed:7` in its settings
+Without durations and pitches, `zip` gives a bundle: the parts side by
+side as columns, each as long as it is. It is data, waiting for what
+it lacks -- a contour with its dynamics waiting for a rhythm -- and
+`zip` takes it again as its parts:
+
+```
+| :pitch '[60 62 64] :volume '[90 70] zip   → '[:pitch '[60 62 64] :volume '[90 70]]
+'[/8 /4] swap zip                          → [C4/8\volume:90 D4/4\volume:70]
+```
+
+A bundle can't sound: playing it is refused, saying what it lacks.
+
+A long setting name gets a short one with `:=`, a name bound to a
+name: from then on the short one is read as the long one in an `@{ }`,
+which keeps, and shows, the long one:
+
+```
+'vp 'volume-pulse :=
+@{ vp:1/8 }                       → @{ volume-pulse:1/8 }
+```
+
+A random algo runs differently each time. `seed:7` in its settings
 runs it on that seed, so two words with one seed and one source read
 the same run -- a walk heard as pitch and as volume, rising and
 falling together:
 
 ```
-^{ ?seed:7 ?len:6 } pitch/walk     → '[48 48 48 53 60 60]
-^{ ?seed:7 ?len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+@{ seed:7 len:6 } pitch/walk     → '[48 48 48 53 60 60]
+@{ seed:7 len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
 ```
 
 ### Noise, masks, rows and automata
 
 From Dodge & Jerse's *Computer Music*, chapter 8. White noise jumps,
-pink noise (Voss's dice: `?dice`, more is slower) wanders but keeps its
-range, a walk (brown) drifts; `?boundary:reflect` bounces it off its
+pink noise (Voss's dice: `dice`, more is slower) wanders but keeps its
+range, a walk (brown) drifts; `boundary:reflect` bounces it off its
 clip bounds, given as its pitch range too:
 
 ```
-[c8] [~] durations ^{ ?len:16 } pitch/uniform zip >
-[c8] [~] durations ^{ ?len:16 ?dice:5 } pitch/pink zip >
-[c8] [~] durations ^{ ?len:16 ?step-bound:3 ?clip-lo:48 ?clip-hi:84 ?boundary:reflect ?pitch-from-lo:48 ?pitch-from-hi:84 ?pitch-lo:48 ?pitch-hi:84 } pitch/walk zip >
-^{ ?seed:4 ?len:16 } duration/pink ^{ ?seed:5 ?len:16 } pitch/pink zip >
+[c8] [~] durations @{ len:16 } pitch/uniform zip >
+[c8] [~] durations @{ len:16 dice:5 } pitch/pink zip >
+[c8] [~] durations @{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip >
+@{ seed:4 len:16 } duration/pink @{ seed:5 len:16 } pitch/pink zip >
 ```
 
 A tendency mask draws between two bounds that move, here closing from
-48..84 onto 66 (`?lo-start ?lo-end ?hi-start ?hi-end`):
+48..84 onto 66 (`lo-start lo-end hi-start hi-end`):
 
 ```
-[c16] [~] durations ^{ ?len:32 } pitch/tendency zip >
+[c16] [~] durations @{ len:32 } pitch/tendency zip >
 ```
 
-`pitch/row-classes` is a twelve-tone row (`?kind:allInterval`: every
+`pitch/row-classes` is a twelve-tone row (`kind:allInterval`: every
 interval once), its forms the row forms of section 4 on the line. One
 seed reads one row, so it can be rhythm too -- Babbitt's time points --
 and volume:
 
 ```
-^{ ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
-^{ ?seed:3 ?kind:allInterval } duration/row-time-points ^{ ?seed:3 ?kind:allInterval } pitch/row-classes zip >
-^{ ?seed:3 ?kind:allInterval } pitch/row-classes [c8] [~] durations swap zip ^{ ?seed:3 ?kind:allInterval ?volume-lo:40 ?volume-hi:100 ?volume-from-hi:11 } volume/row with-volumes >
+@{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
+@{ seed:3 kind:allInterval } duration/row-time-points @{ seed:3 kind:allInterval } pitch/row-classes zip >
+@{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip >
 ```
 
-`duration/ca` is a cellular automaton, a bar of `?width` pulses per
-generation (`?rule:90` Sierpinski, `30` chaos, `110` structure,
-`?start:random`), as notes or drums:
+`duration/ca` is a cellular automaton, a bar of `width` pulses per
+generation (`rule:90` Sierpinski, `30` chaos, `110` structure,
+`start:random`), as notes or drums:
 
 ```
-^{ ?rule:90 ?width:16 ?steps:4 ?duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
-^{ ?rule:30 ?width:16 ?steps:4 ?duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
+@{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
+@{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
 ```
 
 ### Chords and a walking bass
@@ -831,7 +810,62 @@ dup 1 walking-bass {2} >          once through, the end held
 `dup` keeps the chords, `walking-bass` makes the bass from the copy,
 `{2}` sets the two side by side.
 
-## 16. Rating what you hear
+## 16. Live recipes
+
+A play word can take a **recipe** as well as music: a quotation that
+makes the music. Then the voice plays live -- each note it reaches is
+the next note of what the recipe gives now -- and changing the recipe's
+settings changes what you hear on the next note, without starting over.
+
+```
+| '( duration/euclid [c e g] pitches zip [~] ) :riff >
+```
+
+- `'( … )` is the recipe: euclid's rhythm with the pitches of `[c e g]`,
+  looped (`[~]`). The voice plays what it gives -- once, or, as here,
+  endlessly.
+- `|` under the recipe says it starts from nothing; without it, the music
+  under the recipe is what it runs on (below).
+- `:riff` is the voice, as for any play word; it names the recipe's
+  settings too.
+
+```
+:riff @{ k:5 } set        five beats instead of the default three, heard at once
+:riff settings             every setting the recipe's algos read: value, range, default
+:riff 'k unset             back to the recipe's head or the default
+'( duration/euclid [c e g a] pitches shuffle zip [~] ) :riff retree    a new recipe, the same settings, the voice going on
+:riff gui                  a window with a slider per setting
+:riff stop
+```
+
+A recipe that opens with an `@{ }` has it as its head: it reaches every
+algo word in the recipe, and it is what `settings` shows and `set`
+changes. An `@{ }` right before one word is that word's alone, winning
+over the head. A setting given with `set` comes before the head as
+written; `unset` goes back to it. The voice keeps its place, so a change
+goes on from where it is, not from the start.
+
+```
+| '( @{ seed:7 len:16 } duration/euclid pitch/walk zip @{ len:8 } volume/walk zip [~] ) :swell >
+```
+
+Here `seed` and `len` reach every word, and `volume/walk` alone reads
+`len:8`.
+
+With music under it, the recipe runs on that music, and the voice plays
+the music's notes as the recipe changes them:
+
+```
+[c d e g] [~] '( 5 + ) :up >     the loop a fourth higher
+'( 7 + ) :up retree              … now a fifth, from the next note
+```
+
+All play words take a recipe: `>>` from the next boundary (`| '( … ) ||
+:riff >>`), `>+` joining what plays. `compose` opens the composer window
+and leaves the tree it builds on the stack, a recipe like a quotation
+(`compose :riff >`); `compose gui` shows its settings with a preview.
+
+## 17. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 
@@ -847,25 +881,6 @@ mu keeps your taste in sounds (`~/.mu-feedback.edn`):
 ```
 c4 '[0 40 73] sounds audition
 ```
-
-## 17. The same words in Clojure
-
-Every word with a Clojure name is also a Clojure function, under `mu/`
-in `lein repl`, taking its arguments in mu's order:
-
-```clojure
-(def x (mu/mu "[c d e g]"))     ; read a literal (or run a phrase)
-(mu/retrograde x)               ; #mu "[G4/4 E4 D4 C4]"
-(mu/R x)                        ; the same, short
-(mu/= x (mu/mu "[C4 D4 E4 G4]")) ; true: = is eq, music by its notes
-(mu/times x 3)                  ; #mu "repeat 3 [C4/4 D4 E4 G4]"
-(mu/mute x #(> (mu/pitch %) 63))         ; a fn where mu takes '( … )
-(apply mu/line (take 2 (mu/elements x))) ; Clojure's own take, filter, map …
-```
-
-What Clojure already has (`take`, `filter`, `first`, `map` …) is
-Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
-`mu/line` makes music of them again.
 
 ## All the music words
 
@@ -886,7 +901,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
-| `with-volumes` `with-articulations` `with-instruments` `with-drums` `as-drums` | `( line stream -- line )` |
+| `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
 | `degrees` | `( numbers key -- line )` |
@@ -901,7 +916,7 @@ Clojure's: `mu/elements` gives a value's notes as a Clojure seq, and
 | `vary` | `( repeat q … -- line )` |
 | `volta` | `( repeat ending … -- repeat )` |
 | `with` | `( x ^{ }\|key -- x )` |
-| `zip` | `( durations pitches -- line )` |
+| `zip` | `( durations pitches -- line )`, `( line stream -- line )`, `( \| parts … -- line\|bundle )` |
 
 `"word" see` shows any of them with what it does; `words` lists them
 all.

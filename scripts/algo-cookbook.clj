@@ -6,7 +6,7 @@
 ;;   lein run -m clojure.main scripts/algo-cookbook.clj
 ;;   google-chrome --headless=new --no-pdf-header-footer ;;     --print-to-pdf=doc/pdf/algo-cookbook.pdf doc/html/algo-cookbook.html
 ;;
-;; A stand-in MIDI receiver keeps musics.core/play from connecting to
+;; A stand-in MIDI receiver keeps musics.engine/play-connected from connecting to
 ;; real MIDI; nothing is sent anywhere.
 (ns cookbook-gen
   (:require [clojure.string :as str]
@@ -20,30 +20,41 @@
             [musics.domain :as d]
             [musics.repo :as repo]
             [musics.wall :as wall]
-            [musics.core :as m]))
+            [musics.mu.store :as store]))
 
-(m/reset)
+(store/reset-all!)
 (repo/commit-node! :ROOT (assoc (repo/current :ROOT) :context (c/context-root {"Tempo" 6000 "volume" 80})))
 (alter-var-root #'engine/*engine* (constantly (engine/engine nil (repo/registry) :ROOT)))
-;; a stand-in receiver, so musics.core/play never connects to real MIDI;
+;; a stand-in receiver, so play-connected never connects to real MIDI;
 ;; the engine above has no receiver at all, so nothing is sent anywhere
-(reset! m/receiver ::no-midi)
+(reset! engine/receiver ::no-midi)
+
+;; each half product's specialised algos as constructors under their
+;; registry names, so a recipe writes (duration/euclid) as mu does
+(require '[musics.algo.tree :as t] '[musics.algo.tree.lib] '[musics.algo.tree.registry :as reg])
+(doseq [[short] (reg/algos) :let [half (namespace short)] :when half]
+  (intern (create-ns (symbol (str "cookbook." half))) (symbol (name short)) (t/constructor (reg/algo short))))
 
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
   (eval '(do (clojure.core/refer-clojure)
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
-                      '[musics.algo.pitch :as pitch]
-                      '[musics.algo.duration :as duration]
-                      '[musics.algo.volume :as volume]
-                      '[musics.core :as m]
+                      '[musics.mu.store :as store]
+                      '[musics.mu.material :as mt]
+                      '[musics.mu.value :as v]
+                      '[musics.repo :as repo]
+                      '[musics.compose :as compose]
+                      '[musics.engine :as engine]
                       '[musics.wall :as wall]
                       '[musics.algo.rhythmic.rhythm :as rhythm]
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
-                      '[musics.algo.melodic.serial :as slon]))))
+                      '[musics.algo.melodic.serial :as slon])
+             (alias 'pitch 'cookbook.pitch)
+             (alias 'duration 'cookbook.duration)
+             (alias 'volume 'cookbook.volume))))
 
 (defn esc [s] (-> (str s) (str/replace "&" "&amp;") (str/replace "<" "&lt;") (str/replace ">" "&gt;")))
 
@@ -73,19 +84,26 @@
              ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
-            ["wrong type" "(try (swap! (:envelopes-atom tctx) assoc \"?k\" 2.5) (catch Exception e (ex-message e)))"]
-            ["what it holds" "@(:envelopes-atom tctx)"]]}
+            ["wrong type" "(try (swap! (:params-atom tctx) assoc \"k\" 2.5) (catch Exception e (ex-message e)))"]
+            ["what it holds" "@(:params-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
-    :tree [["(zip (tilt indisp) scale)" "tilt gives weights, zip wants durations"]
+    :tree [["(zip [1/4] (pick indisp))" "pick gives one index, no part of a note, and no bridge makes it one"]
            ["(euclid scale)" "euclid is a source: no children"]]
     :no-params "none: these trees fail before any settings exist"
-    :extra [["error" "(try (zip (tilt indisp) scale) (catch Exception e (ex-message e)))"]
+    :extra [["error" "(try (zip [1/4] (pick indisp)) (catch Exception e (ex-message e)))"]
             ["error" "(try (euclid scale) (catch Exception e (ex-message e)))"]]}
+
+   {:title "Raw material gets its bridges"
+    :tree [["(def br (zip euclid scale))" "euclid gives pulses where durations go: the smallest chain of bridges goes around it"]
+           ["(def br2 (zip (tilt indisp) scale))" "weights take two: weights->pulses, then pulses->durations"]]
+    :params [["(def p {:k 3 :n 8})" "three onsets in eight"]]
+    :runs [["bridged" "br" "p"]]
+    :extra [["the tree as built" "(t/show br)"] ["two bridges" "(t/show br2)"]]}
 
    {:title "Algos as half products: what they deliver, not how"
     :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]
-           ["(def same (+volume (zip (cycle> [1/8]) (pitch/walk :as :w)) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
+           ["(def same (zip (cycle> [1/8]) (pitch/walk :as :w) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
     :params [["(def p {:k 5 :n 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
     :runs [["euclid × lorenz" "hp" "p"] ["walk as pitch and volume" "same" "{}"]]
     :extra [["a bridge's params carry the half product" "(mapv :key (t/param-keys (pitch/walk)))"]]}
@@ -96,7 +114,7 @@
     :params [["(def p {:k 5 :n 16 :rotation 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Legato by default, detached by articulation"
-    :tree [["(def det (+articulation riff (cycle> [:staccato])))" "every note staccato: the onsets stay, the notes sound shorter"]]
+    :tree [["(def det (zip riff (as-part :articulation (cycle> [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
@@ -313,13 +331,12 @@
     :tree [["(def other (transpose (take> (zip (cycle> [1/8]) (cycle> scale)))))" "reads :len and :semitones too"]]
     :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
-   {:title "Settings in the music: @ params in a context"
+   {:title "Settings written as @{ }, from several sources"
     :tree [["riff" "from recipe 1"]]
-    :params [["(m/parse \"^{ riffset: ?k:5 ?root:67 ?euclid.n:16 }\")" "?name:value sets an algo's param where !name: sets the music's"]
-             ["(def music (:context (m/find :riffset)))" "an ordinary context"]
-             ["(def mine (t/tctx riff {:k 2}))" "the tctx comes first in the chain"]]
-    :runs [["from the music" "riff" "[nil [music]]" "(t/run riff nil [music])"]
-           ["the tctx first" "riff" "[mine [music]]" "(t/run riff mine [music])"]]}
+    :params [["(def written (into {} (:params (v/node (mt/read-text \"@{ k:5 root:67 euclid.n:16 }\")))))" "@{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
+             ["(def mine (t/tctx riff {:k 2}))" "a tctx that sets k itself"]]
+    :runs [["the written settings" "riff" "written" "(t/run riff written)"]
+           ["the tctx first, nearest first" "riff" "[mine written]" "(t/run riff [mine written])"]]}
    {:title "Look inside: describe and trace"
     :tree [["grid" "from recipe 10"]]
     :params [["(def grid-tctx (t/tctx grid))" ""]
@@ -342,20 +359,20 @@
     :tree [["(def up5 (transpose :nodes))" "reads :nodes: the voice's own notes"]]
     :params [["(def up5-tctx (t/tctx up5 {:semitones 5}))" ""]]
     :play [["(t/live! :up5 up5 up5-tctx)" "a transform only binds the name"]
-           ["(m/parse \"[verse: c4 e4 g4]\")" ""]
-           ["(m/play :verse :algo :up5)" "the verse, a fourth higher"]]
-    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (m/sq :verse)) nil {:path [:TA]})"]]}
+           ["(store/read! \"[verse: c4 e4 g4]\")" ""]
+           ["(engine/play-connected :verse :algo :up5)" "the verse, a fourth higher"]]
+    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (compose/sq :verse)) nil {:path [:TA]})"]]}
 
    {:group "Material"}
    {:title "Generated notes become committed musics text"
     :tree [["riff" "from recipe 1"]]
     :params [["(def p {:k 3})" ""]]
     :runs [["text" "riff" "p" "(notes->mus (t/run riff p))"]]
-    :extra [["committed" "(:ids (m/parse (notes->mus (t/run riff p))))"]]}])
+    :extra [["committed" "(:ids (store/read! (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "an ordinary Context, its settings ? names (\"?k\"); the tree isn't stored, its specs are"]
-   ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx or a map, then the contexts in chain, then the defaults; every value checked"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @{ } writes (\"k\"); the tree isn't stored, its specs are"]
+   ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx, a map or a vector of them nearest first, then -- for key and meter -- the music's contexts in chain, then the defaults; every value checked"]
    ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
    ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]
    ["(t/fit! tctx tree)" "" "add a tree's missing specs, keep values"]
@@ -368,7 +385,7 @@
    ["(t/algo :short)" "(t/full-name :short) · (t/short-name 'ns/fn) · (t/algos)" "the registry"]
    ["(defalgo name doc {:algo …} [args] body)" "(t/expose ns/fn …)" "define a new algo; make an annotated fn one"]
    ["(algo … :as :name)" "" "name an instance: keys :name/…"]
-   ["(notes->mus parts)" "" "notes as musics text, ready for (m/parse …)"]])
+   ["(notes->mus parts)" "" "notes as musics text, ready for (store/read! …)"]])
 
 (defn short-value
   ([v] (short-value v 36))
@@ -400,7 +417,7 @@
          (esc (str/join ", " (map spec-text (:params e)))) "</code></td></tr>")))
 
 (defn half-rows
-  "Per half product, the specialised algos (musics.algo.tree.half), by bridge."
+  "Per half product, the specialised algos (musics.algo.tree.half-products), by bridge."
   []
   (for [half ["pitch" "duration" "volume" "articulation"]
         [bridge es] (sort-by key (group-by (comp :bridge :via val)
@@ -420,12 +437,9 @@
 
 (defn full-params
   "Every param `tree` reads, with the value it runs with: given in `src`
-   (a map or a tctx, or [src chain] -- then the chain counts too), else
-   its default."
+   (a tctx, a map, or a vector of them nearest first), else its default."
   [tree src]
-  (let [given (cond (vector? src) (t/settings tree (first src) (second src))
-                    (t/tctx? src) (t/params src)
-                    :else src)]
+  (let [given (t/settings tree src)]
     (str "{" (str/join ", " (for [{:keys [key default]} (t/param-keys tree)
                                   :let [v (get given key default)]]
                               (str (pr-str key) " "
@@ -485,23 +499,23 @@
 (def post
   "What must follow an algo before its result is leaves: [type-or-names label steps then note]."
   [[:pulse nil "pulses->durations → :duration, then zip with pitches" "each onset lasts until the next; a nonzero value (2 = accent) is an onset" "(zip (pulses->durations euclid) (cycle> scale))"]
-   [:weight nil "weights->pulses → :pulse, weights->volumes / weights->articulations → a blend step, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(zip (pulses->durations (weights->pulses (tilt indisp))) …)"]
+   [:weight nil "weights->pulses → :pulse, weights->volumes / weights->articulations → zip onto leaves, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(zip (pulses->durations (weights->pulses (tilt indisp))) …)"]
    [:pitch nil "zip with durations" "modulating gives pitch classes 0–11: transpose (+60) first" "(zip (cycle> [1/16]) (transpose modulating))"]
    [:number nil "numbers->pitches / numbers->durations, scale> then degrees->pitches, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; give its range as :from-lo/:from-hi" "(zip (cycle> [1/16]) (degrees->pitches (scale> walk)))"]
    [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle> scale))"]
-   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses no pitch" "(zip split (cycle> scale))"]
+   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses its pitch unwritten" "(zip split (cycle> scale))"]
    [:point nil "points->pitches / points->durations, or axis → :number" "henon/lorenz give a point per step" "(zip (cycle> [1/16]) (degrees->pitches (scale> (axis lorenz))))"]
    [:layer nil "layer (:index) → one :pulse layer, then as pulses; parts joins the voices" "name each layer you pick (:as) so each has its own :index" "(parts (zip (pulses->durations (layer polyrhythm :as :a)) …) (zip (pulses->durations (layer polyrhythm :as :b)) …))"]
    [:part nil "already leaves, in parallel: play it; part (:index) → one part's leaves" "drums, counterpoint, species, parts and +part give parts" "(part (counterpoint …))"]
    [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
    [:stroke nil "strokes->durations → :duration, then zip" "a syllable starts a note, \"-\" lengthens it" "(zip (strokes->durations (konnakol euclid)) …)"]
-   [:volume nil "+volume onto leaves" "the note's own volume, 0–100" "(+volume riff (cycle> (weights->volumes indisp)))"]
-   [:articulation nil "+articulation onto leaves" "staccato, accent, ghost …" "(+articulation riff (cycle> [:staccato]))"]
-   [:instrument nil "+instrument onto leaves" "a MIDI program, a General MIDI name or its short name" "(+instrument riff (cycle> [\"violin\"]))"]
-   [:drum nil "+drum onto leaves" "each note made a drum: a key of the kit or a drum's name" "(+drum riff (cycle> [\"kick\" \"hhc\"]))"]
+   [:volume nil "zip onto leaves" "the note's own volume, 0–100" "(zip riff (cycle> (weights->volumes indisp)))"]
+   [:articulation nil "zip onto leaves" "staccato, accent, ghost …" "(zip riff (as-part :articulation (cycle> [:staccato])))"]
+   [:instrument nil "zip onto leaves" "a MIDI program, a General MIDI name or its short name" "(zip riff (as-part :instrument (cycle> [\"violin\"])))"]
+   [:drum nil "zip onto leaves" "each note made a drum: a key of the kit or a drum's name" "(zip riff (as-part :drum (cycle> [\"kick\" \"hhc\"])))"]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2: pulses->durations takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
-   [:leaf nil "none — t/play!, t/live!, or notes->mus → m/parse" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
+   [:leaf nil "none — t/play!, t/live!, or notes->mus → store/read!" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
   (let [lib (remove #(or (:via (val %)) (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
@@ -602,7 +616,7 @@
        "<table class=\"tbl\"><tr><th>Name</th><th>Function</th><th>In → out</th><th>Params (range = default)</th></tr>\n" (apply str (exposed-rows)) "</table>\n"
        "<p><b>Defined in <code>musics.algo.tree.lib</code></b>:</p>\n"
        "<table class=\"tbl\"><tr><th>Name</th><th>In → out</th><th>Params (range = default)</th><th>Does</th></tr>\n" (apply str (lib-rows)) "</table>\n"
-       "<p><b>Specialised: every source as the half products it delivers</b> (<code>musics.algo.tree.half</code>). Each is its source then a bridge, the bridge's params prefixed with the half product (<code>:pitch-lo</code>), its input range defaulting to what the source gives; at <code>lein repl</code>, <code>pitch/</code>, <code>duration/</code>, <code>volume/</code> and <code>articulation/</code> are aliased. The same <code>:as</code> on two of them means one run of their source.</p>\n"
+       "<p><b>Specialised: every source as the half products it delivers</b> (<code>musics.algo.tree.half-products</code>). Each is its source then a bridge, the bridge's params prefixed with the half product (<code>:pitch-lo</code>), its input range defaulting to what the source gives; it is named by its registry key, <code>duration/euclid</code> for <code>:duration/euclid</code>, as in mu. The same <code>:as</code> on two of them means one run of their source.</p>\n"
        "<table class=\"tbl\"><tr><th>Half product</th><th>Bridge</th><th>Specialised algos</th></tr>\n" (apply str (half-rows)) "</table>\n"
 
        "<h2>4. What feeds what</h2>\n"
@@ -610,7 +624,7 @@
        "<table class=\"tbl\"><tr><th>Type</th><th>Produced by</th><th>Consumed by</th></tr>\n" (apply str (type-rows)) "</table>\n"
 
        "<h2 class=\"pb\">5. From an algo to leaves: the steps that must follow</h2>\n"
-       "<p>A tree ends in leaves: <code>zip</code> makes them from durations and pitches (drums and counterpoint make their own), and the blend steps add volume, articulation and instrument. Every other result needs particular steps first; this is the chain, per result type, one way only. Algos that produce the type are listed from the registry.</p>\n"
+       "<p>A tree ends in leaves: <code>zip</code> makes them from durations and pitches (drums and counterpoint make their own), and zip writes volume, articulation and instrument onto them (<code>as-part</code> names a literal's part). Every other result needs particular steps first; this is the chain, per result type, one way only. Algos that produce the type are listed from the registry.</p>\n"
        "<table class=\"tbl\"><tr><th>Result</th><th>Produced by</th><th>Must be followed by</th><th>Example</th></tr>\n" (apply str (post-rows)) "</table>\n"
 
        "<h2>6. Writing an algorithm</h2>\n"
@@ -623,7 +637,7 @@
        "<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe " (recipe-number "Different algos, same param name") "). A named instance's are <code>:as/name</code>.</li></ul>\n"
 
        "<h2 class=\"pb\">7. Recipes (" n-recipes ")</h2>\n"
-       "<p>Each recipe is plain Clojure in three parts. <b>Tree</b>: the code that builds it. <b>Params</b>: the settings code, then <i>every</i> param the tree reads with the value it ran with — given, or its default. <b>Result</b>: the run and what came back. The grey column is code, the right column a note on it; notes are shown as <code>notes-&gt;mus</code> text, exactly what <code>(m/parse …)</code> would commit.</p>\n"
+       "<p>Each recipe is plain Clojure in three parts. <b>Tree</b>: the code that builds it. <b>Params</b>: the settings code, then <i>every</i> param the tree reads with the value it ran with — given, or its default. <b>Result</b>: the run and what came back. The grey column is code, the right column a note on it; notes are shown as <code>notes-&gt;mus</code> text, exactly what <code>(store/read! …)</code> would commit.</p>\n"
        body-recipes
 
        "<h2 class=\"pb\">8. Parameters and the GUI</h2>\n"
@@ -641,7 +655,7 @@
        "<span class=\"btn\">Close</span></div></div>\n"
 
        "<h2>9. Limits worth knowing</h2>\n<ul>\n"
-       "<li>Generated leaves carry what the tree gives them: duration and pitch, and with the blend steps their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
+       "<li>Generated leaves carry what the tree gives them: duration and pitch, and with zip their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
        "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
        "<li>All random algos share one RNG (<code>musics.algo.random.core/default-rng</code>). <code>(musics.algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"

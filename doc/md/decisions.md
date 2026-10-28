@@ -1775,3 +1775,297 @@ music key (`c4\k:5` is that note's key), so `\k:5` would read as
 either. A bare `k=5` (no prefix, its own sign) was the other candidate.
 A session saved before this keeps its `"@name"` settings, which no
 algo reads any more.
+
+
+## 2026-10-23 — no Clojure REPL: mu and the GUI are the interfaces
+
+The program is used through mu (`lein mu`) and the GUI (`gui`), not a
+Clojure REPL. `musics.core` (the REPL API), `dev/user.clj` and the `mu/…`
+bridge (`musics.mu.words`/`bridge`, mu's words as Clojure functions) are
+gone; what mu and the GUI used from `musics.core` moved to the namespace
+it wrapped: the session to `musics.registries`, the MIDI output
+(`connect!`, `soundfont!`, `receiver`) to `musics.engine`, `ids`/`lookup`/
+`children`/`usages` to `musics.repo`, `sq` to `musics.compose`, `ctx`/
+`ctx-value` to `musics.domain.resolve`, `write`/`load` and the session
+pair to `musics.persist`, `render` to `musics.midi.file`, the assist
+printer to `musics.assist/explain`. What only the REPL reached got a mu
+word instead of being lost: `load` reads `.ly`, `.abc` and `.gmn` too,
+`render` writes a MIDI file. `build-tree`'s REPL mode went with the
+REPL. Kept for now, to be decided: live trees (`t/live!`), the tree
+composer and params windows and the GUI's Wall, which nothing in mu or
+the GUI starts; the GUI windows that do what mu does (Play Builder,
+Transform, Persistence, Assist); the namespaces no entry point reaches.
+A headless nREPL stays as a development tool.
+
+## 2026-10-23 — one language: a .mus file is mu input
+
+`.mus` text and mu input were one grammar file with two start rules:
+`Program` for a file, `MuInput` for the prompt. Now `MuInput` is the only
+one; `musics.ebnf` defines the literals, `mu.ebnf` the top level.
+`musics.mu.store/read!` runs a file's text (or the GUI editor's) as mu
+input on a stack of its own and stores the music it leaves, in one
+batch (`musics.mu.material/store-all!`, with the "redefining" warning
+`parse` had). `Program`, `TopElement`, `VarDef`, `walker/walk`,
+`grammar_parser.clj` and the session's variable map are gone.
+
+Variables are mu's: `'motif [ … ] :=` binds, `\motif` reads -- one store,
+so a file's variables are mu's after `load`. To make that work in a
+file, an input's literals are read up to each `:=`, just before that part
+runs (`musics.mu.eval/segments`), instead of all before the input runs:
+`'m [c d] := [\m e]` now works in one input, at the prompt too. After a
+`:=` the reading starts afresh, as a `VarDef`'s body did. Keeping
+`name = [ … ]` as a second way to bind was the alternative, rejected for
+having two. The corpus and the LilyPond importer write `:=`.
+
+Three readings that differed now agree or are refused: `[R]` is mu's
+retrograde (a bar's rest is `[R1]` or `[ R ]`); a text command at the top
+level (`transpose c d ( … )`, `R ( … )`, `grace …`) is refused,
+pointing at the line it belongs in or the postfix word, rather than
+silently running as words on what is already on the stack (`TopCommand`);
+and storing a line now keeps an inline `^{ }` override's context, which
+`R!` used to drop.
+
+
+## 2026-10-23 — live playback in mu: a play word takes a recipe
+
+The Clojure REPL's live trees (`t/live!`, `setp!`, `retree!`, playing
+music through an `:algo`) come back in mu without new play signs: a play
+word (`>` `>>` `>+` `>>+`) takes an optional recipe, a quotation under the
+voice and context. Each note the voice reaches is then the next note of
+what the recipe gives now -- run on the music under it, or on nothing
+when a mark `|` (or nothing) is under the recipe -- and `set`, `retree` or
+a GUI slider runs it again, the voice going on at its position.
+Considered and dropped on the way: a tree literal `t( … )` (a second
+language inside mu, against its postfix reading), a type-chosen bridge
+`=>` (mu's algo words already deliver half products, named by shelf), a
+separate `live` word and play families `==>`/`~>` (one family with an
+optional recipe covers generators and transforms alike). Repetition stays
+in the music: a recipe ending in `[~]` is endless, once otherwise.
+The recipe's settings are a tctx per live name; mu's algo words, run by
+the recipe, read it first and fit it to their trees, so it knows every
+param the recipe reads -- for `settings`, the checks and the sliders.
+
+
+## 2026-10-24 — +volumes, not with-volumes
+
+mu's words that put a stream onto a line, a value per note, are
+`+volumes`, `+articulations`, `+instruments` and `+drums` (were
+`with-volumes` …), the names the trees' blend steps already use
+(`+volume`, `+articulation` …). A mu word name may now start with `+`
+and a letter; `+` with a digit stays a number (`+5`). This is the first
+step towards a `zip` that takes every half product at once.
+
+## 2026-10-25 — zip takes every part of a note
+
+mu's `zip` builds leaves from all their parts at once, in the order a
+leaf holds them (duration, pitch or drum, articulation, dynamic,
+ornament, tremolo, tie, then overrides by key), rather than adding
+`with-*`-style words one per part. Above a `|` mark it takes them all,
+as `seq` and `par` gather; without one the top two, so `x durations x
+pitches zip` stays. A stream says what it is by the reader or algo word
+that made it (`:mu/part` metadata), a `:name` before one says it
+explicitly, and the rest are positional; tagging every stream by
+content was rejected, since a volume and a pitch are both numbers.
+
+Every part steps once per note, rests included: a rest's values are
+used up and dropped. An earlier zip let a rest among the durations
+take no pitch, which kept pitches in order but let the parts drift
+apart once there were several; with one rule the n-th value of every
+part belongs to the n-th note. `nil` is explicit "nothing here": a
+rest as a pitch, the context's value as anything else. The durations
+set the length and the other parts cycle (color and talea); durations
+in a loop give a loop of the lcm. The same rule holds outside zip:
+`volumes`, `articulations`, `instruments` and `drums` give a rest's
+`nil`, as `pitches` does, and `+volumes` and the other writers use up
+a value at a rest, so a stream read from a line goes back onto it in
+step. A volume is 0..100 as written, any number in it, mapped to MIDI
+when the note is resolved. The trees follow the same rule: their `zip` and blend steps
+(`+volume`, `+articulation`, `+instrument`, `+drum`, `+override`) use a
+rest's value unwritten, and `pulses->volumes`/`pulses->articulations`
+give `nil` for the Rest `pulses->durations` makes of the 0s before the
+first onset, so a rhythm's accents still land on its notes. A melody
+under a rhythm that opens with a rest now starts on its second pitch.
+
+A dynamic part is only taken where the text can write it -- the
+articulation's own weight, or -20 alone (a ghost note) -- since the
+leaf's `:dynamic` has no spelling of its own; a free weight would be
+lost when the line is printed and read back.
+
+## 2026-10-25 — require: Clojure words while mu runs
+
+With no Clojure REPL, mu's `require` is how Clojure code becomes words
+without a restart: `"ns" require` loads (and on a second call reloads)
+a namespace from the classpath or a `.clj` file and registers its
+public functions as `musics.mu.library` registers the built-in ones, in
+a mu namespace named by the last segment or by a short alias written
+after it (`'r`), Clojure's `:as`. The alias is an optional second
+argument rather than a separate `require-as`, one word for both. A
+file's namespace is removed before it is loaded again, so a function
+taken out of the file goes too; a classpath namespace is reloaded with
+`:reload`, as Clojure does, since other namespaces hold its vars. An
+alias may not take over one of mu's own namespaces.
+
+## 2026-10-25 — half-products, and no constructor namespaces
+
+From an algo to its mu word is three steps, each with one job: a
+source is written once with its `:algo` metadata (`euclid`);
+`musics.algo.tree.half-products` derives each half product a bridge
+makes of it (`:duration/euclid`, euclid then `pulses->durations`); and
+`musics.mu.algos` makes the word under that same registry name
+(`duration/euclid`). The namespace was called `half`, which read as
+"half of something" without algo-space's vocabulary (raw material,
+half products, products); it is `half-products` now.
+
+`musics.algo.{pitch,duration,volume,articulation,instrument}` and their
+`defhalf` macro went: they held the specialised algos as Clojure
+constructors so `(duration/euclid)` could be typed at `lein repl`, and
+with no Clojure REPL only a test and the cookbook script used them (the
+test now builds nodes from the registry, the script makes its own
+aliases). A specialised algo's `:full` is its key as a symbol,
+`duration/euclid`.
+
+Two further collapses were weighed and rejected. Deriving during
+registration, folding half-products into the registry, would give the
+registry two jobs and make derivation depend on load order (a source
+can only be specialised once its bridges are registered, which is why
+it runs as one pass after them). mu looking algos up in the registry
+directly, instead of copying them into its word table, would give mu
+two tables and a rule for the second in `words`, `see` and completion;
+the short copy is the simpler of the two.
+
+## 2026-10-27 — Combining algos: four joints, zip recursive, bundles as columns
+
+A fresh look at combining algos named four joints, after the musical
+analogy: a **chain** (words in a row, one material), **zip** (the parts
+of a note into a line, step by step), **par** (lines side by side,
+meeting only in time) and **seq** (lines one after another). At the
+level of lines `par` and `seq` are `:PAR` and `:SEQ`; `par` stays the
+name, mu's word already, rather than a new `merge` -- `blend` already
+means what zip does and `fuse` suggests losing identity, while lines
+in a `par` keep theirs.
+
+zip is recursive: it takes parts or bundles and gives a bundle, a line
+being the bundle that can sound. An unnamed line among its inputs is
+written on, keeping its form, so `+volumes`, `+articulations`,
+`+instruments` and `+drums` became `zip` (`x volume/walk zip`); a part
+given replaces the line's own. An unnamed line used to give zip its
+durations by rank; a line now gives that one part only when named
+(`:duration x`), and onto a line every stream must name its part, so
+an untagged number stream can't silently become durations.
+
+Duration is the one obligatory part of something that sounds, and has
+no default: a quarter by default would make time the one part that
+appears unasked and hide a forgotten rhythm. Without durations and
+pitches (or drums) zip gives a **bundle**, valid material refused only
+where sound is needed (the play words, `render`, `par`, `seq`, `{n}`,
+`[n]`). Its parts keep their own lengths: a bundle has nothing that
+sets a length until durations join it, and then each part cycles on
+its own, as loose parts do, so zipping a bundle later gives what
+zipping its parts now gives -- cutting it to the shortest part would
+throw material away and turn a color against a talea into one length.
+Durations without pitches
+give a bundle too, not rests: rests would drop every other part, and
+a groove of durations and volumes would lose its volumes. A bundle is
+written as **columns**, one stream per part, `'[:pitch '[60 62]
+:volume '[90 70]]` -- data mu already reads and prints, the same shape
+as zip's own input, each part keeping its own length until it is
+pulled; rows would need a notation for a note without a duration. A
+loop inside a bundle is written as a looped stream prints, `'[:pitch
+'[60 62] [~]]` -- the grammar's `DataLoop`, a list followed by `[~]`
+inside data -- and stored as `{:type :LOOP :items (60 62)}`, plain data
+that survives `write`/`load`, rather than as metadata that would not.
+An endless stream that isn't a loop has no text, so it is taken to the
+longest finite part's length, and refused with nothing finite beside
+it.
+
+Processing stays pull-based dataflow on lazy seqs: the voice pulls, a
+node computes when asked; a change is heard at the next note (one note
+later at fast tempi, within the lookahead). Settings flow down as
+context rather than a threaded map of algo keys and material. A change
+to a live recipe reruns only what it reaches: each algo word keeps its
+last result, by the word and how many times it ran before in the run,
+and gives it again while its inputs (the same value, or one printing
+the same) and its settings are as they were -- so a branch the change
+doesn't reach keeps its random values, and a heavy one isn't computed
+again on the sender thread. An endless result isn't kept, since the
+cache would hold its head. Still to come: the trees' zip made recursive
+(their blend steps folded in), a pass inserting bridges where types
+differ, time alignment (a part sampled by beat), and the loop inside a
+bundle.
+
+## 2026-10-27 — The trees' zip joins any parts; the blend steps go
+
+The trees' `zip` is a **join**: two children, each one part's stream,
+leaves or a bundle, giving leaves (durations with pitches or drums, or
+leaves with a part written on, replacing their own) or a bundle of the
+parts. More children fold from the left, `(zip d p v)` being `(zip (zip
+d p) v)`, so the tree stays binary underneath -- the type checker, the
+core.logic typing and the composer see a join of two -- while it is
+written, printed and shown in the composer as one, with a `+` for one
+more child. A multimethod was considered and isn't the shape: nothing
+dispatches on a value, the extra arity folds. `+volume`,
+`+articulation`, `+instrument`, `+drum` and `+override` became `zip`,
+one family of words.
+
+A join's type follows its children, as `:same` follows the first: the
+parts a child gives are its type, a bundle's type carries its parts
+(`[:bundle :pitch :volume]`), so a missing or doubled part is refused
+when the tree is built, not when it runs. A literal (`:any`) has no
+type to say its part; it takes durations, then pitches, by its place
+(as in mu), and `(as-part :articulation x)` names any other -- a node of
+its own, since a keyword child already means a param read, and a part
+name can't be a param (tctx values come at run time, the type is needed
+when the tree is built). `+override`'s `:key` param became that name.
+`as-part`, not `part`: `part` already picks one of a `:part`'s
+streams. In the composer a join's holes are any part of a note,
+durations then pitches first, so raw material still dims there.
+
+## 2026-10-27 — Bridges inserted where a child doesn't fit
+
+A child whose type doesn't fit its slot gets the smallest chain of
+one-input bridges from its type to the slot's, found by `how` and
+cached per registry state, before the type check: `(zip euclid scale)`
+is built as `(zip (pulses->durations (euclid)) (scale))`. The bridge is
+a real node, so the tree prints with it: what runs is what is shown,
+and the printed tree reads back the same -- hiding it would make a
+tree's text and its run differ. Only single-input chains count: a
+chain that brought in a second source would add material nobody wrote.
+In a join the bridge goes to the part neither child gives yet,
+durations then pitches, the same place rule a literal follows. Where no
+chain reaches (an `:index`), the build fails as before. The builder
+offers an algo wherever it fits inside its bridges and places the chain
+with it, so the composer stops dimming what a bridge can reach. mu's
+algo words take half products already, so nothing there changes.
+
+## 2026-10-28 — An algo's settings are @{ }, apart from the music's ^{ }
+
+There are two kinds of context. A **ctx**, `^{ }`, holds the music's
+`!` keys as timelines; a **tctx**, `@{ k:5 bass.k:3 }`, holds an algo's
+params, one plain value each with its spec. They used to share one
+container, told apart by a `?` prefix, so `^{ ?k:5 !mf }` and `[c ?k:5
+d]` were both accepted -- the 2026-10-14 decision that an algo's
+settings are "a scope like any other", settable in the music where it
+plays. That mixing is reversed: looking at a context, you know at once
+what it is for, and a `?k` written in a line can no longer reach an
+algo somewhere else. `?name:value` is parsed only to be refused.
+
+`@` comes back: `@k:5` was dropped on 2026-10-22 because a sign on every
+key didn't look good, while one sign before a whole container, `@{ }`,
+reads well. Inside it the names are bare.
+
+An algo reads its settings and its defaults. From the music it reads
+only what a param's spec names as a music key -- the bridges' `key` and
+`meter` -- and only when it works in music; nothing an algo does
+writes a context.
+
+In a recipe, an `@{ }` is either the **head** -- the item the quotation
+opens with, reaching every algo word in it, what `set`, `settings` and
+the GUI work on -- or **local**, right before one word and used up by
+it. Threading every `@{ }` down the recipe (each holding from where it
+stands) was weighed: it reads in order, but what a word receives is
+then the sum of everything above it, and `set` could no longer say
+which `len` it changes. The head is the broadcast, a local one the
+exception, so a word's settings are always its local `@{ }`, the live
+voice's, the head, then the defaults. Recipes are trees already -- the
+stack builds them -- so this covers trees written as recipes; the
+composer's trees keep their tctx and naming (`bass.k`).

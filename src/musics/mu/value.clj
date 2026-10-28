@@ -2,15 +2,16 @@
   "mu's musical values: what a literal becomes on the stack, without
    entering the repo.
 
-   All literals of one input are walked together, in order, against the
-   current repo, so within an input a duration carries over and a
-   relative pitch follows the note before it, as across a .mus file's
-   top-level elements; each input starts fresh. A bare leaf becomes the
+   The literals of one input are walked together, in order, against the
+   current repo (up to each :=, after which the input reads on afresh),
+   so a duration carries over and a relative pitch follows the note
+   before it; each input starts fresh. A bare leaf becomes the
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
    storing is R! (doc/md/mu-repl.md)."
   (:require [musics.domain.context :as c]
-            [musics.input.reader.walker :as walker]))
+            [musics.input.reader.walker :as walker]
+            [musics.mu.grammar :as g]))
 
 (defrecord Material [id repo])
 ;; :base, assoc'd on, is the repo the literal was read against: what the
@@ -26,14 +27,14 @@
 (defn mark? [x] (instance? Mark x))
 
 (defn quotation?
-  "A quotation '( … ), or a Clojure fn standing in for one (from
-   musics.mu.words): it takes the top value and leaves its result."
+  "A quotation '( … ), or a Clojure fn standing in for one: it takes the
+   top value and leaves its result."
   [x]
   (or (instance? Quotation x) (fn? x)))
 
 (def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
-  (into leaf-tags #{:Sequence :Parallel :Context :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
+  (into leaf-tags #{:Sequence :Parallel :Context :Settings :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -68,6 +69,13 @@
        :else [vm nodes]))
    [{} {}] bindings))
 
+(defn- param-aliases
+  "The bindings of a name to another name ('dp 'duration-pulse :=) as
+   {\"dp\" \"duration-pulse\"}: an algo param written by its short name
+   in an @{ } is read as the long one."
+  [bindings]
+  (into {} (for [[k x] bindings :when (symbol? x)] [k (str x)])))
+
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
    auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
@@ -82,7 +90,8 @@
      ;; :base stays the repo without the bound nodes: what a bound name
      ;; brings in is the literal's own, stored with it by R!
      (let [[vm bound] (var-map bindings)
-           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm})
+           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm
+                                              :param-aliases (param-aliases bindings)})
            tree (:tree r)]
        {:values (mapv (fn [node id]
                         (cond
@@ -104,12 +113,14 @@
 
 (defn- refs
   "The ids a node refers to: keyword children, and those of inline
-   children, an iterator's source and its alternative, recursively."
+   children, an iterator's source and its alternative, an override
+   mark's context, recursively."
   [n]
   (letfn [(of [x] (cond (keyword? x) [x]
                         (map? x)     (concat (mapcat of (:children x))
                                              (of (:source x))
-                                             (of (get-in x [:params :alternative])))
+                                             (of (get-in x [:params :alternative]))
+                                             (when (= :override (:key x)) (of (:ref x))))
                         :else        []))]
     (of (dissoc n :id))))
 
@@ -133,3 +144,17 @@
                    :when (and n (not= k :ROOT) (not (identical? n (get base k))))]
                [k n]))))
 
+
+(defn read-domain
+  "Walk text made only of literals ([c d] {…} ^{…} …) to the domain,
+   nothing stored: the walker's {:tree id->node :ids [id …] :auto-ids …},
+   one id per literal. Throws when text can't be read or holds anything
+   but literals."
+  ([text] (read-domain text nil))
+  ([text session]
+   (let [tree (g/parse text)]
+     (when (g/failure? tree)
+       (throw (ex-info (str "can't read this:\n" (with-out-str (print tree))) {:failure tree})))
+     (when-let [x (first (remove literal? (rest tree)))]
+       (throw (ex-info (str "only literals here, not " (pr-str x)) {:node x})))
+     (walker/walk-each (rest tree) text session))))

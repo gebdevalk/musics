@@ -265,7 +265,10 @@
 
 (defn- onset-weights
   "One weight (0..1) per onset of pulses, lazily: :metric its place in the
-   bar (the meter's), :agogic its length (a pulse 0, a bar or longer 1)."
+   bar (the meter's), :agogic its length (a pulse 0, a bar or longer 1);
+   nil first for the 0s before the first onset, the Rest
+   pulses->durations makes of them, so the values line up with its
+   durations."
   [pulses accent pulse meter]
   (let [meter  (cond (string? meter) (el/parse-meter-str meter) meter meter :else (el/make-meter 4 4))
         mw     (when (= accent :metric) (el/metric-weights meter pulse))
@@ -282,7 +285,9 @@
                             len         (inc (count hold))]
                         (cons (weight i len) (step (+ i len) more)))
                       (step (inc i) tail)))))]
-    (step 0 pulses)))
+    (lazy-seq
+     (let [[lead more] (split-with (complement onset?) pulses)]
+       (cond->> (step (count lead) more) (seq lead) (cons nil))))))
 
 (def ^:private accent-spec {:type :keyword :choices [:metric :agogic] :default :metric
                             :doc "metric: by place in the bar; agogic: by length"})
@@ -291,24 +296,26 @@
 
 (defn pulses->volumes
   "Each onset's accent as a volume in :lo..:hi (the !vol: 0-100 scale),
-   one per note pulses->durations makes: :metric by its place in the bar
-   (the downbeat loudest), :agogic by its length (longer louder)."
+   one per note pulses->durations makes (nil for its leading Rest):
+   :metric by its place in the bar (the downbeat loudest), :agogic by
+   its length (longer louder)."
   {:algo {:category "bridge" :works :shape :in [:pulse] :out :volume
           :params {:accent accent-spec :pulse pulse-spec :meter meter-spec :lo vol-lo-spec :hi vol-hi-spec}}}
   [pulses accent pulse meter lo hi]
-  (map #(+ lo (* % (- hi lo))) (onset-weights pulses accent pulse meter)))
+  (map #(when % (+ lo (* % (- hi lo)))) (onset-weights pulses accent pulse meter)))
 
 (defn pulses->articulations
   "Each onset's accent as an articulation, as weights->articulations
    bands a weight: :metric by its place in the bar, :agogic by its
-   length; one per note pulses->durations makes."
+   length; one per note pulses->durations makes (nil for its leading
+   Rest)."
   {:algo {:category "bridge" :works :shape :in [:pulse] :out :articulation
           :params {:accent accent-spec :pulse pulse-spec :meter meter-spec
                    :levels {:type :vector :default [:ghost nil :accent :marcato]
                             :doc "articulation per band, weakest first"}}}}
   [pulses accent pulse meter levels]
   (let [levels (vec levels) n (count levels)]
-    (map #(nth levels (min (dec n) (int (* % n)))) (onset-weights pulses accent pulse meter))))
+    (map #(when % (nth levels (min (dec n) (int (* % n))))) (onset-weights pulses accent pulse meter))))
 
 ;; ---------------------------------------------------------------------------
 ;; stream bridges from weights (a meter's, finite)

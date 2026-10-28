@@ -3,10 +3,10 @@
    Verifies that leaf.id is the original input text, not a computed value.
    Run: lein test musics.input.reader.token-id-test"
   (:require [clojure.test :refer [deftest is testing]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.value :as v]
             [musics.domain :as d]))
 
-(defn- parse [text] (gp/parse-domain-string text))
+(defn- parse [text] (v/read-domain text))
 
 (defn- resolve-child [tree child]
   (if (keyword? child) (get tree child) child))

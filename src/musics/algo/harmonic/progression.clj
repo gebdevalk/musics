@@ -137,7 +137,7 @@
 
 (defn ->mus
   "scheme (see bars) as musics text: `[name: !M:4/4 F3/1:7 | ... ]`,
-   a bar line between bars, ready for musics.core/parse. Options:
+   a bar line between bars, ready for musics.mu.store/read!. Options:
    :tonic (spelled as musics text spells it: \"B&\", \"F#\"; a chorus'
    own, else \"C\"),
    :octave of the tonic (3), :hit (nil: one chord per its share of a bar),

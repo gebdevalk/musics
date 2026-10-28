@@ -3,7 +3,7 @@
   'component library' the app is built from. Every fn here takes a
   plain map and returns a plain cljfx description map (a
   fx/create-renderer :desc, not a mounted JavaFX object) -- none of
-  them know about musics.core/core.repo/core.domain.context, or about
+  them know about musics.repo/musics.domain.context, or about
   each other's callers. Wiring a component to a real action is always
   the caller's job, via an ordinary cljfx event-map (:on-* keys),
   exactly the way cljfx itself expects. This is what makes them
@@ -241,7 +241,7 @@
 
 (defn param-control
   "One control for one tctx param: a slider for a finite numeric range, a
-   dropdown for :choices, a note for a function (set it at the REPL),
+   dropdown for :choices, a note for a function (set in the recipe),
    else a text field applied on Enter -- EDN, or plain text for a
    :string. An unset (##NaN) value is marked required. `ev` is merged
    into every event it sends (e.g. {:name nm}); param-input reads the
@@ -268,7 +268,7 @@
 
       (or (= :fn type) (some fn? (tree-seq coll? seq v)))
       (label {:text (str lbl ": " (if (at/nan? v) "a function" "set")
-                         " -- (t/setp! tctx " k " f) at the REPL")})
+                         " -- set in the recipe")})
 
       (= :string type) (text (if (at/nan? v) "" v))
       :else            (text (if (at/nan? v) "" (pr-str v))))))

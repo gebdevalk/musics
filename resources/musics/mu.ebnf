@@ -9,8 +9,8 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / Quotation / Group / Retrograde / Parallels / Lines / QuotedName
-         / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
+<MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Parallels / Lines / QuotedName
+         / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -58,6 +58,12 @@ QuotedName = <"'"> (VarName / WordName / SymbolWord)
 (* $a -- a local, inside a word's body. *)
 Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 
+(* transpose c d ( … ), R ( … ), grace c16 d4 … outside any brackets:
+   musics text's commands, written inside a line ([transpose c d ( … )]);
+   parsed so they can be refused with a clear message, never taken for
+   the words of those names, which run on what is already on the stack. *)
+TopCommand = transpose / row-form / grace / shuffle-now / rotate-now
+
 (* An instruction outside any brackets: parsed so it can be refused with
    a clear message, never run. *)
 LooseInstruction = Instruction
@@ -71,7 +77,8 @@ Retrograde = <'[R]'>
 Parallels = <'{'> #'[0-9]+' <'}'>
 (* [2] [3] … [n] -- the top n one after another, a line of n elements. *)
 Lines = <'['> #'[0-9]+' <']'>
-(* A word: a name or one of the symbol words, either possibly ns/… *)
+(* A word: a name or one of the symbol words, either possibly ns/…; a
+   name may start with + (+octave, say) or ?. *)
 Word     = WordName | SymbolWord
 <SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\|\]|\[\|\]|\[\\\]|\[:\]|\*\*|\*|\+|-|/|\.s|\.\.|\.|<<|<>|<=|>=|:=|=|<|>|R!|R@)'
-WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*|\?[a-zA-Z_][a-zA-Z0-9_\-?>+]*+(?![:./]))'
+WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*|\+[a-zA-Z][a-zA-Z0-9_\-?>+]*|\?[a-zA-Z_][a-zA-Z0-9_\-?>+]*+(?![:./]))'

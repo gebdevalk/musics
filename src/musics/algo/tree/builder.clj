@@ -1,12 +1,13 @@
 (ns musics.algo.tree.builder
   "Build a tree step by step, root to leaves -- the model behind
-   (build-tree), shared by its window (musics.gui.composer) and its REPL
-   twin (repl-build), so both follow exactly the same rules.
+   (build-tree)'s window, musics.gui.composer.
 
    A draft is plain data:
      {:root slot :active path :history [..] :future [..]}
      slot = nil (a hole) | {:algo :euclid :children [slot ..]}
-          | {:literal v} | {:param :k}
+          | {:as-part :volume :children [slot]} | {:literal v} | {:param :k}
+   A join (zip) holds all its children in one slot -- (zip ① ② ③) --
+   and widen gives it one more; ->tree folds them as the constructor does.
    A path is a vector of child indexes from the root ([] is the root).
 
    Every operation returns a new draft. place fills a hole (or replaces a
@@ -18,9 +19,7 @@
   (:refer-clojure :exclude [remove])
   (:require [musics.algo.tree :as t]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.logic.tree :as lt]
-            [clojure.edn :as edn]
-            [clojure.string :as str]))
+            [musics.algo.logic.tree :as lt]))
 
 ;; ---------------------------------------------------------------------------
 ;; The draft
@@ -47,7 +46,7 @@
   "Every slot's path -- nodes, literals, params and holes -- depth first."
   [d]
   (letfn [(walk [slot path]
-            (cons path (when (:algo slot)
+            (cons path (when (or (:algo slot) (:as-part slot))
                          (mapcat #(walk %1 (conj path %2)) (:children slot) (range)))))]
     (vec (walk (:root d) []))))
 
@@ -87,6 +86,25 @@
   [d path short]
   (lt/fits? (:root (with-algo d path short))))
 
+(defn- bridged-slot
+  "The slot holding algo `short` inside the smallest chain of bridges from
+   what it gives to what the slot at `path` wants
+   (musics.algo.logic.tree/bridge), when the draft type-checks with it;
+   else nil."
+  [d path short]
+  (when-let [term (lt/bridge (:out (entry short)) (slot-type d path))]
+    (let [inner (fn inner [t] (if (seq? t)
+                                {:algo (first t) :children [(inner (second t))]}
+                                {:algo short :children (vec (repeat (count (:in (entry short))) nil))}))
+          slot  (inner term)]
+      (when (lt/fits? (:root (set-slot d path slot))) slot))))
+
+(defn takes?
+  "Whether the slot at `path` takes algo `short`: it fits there, or fits
+   inside a chain of bridges placed with it."
+  [d path short]
+  (or (fits? d path short) (some? (bridged-slot d path short))))
+
 ;; ---------------------------------------------------------------------------
 ;; The pane: shelves and their algos
 ;; ---------------------------------------------------------------------------
@@ -106,7 +124,7 @@
   (->> (t/algos)
        (filter #(= c (:shelf (val %))))
        (map (fn [[short {:keys [in out doc]}]]
-              {:short short :in in :out out :doc doc :fits? (fits? d (:active d) short)}))
+              {:short short :in in :out out :doc doc :fits? (takes? d (:active d) short)}))
        (sort-by (comp str :short))
        vec))
 
@@ -117,7 +135,7 @@
   (->> (t/algos)
        (group-by (comp :shelf val))
        (map (fn [[c es]] {:name c :count (count es)
-                          :fit (count (filter #(fits? d (:active d) (key %)) es))}))
+                          :fit (count (filter #(takes? d (:active d) (key %)) es))}))
        (sort-by (comp shelf-rank :name))
        vec))
 
@@ -133,13 +151,15 @@
   (-> d (update :history (fnil conj []) (state-of d)) (assoc :future [])))
 
 (defn place
-  "Put algo `short` in the slot at `path` (a hole, or a node it replaces);
+  "Put algo `short` in the slot at `path` (a hole, or a node it replaces)
+   -- inside a chain of bridges when what it gives needs one there
+   (euclid's pulses where durations go: (pulses->durations (euclid)));
    :active moves to its first child slot, or the next hole."
   [d short path]
   (when-not (entry short) (throw (ex-info (str "No algo " short) {:algo short})))
-  (when-not (fits? d path short)
-    (throw (ex-info (lt/why-not short (slot-type d path)) {:algo short :path path})))
-  (let [d' (with-algo (remember d) path short)]
+  (let [d' (cond (fits? d path short)                 (with-algo (remember d) path short)
+                 (bridged-slot d path short)          (set-slot (remember d) path (bridged-slot d path short))
+                 :else (throw (ex-info (lt/why-not short (slot-type d path)) {:algo short :path path})))]
     (assoc d' :active (or (next-hole d' path) path))))
 
 (defn place-literal
@@ -147,6 +167,23 @@
   [d v path]
   (let [d' (set-slot (remember d) path (if (keyword? v) {:param v} {:literal v}))]
     (assoc d' :active (or (next-hole d' path) path))))
+
+(defn joins?
+  "Whether the slot at `path` is a join (zip), which widen can give one
+   more child."
+  [d path]
+  (boolean (some-> (slot-at d path) :algo entry :join)))
+
+(defn widen
+  "One more hole in the join at `path` -- (zip ① ②) becomes (zip ① ② ③)
+   -- made the active slot."
+  [d path]
+  (when-not (joins? d path)
+    (throw (ex-info "Only a join (zip) takes one more child" {:path path})))
+  (let [n (count (:children (slot-at d path)))]
+    (-> (remember d)
+        (set-slot path (update (slot-at d path) :children conj nil))
+        (assoc :active (conj path n)))))
 
 (defn remove
   "Empty the slot at `path` (its subtree goes with it)."
@@ -181,18 +218,24 @@
   [d]
   (when-not (complete? d)
     (throw (ex-info "The tree still has open slots" {:holes (holes d)})))
-  (letfn [(build [{:keys [algo children as literal param]}]
-            (cond algo    (apply (t/constructor (entry algo))
-                                 (concat (map build children) (when as [:as as])))
-                  param   param
-                  :else   literal))]
+  (letfn [(build [{:keys [algo children as literal param] :as slot}]
+            (cond algo            (apply (t/constructor (entry algo))
+                                         (concat (map build children) (when as [:as as])))
+                  (:as-part slot) (t/as-part (:as-part slot) (build (first children)))
+                  param           param
+                  :else           literal))]
     (t/as-node (build (:root d)))))
 
 (defn- from-tree [tree]
   (letfn [(conv [n]
             (case (:kind n)
-              :algo    (cond-> {:algo (get-in n [:entry :short]) :children (mapv conv (:children n))}
-                         (:as n) (assoc :as (:as n)))
+              :algo    (let [[c & cs] (:children n)
+                             ;; a join of a join is one slot, as it prints
+                             fold?    (and (get-in n [:entry :join]) (identical? (:entry c) (:entry n)) (nil? (:as c)))]
+                         (cond-> {:algo (get-in n [:entry :short])
+                                  :children (if fold? (into (:children (conv c)) (map conv cs)) (mapv conv (:children n)))}
+                           (:as n) (assoc :as (:as n))))
+              :as-part {:as-part (:name n) :children [(conv (first (:children n)))]}
               :param   {:param (:key n)}
               :literal {:literal (:value n)}))]
     (conv (t/as-node tree))))
@@ -220,10 +263,11 @@
                (let [n (when numbered? (sup (pos path)))]
                  (cond
                    (nil? slot)      (mark path (if numbered? (hole-mark (pos path)) (hole-mark (hnum path))))
-                   (:algo slot)     (mark path (str "(" (symbol (:algo slot)) n
-                                                    (apply str (map (fn [c i] (str " " (r c (conj path i))))
-                                                                    (:children slot) (range)))
-                                                    ")"))
+                   (or (:algo slot) (:as-part slot))
+                   (mark path (str "(" (if (:algo slot) (symbol (:algo slot)) (str "as-part " (:as-part slot))) n
+                                   (apply str (map (fn [c i] (str " " (r c (conj path i))))
+                                                   (:children slot) (range)))
+                                   ")"))
                    (:param slot)    (mark path (str (:param slot) n))
                    :else            (mark path (str (pr-str (:literal slot)) n)))))]
        (r (:root d) [])))))
@@ -250,84 +294,3 @@
       (if settings
         (do (t/fit! settings tree) settings)
         (t/tctx tree)))))
-
-;; ---------------------------------------------------------------------------
-;; The REPL twin
-;; ---------------------------------------------------------------------------
-
-(def ^:private help
-  "  <n>          open category n, or place algo n in the active slot
-  b            back to the categories
-  s <n>        select slot n (the superscript/circled numbers)
-  l <edn>      a literal in the active slot     :key   a param keyword
-  r            remove the active slot
-  u            undo                             y      redo
-  k <key> <v>  set a setting (once the tree is complete)
-  f            finalize -> [tree tctx]          q      cancel -> nil")
-
-(defn- screen [d category settings]
-  (let [a (:active d)]
-    (println)
-    (println "canvas:" (if (:root d) (render d true) (str "▸" (hole-mark 1) "  (empty: choose a root)")))
-    (println (str "active: slot " (inc (.indexOf ^java.util.List (positions d) a))
-                  (when-not (slot-at d a) (str ", needs " (slot-type d a)))
-                  (when (complete? d) "   -- complete: f to finalize")))
-    (if category
-      (do (println (str "pane:   " category "   (b: back)"))
-          (doseq [[i {:keys [short in out doc fits?]}] (map-indexed vector (algos-in d category))]
-            (println (format "  %s%3d %-16s %-22s %s" (if fits? " " "-") (inc i) (str (symbol short))
-                             (str (str/join " " (map name in)) " -> " (name out)) (or doc "")))))
-      (do (println "pane:   categories")
-          (doseq [[i {:keys [name count fit]}] (map-indexed vector (categories d))]
-            (println (format "  %s%3d %-10s %d fit of %d" (if (pos? fit) " " "-") (inc i) name fit count)))))
-    (when (and settings (complete? d))
-      (println "settings:" (pr-str (t/params settings))))))
-
-(defn- parse-int [s] (try (Long/parseLong (str/trim s)) (catch Exception _ nil)))
-
-(defn repl-build
-  "The REPL twin of the composer window: the same steps as text. Returns
-   [tree tctx] on f, nil on q."
-  ([] (repl-build (draft) nil))
-  ([d settings]
-   (println "build-tree -- ? for help")
-   (loop [d d, category nil, settings (settings-for d settings)]
-     (screen d category settings)
-     (print "> ") (flush)
-     (let [line (some-> (read-line) str/trim)
-           [cmd arg] (when line (str/split line #"\s+" 2))
-           n (some-> line parse-int)
-           step (fn [f] (try (let [d' (f)] [d' (or (settings-for d' settings) settings)])
-                             (catch Exception e (println "!" (ex-message e)) [d settings])))]
-       (cond
-         (or (nil? line) (= "q" line)) nil
-         (= "?" line) (do (println help) (recur d category settings))
-         (= "f" line) (if (complete? d)
-                        (finalize d settings)
-                        (do (println "! the tree still has open slots") (recur d category settings)))
-         (= "b" line) (recur d nil settings)
-         (= "u" line) (let [[d' s] (step #(undo d))] (recur d' category s))
-         (= "y" line) (let [[d' s] (step #(redo d))] (recur d' category s))
-         (= "r" line) (let [[d' s] (step #(remove d (:active d)))] (recur d' category s))
-         (= "s" cmd)  (let [i (some-> arg parse-int) p (when i (get (positions d) (dec i)))]
-                        (if p (recur (select d p) category settings)
-                            (do (println "! no slot" arg) (recur d category settings))))
-         (= "l" cmd)  (let [[d' s] (step #(place-literal d (edn/read-string arg) (:active d)))]
-                        (recur d' category s))
-         (str/starts-with? line ":")
-         (let [[d' s] (step #(place-literal d (keyword (subs line 1)) (:active d)))] (recur d' category s))
-         (= "k" cmd)  (if (and settings (complete? d))
-                        (let [[k v] (str/split (or arg "") #"\s+" 2)]
-                          (try (t/setp! settings (edn/read-string k) (edn/read-string v))
-                               (catch Exception e (println "!" (ex-message e))))
-                          (recur d category settings))
-                        (do (println "! settings exist once the tree is complete") (recur d category settings)))
-         (and n (nil? category))
-         (let [c (get (categories d) (dec n))]
-           (recur d (or (:name c) (do (println "! no category" n) nil)) settings))
-         (and n category)
-         (let [a (get (algos-in d category) (dec n))]
-           (cond (nil? a) (do (println "! no algo" n) (recur d category settings))
-                 (not (:fits? a)) (do (println "!" (str (symbol (:short a))) "doesn't fit this slot") (recur d category settings))
-                 :else (let [[d' s] (step #(place d (:short a) (:active d)))] (recur d' nil s))))
-         :else (do (println "! ? for help") (recur d category settings)))))))

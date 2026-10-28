@@ -37,13 +37,20 @@
    apart. An :any output is a variable too (musics.algo.tree/fits? lets it
    fill any slot), except when strict: then it stays :any and fills
    only an open slot -- searches use that, or every answer would be
-   'an algo that gives anything'."
+   'an algo that gives anything'.
+
+   A join (zip) takes n children of any part and gives what they make
+   (musics.algo.tree checks it when built); a search, strict, takes it
+   as registered, durations and pitches into leaves."
   ([e] (fresh-types e false))
-  ([{:keys [in out]} strict?]
-   (let [ins (mapv type-term in)]
-     [ins (cond (= :same out) (or (first ins) (lvar))
-                (and strict? (= :any out)) :any
-                :else (type-term out))])))
+  ([e strict?] (fresh-types e strict? nil))
+  ([{:keys [in out join]} strict? n]
+   (if (and join (not strict?))
+     [(vec (repeatedly (or n (count in)) lvar)) (lvar)]
+     (let [ins (mapv type-term in)]
+       [ins (cond (= :same out) (or (first ins) (lvar))
+                  (and strict? (= :any out)) :any
+                  :else (type-term out))]))))
 
 (def ^:private cache
   "[registry-state {:entries .. ty completable?}], rebuilt when the
@@ -184,6 +191,7 @@
    completion-depth levels. Cached per registry state."
   [ty]
   (or (not (keyword? ty))
+      (= :any ty)                       ; an open slot (a join's) takes a literal
       (let [m (cached)]
         (if (contains? m ty)
           (m ty)
@@ -195,6 +203,18 @@
 ;; Half-built trees (musics.algo.tree.builder's slots)
 ;; ---------------------------------------------------------------------------
 
+(def ^:private note-parts
+  "What a join's (zip's) child may give: notes, or a part of one."
+  (into [:leaf :duration :pitch :drum :articulation] t/overridable))
+
+(defn- parto
+  "v is a part a join's child may give -- preferred first, so a hole
+   shows the part its place gives a literal (durations, then pitches)."
+  [v preferred]
+  (if preferred
+    (conde [(== v preferred)] [(membero v note-parts)])
+    (membero v note-parts)))
+
 (defn- slot-goal
   "slot (nil = a hole, {:algo .. :children ..}, {:literal ..},
    {:param ..}) gives type ty; each hole's type variable goes in holes
@@ -202,12 +222,16 @@
   [slot ty path holes]
   (cond
     (nil? slot) (do (swap! holes assoc path ty) succeed)
+    (:as-part slot)
+    (and* [(== ty (:as-part slot)) (slot-goal (first (:children slot)) (lvar) (conj path 0) holes)])
     (:algo slot)
-    (let [[ins out] (fresh-types (t/algo (:algo slot)))]
+    (let [e (t/algo (:algo slot))
+          [ins out] (fresh-types e false (count (:children slot)))]
       ;; mapv, not map: the holes are recorded while the goal is built
-      (and* (cons (== ty out)
-                  (mapv (fn [i child] (slot-goal child (nth ins i) (conj path i) holes))
-                        (range) (:children slot)))))
+      (and* (concat [(== ty out)]
+                    (when (:join e) (mapv (fn [i v] (parto v (get (:in e) i))) (range) ins))
+                    (mapv (fn [i child] (slot-goal child (nth ins i) (conj path i) holes))
+                          (range) (:children slot)))))
     :else succeed))
 
 (defn- solve
@@ -270,6 +294,27 @@
    (let [es (entries)]
      ;; a depth no type chain reaches is skipped, not searched
      (smallest n 3 #(if (reachable? es %1 from to) (bridgeo es %1 %2 to from) fail)))))
+
+(def ^:private bridges
+  "[registry-state {[from to] term}]: bridge's answers."
+  (atom nil))
+
+(defn bridge
+  "The smallest chain of one-input algos turning a `from` into a `to`,
+   as a term with :input where the child goes -- (pulses->durations
+   :input) -- or nil when there is none, or nothing to bridge. Cached per
+   registry state: the trees and the builder ask it whenever a child
+   doesn't fit."
+  [from to]
+  (when (and (keyword? from) (keyword? to) (not= from to) (not-any? #{:any :same} [from to]))
+    (let [st (reg/state)
+          m  (let [[st' m] @bridges] (if (identical? st st') m {}))]
+      (if (contains? m [from to])
+        (m [from to])
+        (let [chain? (fn chain? [term] (or (= :input term) (and (seq? term) (= 2 (count term)) (chain? (second term)))))
+              term   (first (filter chain? (how from to 10)))]
+          (reset! bridges [st (assoc m [from to] term)])
+          term)))))
 
 (defn steps
   "The fewest algos that turn a `from` into a `to` (0 for the same type),

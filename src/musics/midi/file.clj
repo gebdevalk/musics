@@ -3,7 +3,10 @@
    Usage: refer to source comment block at end of file."
   (:require [clojure.java.shell :as shell]
             [clojure.java.io :as io]
-            [musics.domain.resolve :as resolve])
+            [musics.domain.resolve :as resolve]
+            [musics.events :as ev]
+            [musics.registries :as reg]
+            [musics.repo :as repo])
   (:import [javax.sound.midi MidiSystem Sequence Track
             ShortMessage MetaMessage MidiEvent]
            [java.io File]))
@@ -215,3 +218,13 @@
         seq  (sequence [arp])]
     (play seq))
   )
+(defn render
+  "Write what (play form) would perform to a MIDI file, no clock
+   involved; returns the File. :until (seconds) cuts endless material
+   off; :algo as play; :seed for :humanization's jitter.
+     (render :verse \"verse.mid\")"
+  [form file & {:keys [until algo seed] :or {seed 0}}]
+  (reg/log! :render)
+  (write-events (cond->> (ev/events (repo/registry) form :algo algo)
+                  until (take-while #(< (:t %) until)))
+                file :seed seed))

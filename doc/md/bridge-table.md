@@ -27,11 +27,11 @@ read from the registry through `musics.algo.logic.tree` (core.logic):
   `degrees->pitches`/`numbers->pitches`/`points->pitches`.
 - **`:volume`** (0–100), **`:articulation`** (a name from
   `musics.common.music-data/articulations`) and **`:instrument`** (a MIDI
-  program, a General MIDI name or a drum): blended onto leaves by
-  `+volume`, `+articulation` and `+instrument`.
+  program, a General MIDI name or a drum): written onto leaves by
+  `zip`.
 
-**The product**: **`:leaf`**, from `zip` (duration + pitch), the blend
-steps, and the generators that make leaves themselves (`drums`,
+**The product**: **`:leaf`**, from `zip` (duration + pitch, then any
+more parts), and the generators that make leaves themselves (`drums`,
 `counterpoint`, `species`).
 
 **Raw material**, which reaches half products through a bridge:
@@ -113,7 +113,7 @@ has no `pitch`, the `pitch` row no `pulse`. Durations and pitches meet
 only in `zip`.
 
 **3. All raw material reaches leaves within two steps** (a bridge, then
-`zip` or a blend step) -- except `:index`, which nothing takes;
+`zip`) -- except `:index`, which nothing takes;
 `:layer` takes one more (`layer`), and `:part` is already leaves.
 
 **4. Gaps.**

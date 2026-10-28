@@ -14,8 +14,7 @@
    how many feedback coefficients are given) -- smoothing a stream of
    pitches/velocities/durations so consecutive values pull toward each
    other, or exaggerating the difference between them (interval-gain),
-   rather than reordering or thresholding a fixed set of values."
-  (:require [musics.domain :as d]))
+   rather than reordering or thresholding a fixed set of values.")
 
 ;; ============================================================
 ;; Core z-filter engine

@@ -9,7 +9,7 @@
 % onto whatever container is current at that point -- "prefacing" a
 % passage with a set of values, LilyPond \mark-style.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 ^{ffff_ctx: !ffff}
 

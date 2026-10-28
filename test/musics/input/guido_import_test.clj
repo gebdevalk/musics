@@ -3,11 +3,11 @@
             [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.input.guido-import :as gi]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.grammar :as g] [musics.mu.value :as v]
             [musics.domain :as d]))
 
 (defn- parses? [mus-text]
-  (not (insta/failure? (gp/parse-string mus-text))))
+  (not (insta/failure? (g/parse mus-text))))
 
 (defn- leaves
   "Every leaf reachable from mus-text's own root, at any depth --
@@ -17,7 +17,7 @@
    slipped through undetected past string-only assertions, in this
    exact converter's own note->pitch-text)."
   [mus-text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)]
+  (let [{:keys [tree root-id]} (v/read-domain mus-text)]
     (letfn [(walk [node]
               (cond
                 (d/leaf? node)      [node]

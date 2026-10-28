@@ -10,11 +10,11 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.common.music-elements :as el]
-            [musics.core :as m]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
+            [musics.registries :as reg]
             [musics.repo :as repo]))
 
 ;; ------------------------------------------------------------------
@@ -163,13 +163,27 @@
             locals (zipmap ins (subvec stack n))]
         (run-items (subvec stack 0 n) (:body entry) {:locals locals :values (:values entry)})))))
 
+(def ^:dynamic *head*
+  "While a quotation that opens with an @{ } runs: that @{ }'s settings,
+   {name value}, read by every algo word in it (musics.mu.algos) after its
+   own local @{ } -- the recipe's head. The nearest quotation's wins."
+  nil)
+
+(defn head-of
+  "The settings of a quotation's opening @{ }, {name value}, else nil."
+  [{:keys [body env]}]
+  (when-let [i (some-> (first body) (#(when (= :Settings (first %)) %)) meta :mu/index)]
+    (into {} (:params (v/node (nth (:values env) i))))))
+
 (defn call
-  "Run a quotation on stack."
+  "Run a quotation on stack; one that opens with an @{ } runs with it as
+   its head (*head*)."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
-  (if (fn? q)
-    (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
-    (run-items stack (:body q) (:env q))))
+  (cond
+    (fn? q)      (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
+    (head-of q)  (binding [*head* (head-of q)] (run-items stack (rest (:body q)) (:env q)))
+    :else        (run-items stack (:body q) (:env q))))
 
 (defn- node-name [node]
   (let [x (second node)]
@@ -192,6 +206,9 @@
                    (mu-error (str "$" n) "is not a local here")))
     :Quotation (conj stack (assoc (v/->Quotation (vec (rest node)) (:source (meta node)))
                                   :env env))
+    :TopCommand
+    (mu-error "a command needs a line: write" (str "[" (:source (meta node)) "]")
+              "-- or the word after the music: x c d transpose, x [R]")
     :LooseInstruction
     (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
               "or give a context, ^{" (str (:source (meta node))) "}")
@@ -258,18 +275,19 @@
          (second (second x)))))
 
 (defn- check-refs!
-  "Refuse a \\name in a literal that this same input binds (its literals
-   are read before := runs), or that holds no music."
-  [tree lits]
+  "Refuse a \\name in a segment's literals that isn't bound yet -- one
+   the segment's own := binds comes too late, its literals being read
+   before the := runs -- or that holds no music."
+  [items lits]
   (let [refs  (refs-in lits)
-        bound (set (for [x (tree-seq vector? seq tree)
+        bound (set (for [x (tree-seq vector? seq (vec items))
                          :when (and (vector? x) (= :QuotedName (first x)))]
                      (node-name x)))
         b     (:bindings @state)]
     (doseq [n refs]
       (cond
-        (bound n) (mu-error (str "\\" n ":") "is bound in this input; its literals are read before := runs,"
-                            "so use it in the next input")
+        (and (bound n) (not (contains? b n))) (mu-error (str "\\" n ":") "is bound by the := it comes before; its literals are read before := runs,"
+                            "so use it after the :=")
         (not (contains? b n)) (mu-error (str "\\" n ":") "nothing is bound to" n "-- bind it with" (str "'" n) "value :=")
         (not (or (v/material? (b n)) (v/leaf? (b n))))
         (mu-error (str "\\" n ":") "holds" (p/show (b n)) "-- only music goes in a literal")))))
@@ -309,28 +327,70 @@
            "Gather on the stack instead: | [a b] [?] [c d] [?] seq  (par for { })"))
     (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
 
-(defn read-input
-  "Parse text: {:items [...] :values [value …]} (values indexed by each
-   literal's :mu/index), or {:incomplete true}, or {:error message}."
+(defn- parse-input
+  "Parse text: {:items [...] :lits [...]} (each literal numbered by its
+   :mu/index), or {:incomplete true}, or {:error message}."
   [text]
   (let [tree (g/parse text)]
     (cond
       (and (g/failure? tree) (g/incomplete? text)) {:incomplete true}
       (g/failure? tree) {:error (parse-error text tree)}
-      :else
-      (let [[tree' lits] (annotate tree text)
-            _       (check-refs! tree' lits)
-            current (current-repo)
-            {:keys [values auto-ids]} (v/read-literals lits text current (:auto-ids @m/session) (:bindings @state))]
-        (swap! m/session assoc :auto-ids auto-ids)
-        {:items (vec (rest tree')) :values values}))))
+      :else (let [[tree' lits] (annotate tree text)]
+              {:items (vec (rest tree')) :lits lits}))))
+
+(defn- bind? [item] (and (= :Word (first item)) (= ":=" (node-name item))))
+
+(defn- segments
+  "items cut after each := : each segment's literals are read when it
+   runs, so a name bound by one segment can be used by the next."
+  [items]
+  (let [[segs last-seg] (reduce (fn [[segs cur] item]
+                                  (if (bind? item) [(conj segs (conj cur item)) []] [segs (conj cur item)]))
+                                [[] []] items)]
+    (cond-> segs (seq last-seg) (conj last-seg))))
+
+(defn- literals-in [items]
+  (for [item items x (tree-seq vector? seq item)
+        :when (and (vector? x) (:mu/index (meta x)))]
+    x))
+
+(defn- read-segment
+  "values with the segment's literals read into their places."
+  [values items text]
+  (let [lits (sort-by (comp :mu/index meta) (literals-in items))]
+    (check-refs! items lits)
+    (if (empty? lits)
+      values
+      (let [{vs :values auto-ids :auto-ids}
+            (v/read-literals lits text (current-repo) (:auto-ids @reg/session) (:bindings @state))]
+        (swap! reg/session assoc :auto-ids auto-ids)
+        (reduce (fn [acc [lit x]] (assoc acc (:mu/index (meta lit)) x)) values (map vector lits vs))))))
+
+(defn- run-input
+  "Run a parsed input on stack, segment by segment."
+  [stack {:keys [items lits]} text]
+  (loop [stack stack values (vec (repeat (count lits) nil)) segs (segments items)]
+    (if-let [seg (first segs)]
+      (let [values (read-segment values seg text)]
+        (recur (run-items stack seg {:locals {} :values values}) values (rest segs)))
+      stack)))
+
+(defn run-text
+  "Run mu text on stack, returning the stack it leaves; throws on an
+   error or an unfinished input."
+  [stack text]
+  (let [r (parse-input text)]
+    (cond
+      (:incomplete r) (mu-error "unfinished input")
+      (:error r)      (mu-error (:error r))
+      :else           (run-input stack r text))))
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
    {:error message} -- after which the stack is empty. Nothing is
    printed: as in Forth, only words that print do."
   [text]
-  (let [r (try (read-input text)
+  (let [r (try (parse-input text)
                (catch StackOverflowError _ {:error "the stack of calls overflowed reading this"})
                (catch Exception e {:error (.getMessage e)}))]
     (cond
@@ -338,7 +398,7 @@
       (:error r)      (do (swap! state assoc :stack []) r)
       :else
       (try
-        (let [s (run-items (:stack @state) (:items r) {:locals {} :values (:values r)})]
+        (let [s (run-input (:stack @state) r text)]
           (swap! state assoc :stack s)
           {:ok s})
         (catch clojure.lang.ExceptionInfo e

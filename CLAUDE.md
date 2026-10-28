@@ -30,7 +30,7 @@ back into the other two rather than data only ever flowing forward:
    `midi_file` (MIDI dispatch). Turns committed material into real-time or rendered
    sound.
 3. **The playground** — `play`'s own mini-language (`musics.engine`,
-   thin `musics.core` wrappers) + `musics.wall` (per-voice
+   mu's play words) + `musics.wall` (per-voice
    algorithms). Sits *above* the other two, not between them: it
    reaches into the repo to select already-committed material, and
    into the engine to spawn voices and assign algorithms, for one
@@ -55,7 +55,7 @@ tier themselves: `musics.input.midi`/`musics.input.midi-record` (capture a live
 performance, emit musics text), `musics.input.lilypond-import` (convert real
 LilyPond text), `musics.input.abc-import` (convert real ABC notation text),
 and `musics.input.guido-import` (convert real GUIDO Music Notation text). The
-GUI (`(musics.core/gui)`) wraps tier 3 for live use, plus one satellite
+GUI (`gui` in mu) wraps tier 3 for live use, plus one satellite
 directly (its Record MIDI panel).
 
 Tiers 1 and 3 share one *concept* — sequential-vs-parallel grouping —
@@ -145,8 +145,9 @@ hosted REPL language (musics.lang) lives on the `concat` branch / the
 `frepl-standby` tag, not here — see `doc/md/decisions.md`, 2026-09-28.
 
 ```bash
-lein repl              # start a REPL (init-ns is `user`)
-scripts/repl-start.sh   # a headless nREPL on 7888 unless one is running
+lein mu                 # mu, the musical REPL -- with the GUI (gui), the interface
+scripts/repl-start.sh   # a headless nREPL on 7888 unless one is running, for
+                        # development checks only (no Clojure REPL API)
                         # (run by the SessionStart hook in .claude/settings.json)
 scripts/nrepl.py '(+ 1 2)'          # evaluate in it (port from .nrepl-port);
 scripts/nrepl.py -n musics.assist '…' # -n for a namespace, code on stdin works too
@@ -154,7 +155,6 @@ lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/, test/ and dev/ (no cache written;
                         # the editors' on-save linting is off for this project)
 lein verify             # lint, then the full test suite
-lein mu                 # mu, the musical REPL, in a real terminal (also (mu!) from lein repl)
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
@@ -172,7 +172,7 @@ lein test :parsing      # just one architectural layer -- :parsing/:domain/
 ```
 
 Audio plays through Gervill, the JVM's own synthesizer, by default
-(`(connect)`, nothing to set up); Fluidsynth (`(connect :fluidsynth)`)
+(mu's `gervill`, nothing to set up); Fluidsynth (`fluidsynth`)
 needs qsynth and a virtual MIDI port — see `doc/md/setup.md` and
 `scripts/setup.sh` / `scripts/reconnect.sh`. Neither is needed to parse
 text into the domain model or run tests.
@@ -182,23 +182,22 @@ text into the domain model or run tests.
 ### Pipeline (current)
 
 ```
-text
-  ├─ instaparse (musics.ebnf)           → raw parse tree
+text (a mu input, a .mus file, the GUI editor's text)
+  ├─ instaparse (musics.ebnf + mu.ebnf, start MuInput) → raw parse tree
   │    (no text-level pre-processing at all -- comments and variables
-  │    are both real grammar constructs now, Comment/VarDef/VarRef, so
-  │    instaparse always parses exactly what was written; nothing is
-  │    stripped or substituted beforehand, which is what makes a later
-  │    parse error's line/column always match the original text -- see
-  │    "Grammar" below for `VarDef`/`VarRef`, and `doc/md/decisions.md`'s
-  │    Wave 3 entry for why)
-  ├─ walker/walk              → {:tree repo-map :auto-ids ... :var-map ...}
-  │    (uses builder for the push/pop container stack; id
-  │    assignment is lazy -- ensure-id only spends an auto-id counter
-  │    slot at pop time, and only if the source never gave an explicit
-  │    name, so [verse: ...] never wastes a :s-prefixed slot it won't use)
-  ├─ musics.repo/changed-ids + commit-many!  → new/changed ids land in
-  │    the flat store immediately, one atomic swap! (musics.core/parse
-  │    commits right away -- no separate stage/commit step)
+  │    are both real grammar constructs, Comment/VarRef, so instaparse
+  │    always parses exactly what was written, which is what makes a
+  │    parse error's line/column always match the original text --
+  │    see doc/md/decisions.md's Wave 3 entry)
+  ├─ musics.mu.eval: the literals read up to each :=, then that part
+  │    runs on the stack
+  │    └─ walker/walk-each (musics.mu.value/read-literals) → a value per
+  │         literal (uses builder for the push/pop container stack; id
+  │         assignment is lazy -- an auto-id slot is spent only at pop
+  │         time, and only if the source gave no name)
+  ├─ musics.mu.material/store-all! → the music stored: new/changed ids
+  │    land in the flat store in one atomic swap! (R! at the prompt;
+  │    musics.mu.store/read! stores what a file or the editor leaves)
   └─ musics.engine/play           → one musics.events stream per top-level
        │                           voice, walked lazily from a snapshot of
        │                           the repo taken when it starts
@@ -211,19 +210,21 @@ text
               :voice carried opaquely) → registered actions
 ```
 
-`src/musics/core.clj` is the REPL entry point. `session` is now just
-`{:auto-ids {...} :var-map {...}}` — `musics.repo` is the actual store (see
-below), not a `book`/`Score` atom. `(parse text)` walks against whatever's
-*currently committed* and commits the result immediately — visible the
-instant the call returns, no separate commit step. Parts are addressed
-by keyword id thereafter (`(inspect :verse)`,
-`(ctx-value :verse :tempo 0.0)`, etc.) — ids are first-class handles, resolved via
-`resolve-id` (keyword/string/map all accepted). `(ctx :verse)` is a separate,
-display-only helper — the part's own context chain (every ancestor's own
-authored envelope points, nearest first, `:ROOT` excluded), not a value
-lookup.
+There is no Clojure REPL API: the program is used through **mu**
+(`lein mu`) and the **GUI** (`gui` in mu, `musics.gui.core/launch!`); see
+`doc/md/decisions.md`, 2026-10-23. `musics.registries/session` holds the
+auto-id counters (`{:auto-ids {...}}`) — `musics.repo` is the actual store
+(see below). `musics.mu.store/read!` runs text as mu input on a stack of
+its own and stores the music it leaves, against whatever is *currently
+committed*, visible the instant the call returns (mu's `load`, the GUI's
+Editor and Record MIDI, `.ly`/`.abc`/`.gmn` converted first). Parts are
+addressed by keyword id thereafter (`musics.repo/lookup`,
+`musics.domain.resolve/ctx-value` -- keyword/string/map all accepted);
+`musics.domain.resolve/ctx` (mu's `ctx`) prints a part's own context chain
+(every ancestor's own authored envelope points, nearest first, `:ROOT`
+excluded).
 
-`(mu!)` runs **mu**, the musical REPL (`musics.mu`, design in
+`lein mu` runs **mu**, the musical REPL (`musics.mu`, design in
 `doc/md/mu-repl.md`): a stack-based, Forth-like REPL in which musics text
 is first-class -- `[ ]` is a `:SEQ`, `{ }` a `:PAR`, every input parsed
 by instaparse through `resources/musics/mu.ebnf` appended to
@@ -253,16 +254,27 @@ halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 note's as a stream, a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
-is `x` again. The algos are words by what they deliver
+is `x` again; above a `|` mark `zip` takes every part of a note
+(`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`),
+each stepping once per note, a rest's values unused; an unnamed line
+among them is written on, keeping its form, a part given replacing its
+own (`x volume/walk zip`), and without durations and pitches it gives a
+bundle, the parts as columns, each as long as it is (`'[:pitch '[60
+62 64] :volume '[90 70]]`), which zip takes again as its parts and
+which can't sound. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
-result), a `^{ ?k:5 }` on top as its settings (then
-`:ROOT`'s, then the defaults; `?seed:7` runs it on that seed, so two
-words with one seed read one run), and `with-volumes`/
-`with-articulations`/`with-instruments` put such a stream back onto a
-line, a value per note. Instruments and drums stay apart: `instruments`/
-`with-instruments` are programs (a drum has none), `drums`/`with-drums`
+result), an `@{ k:5 }` on top as its own settings -- an algo's settings
+are a value of their own, `:TCONTEXT`, apart from the music's `^{ }`,
+which an algo word refuses -- then a live voice's (`set`), then the
+head of the recipe it runs in (the `@{ }` a quotation opens with,
+`musics.mu.eval/*head*`, which reaches every word in it), then the
+defaults; only a key or meter param reads the music (the line a live
+voice plays in, else `:ROOT`'s); `seed:7` among them runs it on that
+seed, so two words with one seed read one run -- and `zip` puts such a stream back
+onto a line, a value per note. Instruments and drums stay apart: `instruments`/
+`:instrument` are programs (a drum has none), `drums`/`:drum`
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`
@@ -288,15 +300,16 @@ namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 gathered into a line, `| … seq`). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
-`musics.play` and `musics.rate` -- `musics.mu.library` registers each
+`musics.play` and `musics.rate` (and any namespace mu's `require`
+loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
+too) -- `musics.mu.library` registers each
 public function under its name, a trailing `!` left off, and its
 `:mu :names`, signs like `[R]` and `+`, and
 `musics.mu.eval` runs such a `{:var v}` word by taking its arguments
 from the stack, music first (the longest arity whose extra arguments
 pass their `:mu :optional` test), pushing the one value it returns --
-nothing for a `!` function -- and naming an error by the word; the
-bridge's `mu/…` for it calls the var, so a redefinition changes the
-word everywhere. The words that read the stack's shape stay stack
+nothing for a `!` function -- and naming an error by the word; it
+calls the var, so a redefinition changes the word everywhere. The words that read the stack's shape stay stack
 words: the stack, quotations, `:=` and printing the stack, and the play
 words with their optional context, mark and voice (`>`, `>>`, …) in
 `musics.mu.kernel`; `split-at` (two values), `seq` `par` `{n}` `[n]`
@@ -304,19 +317,17 @@ words with their optional context, mark and voice (`>`, `>>`, …) in
 generated from the registry (`musics.mu.algos`). `musics.mu.material`
 holds what they all share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
-grammar); `bye` or Ctrl+D returns, the stack lasts the session.
+grammar); `bye` or Ctrl+D leaves. An input's literals are read up to
+each `:=`, just before that part runs, so `'m [c d] := [\m e]` works in
+one input or file. At the top level a text command (`transpose c d ( … )`,
+`R ( … )`, `grace …`) is refused (`TopCommand`), pointing at the line it
+belongs in or the postfix word. `"x.mus" load` reads a file (`.ly`,
+`.abc`, `.gmn` converted), `x "x.mid" render` writes a MIDI file.
 Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/
 `dislike` or Alt+l Alt+k Alt+j at the prompt (`musics.mu.feedback`), `audition`
 plays a line's sounds one by one in the background, and
 `musics.feedback` appends each rating (the sound as mu prints it, the
 synth and soundfont) to `~/.mu-feedback.edn` and summarizes them.
-The words are Clojure functions too (`musics.mu.words`, `mu` in `user`,
-built from the registry by `musics.mu.bridge`): `(mu/retrograde x)`,
-short `(mu/R x)`, `(mu/times x 3)`, `(mu/= a b)` as `eq`, arguments in mu's order, a Clojure
-fn where a quotation goes, `(mu/mu "text")` to read or run mu text;
-what clojure.core has (`take`, `filter`, `first` …) is left to it, on
-`(mu/elements x)`, with `mu/line` back to music;
-results print as mu prints them (`#mu "[C4/4 D4]"`).
 
 ### Session, the repo, and playback
 
@@ -327,8 +338,8 @@ id is simply gone. Two ways to write:
 
 - **`commit-node!`** — immediate single-node commit.
 - **`commit-many!`** — several ids in one atomic `swap!`/`merge`. This is
-  what `musics.core/parse` uses — a single `(parse "[a: ...] [b: ...]")`
-  call can commit several ids together, visible the instant it returns.
+  what `musics.mu.material/store-all!` uses — a file's `[a: ...] [b: ...]`
+  is committed together, visible the instant the read returns.
 - Reading: **`current`** (one id's value, or `nil`) and **`registry`** —
   the live `{id -> node}` atom itself, what a brand-new voice's
   snapshot is taken from. `registry` is a thin FUNCTION, not a bare
@@ -338,10 +349,10 @@ id is simply gone. Two ways to write:
   instead freeze onto whatever the ROOT binding was at namespace-load
   time, silently ignoring a test's own `binding`).
 
-There's no history to pin against — `parse` and every `musics.core`
-inspection fn (`find`/`ids`/`children`/`leaves`/`inspect`/`ctx`/
-`ctx-value`/`locate`/`describe`/`print-structure`) always reads whatever's
-committed right now, with no `tx` argument to accept. A voice is the one
+There's no history to pin against — reading text and every inspection fn
+(`musics.repo/lookup`/`ids`/`children`/`usages`, `musics.domain.resolve/
+ctx`/`ctx-value`/`locate`, `musics.domain/describe`/`print-structure`)
+always reads whatever's committed right now, with no `tx` argument to accept. A voice is the one
 thing that still needs isolation from LATER edits, though, and gets it a
 different way:
 
@@ -360,11 +371,12 @@ different way:
   after the boundary — typically the next pass of a loop or the next
   item of a `[...]` play arg.
 
-`write`/`load` persist/replace whatever's currently committed (via
-`musics.repo/seed!`), not the performance layered on top of it (a voice's
-`:algo` assignment can transform pitch/duration wholesale). `reset` wipes
-`musics.repo` entirely and re-bootstraps a fresh `:ROOT`.
-`persist-session`/`restore-session` (`musics.persist`) are the fuller pair
+`musics.persist`'s `write`/`load` (the GUI's Persistence window)
+persist/replace whatever's currently committed (via `musics.repo/seed!`),
+not the performance layered on top of it (a voice's `:algo` assignment
+can transform pitch/duration wholesale). `musics.mu.store/reset-all!`
+(the GUI's Reset) wipes `musics.repo` entirely and re-bootstraps a fresh
+`:ROOT`. `persist-session`/`restore-session` are the fuller pair
 for that — same repo+auto-ids round-trip as `write`/`load`,
 plus whatever's CURRENTLY LIVE right now (`musics.engine/live-algos`,
 path -> Name read straight off each live voice's own immutable `:algo`
@@ -455,8 +467,7 @@ each node, so a fn must pass through what it already produced (mark
 it, as `musics.algo.tree.live` does). What fills the registry is
 `musics.algo.tree/live!` (a name bound to a tree + a tctx — see "Simple
 composition: `musics.algo.tree`" below); `build-algo!` stores a hand-written
-wall fn directly. `musics.wall/registered`/`musics.core`'s `registered`
-surfaces the full entry.
+wall fn directly. `musics.wall/registered` surfaces the full entry.
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`musics.engine`'s `:voices` atom) is a vector, root-first, one segment
@@ -472,8 +483,7 @@ at `name` picks up the change on the next node the sender reads (a
 lookahead ahead of hearing it), with nothing on the voice itself ever
 touched.
 
-`assign-algo!`/`algo-assignments` (`musics.engine`, thin
-`musics.core` wrappers of the same name) are a SEPARATE, narrower
+`assign-algo!`/`algo-assignments` (`musics.engine`) are a SEPARATE, narrower
 mechanism: `:algo-prepared`, `path -> name`, consulted ONLY when a
 top-level voice starts (`start-voice!`), and only when that call's
 own `:algo` argument is `nil`. `assign-algo!` never reaches an
@@ -520,7 +530,7 @@ see "Grammar" below); the two once shared one spelling, and `#{ }`
 was a text-grammar bracket for a while, but the text grammar has since
 moved on while the play args kept `#{}` (see `doc/md/decisions.md`'s Wave
 6/7 and 2026-09-19 entries).
-`musics.core/sq`'s own `{:parallel? bool}` seq
+`musics.compose/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
 sq's output is always a plain vector, never a set, so without that
 metadata check winning first a genuinely parallel container would
@@ -566,7 +576,8 @@ other material).
 
 **`play`/`play-add` mint one or more track ids from a SINGLE Form, plus
 an OPTIONAL trailing `:algo Name`.** `(play Form)` or `(play Form :algo
-Name)` — both `musics.engine` fns (thin `musics.core` wrappers),
+Name)` — both `musics.engine` fns (`play-connected`/`play-add-connected`
+connect first, as the GUI does),
 neither accepting several top-level forms implicitly sequenced anymore
 (`(play :verse1 :verse2)` is now `(play [:verse1 :verse2])`, matching
 the same one-Form discipline every nested level already has —
@@ -662,10 +673,10 @@ whose keys are `?` names, also the GUI's model):
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 (def riff (zip (pulses->durations euclid) (cycle> scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
-(def tctx (t/tctx riff))                          ; {:envelopes-atom (atom {}) :duration nil}
-(t/setp! tctx :k 5)                           ; = (swap! (:envelopes-atom tctx) assoc "?k" 5), validated
+(def tctx (t/tctx riff))                          ; {:params-atom (atom {})}, the specs as its meta
+(t/setp! tctx :k 5)                           ; = (swap! (:params-atom tctx) assoc "k" 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
-(t/run riff tctx [music-ctx])                      ; then the music's contexts, then the defaults
+(t/run riff [local tctx] [music-ctx])              ; sources nearest first; key/meter from the music
 ```
 
 **Algorithms describe themselves.** An algorithm is an ordinary `defn`
@@ -721,15 +732,26 @@ mapping a singular value bridge where one exists (`degree->pitch`,
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
 finite stream first; registry entries carry it, `show-algos` prints it).
 Keys are spelled as `!key:` spells them; a number bridge takes its input
-range as `:from-lo`/`:from-hi`. `zip` zips `:duration` and `:pitch` into
-notes, chords and rests (a Rest in the durations uses no pitch), and
-the blend steps add one material each: `+articulation` (a name from
+range as `:from-lo`/`:from-hi`. `zip` joins a note's parts, two at a
+time -- `(zip durs pitches vols)` is `(zip (zip durs pitches) vols)`,
+folded when built and printed as written (`:join` in its metadata):
+durations and pitches (or drums) into notes, chords and rests (a Rest in
+the durations, or a nil pitch, uses the other values unwritten, so
+every stream's n-th value is the n-th note's; `pulses->volumes`/
+`pulses->articulations` give nil for the leading Rest
+`pulses->durations` makes); notes and a part into the notes with it
+written on, replacing their own -- an articulation (a name from
 `musics.common.music-data/articulations`, the leaf's `:articulation`/
-`:dynamic` as `c4->` sets them), and the per-note overrides `+volume`
-(0-100), `+instrument` (a MIDI program, a General MIDI name or its short
-name; a drum has none), `+drum` (a note made a drum, a key of the kit or
-a drum's name) and `+override` (any played key,
-chosen by `:key`); `parts`/`+part` join leaf streams as parallel parts
+`:dynamic` as `c4->` sets them), a volume (0-100), an instrument (a
+MIDI program, a General MIDI name or its short name; a drum has none),
+a drum (a note made a drum, a key of the kit or a drum's name) or any
+key playback reads per note (`t/overridable`); anything else into a
+bundle, `{:type :BUNDLE :parts {part stream}}`, typed by its parts
+(`[:bundle :pitch :volume]`, `t/bundle-type`), joined again later. A
+child's part is its type; a literal gives durations, then pitches, and
+`(as-part :volume x)` (or `:leaf`, `:panning` …) names another. The
+composer shows a zip as one node with a `+` for one more child
+(`builder/widen`); `parts`/`+part` join leaf streams as parallel parts
 (`:part`, which `t/play!` plays at once and `part` picks one of), and
 `layer` picks one pulse layer of a `:layer` (`polyrhythm`, `hemiola`,
 ...) -- named with `:as`, each pick routes its layer into its own part -- written into the leaf's `:overrides`, exactly what
@@ -739,13 +761,12 @@ as `\volume:90`.
 trees is an algo or listed with the reason it isn't (data tables, the
 RNG engine, single draws, constraint builders), every algo runs with
 its own defaults and gives its declared `:out`, and no lib name shadows
-`clojure.core` or `musics.core` — `lein repl`'s `user` ns has
-`musics.algo.tree` as `t` and every lib constructor referred.
+`clojure.core`.
 `remove>`/`mute>` (with `filter>`) select by a `:fn` test: on a stream
 of one material, or on leaves, where `remove>` drops a note (later
 ones move earlier) and `mute>` makes it a rest of its duration.
 
-**Algos deliver half products** (`musics.algo.tree.half`,
+**Algos deliver half products** (`musics.algo.tree.half-products`,
 `doc/md/algo-space.md`). Pitch, duration, volume, articulation and
 instrument are half products, leaves/lines/parallels products, numbers/pulses/onsets/
 points/weights raw material. Every source of raw material is also
@@ -763,12 +784,12 @@ defaults (probed seeded). Two with the same `:as` and source read one
 run of it within a `t/run` -- x as pitch, y as volume of one attractor.
 An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
 `oblique`, `rnn`, `tuplets`, `necklace`, `bracelet`, `crossover`,
-`tiling`) is lifted onto durations the same way (`half/lift`):
+`tiling`) is lifted onto durations the same way (`half-products/lift`):
 `duration/emi` takes durations, its `:via :lift` lays them on a grid of
-`:duration-pulse` (`half/durations->pulses`), and `pulses->durations`
+`:duration-pulse` (`half-products/durations->pulses`), and `pulses->durations`
 reads the result back.
-`musics.algo.{pitch,duration,volume,articulation,instrument}` hold their
-constructors (`defhalf`), aliased by those names in `user`.
+A specialised algo's registry key is its mu word: `:duration/euclid`
+is `duration/euclid` (`musics.mu.algos`).
 `musics.algo.tree.registry/shelf` places every algo in the catalogue by
 what it delivers -- `pitch`/`duration`/`volume`/`articulation`/`leaf`/
 `parallel`, `tools`, or `workshop` for anything that takes or gives
@@ -781,35 +802,43 @@ or a literal. Child count and `:in`/`:out` types are checked at once
 (`:pulse`/`:weight`/`:pitch`/`:number`/`:duration`/`:onset`/
 `:pair`/`:point`/`:layer`/`:part`/`:model`/`:stroke`/`:leaf`/`:index`,
 `:any`, and `:same` = the first child's type), errors naming both nodes.
+A child of the wrong type first gets the smallest chain of one-input
+bridges from its type to the slot's (`musics.algo.logic.tree/bridge`,
+from `how`, cached per registry state), so `(zip euclid scale)` is built
+as `(zip (pulses->durations (euclid)) (scale))` and prints so; in a
+join the bridge goes to the part neither child gives yet, durations then
+pitches. The builder places an algo inside its bridges the same way
+(`builder/takes?`, `place`), so the composer offers it there.
 `(euclid :as :bass)` names an instance.
 
 **Keys are a pure function of the tree** (`t/param-keys`): a param keeps
 its bare name unless two different algos read it with different specs
-(then `:<short>.<name>`); a named instance's are `:<as>/<name>`. In a
-context each is an `?` name -- `"?k"`, `"?euclid.k"`, `"?bass.k"` --
-written in text as `?k:5` (see Grammar).
-**The tctx** is an ordinary Context (`{:envelopes-atom :duration}`)
-holding only what is set, as plain values under `?` names; the tree's
-specs ride on the envelopes atom's metadata (`t/specs`), never the tree
-itself: one tree can run against several tctxs, and `(t/fit! tctx
-tree)` adds another tree's specs, keeping the values. The atom's
-validator checks every `?` value against its spec, so even a plain
-`swap!` can't store a bad one. `t/run`/`t/settings` take `(tree src
-chain)`: `src` a tctx or a plain map, then `chain`, contexts nearest
-first (a `^{ }`, a voice's chain), then each param's default. In each
-context the most specific name wins (`?bass.k`, then `?euclid.k`, then
-`?k`); values are read once per run (the latest a context holds -- no
-timing), coerced from text (`?key:D.major`, a bare name, reads as a
-string where a string is wanted) and checked. `t/params` is every
-param's value, `t/values` what the tctx sets itself, `t/unsetp!` lets a
-param fall through again. A param whose spec names a music key (`:context :key`
--- the bridges' key, so `degrees->pitches`, `points->pitches` and their
-specialised algos) reads that key in each context after its `?` names,
-so it plays in the music's `!key:` unless an `?key:` says otherwise. A
-live voice (`t/live!`, or `play` with `:algo`) runs with what its tctx
-sets, then the chain of the music it plays in (`^{ ?k:5 }`, `!key:`),
-then the defaults: a generating tree reads the chain at a voice's first
-note and again after each change.
+(then `:<short>.<name>`); a named instance's are `:<as>/<name>`. Each is
+written under a name -- `"k"`, `"euclid.k"`, `"bass.k"` -- in text
+`@{ k:5 euclid.k:3 bass.k:2 }` (see Grammar).
+**The tctx** is its own shape, `{:params-atom a}`, `a` holding only what
+is set as plain values under those names; the tree's specs ride on the
+atom's metadata (`t/specs`), never the tree itself: one tree can run
+against several tctxs, and `(t/fit! tctx tree)` adds another tree's
+specs, keeping the values. The atom's validator checks every value
+against its spec (a name no param has is refused, but for `seed`), so
+even a plain `swap!` can't store a bad one; `setp!` coerces a value as
+text writes it first. `t/run`/`t/settings` take `(tree src chain)`:
+`src` a tctx, a plain map (by key or by name) or a vector of them
+nearest first, then each param's default; in each the most specific
+name wins (`bass.k`, then `euclid.k`, then `k`); values are read once
+per run, coerced from text (`key:D.major`, a bare name, reads as a
+string where a string is wanted) and checked. `chain`, the music's
+contexts nearest first (a voice's chain), is read only by a param whose
+spec names a music key (`:context :Key`/`:Meter` -- the bridges' key and
+meter, so `degrees->pitches`, `points->pitches`, `pulses->volumes` and
+their specialised algos), after the sources, so it plays in the music's
+`!key:` unless the settings give a `key`. `t/params` is every param's
+value, `t/values` what the tctx sets itself, `t/unsetp!` lets a param
+fall through again. A live voice (`t/live!`, or `play` with `:algo`)
+runs with what its tctx sets, then -- for key and meter -- the chain of
+the music it plays in, then the defaults: a generating tree reads the
+chain at a voice's first note and again after each change.
 `t/describe` prints key/value/range/default/algo/doc; `t/trace`
 every node's result (lazy seqs previewed, never walked); an algo that
 throws is reported with its node's expression.
@@ -825,15 +854,14 @@ voice keeping its own cursor (re-running the tree once per change, at
 the same position; a failing run keeps the last good material). A tree
 that reads `:nodes` TRANSFORMS the voice's own notes. The GUI's Wall
 window shows each live name with a control per param: a slider for a
-finite range, a dropdown for `:choices`, a note for a fn (set at the
-REPL), a text field otherwise. `(gui tctx)`/`(gui tree)`/`(gui tree
-tctx)` (`musics.core/gui`, also `t/gui`; `musics.gui.params`) opens just a
-settings window with the same controls, no rest of the GUI: the tctx is
-its model both ways (a control calls `t/setp!`, a REPL `setp!` moves the
-control), and given a tree it also previews the result (debounced,
+finite range, a dropdown for `:choices`, a note for a fn, a text field
+otherwise. `(t/gui tctx)`/`(t/gui tree)`/`(t/gui tree tctx)`
+(`musics.gui.params`) opens just a settings window with the same
+controls, no rest of the GUI: the tctx is its model both ways (a control
+calls `t/setp!`, a `setp!` moves the control), and given a tree it also previews the result (debounced,
 first 32 items of an endless one) with Play once / Live as buttons.
-`(gui tree)` makes the tctx and returns it. `(build-tree)` (`musics.core`,
-also `t/build-tree`; `musics.gui.composer`) composes a tree by drag and
+`(t/gui tree)` makes the tctx and returns it. `(t/build-tree)`
+(`musics.gui.composer`) composes a tree by drag and
 drop and returns `[tree tctx]` (blocking until Finalize, nil when closed):
 a canvas showing the tree with its brackets and numbered holes, and a
 pane of shelves -> algos on the right (`musics.algo.tree.registry/
@@ -843,19 +871,31 @@ types the draft in core.logic, so a hole under a `:same` node (`cycle>`,
 `take>`, ...) takes the type that node's own slot wants, and an algo
 whose own holes nothing could fill is dimmed too — a drop on a hole fills it, on a node replaces it, and the
 active slot moves on to the next hole, so a tree grows root to leaves.
-`(build-tree :repl)` is its REPL twin, step for step the same. Both run
-on `musics.algo.tree.builder`, a pure draft model (`place`/`place-literal`/
-`remove`/`undo`/`redo`/`select`, `fits?`, `->tree`, `from-tree`,
-`render`; Ctrl+Z/Ctrl+Y in the window, `u`/`y` at the REPL), so
-the two can't drift apart; `(build-tree tree tctx)` edits an existing
-tree. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
-text, ready for `parse`. `doc/html/algo-cookbook.html` (generated and
+It runs on `musics.algo.tree.builder`, a pure draft model
+(`place`/`place-literal`/`remove`/`undo`/`redo`/`select`, `fits?`,
+`->tree`, `from-tree`, `render`; Ctrl+Z/Ctrl+Y in the window);
+`(t/build-tree tree tctx)` edits an existing tree. In mu (`musics.mu.live`)
+a play word given a **recipe** -- a quotation, or a composer tree
+(`compose`) -- plays live: `x '( 5 + ) :up >`, or from nothing with a mark
+`|` (or nothing) under the recipe, `| '( duration/euclid [c e g] pitches
+zip [~] ) :riff >`. Each note the voice reaches is the next note of what
+the recipe gives now (`musics.algo.tree.live/bind-run!`, the generator's
+cursor per voice); its settings are a tctx per live name, fitted to the
+trees the recipe's algo words build (`musics.mu.algos/*live*`, read
+first in their chain), so `set`/`unset`/`settings`, `retree` (same
+settings, same position), `gui` on a voice and the GUI's Wall window
+work on them (`doc/md/decisions.md`, 2026-10-23). A change runs the
+recipe again, but an algo word whose inputs and settings are as they
+were gives its last result (`*live*`'s `:cache`, by word and
+occurrence), so only the words the change reaches run, and the others
+keep their random values. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
+text, ready to read. `doc/html/algo-cookbook.html` (generated and
 verified by `scripts/algo-cookbook.clj`, which runs every recipe;
 printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables
-read from the registry; `dev/musics/examples/tree_tour.clj` walks through all of it;
+read from the registry;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).
-`musics.algo.logic.tree` (`lt` at the REPL) also answers questions from the
+`musics.algo.logic.tree` also answers questions from the
 registry's types: `find-algos` (by category, input, output, param),
 `how` (smallest trees from one type to another, `:input` for what you
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
@@ -863,7 +903,7 @@ that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
-`musics.algo.harmonic.progression` (`prog` in `user`) writes roman-
+`musics.algo.harmonic.progression` writes roman-
 numeral schemes as chord symbols: `prog/blues` holds twelve-bar blues
 (`:basic` `:quick-change` `:minor` `:jazz`), `musics.common.music-data/
 choruses` the choruses of `doc/md/lilypond-chordmode-chords.md`
@@ -909,10 +949,10 @@ gives musics text spelled in the mode, and `:species` is the tree algo.
 
 ### Help: `musics.assist`
 
-`(assist)` (`musics.core`) says what holds, what you can do now and the
-way to hearing something; `(assist :live)` the steps to a fact or an
-action, or why an action can't be taken yet; `(assist :pulse :pitch)`
-hands two types to `musics.algo.logic.tree/how`. `musics.assist` works it out
+`musics.assist/explain` (the GUI's Assist popup) says what holds, what
+you can do now and the way to hearing something; `(explain :live)` the
+steps to a fact or an action, or why an action can't be taken yet;
+`(explain :pulse :pitch)` hands two types to `musics.algo.logic.tree/how`. `musics.assist` works it out
 from facts: `actions` is a table of REPL actions (`:needs`, `:gives`,
 `:call`, `:var`); the facts are the state read now (`:committed`
 `:connected` `:playing` `:paused` `:live`) plus history -- the needs
@@ -963,8 +1003,8 @@ a new architectural layer).
 
 ### Performance as data: `musics.events`
 
-`musics.events/events` (`musics.core/events`, repo implied) is what
-`play` would perform, as a lazy, time-ordered seq of maps: `(events
+`musics.events/events` (`(events repo form)`; mu's `musics.mu.material/
+events` for a value) is what `play` would perform, as a lazy, time-ordered seq of maps: `(events
 form)` or `(events form :algo name)`, the same Form `play` takes. Each
 carries `:t` (seconds), `:beat` (structural time, exact) and `:path`
 (the voice, named as `play` names it), and a `:kind`: `:note`/`:drum`/
@@ -989,8 +1029,10 @@ reads a boundary only when it is due to act on it decides when the hook
 runs (`musics.engine/schedule-tx!`). No clock, `core.async`, MIDI or
 `*engine*`.
 
-`musics.core/render` writes a form to a `.mid` file through it
-(`:until` seconds for endless material, `:seed` for `:humanization`).
+`musics.midi.file/render` writes a form to a `.mid` file through it
+(`:until` seconds for endless material, `:seed` for `:humanization`);
+mu's `render` (`x "x.mid" render`, seconds for endless music) writes a
+value.
 
 ### Live playback: `musics.engine`
 
@@ -1050,7 +1092,7 @@ two things at once, both starting the instant it's
 called: forwards every NOTE_ON/NOTE_OFF straight to musics' own
 connected output receiver on a fixed channel (`midi-through` — hear a
 plugged-in keyboard live, through the same Fluidsynth setup
-`(musics.core/connect)` already opened, no second MIDI-out connection of its
+`musics.engine/connect!` already opened, no second MIDI-out connection of its
 own), and puts the same events onto a `core.async` channel
 (`musics.input.midi-record` listens on this). `close-midi` stops both.
 
@@ -1071,11 +1113,10 @@ already used internally, just also surfacing the accidental that fn
 drops since it only ever fed a relative reference point).
 
 The generated text's `!tempo:`/`!instrument:` header has to sit INSIDE
-the `[ ]` Sequence, not before it — a bare top-level instruction isn't a
-valid `TopElement` (see "Grammar" below, "Every top-level program needs
-at least one real wrapping container").
+the `[ ]` Sequence, not before it — a bare top-level instruction is
+refused (see "Grammar" below).
 
-`(musics.core/gui)`'s "Record MIDI" panel (`musics/gui/*`) wraps this: Start/
+The GUI's "Record MIDI" panel (`musics/gui/*`) wraps this: Start/
 Stop buttons, an instrument field, an editable text area showing the
 generated text, a name field, and Write (saves `<name>.mus` to disk
 only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
@@ -1200,7 +1241,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   (`repeat`'s body is always a real container, never a bare leaf) — so
   "baked once, correct forever" doesn't reintroduce the problem the
   no-parent-pointer design exists to avoid for containers.
-  Motivation: `sq` (`musics.core`) returns a container's bare `:children`
+  Motivation: `sq` (`musics.compose`) returns a container's bare `:children`
   — none of that container's own `:context` (its `!instrument:`/
   `!tempo:`/`!mf`/etc.) travels with it once extracted, so a leaf played
   standalone (`(play (times 12 (sq :verse)))`) would otherwise resolve
@@ -1243,11 +1284,11 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   traversal would, for REPL inspection/addressing).
 - **`musics.engine`** is the (sole) real-time playback engine: one sender
   thread performing `musics.events` streams (see "Live playback" above).
-  `*engine*` is a dynamic var so REPL calls (`play`, `stop!`, `pause!`,
+  `*engine*` is a dynamic var so callers (`play`, `stop!`, `pause!`,
   `resume!`) don't need to thread an engine value around. `play`'s args
   are the play-arg mini-language (see "The play-arg mini-language"
   under "Wall" above). A group's parallel-ness doesn't have to be a set
-  literal: `musics.core`'s `sq` (the one function that turns a
+  literal: `musics.compose/sq` (the one function that turns a
   container's children into a bare seq) tags its output `{:parallel?
   bool :id id}` via metadata, and `form-tag+items` checks that first,
   so `(play (sq :chorale))` on a `:PAR` container plays in parallel.
@@ -1423,10 +1464,11 @@ again):
 
 | Bracket   | Rule          | Meaning                          |
 |-----------|---------------|-----------------------------------|
-| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body and a `VarDef`'s value (see below); the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
+| `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body; the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, a `:keyword` beside any value) |
+| `@{ }`    | `Settings`    | an algo's settings, `@{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }` |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
@@ -1452,45 +1494,21 @@ mini-language" below for `musics.compose/par`, a genuinely different,
 Clojure-data-side mechanism with its own reasons for existing,
 unrelated to this text grammar's own `{ }` Parallel).
 
-**A bare top-level program element still can't write into `:ROOT`, but
-a bare `Leaf` no longer needs a wrapping container to parse at all.**
-`TopElement` (`Program`'s own top-level element list) is `Composite |
-Leaf | repeat | VarDef` — a bare, un-nested `c4` now parses as valid
-`Program` text on its own (`repeat` covers measured tremolo too,
-`repeat tremolo N [ ]`, rather than a sibling rule). This is still deliberately narrower than `Element` (used
-everywhere *inside* a container, where `Leaf`/`Instruction`/
-`Reference`/`VarRef`/transient `Command` are all still completely
-ordinary): `Instruction`, transient `Command` (`transpose`/`grace` —
-not `repeat`, which persists as a real retained container and was
-never affected), `Reference` (when it resolves to a `^{ }` `:CONTEXT`
-block), and `VarRef` all still write directly into
-whatever context is on top of the builder stack if reached bare at
-`Program`'s own top level — before any real container has been
-entered, that's `:ROOT` itself, meant to stay a read-only endpoint with
-a guaranteed value for every key (`musics.common.context-keys/root-defaults`,
-`musics.domain.context/context-root`). Three separate, independently-
-confirmed-live write paths existed before `TopElement` was first
-restricted: a bare `Instruction`; a bare transient `Command`
-(`pop-container` replays any instruction written inside one onto
-whatever's on the stack once its wrapper splices away); and a bare
-`Leaf`/`Chord` with a note-glued dynamic, which was then a context
-write. The first two are still excluded from `TopElement` for exactly
-that reason. A bare `Leaf` is allowed: `walker/walk`
-auto-wraps it in its own ordinary, auto-id'd one-child `:SEQ` Sequence
-before walking it (the same `push-container`/walk/`pop-container` idiom
-the walker's own `:Sequence` case already uses), so it is an ordinary
-addressable part with a `:context` of its own, and a glued dynamic is
-now the note's own volume anyway (see below). `Reference`/`VarRef` were not changed — they have
-a different risk (replaying a whole stashed envelope, not just one
-dynamic mark) and stay excluded, same as `Instruction`/transient
-`Command`. One real consequence of the new behavior: several bare
-leaves typed back-to-back with no `[ ]` (`c4 d4`) parse as **two**
-separate one-note top-level Sequences, not one combined two-note
-Sequence — `[ ]` is still required to group more than one `Leaf`
-together. See `musics.ebnf`'s own comment on `TopElement` for the full
-detail, and `doc/md/decisions.md` for why `Leaf` was handled this way
-instead of by carving a dynamic-free-only exception out of its own
-grammar rule.
+**The top level is mu's.** `musics.ebnf` defines the literals; `mu.ebnf`,
+appended to it (`musics.mu.grammar`), defines `MuInput`, the one start
+rule -- a `.mus` file, the GUI editor's text and the mu prompt are read
+alike. At the top level a literal (`Composite`, `Leaf`, `repeat`, ...)
+is a value, a name a word, `:name` an id, `\name` the bound value;
+nothing written there reaches `:ROOT`'s context, which stays a read-only
+endpoint with a guaranteed value for every key
+(`musics.common.context-keys/root-defaults`,
+`musics.domain.context/context-root`): a bare `Instruction` is parsed
+only to be refused (`LooseInstruction`), and so is a transient command
+(`TopCommand`: `transpose`, the row forms, `grace`, `shuffle ( )`,
+`rotate n ( )`), which belongs inside a line. A bare leaf is a value of
+its own: `walker/walk-each` walks it inside an ordinary auto-id'd
+one-child `:SEQ` (`wrap-bare-leaf`), and stored it is a one-note line --
+`c4 d4` stores two, `[ ]` groups. See `doc/md/decisions.md`, 2026-10-23.
 
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery
@@ -1522,10 +1540,9 @@ walker leaves an override marker among the children (`{:type
 the chain (`musics.compose/override-of`); it also replays the context's
 points into the current container (`apply-context-ref`), so what is
 read while parsing (a key, a meter) sees them. Printers write the
-marker's `:raw` back; `write`/`load` keep it (plain data, the id). `VarDef` is
-`name = [ ... ]` (reuses `Sequence`'s own `[ ]` — see the bracket table
-above); `VarRef` is `\name` — see "Comments
-and variables" in `doc/md/grammar-notes.md`.
+marker's `:raw` back; `write`/`load` keep it (plain data, the id). A
+variable is mu's: `'name value :=` binds, `\name` (`VarRef`) is the
+value -- see "Comments and variables" in `doc/md/grammar-notes.md`.
 
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `rotate n [ … ]` (`:SEQ` marked `:rotate n`) moves them n places further
@@ -1631,17 +1648,22 @@ pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
 (a chord's next starting from its first tone, as relative chords do),
 chord-symbol roots and bass notes alike; octave 4 at the start.
 
-An algo's param is written `?name:value` (`AlgoAssignment`), where `!`
-sets the music: `^{riff: ?k:5 ?n:16 ?bass.k:3}`, or inline in a line
-beside `!` keys. It is stored in the same context under its own name
-(`"?k"`), so it never meets a context key or alias (`?k` is not `!k`,
-the key); a qualified name (`?euclid.k`, `?bass.k`, `?pitch/walk.lo`)
-names an algo or a named instance. Values: numbers, strings, a bare name
-(a keyword), a comma list or a `( )` list (a vector). No ramps -- an
-algo reads its params once per run. The assignment node's `:key` is the
-string `"?k"` (a keyword `:?k` wouldn't survive `write`/`load`'s EDN).
-Trees read them as their settings (`t/run tree tctx chain`; see
-"Simple composition" below).
+An algo's settings are their own value, `@{ name:value … }`
+(`Settings`), never among the music's keys: `@{ k:5 n:16 bass.k:3 }`.
+The walker (`walk-settings`) makes a `:TCONTEXT` node holding `:params`,
+`[name value]` pairs as written, and `:text`, which prints it back; it
+is a definition form like a `^{ }`, plain data that `R!` stores and
+`write`/`load` keep. A qualified name (`euclid.k`, `bass.k`,
+`pitch/walk.lo`) names an algo or a named instance. Values: numbers,
+strings, a bare name (a keyword), a comma list or a `( )` list (a
+vector). No ramps -- an algo reads its params once per run. No line or
+`^{ }` holds one: `?name:value` (`AlgoAssignment`) is parsed only to be
+refused, "an algo's settings are @{ k:… } -- music holds ! keys only".
+A name bound to another name in mu (`'dp 'duration-pulse :=`) is a
+short name: `musics.mu.value` hands such bindings to the walker as
+`:param-aliases`, and `@{ dp:1/8 }` is kept and written back as
+`@{ duration-pulse:1/8 }`. Trees read them as their settings (`t/run
+tree [local tctx head] chain`; see "Simple composition" below).
 
 A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,
 `c:m7`, `G3:7.9-/B`), LilyPond's chordmode spelling as a leaf of its
@@ -1727,12 +1749,12 @@ already ride in. `musics.domain.resolve/humanize` turns them into an
 onset offset and a velocity: `:micro`, plus a random onset shift and
 velocity change of up to the `:humanization` quantity's `:spread`
 (`musics.common.music-data/quantities`) either way, × `:humanization`. The engine (`musics.engine/schedule!`, drawing with `rand`)
-and `musics.core/render` (`midi-file/events->sequence`, a seeded
+and `musics.midi.file/render` (`midi-file/events->sequence`, a seeded
 Random) both call it. Both keys default to `0.0`, so a piece that never
 sets either is unaffected. A negative
 `:micro` moves a note EARLY, by at most the engine's lookahead (100 ms)
 live — a note is queued no sooner than that before its nominal time —
-and by the full amount in `musics.core/render`. The offset belongs to
+and by the full amount in `render`. The offset belongs to
 that one note: the voice's own `:t` still advances by the note's
 unperturbed duration, so one note's delay never drifts the ones after
 it.
@@ -1763,8 +1785,8 @@ applies swing, then groove, then the accent.
 
 ### Other modules worth knowing about
 
-Every namespace sits under `musics.` (`src/musics/`): `musics.core` (the
-REPL entry point), the domain and the store (`musics.domain`,
+Every namespace sits under `musics.` (`src/musics/`): `musics.mu` (mu,
+the entry point, `lein mu`), the domain and the store (`musics.domain`,
 `musics.repo`), the sound and playground namespaces (`musics.events`,
 `musics.engine`, `musics.wall`, ...), and `musics.algo.*`,
 `musics.common.*`, `musics.input.*`, `musics.gui.*`, `musics.midi.*`.
@@ -1774,8 +1796,8 @@ sit beside it under a descriptive name (`musics.algo.random.seed-test`),
 and `musics.test-support` holds the shared fixtures.
 The grammar is a classpath resource (`resources/musics/input/musics.ebnf`);
 test fixture files are in `dev-resources/fixtures/` (read with
-`io/resource`); REPL-only code is in `dev/` (`user`,
-`musics.examples.tree-tour`, `musics.midi-probe`); example scores in
+`io/resource`); `dev/` holds `musics.midi-probe`, a standalone tool;
+example scores in
 other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
 
 - `musics/repo.clj` — the flat `{id -> node}` store (see "Session, the
@@ -1830,13 +1852,10 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   helpers used by the walker/ornaments. `musics/common/` is flat — no `data`/
   `elements`/`tools` subdirs — since each held only one or two files.
 - `musics/input/reader/leaf_parser.clj` — pitch/duration/articulation/dynamic
-  parsing at the leaf level, independent of the grammar/lexer. `musics/input/grammar_parser.clj`
-  and `musics/input/lilypond_import.clj` sit at the top level of `musics/input/`, not
-  nested under `reader/` — both are peers of, not sub-concerns of, the
-  walker: `grammar_parser` is the actual pipeline entry point (`musics.core`
-  calls it directly, and it's the one that calls *into*
-  `musics.input.reader.walker`, not the other way around), and
-  `lilypond_import` is a fully independent LilyPond→musics-text converter
+  parsing at the leaf level, independent of the grammar/lexer.
+  `musics/input/lilypond_import.clj` sits at the top level of
+  `musics/input/`, not nested under `reader/` — a peer of, not a
+  sub-concern of, the walker: `lilypond_import` is a fully independent LilyPond→musics-text converter
   that never touches `musics.domain.*` or `musics.input.reader.flat-*` at all.
   `musics/input/abc_import.clj` is its sibling for ABC notation (a compact,
   plain-text folk/traditional-tune format) instead of LilyPond — a
@@ -1857,11 +1876,9 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   every one of the 7 letters, not by spot-checking a couple of common
   ones; see `abc_import_test.clj`'s own `key-signature-covers-all-15-
   major-keys-with-correct-counts` for the regression coverage this left
-  behind. `musics.core`'s `abc-to-mus` (writes a sibling `.mus` file,
-  mirrors `ly-to-mus`) and `play-abc-file`/`play-ly-file` (convert +
-  stage/commit/play in one step, entirely in memory — no file written)
-  are the REPL-facing entry points; see their own docstrings for the
-  exact `play!`-recipe shape they share.
+  behind. mu's `load` converts a `.ly`, `.abc` or `.gmn` file in memory
+  and reads the text (`musics.kernel/load!`); `abc-to-mus`/`from-ly-to-mus`/
+  `guido-to-mus` write a sibling `.mus` file instead.
 - `musics/input/guido_import.clj` is a third sibling, for GUIDO Music Notation
   (GMN) — a plain-text score format whose own accidental symbols (`#`/
   `##`/`&`/`&&`) and Parallel bracket (`{ }`) are what musics.ebnf's own
@@ -1894,20 +1911,18 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   written, LilyPond-style — a judgment call, not a confirmed spec fact
   (GUIDO's own documentation doesn't say either way); see this file's
   own `KEY-IMPLIED ACCIDENTALS` docstring section for the structural
-  reasoning behind it. `musics.core`'s `guido-to-mus` and
-  `play-guido-file` are the REPL-facing entry points, same `play!`-
-  recipe shape as `ly-to-mus`/`abc-to-mus`/`play-ly-file`/
-  `play-abc-file`.
+  reasoning behind it.
 - `musics/domain/ornaments.clj` — expands a `Leaf`'s ornament/grace/tremolo
   modifier into replacement sub-leaves at resolve time (needs the active
   `Key` from context for scale-relative ornaments like `prall`); lives with
   the rest of the domain model, not under `musics/midi/`, since it never touches
   MIDI itself.
 - `musics/midi/gervill.clj` — Gervill, the JDK's own software
-  synthesizer, as the other live output: `(connect :gervill)` plays
-  through it instead of Fluidsynth/VirMIDI, its `Receiver` going to the
-  engine as VirMIDI's does; `(soundfont path-or-n)`/`(soundfonts)` load
-  any `.sf2` (mu: `gervill` `fluidsynth` `soundfont` `soundfonts`).
+  synthesizer, as the other live output: `(musics.engine/connect!
+  :gervill)` plays through it instead of Fluidsynth/VirMIDI, its
+  `Receiver` going to the engine as VirMIDI's does;
+  `musics.engine/soundfont!`/`soundfonts` load any `.sf2` (mu: `gervill`
+  `fluidsynth` `soundfont` `soundfonts`).
   Its 30 ms latency needs `:jvm-opts`' `--add-exports
   java.desktop/com.sun.media.sound`. An output that doesn't open
   within 5 s (a Bluetooth speaker asleep) is an error, not a wait
@@ -1920,7 +1935,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   uses for real sound; `midi_file.clj` writes `.mid` files —
   `events->sequence`/`write-events` render `musics.events` output (one
   track per voice, 1000 ticks a second, channels pooled by
-  `[program cc]` like the live engine's), behind `musics.core/render`. `midi_live.clj`'s own device discovery
+  `[program cc]` like the live engine's), behind `musics.midi.file/render`. `midi_live.clj`'s own device discovery
   (`find-writable-device`) is backed by `overtone.midi` now, not a
   hand-rolled `MidiSystem` walk — see "MIDI input" above, which uses that
   same library directly for the opposite direction (`musics/input/midi.clj`/

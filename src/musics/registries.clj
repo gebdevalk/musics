@@ -19,8 +19,9 @@
      *conductor-schedule*          musics.conductor   [id phase] -> action-id, one-shot (consumed on trigger)
      *conductor-repeating*         musics.conductor   [id phase] -> action-id, NOT consumed on trigger
      *activity-log*                musics.assist      bounded log of the actions taken (its history facts)
+     session                       the reader         the auto-id counters of what was read
 
-   That's 6, not more -- two other tables sometimes get lumped in with
+   That's 7, not more -- two other tables sometimes get lumped in with
    this list (e.g. in an earlier self-audit) but genuinely aren't the
    same kind of thing: `musics.engine`'s `:algo-prepared` (path ->
    name, consulted only at voice-mint time) lives on each ENGINE
@@ -31,11 +32,7 @@
    Deliberately a LEAF namespace: requires nothing else in this project,
    so musics.repo/core.wall/core.conductor (each already documented, in
    its own ns docstring, as depending on nothing above it) can require
-   this without inverting that layering. Putting this state directly in
-   musics.core/session instead was considered and rejected for exactly
-   that reason: musics.core sits at the TOP of the dependency graph,
-   requiring all three of them -- none of them can require it back
-   without creating a cycle.
+   this without inverting that layering.
 
    Every var here is ^:dynamic specifically so a test can (binding
    [musics.registries/*algo-registry* (atom {}) ...] ...) a completely
@@ -122,10 +119,16 @@ names; read by musics.assist as history facts."}
   (swap! *activity-log* #(vec (take-last 30 (conj % {:action action :when (System/currentTimeMillis)}))))
   nil)
 
+(defonce ^{:doc "What reading text keeps between inputs: {:auto-ids {prefix n}},
+the auto-id counters, so a later input never reuses an earlier one's ids.
+Not dynamic: tests share it, as they share nothing that depends on it."}
+  session (atom {:auto-ids {}}))
+
 (defn reset-all!
   "Reset every var this namespace declares back to its initial empty
    value: musics.repo's registry, musics.wall's algo-registry, musics.conductor's
-   action-registry/schedule/repeating, musics.assist's activity log."
+   action-registry/schedule/repeating, musics.assist's activity log, the
+   session."
   []
   (clojure.core/reset! *repo-registry* {})
   (clojure.core/reset! *algo-registry* {})
@@ -133,4 +136,5 @@ names; read by musics.assist as history facts."}
   (clojure.core/reset! *conductor-schedule* {})
   (clojure.core/reset! *conductor-repeating* {})
   (clojure.core/reset! *activity-log* [])
+  (clojure.core/reset! session {:auto-ids {}})
   nil)

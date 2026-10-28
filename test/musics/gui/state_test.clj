@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [musics.common.music-elements :as el]
-            [musics.core :as m]
+            [musics.mu.store :as store]
             [musics.domain.resolve :as resolve]
             [musics.gui.state :as gs]
             [musics.test-support :refer [with-fresh-session]]))
@@ -20,7 +20,7 @@
   (with-fresh-session
     (let [saved @gs/*state]
       (try
-        (with-out-str (m/parse "[multi: !i:40,73 !kit:brush !accent:metric c4 d] [plain: e4]"))
+        (with-out-str (store/read! "[multi: !i:40,73 !kit:brush !accent:metric c4 d] [plain: e4]"))
         (gs/watch! "multi")
         (gs/watch! "plain")
         (testing "several instruments at once show the first; kit and accent by name"
@@ -32,13 +32,13 @@
           (gs/toggle-hot! :plain)
           (gs/set-combo! :plain :accent "agogic")
           (gs/set-combo! :plain :kit "jazz")
-          (is (= [:agogic 32] [(m/ctx-value :plain :accent 0) (m/ctx-value :plain :kit 0)])))
+          (is (= [:agogic 32] [(resolve/ctx-value :plain :accent 0) (resolve/ctx-value :plain :kit 0)])))
         (finally (reset! gs/*state saved))))))
 
 (deftest a-context-shows-a-key-and-a-meter-as-written
   (with-fresh-session
-    (with-out-str (m/parse "[k: !K:G.major !M:7/8 c4]"))
-    (let [shown (with-out-str (m/ctx :k))]
+    (with-out-str (store/read! "[k: !K:G.major !M:7/8 c4]"))
+    (let [shown (with-out-str (resolve/ctx :k))]
       (is (str/includes? shown "Key=G.major@0"))
       (is (str/includes? shown "Meter=7/8@0")))))
 
@@ -52,7 +52,7 @@
   (with-fresh-session
     (let [saved @gs/*state]
       (try
-        (with-out-str (m/parse "[p: c4 d]"))
+        (with-out-str (store/read! "[p: c4 d]"))
         (gs/watch! "ROOT")
         (gs/watch! "p")
         (is (= {:key-tonic "C" :key-scale "major" :accidentals "implied" :Meter "4/4"}
@@ -61,13 +61,13 @@
         (gs/toggle-hot! :p)
         (gs/set-combo! :p :key-tonic "B&")
         (gs/set-combo! :p :key-scale "minor")
-        (is (= "B&.minor" (el/key->str (m/ctx-value :p :Key 0))) "tonic and scale make one key")
+        (is (= "B&.minor" (el/key->str (resolve/ctx-value :p :Key 0))) "tonic and scale make one key")
         (gs/set-combo! :p :Meter "7/8(2+2+3)")
-        (is (= "7/8(2+2+3)" (el/meter->str (m/ctx-value :p :Meter 0))) "a typed meter")
+        (is (= "7/8(2+2+3)" (el/meter->str (resolve/ctx-value :p :Meter 0))) "a typed meter")
         (gs/set-combo! :p :Meter "not a meter")
-        (is (= "7/8(2+2+3)" (el/meter->str (m/ctx-value :p :Meter 0))) "one that doesn't read changes nothing")
+        (is (= "7/8(2+2+3)" (el/meter->str (resolve/ctx-value :p :Meter 0))) "one that doesn't read changes nothing")
         (is (= "7/8(2+2+3)" (get-in @gs/*state [:watched :p :combos :Meter])))
         (gs/set-combo! :p :accidentals "explicit")
-        (is (= :explicit (m/ctx-value :p :accidentals 0)))
+        (is (= :explicit (resolve/ctx-value :p :accidentals 0)))
         (finally (reset! gs/*state saved))))))
 

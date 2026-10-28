@@ -1,8 +1,8 @@
-(ns ^:parsing musics.input.grammar-parser-test
+(ns ^:parsing musics.input.grammar-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.grammar :as g] [musics.mu.value :as v]
             [musics.common.music-elements :as el]
             [musics.domain.context :as c]
             [musics.input.reader.leaf-parser :as leaf]
@@ -27,7 +27,7 @@
 ;; level, :ROOT being meant as a read-only, guaranteed-value endpoint.
 (deftest note-parses-not-bareword
   (testing "Note c4 parses as Note, not BareWord"
-    (let [result (gp/parse-string "[c4]")]
+    (let [result (g/parse "[c4]")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Note")
@@ -36,14 +36,14 @@
             (str "Did not expect :BareWord in tree, got: " tree-str)))))
 
   (testing "Rest r4 parses as Rest"
-    (let [result (gp/parse-string "[r4]")]
+    (let [result (g/parse "[r4]")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Rest")
             (str "Expected :Rest in tree, got: " tree-str)))))
 
   (testing "Chord <c e g>2 parses as Chord"
-    (let [result (gp/parse-string "[<c e g>2]")]
+    (let [result (g/parse "[<c e g>2]")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Chord")
@@ -51,7 +51,7 @@
 
 (deftest drum-parses
   (testing "Drum x8\\kick parses as Drum"
-    (let [result (gp/parse-string "[x8\\kick]")]
+    (let [result (g/parse "[x8\\kick]")]
       (is (not (insta/failure? result)))
       (let [tree-str (pr-str result)]
         (is (str/includes? tree-str ":Drum")
@@ -68,7 +68,7 @@
 (deftest bare-leaf-parses-at-programs-own-top-level
   (testing "A single bare Note is valid Program text on its own now,
             wrapped into its own auto-id'd one-child Sequence"
-    (let [{:keys [tree root-id]} (gp/parse-domain-string "c4")
+    (let [{:keys [tree root-id]} (v/read-domain "c4")
           root (get tree root-id)]
       (is (= 1 (count (:children root))))
       (let [wrapper (get tree (first (:children root)))]
@@ -77,14 +77,14 @@
 
   (testing "A bare Chord/Rest/Drum each parse the same way"
     (doseq [text ["<c e>4" "r4" "x8\\kick"]]
-      (is (not (insta/failure? (gp/parse-string text))) text)))
+      (is (not (insta/failure? (g/parse text))) text)))
 
   (testing "A note-glued dynamic on a bare top-level note still parses"
-    (is (not (insta/failure? (gp/parse-string "c4\\f")))))
+    (is (not (insta/failure? (g/parse "c4\\f")))))
 
   (testing "Several bare leaves with no [ ] are separate top-level
             Sequences, not one combined Sequence"
-    (let [{:keys [tree root-id]} (gp/parse-domain-string "c4 d4")
+    (let [{:keys [tree root-id]} (v/read-domain "c4 d4")
           root (get tree root-id)]
       (is (= 2 (count (:children root))))
       (doseq [id (:children root)]
@@ -97,15 +97,15 @@
 ;; at all -- see musics.ebnf's own header comment.
 (deftest composites-parse
   (testing "Sequence"
-    (is (not (insta/failure? (gp/parse-string "[c4 d4 e4]")))))
+    (is (not (insta/failure? (g/parse "[c4 d4 e4]")))))
   (testing "Named sequence (Id with trailing colon)"
-    (is (not (insta/failure? (gp/parse-string "[verse: c4 d4]")))))
+    (is (not (insta/failure? (g/parse "[verse: c4 d4]")))))
   (testing "Parallel"
-    (is (not (insta/failure? (gp/parse-string "{ [c4 d4] [e4 f4] }")))))
+    (is (not (insta/failure? (g/parse "{ [c4 d4] [e4 f4] }")))))
   (testing "Parallel rejects bare notes"
-    (is (insta/failure? (gp/parse-string "{ c4 e4 g4 }"))))
+    (is (insta/failure? (g/parse "{ c4 e4 g4 }"))))
   (testing "Data"
-    (is (not (insta/failure? (gp/parse-string "'[c 4 3/2]"))))))
+    (is (not (insta/failure? (g/parse "'[c 4 3/2]"))))))
 
 
 (deftest instructions-parse
@@ -114,22 +114,22 @@
   ;; TopElement comment): it would write straight into :ROOT's context,
   ;; which is meant to be a read-only, guaranteed-value endpoint.
   (testing "Bang constant"
-    (is (not (insta/failure? (gp/parse-string "[!mf]")))))
+    (is (not (insta/failure? (g/parse "[!mf]")))))
   (testing "Assignment int"
-    (is (not (insta/failure? (gp/parse-string "[!art:80]")))))
+    (is (not (insta/failure? (g/parse "[!art:80]")))))
   (testing "Assignment keyword"
-    (is (not (insta/failure? (gp/parse-string "[!vol:mf]")))))
+    (is (not (insta/failure? (g/parse "[!vol:mf]")))))
   (testing "Key assignment"
-    (is (not (insta/failure? (gp/parse-string "[!key:C.major]")))))
+    (is (not (insta/failure? (g/parse "[!key:C.major]")))))
   (testing "Ramp up"
-    (is (not (insta/failure? (gp/parse-string "[!vol<]")))))
+    (is (not (insta/failure? (g/parse "[!vol<]")))))
   (testing "Ramp smooth down"
-    (is (not (insta/failure? (gp/parse-string "[!vol>s]"))))))
+    (is (not (insta/failure? (g/parse "[!vol>s]"))))))
 
 ;; ── Failure helpers ──────────────────────────────────────────
 
 (defn- get-failure [input]
-  (insta/get-failure (gp/parse-string input)))
+  (insta/get-failure (g/parse input)))
 
 (defn- expects?
   "True if any reason entry expects the given string (works for
@@ -144,16 +144,6 @@
   (testing "Bare accidental without pitch"
     (let [f (get-failure "#4")]
       (is (= 1 (:column f)) "fails at column 1 — # can't start any element")))
-
-  (testing "Double pitch letters without whitespace"
-    ;; "cc4" no longer fails right at the second c (column 2) -- VarDef
-    ;; is now also a valid Element alternative, and "cc4" greedily
-    ;; matches VarName in full (letters + trailing digits are both
-    ;; allowed there) before failing to find the '=' a definition needs,
-    ;; at the end of the string. Still correctly rejected, just later.
-    (let [f (get-failure "cc4")]
-      (is (= 4 (:column f)) "fails after all of cc4, looking for =")
-      (is (expects? f "=") "expected = (a VarDef attempt), not end-of-string")))
 
   ;; Chords -- wrapped in [ ] for this test's own column-offset
   ;; arithmetic, not because a bare Chord is illegal (Leaf, which Chord
@@ -227,9 +217,9 @@
       (is (= 3 (:column f)))
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !")))
 
-  (testing "Bare bang without name"
-    (let [f (get-failure "[!]")]
-      (is (= 3 (:column f)))
+  (testing "Bare bang without name ([!] alone is mu's word)"
+    (let [f (get-failure "[c4 !]")]
+      (is (= 6 (:column f)))
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !")))
 
   (testing "Assignment without value"
@@ -264,36 +254,36 @@
     ;; top-level Sequence -- see musics.ebnf's own TopElement comment on
     ;; that consequence) -- the failure itself is still right after the
     ;; ! on line 3, same column as before.
-    (let [f (get-failure "[c4 d4]\n[e4 f4]\n[!]")]
+    (let [f (get-failure "[c4 d4]\n[e4 f4]\n[c4 !]")]
       (is (= 3 (:line f)) "error on line 3")
-      (is (= 3 (:column f)) "after the !, +1 versus unwrapped for the leading [")
+      (is (= 6 (:column f)) "after the !")
       (is (expects? f "[a-zA-Z][a-zA-Z0-9_]*") "expected Name after !"))))
 
 ;; ── Note pitch variants ─────────────────────────────────────
 
 (deftest note-pitch-variants
   (testing "Sharp accidental"
-    (let [result (gp/parse-string "[c#4]")]
+    (let [result (g/parse "[c#4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Flat accidental"
-    (let [result (gp/parse-string "[e&4]")]
+    (let [result (g/parse "[e&4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double sharp"
-    (let [result (gp/parse-string "[c##4]")]
+    (let [result (g/parse "[c##4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Double flat"
-    (let [result (gp/parse-string "[c&&4]")]
+    (let [result (g/parse "[c&&4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
   (testing "Natural"
-    (let [result (gp/parse-string "[cn4]")]
+    (let [result (g/parse "[cn4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))))
 
@@ -301,47 +291,47 @@
             are all rejected now -- musics.ebnf's Accidental rule accepts
             GUIDO's own #/##/&/&&/n and nothing else (see this file's own
             'lisp notation removed' pass)."
-    (is (insta/failure? (gp/parse-string "[cis4]")))
-    (is (insta/failure? (gp/parse-string "[cisis4]")))
-    (is (insta/failure? (gp/parse-string "[ces4]")))
-    (is (insta/failure? (gp/parse-string "[ceses4]")))
-    (is (insta/failure? (gp/parse-string "[as4]")))
-    (is (insta/failure? (gp/parse-string "[es4]")))
-    (is (insta/failure? (gp/parse-string "[eb4]")))
-    (is (insta/failure? (gp/parse-string "[cbb4]"))))
+    (is (insta/failure? (g/parse "[cis4]")))
+    (is (insta/failure? (g/parse "[cisis4]")))
+    (is (insta/failure? (g/parse "[ces4]")))
+    (is (insta/failure? (g/parse "[ceses4]")))
+    (is (insta/failure? (g/parse "[as4]")))
+    (is (insta/failure? (g/parse "[es4]")))
+    (is (insta/failure? (g/parse "[eb4]")))
+    (is (insta/failure? (g/parse "[cbb4]"))))
 
   (testing "Octave absolute notation -- only reachable after an uppercase (absolute) letter"
-    (let [result (gp/parse-string "[C4/4]")]
+    (let [result (g/parse "[C4/4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveAbs"))))
 
   (testing "Octave absolute notation, slash omitted when no duration follows"
-    (let [result (gp/parse-string "[C4]")]
+    (let [result (g/parse "[C4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveAbs"))))
 
   (testing "a lowercase letter never takes a digit-based octave -- the digit is always a duration"
-    (let [result (gp/parse-string "[c4/4]")]
+    (let [result (g/parse "[c4/4]")]
       (is (insta/failure? result))))
 
   (testing "Octave ticks up"
-    (let [result (gp/parse-string "[c''4]")]
+    (let [result (g/parse "[c''4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Octave ticks down"
-    (let [result (gp/parse-string "[c,,4]")]
+    (let [result (g/parse "[c,,4]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Full pitch: accidental + octave + duration"
-    (let [result (gp/parse-string "[f#''8]")]
+    (let [result (g/parse "[f#''8]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Accidental"))
       (is (str/includes? (pr-str result) ":OctaveTicks"))))
 
   (testing "Note without duration"
-    (let [result (gp/parse-string "[c]")]
+    (let [result (g/parse "[c]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Note")))))
 
@@ -349,28 +339,28 @@
 
 (deftest note-duration-variants
   (testing "Dotted duration"
-    (let [result (gp/parse-string "[c4.]")]
+    (let [result (g/parse "[c4.]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Double-dotted duration"
-    (let [result (gp/parse-string "[c8..]")]
+    (let [result (g/parse "[c8..]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationNum"))))
 
   (testing "Whole note"
-    (is (not (insta/failure? (gp/parse-string "[c1]")))))
+    (is (not (insta/failure? (g/parse "[c1]")))))
 
   (testing "Sixteenth note"
-    (is (not (insta/failure? (gp/parse-string "[c16]")))))
+    (is (not (insta/failure? (g/parse "[c16]")))))
 
   (testing "Longa duration"
-    (let [result (gp/parse-string "[c\\longa]")]
+    (let [result (g/parse "[c\\longa]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationSpecial"))))
 
   (testing "Breve duration"
-    (let [result (gp/parse-string "[c\\breve]")]
+    (let [result (g/parse "[c\\breve]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":DurationSpecial")))))
 
@@ -378,71 +368,71 @@
 
 (deftest note-suffixes
   (testing "Staccato shorthand"
-    (let [result (gp/parse-string "[c4-.]")]
+    (let [result (g/parse "[c4-.]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Accent shorthand"
-    (let [result (gp/parse-string "[c4->]")]
+    (let [result (g/parse "[c4->]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))))
 
   (testing "Named articulation staccato"
-    (let [result (gp/parse-string "[c4\\staccato]")]
+    (let [result (g/parse "[c4\\staccato]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Named articulation tenuto"
-    (let [result (gp/parse-string "[c4\\tenuto]")]
+    (let [result (g/parse "[c4\\tenuto]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":ArticulationName"))))
 
   (testing "Tie"
-    (let [result (gp/parse-string "[c4~]")]
+    (let [result (g/parse "[c4~]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Modifier"
-    (let [result (gp/parse-string "[c4\\vibrato:3]")]
+    (let [result (g/parse "[c4\\vibrato:3]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Modifier"))))
 
   (testing "Ornament trill"
-    (let [result (gp/parse-string "[c4\\trill]")]
+    (let [result (g/parse "[c4\\trill]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament mordent"
-    (let [result (gp/parse-string "[c4\\mordent]")]
+    (let [result (g/parse "[c4\\mordent]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Ornament fermata"
-    (let [result (gp/parse-string "[c4\\fermata]")]
+    (let [result (g/parse "[c4\\fermata]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Ornament"))))
 
   (testing "Articulation + ornament + tie combined"
-    (let [result (gp/parse-string "[c4-.\\trill~]")]
+    (let [result (g/parse "[c4-.\\trill~]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Articulation"))
       (is (str/includes? (pr-str result) ":Ornament"))
       (is (str/includes? (pr-str result) ":Tie"))))
 
   (testing "Dynamic mark glued onto a note"
-    (let [result (gp/parse-string "[c4\\f]")]
+    (let [result (g/parse "[c4\\f]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))
       (is (str/includes? (pr-str result) ":DynamicMark"))))
 
   (testing "Dynamic mark glued onto a chord"
-    (let [result (gp/parse-string "[<c e g>4\\mf]")]
+    (let [result (g/parse "[<c e g>4\\mf]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Dynamic"))))
 
   (testing "No hairpin on a note: a crescendo is an instruction (!vol<)"
     (doseq [text ["[c4\\<]" "[c4\\>]" "[c4\\mf\\<]" "[c4\\mf<]"]]
-      (is (insta/failure? (gp/parse-string text)) text))))
+      (is (insta/failure? (g/parse text)) text))))
 
 ;; ── Commands ────────────────────────────────────────────────
 
@@ -459,40 +449,40 @@
   ;; command of their own anymore -- a note's own *Ratio duration suffix
   ;; replaces both, see note-duration-variants below.
   (testing "Transpose"
-    (is (not (insta/failure? (gp/parse-string "[transpose c d ( c4 d4 e4 )]")))))
+    (is (not (insta/failure? (g/parse "[transpose c d ( c4 d4 e4 )]")))))
 
   (testing "Repeat volta"
-    (is (not (insta/failure? (gp/parse-string "repeat 2 [c4 d4 e4]")))))
+    (is (not (insta/failure? (g/parse "repeat 2 [c4 d4 e4]")))))
 
   (testing "Repeat unfold"
-    (is (not (insta/failure? (gp/parse-string "repeat 4 [c4 d4]")))))
+    (is (not (insta/failure? (g/parse "repeat 4 [c4 d4]")))))
 
   (testing "Repeat with alternative"
-    (is (not (insta/failure? (gp/parse-string "repeat 2 [c4 d4] volta [e4 f4]")))))
+    (is (not (insta/failure? (g/parse "repeat 2 [c4 d4] volta [e4 f4]")))))
 
   (testing "Tremolo on note"
-    (is (not (insta/failure? (gp/parse-string "[c4:32]")))))
+    (is (not (insta/failure? (g/parse "[c4:32]")))))
 
   (testing "Tremolo on chord"
-    (is (not (insta/failure? (gp/parse-string "[<c e>4:32]")))))
+    (is (not (insta/failure? (g/parse "[<c e>4:32]")))))
 
   (testing "Measured tremolo"
-    (is (not (insta/failure? (gp/parse-string "repeat tremolo 4 [c16 d16]")))))
+    (is (not (insta/failure? (g/parse "repeat tremolo 4 [c16 d16]")))))
 
   (testing "Grace note"
-    (is (not (insta/failure? (gp/parse-string "[grace c8 d4]")))))
+    (is (not (insta/failure? (g/parse "[grace c8 d4]")))))
 
   (testing "Acciaccatura"
-    (is (not (insta/failure? (gp/parse-string "[acciaccatura c8 d4]")))))
+    (is (not (insta/failure? (g/parse "[acciaccatura c8 d4]")))))
 
   (testing "Appoggiatura"
-    (is (not (insta/failure? (gp/parse-string "[appoggiatura c8 d4]")))))
+    (is (not (insta/failure? (g/parse "[appoggiatura c8 d4]")))))
 
   (testing "Slashed grace"
-    (is (not (insta/failure? (gp/parse-string "[slashedGrace c8 d4]")))))
+    (is (not (insta/failure? (g/parse "[slashedGrace c8 d4]")))))
 
   (testing "After grace"
-    (is (not (insta/failure? (gp/parse-string "[afterGrace c4 d8]"))))))
+    (is (not (insta/failure? (g/parse "[afterGrace c4 d8]"))))))
 
 ;; Form navigation (\segno, \coda, \fine, \dacapo, etc.) was removed from
 ;; the grammar entirely as part of the flat-model rewrite -- there is no
@@ -502,85 +492,85 @@
 
 (deftest references-and-slurs
   (testing "Reference"
-    (let [result (gp/parse-string "[:verse]")]
+    (let [result (g/parse "[:verse]")]
       (is (not (insta/failure? result)))
       (is (str/includes? (pr-str result) ":Reference"))))
 
   (testing "Slurs around notes in sequence (note-glued, LilyPond-style --
             !( / !) were removed, see musics.ebnf's own Instruction comment)"
-    (is (not (insta/failure? (gp/parse-string "[c4( d4 e4)]"))))))
+    (is (not (insta/failure? (g/parse "[c4( d4 e4)]"))))))
 
 ;; ── Data types in containers ────────────────────────────────
 
 (deftest data-types-in-containers
   (testing "Integers"
-    (is (not (insta/failure? (gp/parse-string "'[1 2 3]")))))
+    (is (not (insta/failure? (g/parse "'[1 2 3]")))))
 
   (testing "Floats"
-    (is (not (insta/failure? (gp/parse-string "'[1.5 2.0 3.14]")))))
+    (is (not (insta/failure? (g/parse "'[1.5 2.0 3.14]")))))
 
   (testing "Ratios"
-    (is (not (insta/failure? (gp/parse-string "'[3/4 7/8]")))))
+    (is (not (insta/failure? (g/parse "'[3/4 7/8]")))))
 
   (testing "Signed numbers"
     (let [data (fn [text] (:children (some #(when (= :DATA (:type %)) %)
-                                             (vals (:tree (gp/parse-domain-string text))))))]
+                                             (vals (:tree (v/read-domain text))))))]
       (is (= [0 -1 2 3] (data "'[0 -1 2 +3]")))
       (is (= [-1/2 1/4] (data "'[-1/2 1/4]")))
       (is (= [-0.5 1.5] (data "'[-0.5 1.5]")))))
 
   (testing "Bare durations (a talea authored as pure data)"
-    (is (not (insta/failure? (gp/parse-string "'[/4 /8 /8. /16]")))))
+    (is (not (insta/failure? (g/parse "'[/4 /8 /8. /16]")))))
 
   (testing "Strings"
-    (is (not (insta/failure? (gp/parse-string (fixture "data-strings.mus"))))))
+    (is (not (insta/failure? (g/parse (fixture "data-strings.mus"))))))
 
   (testing "Keywords, beside other values too"
     (let [data (fn [text] (:children (some #(when (= :DATA (:type %)) %)
-                                             (vals (:tree (gp/parse-domain-string text))))))]
+                                             (vals (:tree (v/read-domain text))))))]
       (is (= [:piano :forte] (data "'[:piano :forte]")))
       (is (= [40 :Sea 73] (data "'[40 :Sea 73]")))))
 
   (testing "Mixed data types are refused when walked"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes"
-                          (gp/parse-domain-string (fixture "data-mixed-with-string.mus")))))
+                          (v/read-domain (fixture "data-mixed-with-string.mus")))))
 
   (testing "Empty data"
-    (is (not (insta/failure? (gp/parse-string "'[]")))))
+    (is (not (insta/failure? (g/parse "'[]")))))
 
   (testing "Struct value in assignment"
-    (is (not (insta/failure? (gp/parse-string "[!env:(1 2 3)]"))))))
+    (is (not (insta/failure? (g/parse "[!env:(1 2 3)]"))))))
 
 ;; ── Nested structures ───────────────────────────────────────
 
 (deftest nested-structures
   (testing "Sequences inside parallel"
-    (is (not (insta/failure? (gp/parse-string "{ [c4 d4 e4] [f4 g4 a4] }")))))
+    (is (not (insta/failure? (g/parse "{ [c4 d4 e4] [f4 g4 a4] }")))))
 
   (testing "Nested sequences"
-    (is (not (insta/failure? (gp/parse-string "[c4 [d4 e4] f4]")))))
+    (is (not (insta/failure? (g/parse "[c4 [d4 e4] f4]")))))
 
   (testing "Instruction inside sequence"
-    (is (not (insta/failure? (gp/parse-string "[!mf c4 d4 e4]")))))
+    (is (not (insta/failure? (g/parse "[!mf c4 d4 e4]")))))
 
   (testing "Reference inside sequence"
-    (is (not (insta/failure? (gp/parse-string "[c4 :bridge d4]"))))))
+    (is (not (insta/failure? (g/parse "[c4 :bridge d4]"))))))
 
 ;; ── Command failures ────────────────────────────────────────
 
 (deftest command-failures
   (testing "Transpose missing second pitch"
-    (is (insta/failure? (gp/parse-string "transpose c ( c4 d4 )"))))
+    (is (insta/failure? (g/parse "[transpose c ( c4 d4 )]"))))
 
   (testing "A duration ratio missing its own numerator/denominator is a
             failure -- Ratio always requires N/M, so a bare trailing '*'
             with nothing (or a non-ratio) after it never matches
             DurationRatio, and c4* alone (with no note-level Duration
             ratio) leaves '*' as unexpected trailing content."
-    (is (insta/failure? (gp/parse-string "[c4*]"))))
+    (is (insta/failure? (g/parse "[c4*]"))))
 
   (testing "Repeat missing count"
-    (is (insta/failure? (gp/parse-string "repeat [c4 d4]"))))
+    (is (insta/failure? (g/parse "[repeat [c4 d4]]"))))
 
   (testing "An unrecognized backslash word is grammar-valid now -- a
             VarRef, not a failure. Whether \"bogus\" is actually defined
@@ -589,7 +579,7 @@
             Wrapped in [ ] -- a bare VarRef is no longer a valid
             TopElement on its own either (see musics.ebnf's own
             TopElement comment)."
-    (is (not (insta/failure? (gp/parse-string "[\\bogus c4 d4]"))))))
+    (is (not (insta/failure? (g/parse "[\\bogus c4 d4]"))))))
 
 ;; ── Comments and variables are grammar-native, not text-level
 ;;    pre-processing (see musics.ebnf's Comment/VarDef/VarRef and
@@ -602,62 +592,16 @@
             is always relative to what was actually written. The walker
             discards Comment nodes, same as it already discards bare ws
             artifacts, leaving no trace in the domain model."
-    (let [{:keys [tree]} (gp/parse-domain-string "[v: c4 % a comment\nd4]")]
+    (let [{:keys [tree]} (v/read-domain "[v: c4 % a comment\nd4]")]
       (is (= 2 (count (:children (get tree :v))))))
-    (let [{:keys [tree]} (gp/parse-domain-string
+    (let [{:keys [tree]} (v/read-domain
                            "[v: c4 %{ a block\ncomment %} d4]")]
       (is (= 2 (count (:children (get tree :v))))))))
 
-(deftest commented-out-pseudo-var-def-is-never-registered
-  (testing "A %-commented-out line that LOOKS like a variable definition
-            is just inert text to the grammar -- the whole line is
-            matched as one Comment token, never considered as a VarDef
-            attempt at all (there's no separate text-scanning pass left
-            to fool with an unbalanced bracket) -- and a real definition
-            afterward still works fine."
-    (let [text "[v: c4]\n% broken = [oops\nreal = [c4 d4]\n[w: \\real]"
-          {:keys [tree]} (gp/parse-domain-string text)]
-      (is (= 2 (count (:children (get tree :w))))
-          "the real definition's two notes were spliced in"))))
-
-(deftest var-def-only-valid-at-programs-own-top-level
-  (testing "A VarDef nested inside a Sequence/Parallel is a parse
-            failure -- reachable only through Program's own top-level
-            element list (TopElement), never through Element/ParElement.
-            Same restriction LilyPond itself has (defined before the
-            music, not inside it)."
-    (is (insta/failure? (gp/parse-string "[v: motif = [c4 d4]]"))
-        "nested inside a Sequence")
-    (is (insta/failure? (gp/parse-string "{ motif = [c4 d4] [a: c4] }"))
-        "nested inside a Parallel")
-    (is (not (insta/failure? (gp/parse-string "motif = [c4 d4]\n[v: c4]")))
-        "directly at the top level still works")))
-
-(deftest var-ref-still-valid-everywhere-unlike-var-def
-  (testing "Only VarDef is restricted to the top level -- VarRef
-            (referencing an already-defined variable) still works
-            nested inside a Sequence or Parallel, or nested several
-            levels deep, same as before"
-    (is (not (insta/failure?
-               (gp/parse-string "motif = [c4 d4]\n[v: \\motif]"))))
-    (is (not (insta/failure?
-               (gp/parse-string "motif = [c4 d4]\n{ [a: \\motif] [b: e4] }"))))
-    (is (not (insta/failure?
-               (gp/parse-string "motif = [c4 d4]\n[v: [\\motif e4]]"))))))
-
-(deftest nested-typo-no-longer-derailed-by-a-vardef-attempt
-  (testing "The regression this restriction actually fixes: before it,
-            [verse: cc4 d4] failed at column 13 with a useless 'Expected
-            one of: =, comment...' because VarDef being reachable inside
-            a Sequence let instaparse's furthest-failure tracking follow
-            a dead-end 'maybe this is a variable definition' attempt
-            right past the real mistake. Now it fails right at the
-            actual double-pitch-letter typo, with relevant reasons."
-    (let [f (get-failure "[verse: cc4 d4]")]
-      (is (= 10 (:column f)) "right at the second c, not column 13")
-      (is (expects? f "]") "a relevant reason -- ] validly follows c alone")
-      (is (not (expects? f "="))
-          "no more dead-end VarDef noise for a typo inside a Sequence"))))
+(deftest a-typo-inside-a-line-fails-where-it-is
+  (let [f (get-failure "[verse: cc4 d4]")]
+    (is (= 10 (:column f)) "right at the second c")
+    (is (expects? f "]") "a relevant reason -- ] validly follows c alone")))
 
 (deftest signed-context-values-accept-both-explicit-signs
   (testing "Value/Target's SignedInt/SignedFloat (musics.ebnf) are the
@@ -668,11 +612,11 @@
             !pan:-1.0 / !pan:+1.0). Integer/parseInt and Double/
             parseDouble already handle either sign natively, so this is
             a grammar-only change -- no walker code needed for either."
-    (is (not (insta/failure? (gp/parse-string "[!pan:-1.0 c4]"))) "explicit -")
-    (is (not (insta/failure? (gp/parse-string "[!pan:+1.0 c4]"))) "explicit +")
-    (is (not (insta/failure? (gp/parse-string "[!vol:-5 c4]"))) "SignedInt, -")
-    (is (not (insta/failure? (gp/parse-string "[!vol:+5 c4]"))) "SignedInt, +")
-    (is (not (insta/failure? (gp/parse-string "[!pan:1.0 c4]"))) "no sign at all still works")))
+    (is (not (insta/failure? (g/parse "[!pan:-1.0 c4]"))) "explicit -")
+    (is (not (insta/failure? (g/parse "[!pan:+1.0 c4]"))) "explicit +")
+    (is (not (insta/failure? (g/parse "[!vol:-5 c4]"))) "SignedInt, -")
+    (is (not (insta/failure? (g/parse "[!vol:+5 c4]"))) "SignedInt, +")
+    (is (not (insta/failure? (g/parse "[!pan:1.0 c4]"))) "no sign at all still works")))
 
 ;; ── Coverage folded in from the old radical-parser cross-grammar
 ;;    equivalence tests, once that comparison stopped applying (there's
@@ -682,7 +626,7 @@
 
 (deftest grace-variant-keywords-each-parse
   (doseq [kw ["grace" "acciaccatura" "appoggiatura" "slashedGrace" "afterGrace"]]
-    (is (not (insta/failure? (gp/parse-string (str "[" kw " c8 d4]"))))
+    (is (not (insta/failure? (g/parse (str "[" kw " c8 d4]"))))
         (str kw " should parse"))))
 
 (deftest commands-are-bare-words
@@ -691,42 +635,42 @@
                "[transpose c d ( c e g )]" "[retrograde ( c d e )]"
                "[grace c8 d4]" "[afterGrace c4 d16]" "[partial 4 c4 | d e f g]"
                "[a r g c p4 repeat 2 [a] r]" "repeat 2 [c d]"]]
-      (is (not (insta/failure? (gp/parse-string t))) t)))
+      (is (not (insta/failure? (g/parse t))) t)))
   (testing "the backslash is the variable reference's alone now"
     (doseq [t ["[\\repeat unfold 2 [c d]]" "[\\grace c8 d4]" "[\\transpose c d ( c )]"]]
-      (is (insta/failure? (gp/parse-string t)) t))))
+      (is (insta/failure? (g/parse t)) t))))
 
 (deftest repeat-tremolo-is-a-repeat-type-not-a-separate-rule
   (testing "repeat tremolo N [body] builds a real Iterator, same as
             unfold/volta -- walk-repeat absorbs what used to be a
             separate walk-tremolo, see that function's own docstring"
-    (let [{:keys [tree]} (gp/parse-domain-string "[verse: repeat tremolo 8 [c4 d4]]")]
+    (let [{:keys [tree]} (v/read-domain "[verse: repeat tremolo 8 [c4 d4]]")]
       (is (= 1 (count (:children (get tree :verse)))))
       (is (= :TREMOLO (:type (first (:children (get tree :verse)))))))))
 
 (deftest context-block-and-reference
   (testing "^{ctx: !tempo:120} referenced from a sibling sequence resolves
             to the same tempo value"
-    (let [{:keys [tree]} (gp/parse-domain-string "^{ctx: !tempo:120} [verse: :ctx c4]")
+    (let [{:keys [tree]} (v/read-domain "^{ctx: !tempo:120} [verse: :ctx c4]")
           ctx (:context (get tree :verse))]
       (is (= 120 (c/ctx-value-chain [ctx] :Tempo 0))))))
 
 (deftest keys-are-spelled-as-notes-are
   (let [key-of (fn [text]
-                 (let [{:keys [tree]} (gp/parse-domain-string text)
+                 (let [{:keys [tree]} (v/read-domain text)
                        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
                    (some-> (c/ctx-value-chain [(:context s)] :Key 0) el/key->str)))]
     (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
     (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
     (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
     (is (= "D.harmonic-minor" (key-of "[!key:D.harmonic-minor c]")) "a hyphenated scale")
-    (is (insta/failure? (gp/parse-string "[!key:Bb.major c]")) "b is no flat")
+    (is (insta/failure? (g/parse "[!key:Bb.major c]")) "b is no flat")
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"!key:D.blah names no key"
-                          (gp/parse-domain-string "[!key:D.blah c]")))))
+                          (v/read-domain "[!key:D.blah c]")))))
 
 (deftest transpose-respells-with-musics-accidentals
   (let [ids (fn [text]
-              (let [{:keys [tree]} (gp/parse-domain-string text)]
+              (let [{:keys [tree]} (v/read-domain text)]
                 (mapv :id (filter :pitches (:children (some #(when (= :SEQ (:type %)) %) (vals tree)))))))]
     (is (= ["f4" "g" "a"] (ids "[transpose c f ( c4 d e )]")))
     (is (= ["b&4" "c" "d"] (ids "[transpose c b& ( c4 d e )]")) "a flat as &")
@@ -736,7 +680,7 @@
   (let [drums (fn [text]
                 (filter #(= :DRUM (:type %))
                         (:children (some #(when (= :SEQ (:type %)) %)
-                                         (vals (:tree (gp/parse-domain-string text)))))))
+                                         (vals (:tree (v/read-domain text)))))))
         [a b c] (drums "[x8\\36,39 x x\\kick]")]
     (is (= [36 39] (:program a)))
     (is (= [36 39] (:program b)) "a bare x is the same layered stroke again")
@@ -745,68 +689,62 @@
     (is (= [36 39] (:program (first (drums "[x8\\kick,clap]")))) "by name")))
 
 (deftest an-instrument-by-its-general-midi-name
-  (let [{:keys [tree]} (gp/parse-domain-string "[!i:seashore c c2\\i:birdTweet]")
+  (let [{:keys [tree]} (v/read-domain "[!i:seashore c c2\\i:birdTweet]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)))
     (is (= {:instrument 123} (:overrides (last (:children s)))) "camelCase for a name of several words"))
-  (let [{:keys [tree]} (gp/parse-domain-string "[!i:sea c c2\\i:Vib]")
+  (let [{:keys [tree]} (v/read-domain "[!i:sea c c2\\i:Vib]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)) "a short name, any case")
     (is (= {:instrument 11} (:overrides (last (:children s)))) "Vib the vibraphone"))
-  (is (= [58 36] (map :program (filter #(= :DRUM (:type %)) (mapcat :children (vals (:tree (gp/parse-domain-string "[x8\\vib x8\\bd1]")))))))
+  (is (= [58 36] (map :program (filter #(= :DRUM (:type %)) (mapcat :children (vals (:tree (v/read-domain "[x8\\vib x8\\bd1]")))))))
       "vib the vibraslap: drums keep their own short names")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a General MIDI instrument"
-                        (gp/parse-domain-string "[!i:nonsense c]"))))
+                        (v/read-domain "[!i:nonsense c]"))))
 
 (deftest a-drum-kit
-  (let [{:keys [tree]} (gp/parse-domain-string "[!kit:brush x8\\sna]")
+  (let [{:keys [tree]} (v/read-domain "[!kit:brush x8\\sna]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= 40 (c/ctx-value-chain [(:context s)] :kit 0)) "by name"))
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a drum kit" (gp/parse-domain-string "[!kit:nonsense x8]"))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a drum kit" (v/read-domain "[!kit:nonsense x8]"))))
 
 (deftest an-instrument-list
-  (let [{:keys [tree]} (gp/parse-domain-string "[!i:40,73,0 c]")
+  (let [{:keys [tree]} (v/read-domain "[!i:40,73,0 c]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
     (is (= [40 73 0] (c/ctx-value-chain [(:context s)] :instrument 0))))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
-                        (gp/parse-domain-string "[!vol:40,50 c]")))
+                        (v/read-domain "[!vol:40,50 c]")))
   (testing "on one note"
-    (let [{:keys [tree]} (gp/parse-domain-string "[c4\\i:40,73 d]")
+    (let [{:keys [tree]} (v/read-domain "[c4\\i:40,73 d]")
           [c d] (:children (some #(when (= :SEQ (:type %)) %) (vals tree)))]
       (is (= {:instrument [40 73]} (:overrides c)))
       (is (nil? (:overrides d)) "the next note is back at the context's")
       (is (= "C4/4\\instrument:40,73" (leaf/part->mus c))))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
-                          (gp/parse-domain-string "[c4\\vol:40,50]")))))
+                          (v/read-domain "[c4\\vol:40,50]")))))
 
-(deftest algo-params-are-at-names-in-a-context
-  (let [{:keys [tree]} (gp/parse-domain-string
-                        "^{riff: ?k:5 ?n:16 ?bass.k:3 ?pitch/walk.lo:48 ?key:\"D.major\" ?style:rock ?iv:0,2,4 ?r:3/8 ?x:-0.5 ?rising?:true}")
-        ctx (:context (get tree :riff))
-        at  #(c/ctx-value-chain [ctx] % 0)]
-    (is (= 5 (at "?k")))
-    (is (= 16 (at "?n")))
-    (is (= 3 (at "?bass.k")) "qualified by a named instance")
-    (is (= 48 (at "?pitch/walk.lo")) "qualified by a specialised algo")
-    (is (= "D.major" (at "?key")) "a string")
-    (is (= :rock (at "?style")) "a bare name is a keyword")
-    (is (= [0 2 4] (at "?iv")) "a comma list is a vector")
-    (is (= 3/8 (at "?r")))
-    (is (= -0.5 (at "?x")))
-    (is (= :true (at "?rising?")) "a name with ?")
-    (is (nil? (at :key)) "?key is not the music's !key:")
-    (is (= ["?k:5" "?n:16" "?bass.k:3"] (take 3 (map :raw (:children (get tree :riff))))) "written back as written"))
-  (testing "beside the music's own keys, in a line"
-    (let [{:keys [tree]} (gp/parse-domain-string "[s: !tempo:90 ?k:5 c4]")
-          ctx (:context (get tree :s))]
-      (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)))
-      (is (= 5 (c/ctx-value-chain [ctx] "?k" 0)))))
-  (testing "a context referenced in a line carries its @ params along"
-    (let [{:keys [tree]} (gp/parse-domain-string "^{set: ?k:5} [s: :set c4]")]
-      (is (= 5 (c/ctx-value-chain [(:context (get tree :s))] "?k" 0))))))
+(deftest an-algos-settings-are-a-value-of-their-own
+  (let [{:keys [tree]} (v/read-domain
+                        "@{ k:5 n:16 bass.k:3 pitch/walk.lo:48 key:\"D.major\" style:rock iv:0,2,4 r:3/8 x:-0.5 rising?:true }")
+        node (some #(when (= :TCONTEXT (:type %)) %) (vals tree))
+        at   (into {} (:params node))]
+    (is (= ["k" "n" "bass.k" "pitch/walk.lo"] (take 4 (map first (:params node)))) "in written order")
+    (is (= 5 (at "k")))
+    (is (= 3 (at "bass.k")) "qualified by a named instance")
+    (is (= 48 (at "pitch/walk.lo")) "qualified by a specialised algo")
+    (is (= "D.major" (at "key")) "a string")
+    (is (= :rock (at "style")) "a bare name is a keyword")
+    (is (= [0 2 4] (at "iv")) "a comma list is a vector")
+    (is (= 3/8 (at "r")))
+    (is (= -0.5 (at "x")))
+    (is (= :true (at "rising?")) "a name with ?")
+    (is (str/starts-with? (:text node) "k:5 n:16 bass.k:3") "written back as written"))
+  (testing "music holds the music's keys only"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\{ k:" (v/read-domain "[s: !tempo:90 ?k:5 c4]")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\{ k:" (v/read-domain "^{set: ?k:5}")))))
 
 (deftest a-meter-as-its-factors
-  (let [meter-of (fn [text] (let [{:keys [tree]} (gp/parse-domain-string text)
+  (let [meter-of (fn [text] (let [{:keys [tree]} (v/read-domain text)
                                   s (some #(when (= :SEQ (:type %)) %) (vals tree))]
                               (c/ctx-value-chain [(:context s)] :Meter 0)))]
     (is (= [12 8 [2 2 3]] ((juxt :num :den :subdivisions) (meter-of "[!M:223 c8]"))))

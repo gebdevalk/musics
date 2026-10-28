@@ -1,8 +1,10 @@
 # Grammar notes
 
 Guidance specific to the grammar/parsing layer:
-`resources/musics/input/musics.ebnf`, and under `src/musics/input/`,
-`grammar_parser.clj`, `reader/walker.clj` and `reader/builder.clj`.
+`resources/musics/input/musics.ebnf` (the literals) and
+`resources/musics/mu.ebnf` (the top level, `MuInput`, appended to it by
+`musics.mu.grammar`), and under `src/musics/input/`, `reader/walker.clj`
+and `reader/builder.clj`.
 See the project root `CLAUDE.md` for
 everything else (domain model, engine, conductor, etc.).
 
@@ -39,67 +41,25 @@ positions can't drift.
   exclusion (a block comment resolved to only its first line instead of
   being swallowed whole), not just theoretically risky.
 
-- **Variables** (`name = ( ... )` / `\name`) are `VarDef`/`VarRef`
-  grammar rules. `VarDef` is reachable only directly in `Program`'s own
-  top-level element list (`TopElement`), never through `Element`/
-  `ParElement` — so it can never appear nested inside a `Sequence`/
-  `Parallel`/`Unit`/etc. body, same restriction LilyPond itself has (a
-  variable is defined before the music, not inside it). `VarRef` is
-  unrestricted — referencing one works everywhere a `Part` can, only
-  *defining* one is restricted. This isn't just style: `VarDef` being
-  reachable everywhere `Element` was meant a typo anywhere inside a
-  `Sequence` (`{verse: cc4 d4}`) could make instaparse's furthest-failure
-  tracking follow a dead-end "maybe this is a variable definition"
-  attempt right past the real mistake, reporting a useless "expected =`"
-  instead of pointing at the actual typo — confirmed directly (column 13
-  instead of the real column 10, with `=` as the only reported
-  expectation) before this restriction landed, not assumed.
+- **Variables** are mu's: `'motif [c d e] :=` binds a value to a name,
+  `\motif` (`VarRef`, inside a literal or bare) is that value. The text
+  grammar has only the reference; binding is a word, so a file binds
+  the same way the prompt does. `musics.mu.value/var-map` hands the
+  bound music to the walker as `:var-map` (`{name {:children
+  :context}}`, a line's children, any other value as itself), and
+  `walk-var-ref` splices its children in flat -- the shape a tuplet's
+  body gets absorbed into its parent -- and replays its context onto the
+  current container via `builder/replay-context!` (the mechanism
+  `apply-context-ref` uses for a `:CONTEXT` reference and a transient
+  command's own context gets replayed with too). A name not bound when
+  its literal is read is an error with the reference's line/column
+  (`walker/node-position`). An input's literals are read up to each
+  `:=`, just before that part of it runs (`musics.mu.eval/segments`),
+  so a name can be bound and used in one input or file; the reading
+  starts afresh after each `:=`.
 
-  The value is always a `Sequence` (`{ }`) — parsed and grammar-checked
-  at definition time regardless of whether it's ever referenced, not
-  "whatever text is left on the line" the way the old pre-processor
-  allowed, and not a dedicated `Scope`/`( )` rule either (an earlier
-  design's choice, since reverted — see the project root CLAUDE.md's
-  "Grammar" section for the full reasoning). `myVar = { c4 d4 }` is real
-  LilyPond's own spelling for exactly this, not this DSL's invention —
-  LilyPond has no separate scope/grouping delimiter distinct from an
-  ordinary music expression's own `{ }`, so reusing `Sequence`'s rule
-  as-is here (rather than a parallel rule on a different bracket) is
-  what makes this grammar an actual superset of LilyPond's rather than
-  a parallel dialect that merely looks similar. The registered-vs-
-  spliced distinction a dedicated `Scope` rule used to signal at the
-  grammar level is now purely a walk-time one: `walk-var-def` sees a
-  `Sequence` node sitting in `VarDef`'s own value position and, on that
-  basis alone, walks its children into a scratch container (for the
-  same reason a transient command gets one — see below) and stashes
-  `{:children :context}` under the name in the walk state's `:var-map`
-  (threaded through `musics.core`'s `session` the same way `:auto-ids`
-  is, so a variable defined in one `(parse ...)` call is still usable in
-  a later one) rather than registering it — the exact same `Sequence`
-  node appearing as an ordinary `Element` elsewhere DOES get registered,
-  by `walk-sequence`'s own default path; nothing about the node itself
-  says which happens, only where it was found. `walk-var-ref` looks the
-  name up and splices its children in flat — same shape a tuplet's
-  `n/m ( … )` body gets absorbed into its parent — and replays the
-  stashed context onto the current container via `builder/
-  replay-context!` (the same mechanism `apply-context-ref` uses for a
-  `:CONTEXT` reference, and the one a transient command's own context
-  gets replayed with too — three callers of one function). A variable
-  must be defined *before* it's referenced (same rule LilyPond itself
-  uses) — not a style convention
-  here, a structural consequence of there being one sequential walk and
-  no separate first pass: nothing is in `:var-map` yet for anything not
-  yet walked. `walk-var-ref` throws a clear `ex-info` if the name isn't
-  there, including the reference's own line/column (`walker/
-  node-position`, reusing the `:instaparse.gll/start-index` metadata
-  `node-text` already relies on for a different purpose) — a walk-time
-  error gets the same kind of position info a grammar-level parse
-  failure already carries, not just a bare message. `musics.core/parse`'s
-  existing `catch` prints it and returns `nil`, same as any other
-  walk/parse failure.
-
-  `VarName` (the identifier rule for both the defining and the
-  referencing position) excludes every reserved command/ornament word
+  `VarName` (the identifier rule of `\name` and of `'name`, which tries
+  it first) excludes every reserved command/ornament word
   (`transpose`, `reverse`, `repeat`, `volta`, `grace` and
   its four synonyms, all 17 ornament names) via a regex negative
   lookahead. This is load-bearing, not defensive: instaparse's ambiguity
@@ -109,9 +69,7 @@ positions can't drift.
   the generic one, and vice versa when the order was flipped) — so a
   bare `\trill` has to be structurally incapable of also parsing as
   `VarRef`, not just conventionally discouraged from being used that
-  way. Applied to `VarDef`'s own name too, not just `VarRef`'s, so
-  defining a variable literally named e.g. `trill` is a parse error
-  immediately, rather than a silently unreachable definition.
+  way.
 
   Digits and underscores stay allowed in variable names (unlike
   LilyPond, which restricts identifiers to letters only) — deliberately:
@@ -119,6 +77,6 @@ positions can't drift.
   note token can occupy the same free-floating position in a music
   expression, and a trailing digit would otherwise misread as a
   duration. A variable name in this grammar never has that collision —
-  it only ever appears right before `=` or right after `\`, neither of
-  which a note could also occupy — so the character restriction wouldn't
-  be buying anything here.
+  it only ever appears right after `\` or `'`, neither of which a note
+  could also occupy — so the character restriction wouldn't be buying
+  anything here.

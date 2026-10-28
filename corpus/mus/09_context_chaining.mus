@@ -6,7 +6,7 @@
 % 2. Chained glued note-suffixes on a single note (NoteSuffix repeats
 %    freely) -- an ornament, a dynamic, and a hairpin all on one note.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 ^{loud: !ff}
 ^{fast: !tempo:160}

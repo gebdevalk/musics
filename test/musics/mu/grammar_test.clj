@@ -35,6 +35,9 @@
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (is (= [[:Word [:WordName "?empty"]] [:Word [:WordName "mine/?x"]]] (items "?empty mine/?x"))
         "a word may start with ?")
+    (is (= [[:Word [:WordName "+volumes"]] [:Word [:WordName "music/+drums"]]] (items "+volumes music/+drums"))
+        "or with + and a letter")
+    (is (= [[:SignedInt "+5"]] (items "+5")) "+ and a digit stays a number")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
     (doseq [w [">" ">+" ">>" ">>+" "[[]]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
       (is (= [[:Word w]] (items w)) w))))
@@ -68,9 +71,10 @@
       "a name held, and the value bound to it")
   (is (= [[:LooseInstruction [:BangConst [:Name "mf"]]]] (items "!mf"))
       "parsed, so it can be refused with a clear message")
-  (is (= [:LooseInstruction] (tags "?k:5")) "?name:value is an algo param, not a word")
+  (is (= [:LooseInstruction] (tags "?k:5")) "?name:value is parsed only to be refused, not a word")
   (is (= [:LooseInstruction :LooseInstruction] (tags "?euclid.n:8 ?pitch/walk.lo:48")) "qualified too")
-  (is (= [:Context] (tags "^{ ?k:5 ?euclid.n:8 }"))))
+  (is (= [:Settings] (tags "@{ k:5 euclid.n:8 pitch/walk.lo:48 }")) "an algo's settings")
+  (is (= [:Settings] (tags "@{ }")) "empty too"))
 
 (deftest definitions
   (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]

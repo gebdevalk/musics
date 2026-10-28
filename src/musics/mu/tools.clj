@@ -35,7 +35,7 @@
       (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
       (conj below (f xs)))))
 
-(word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" mt/line))
+(word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" #(mt/line (map (partial mt/sounding! "seq") %))))
 
 (word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" mt/par-of))
 (defn- top-n
@@ -51,7 +51,7 @@
 (word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
        (top-n "{" "}" mt/par-of))
 (word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
-       (top-n "[" "]" mt/line))
+       (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
 (word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
        (fn [s]
@@ -60,7 +60,17 @@
            (conj (subvec s 0 (- (count s) (count leaves)))
                  (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
-;; -- a stream onto a line: volumes, articulations, instruments -----------------
+;; -- zip: leaves from their parts ------------------------------------------------
+
+(word! "music" "zip" "( durations pitches -- line ) or ( | [:part] stream … -- line )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
+       (fn [s]
+         (if (some v/mark? s)
+           (let [[below xs] (e/to-mark s "zip")]
+             (conj below (mt/zip-parts xs)))
+           (do (need s 2 "zip")
+               (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
+
+;; -- repeats: their endings and their passes ----------------------------------
 
 (defn- above-repeat
   "[below repeat xs]: what lies above the nearest repeat on the stack,

@@ -112,16 +112,17 @@
    :stroke  #(every? string? %)
    :pair    #(every? vector? %)
    :leaf    #(every? :type %)
-   :volume  #(every? number? %)
+   :volume  #(every? (some-fn nil? number?) %)
    :articulation #(every? (some-fn nil? keyword?) %)
    :instrument #(every? (some-fn number? string? keyword?) %)
    :index   integer?})
 
 (deftest every-algo-runs-with-its-defaults
   (rc/seed! 2026)
-  (doseq [[short {:keys [full in out]}] (t/algos)
-          :when (and (str/starts-with? (namespace full) "musics.algo.")      ; not other tests' algos
-                     (not (str/ends-with? (namespace full) "-test")))
+  (doseq [[short {:keys [full in out via]}] (t/algos)
+          :when (or via                                                    ; a specialised one
+                    (and (str/starts-with? (namespace full) "musics.algo.")  ; not other tests' algos
+                         (not (str/ends-with? (namespace full) "-test"))))
           :let [tree (apply (t/constructor (t/algo short)) (map samples in))
                 required (into {} (for [{:keys [key default]} (t/param-keys tree) :when (t/nan? default)]
                                     [key (fn [p] (reduce + p))]))
@@ -133,12 +134,9 @@
         (is (check (if (and (seq? result) (not (counted? result))) (take 64 result) result))
             (str short " doesn't produce " out ": " (pr-str (if (coll? result) (take 8 result) result))))))))
 
-(deftest lib-names-never-shadow-core-or-musics-core
-  (require 'musics.core)
-  (let [lib-names (set (keys (ns-publics 'musics.algo.tree.lib)))
-        taken (set/union (set (keys (ns-publics 'clojure.core)))
-                         (set (keys (ns-publics 'musics.core))))]
-    (is (empty? (set/intersection lib-names taken)))))
+(deftest lib-names-never-shadow-clojure-core
+  (let [lib-names (set (keys (ns-publics 'musics.algo.tree.lib)))]
+    (is (empty? (set/intersection lib-names (set (keys (ns-publics 'clojure.core))))))))
 
 (deftest repeat-and-pull-draw-len-values-reproducibly
   (let [run-seeded (fn [tree m] (rc/seed! 7) (t/run tree m))]

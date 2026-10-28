@@ -1760,10 +1760,10 @@
   (letfn [;; A LilyPond VarDef's own value tokens, with a single leading
           ;; (and only) :brace unwrapped to its own children -- real
           ;; LilyPond's own `name = { ... }` spelling means \"this
-          ;; variable's value is exactly this Sequence\", already what
-          ;; our own VarDef grammar means too (VarDef = VarName ws? '='
-          ;; ws? Sequence). var-defs (ly-text->mus-text) already supplies
-          ;; THAT wrapping '{ }' itself when it emits `name = { body }`,
+          ;; variable's value is exactly this Sequence\", what mu's
+          ;; binding of a line means too ('name [ body ] :=). var-defs
+          ;; (ly-text->mus-text) already supplies THAT wrapping bracket
+          ;; itself when it emits the binding,
           ;; so calling emit-stream on the raw :brace token directly
           ;; (which wraps its OWN inner content in '{ }' too, same as any
           ;; other bare brace group) doubled it: `global = { { \\key c
@@ -1888,14 +1888,11 @@
    one at Program's own top level isn't (see musics.ebnf's own
    TopElement comment on why that's restricted -- it would write
    straight into :ROOT's own read-only context) -- this Sequence is a
-   real, ordinary container, not Program's own top-level list, so an
-   Instruction as one of its Elements is exactly the same shape every
-   !tempo:/!key:/... in this file already is. An earlier version routed
-   this through a VarDef/VarRef (`acc = (...)` / `\\acc`) specifically
-   to dodge the TopElement restriction, which was solving a problem
-   that direct placement here never actually had.
-   Every collected LilyPond variable is re-emitted as its own musics-DSL
-   VarDef, ahead of the main content, in original definition order (same
+   real, ordinary container, not the top level, so an Instruction as one
+   of its Elements is exactly the same shape every !tempo:/!key:/... in
+   this file already is.
+   Every collected LilyPond variable is re-emitted as its own mu binding
+   ('name [ … ] :=), ahead of the main content, in original definition order (same
    ordering constraint
    LilyPond's own source already satisfied, since a variable must be
    defined before it's referenced in both formats) -- a \\name reference
@@ -1936,7 +1933,7 @@
         [bodies usable]      (compute-usable-vars raw-vars var-order)
         var-order (filter usable var-order)
         vars      (select-keys raw-vars var-order)
-        var-defs  (map (fn [name] (str name " = [ " (get bodies name) " ]")) var-order)]
+        var-defs  (map (fn [name] (str "'" name " [ " (get bodies name) " ] :=")) var-order)]
     ;; Fresh *last-duration*/*last-ref* for the main top-level content --
     ;; a separate walk unit from each variable's own body (which gets its
     ;; own fresh binding in compute-usable-vars above), but ONE shared

@@ -28,15 +28,7 @@
              "--enable-native-access=ALL-UNNAMED"
              ;; Gervill's latency (musics.midi.gervill)
              "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED"]
-  :repl-options {:init-ns user}
-  ;; :dev's "dev" source-path exists only for lein repl's convenience
-  ;; (dev/user.clj, see its own docstring) -- lein test merges :dev and
-  ;; :test by default, which otherwise puts dev/user.clj on the classpath
-  ;; during test runs too, and Leiningen auto-requires any user.clj it
-  ;; finds there, colliding musics' own load/find with clojure.core's and
-  ;; printing "already refers to" warnings on every test run. :test's
-  ;; ^:replace here drops "dev" back out for that task specifically,
-  ;; without touching what lein repl sees.
+  ;; dev/ holds standalone tools (musics.midi-probe), not part of a test run
   :profiles {:dev  {:source-paths ["dev"]}
              :test {:source-paths ^:replace ["src"]}
              ;; clj-kondo as a library, for `lein lint` -- the editor's

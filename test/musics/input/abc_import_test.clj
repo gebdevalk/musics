@@ -3,11 +3,11 @@
             [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.input.abc-import :as abc]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.grammar :as g] [musics.mu.value :as v]
             [musics.domain :as d]))
 
 (defn- parses? [mus-text]
-  (not (insta/failure? (gp/parse-string mus-text))))
+  (not (insta/failure? (g/parse mus-text))))
 
 (defn- leaves
   "Every leaf reachable from mus-text's own root, at any depth --
@@ -16,7 +16,7 @@
    collision bug slip through undetected once already (see note->
    pitch-text's own docstring)."
   [mus-text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)]
+  (let [{:keys [tree root-id]} (v/read-domain mus-text)]
     (letfn [(walk [node]
               (cond
                 (d/leaf? node)      [node]

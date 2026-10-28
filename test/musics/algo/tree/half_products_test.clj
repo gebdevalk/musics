@@ -1,13 +1,17 @@
-(ns ^:algo musics.algo.tree.half-test
+(ns ^:algo musics.algo.tree.half-products-test
   (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
-            [musics.algo.tree.half :as half]
+            [musics.algo.tree.half-products :as hp]
+            [musics.algo.tree.registry :as reg]
             [musics.algo.random.core :as rc]
-            [musics.algo.pitch :as pitch]
-            [musics.algo.duration :as duration]
-            [musics.algo.volume :as volume]
             [musics.domain :as d]))
+
+(defn- algo
+  "A node of the registry's algo k, as mu's algo words build one: (algo
+   :duration/euclid) is the tree that duration/euclid runs."
+  [k & kids]
+  (apply (t/constructor (reg/algo k)) kids))
 
 (defn- on-shelf [shelf] (set (for [[k v] (t/algos) :when (= shelf (:shelf v))] k)))
 
@@ -28,21 +32,21 @@
   (let [explicit (lib/points->pitches (lib/lorenz))
         params   {:len 40 :dt 0.02}]
     (is (= (t/run explicit (assoc params :from-lo -20.0 :from-hi 20.0))
-           (t/run (pitch/lorenz) (assoc params :pitch-from-lo -20.0 :pitch-from-hi 20.0)))))
-  (is (= '(zip (duration/euclid) (pitch/walk-degrees)) (t/show (lib/zip (duration/euclid) (pitch/walk-degrees)))))
-  (is (= [1/4 1/4 1/2] (t/run (duration/euclid) {:k 3 :n 4 :duration-pulse 1/4}))))
+           (t/run (algo :pitch/lorenz) (assoc params :pitch-from-lo -20.0 :pitch-from-hi 20.0)))))
+  (is (= '(zip (duration/euclid) (pitch/walk-degrees)) (t/show (lib/zip (algo :duration/euclid) (algo :pitch/walk-degrees)))))
+  (is (= [1/4 1/4 1/2] (t/run (algo :duration/euclid) {:k 3 :n 4 :duration-pulse 1/4}))))
 
 (deftest bridge-params-carry-the-half-product
-  (let [ks (set (map :key (t/param-keys (pitch/walk))))]
+  (let [ks (set (map :key (t/param-keys (algo :pitch/walk))))]
     (is (every? ks [:start :len :pitch-lo :pitch-hi :pitch-from-lo :pitch-from-hi]))
     (is (not-any? ks [:lo :hi :from-lo]))))
 
 (deftest the-input-range-defaults-to-what-the-source-gives
-  (let [{lo :default} (first (filter #(= :pitch-from-lo (:key %)) (t/param-keys (pitch/walk))))
-        {hi :default} (first (filter #(= :pitch-from-hi (:key %)) (t/param-keys (pitch/walk))))]
+  (let [{lo :default} (first (filter #(= :pitch-from-lo (:key %)) (t/param-keys (algo :pitch/walk))))
+        {hi :default} (first (filter #(= :pitch-from-hi (:key %)) (t/param-keys (algo :pitch/walk))))]
     (is (< 50 lo 60 hi 70) "walk starts at 60 and stays near it")
     (rc/seed! 11)
-    (let [ps (t/run (pitch/walk) {})]
+    (let [ps (t/run (algo :pitch/walk) {})]
       (is (< 1 (count (distinct ps))) "the defaults already move"))))
 
 (defn- louder-is-higher?
@@ -51,9 +55,9 @@
   (apply <= (map (comp first :pitches) (sort-by (comp :volume :overrides) notes))))
 
 (deftest one-as-one-run
-  (let [notes (fn [as] (t/run (lib/+volume (lib/zip (lib/cycle> [1/8])
-                                                    (if as (pitch/normal :as as) (pitch/normal)))
-                                           (if as (volume/normal :as as) (volume/normal)))
+  (let [notes (fn [as] (t/run (lib/zip (lib/cycle> [1/8])
+                                       (if as (algo :pitch/normal :as as) (algo :pitch/normal))
+                                       (if as (algo :volume/normal :as as) (algo :volume/normal)))
                               {}))]
     (rc/seed! 5)
     (let [ns (notes :a)]
@@ -83,16 +87,16 @@
            :duration/necklace :duration/bracelet :duration/crossover :duration/tiling}
          (set (for [[k v] (t/algos) :when (and (= "duration" (namespace k)) (seq (:in v)))] k))))
   (testing "durations become a pulse grid and back"
-    (is (= [0 0 1 0 0 0 1] (vec (half/durations->pulses [(d/rest* nil nil 1/8) 1/4 1/16] 1/16))))
-    (is (= [1/8 1/4 3/8] (vec (t/run (lib/pulses->durations (vec (half/durations->pulses [1/8 1/4 3/8] 1/16))) {})))))
+    (is (= [0 0 1 0 0 0 1] (vec (hp/durations->pulses [(d/rest* nil nil 1/8) 1/4 1/16] 1/16))))
+    (is (= [1/8 1/4 3/8] (vec (t/run (lib/pulses->durations (vec (hp/durations->pulses [1/8 1/4 3/8] 1/16))) {})))))
   (let [ds [1/8 1/8 1/4 3/8 1/8]]
     (testing "a rotation keeps the durations and their sum"
-      (let [r (t/run (duration/necklace ds) {:index 2})]
+      (let [r (t/run (algo :duration/necklace ds) {:index 2})]
         (is (= (sort ds) (sort r)))
         (is (= (reduce + ds) (reduce + r)))))
     (testing "two rhythms crossed"
-      (is (= [1/8 1/8 1/4 1/4 1/4] (t/run (duration/crossover ds [1/4 1/4 1/4 1/4]) {:crossover-point 4}))))
+      (is (= [1/8 1/8 1/4 1/4 1/4] (t/run (algo :duration/crossover ds [1/4 1/4 1/4 1/4]) {:crossover-point 4}))))
     (testing "the grid is the resolution: a duration rounds to whole pulses"
-      (is (= [1/8 1/4] (t/run (duration/necklace [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
+      (is (= [1/8 1/4] (t/run (algo :duration/necklace [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
     (testing "on the shop floor, after a specialised source"
-      (is (seq (t/run (lib/zip (duration/emi (duration/euclid)) (lib/cycle> lib/scale)) {:k 5 :n 16}))))))
+      (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (lib/cycle> lib/scale)) {:k 5 :n 16}))))))

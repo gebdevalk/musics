@@ -78,35 +78,6 @@
     (is (= 5 (:k (t/params tctx))) "settings made along the way are kept")
     (is (seq (t/run tree tctx)))))
 
-(deftest the-repl-twin-builds-the-same-tree
-  (let [;; numbers are positions in the listings as they stand at each step
-        idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
-        cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d0 (b/draft) d1 (b/place d0 :zip []) d2 (b/place d1 :pulses->durations [0])
-        d3 (b/place d2 :euclid [0 0]) d4 (b/place d3 :cycle> [1])
-        input (str/join "\n" [(cidx d0 "tools") (idx d0 "tools" :zip)
-                              (cidx d1 "workshop") (idx d1 "workshop" :pulses->durations)
-                              (cidx d2 "workshop") (idx d2 "workshop" :euclid)
-                              (cidx d3 "tools") (idx d3 "tools" :cycle>)
-                              (cidx d4 "pitch") (idx d4 "pitch" :scale)
-                              "k :k 5" "f"])
-        [tree tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil)))]
-    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))
-    (is (= 5 (:k (t/params tctx))))))
-
-(deftest the-repl-twin-cancels
-  (is (nil? (with-in-str "q" (binding [*out* (java.io.StringWriter.)] (b/repl-build (b/draft) nil))))))
-
-(deftest settings-survive-an-incomplete-moment
-  ;; set :k, undo the last step (tree incomplete), redo it: :k stays
-  (let [idx  (fn [d c short] (inc (.indexOf ^java.util.List (mapv :short (b/algos-in d c)) short)))
-        cidx (fn [d c] (inc (.indexOf ^java.util.List (mapv :name (b/categories d)) c)))
-        d4 (reduce (fn [d s] (b/place d s (:active d))) (b/draft) [:zip :pulses->durations :euclid :cycle>])
-        input (str/join "\n" ["k :k 5" "u" (cidx d4 "pitch") (idx d4 "pitch" :scale) "f"])
-        start (b/place d4 :scale (:active d4))
-        [_ tctx] (with-in-str input (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= 5 (:k (t/params tctx))))))
-
 (deftest undo-and-redo
   (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
         u3 (-> d b/undo b/undo b/undo)]
@@ -122,12 +93,6 @@
     (is (= "(zip (pulses->durations (euclid)) ①)" (plain (b/redo (b/undo (b/remove d [1])))))
         "... and redo removes again")))
 
-(deftest the-repl-twin-undoes-and-redoes
-  (let [start (build :zip :pulses->durations :euclid :cycle> :scale)
-        [tree _] (with-in-str "u\nu\ny\ny\nf"
-                   (binding [*out* (java.io.StringWriter.)] (b/repl-build start nil)))]
-    (is (= '(zip (pulses->durations (euclid)) (cycle> (scale))) (t/show tree)))))
-
 (deftest a-hole-under-a-same-node-takes-the-slots-type
   ;; cycle> is :in [:any] :out :same -- in zip's pitches slot, its own
   ;; child has to give pitches too
@@ -137,3 +102,31 @@
     (is (not (b/fits? d [1 0] :euclid)) "a grid source no longer slips in")
     (is (thrown-with-msg? Exception #"euclid gives :pulse, this slot wants :pitch"
                           (b/place d :euclid [1 0])))))
+
+(deftest a-join-takes-one-more-child
+  (let [d (b/widen (build :zip) [])]
+    (is (= "(zip ① ② ③)" (plain d)) "+ adds a hole")
+    (is (= [2] (:active d)) "the new hole is the active slot")
+    (is (b/joins? d []))
+    (is (not (b/joins? (build :euclid) [])) "only a join widens")
+    (let [d (-> d (b/place :pulses->durations [0]) (b/place :euclid [0 0]) (b/place :scale [1])
+                (b/place :volume/walk [2]))]
+      (is (b/complete? d))
+      (is (= '(zip (pulses->durations (euclid)) (scale) (volume/walk)) (t/show (b/->tree d)))
+          "built as the constructor folds it, printed as one")
+      (is (= :leaf (t/out-type (b/->tree d))))
+      (is (= (plain d) (plain (b/draft (b/->tree d)))) "a folded join reads back into one slot"))))
+
+(deftest an-as-part-slot-reads-back
+  (let [tree (lib/zip [1/4] [60] (lib/as-part :volume [90]))
+        d    (b/draft tree)]
+    (is (= "(zip [1/4] [60] (as-part :volume [90]))" (plain d)))
+    (is (= (t/show tree) (t/show (b/->tree d))))))
+
+(deftest an-algo-is-placed-inside-its-bridges
+  (let [d (build :zip)]
+    (is (b/takes? d [0] :euclid) "pulses can reach a durations slot")
+    (is (not (b/fits? d [0] :euclid)) "though they don't fit it as they are")
+    (let [d (b/place d :euclid [0])]
+      (is (= "(zip (pulses->durations (euclid)) ①)" (plain d)) "the holes left, numbered")
+      (is (= [1] (:active d)) "on to the next hole"))))

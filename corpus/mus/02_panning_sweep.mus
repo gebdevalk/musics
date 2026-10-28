@@ -9,7 +9,7 @@
 % this same session) -- the original Int/Float literals were unsigned
 % everywhere, so -1.0 couldn't be written at all before that fix.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 [pan_left_to_right:
   !pan:-1.0

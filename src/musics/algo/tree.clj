@@ -14,11 +14,17 @@
    both. `(euclid :as :bass)` names an instance, so its params get their
    own keys (:bass/k).
 
+   A join (zip, :join in its :algo metadata) takes two children or more,
+   folded from the left: (zip d p v) is (zip (zip d p) v), printed as
+   written. Its type follows its children's parts -- leaves, or a bundle
+   of parts, [:bundle :pitch :volume] -- and (as-part :volume x) names a
+   literal's part.
+
    The tctx is an atom of settings, derived from a tree but not holding
    it -- the model a GUI watches:
 
-     (def tctx (t/tctx riff))       ; {:params {:k 3 ...} :specs {:k {...} ...}}
-     (t/setp! tctx :k 5)            ; = (swap! tctx assoc-in [:params :k] 5)
+     (def tctx (t/tctx riff))       ; {:params-atom (atom {})}, the specs as its meta
+     (t/setp! tctx :k 5)            ; = (swap! (:params-atom tctx) assoc \"k\" 5)
      (t/run riff tctx)              ; or (t/run riff {:k 5}), a plain map
 
    Every value is checked against its spec by the atom's validator, so a
@@ -70,12 +76,16 @@
   (->node 'as-node x))
 
 (defn out-type
-  "What a node produces: its algo's :out (:same = its first child's),
-   or :any for a param read or a literal."
+  "What a node produces: its algo's :out (:same = its first child's; a
+   join's, worked out from its children), the part a part node names, or
+   :any for a param read or a literal."
   [n]
-  (if (= :algo (:kind n))
-    (let [o (get-in n [:entry :out])]
-      (if (= :same o) (out-type (first (:children n))) o))
+  (case (:kind n)
+    :algo (let [o (get-in n [:entry :out])]
+            (cond (get-in n [:entry :join]) (:out n)
+                  (= :same o) (out-type (first (:children n)))
+                  :else o))
+    :as-part (:name n)
     :any))
 
 (defn fits?
@@ -86,9 +96,128 @@
 
 (defn- label
   "An algo's short name as written: euclid, or pitch/lorenz for a
-   specialised one (musics.algo.tree.half)."
+   specialised one (musics.algo.tree.half-products)."
   [short]
   (symbol short))
+
+(def overridable
+  "The numeric context keys playback reads per note
+   (musics.domain.resolve/played-keys): a part a note can override."
+  [:panning :transposition :octave :Tempo :durScale :micro :humanization :swing :swingUnit :volume :instrument])
+
+(def ^:private part-ranks {:duration 1 :pitch 2 :drum 2 :articulation 3})
+
+(defn part-rank
+  "A part's place in a note, as a leaf holds them: duration, pitch (or
+   drum), articulation, then the overrides."
+  [k]
+  (part-ranks k 7))
+
+(defn part-name?
+  "A part zip joins into a note: :duration :pitch :drum :articulation, or
+   a key the note overrides (overridable)."
+  [k]
+  (boolean (or (part-ranks k) (some #{k} overridable))))
+
+(defn bundle-type
+  "The type of a bundle holding `parts`: [:bundle part ...], in rank order."
+  [parts]
+  (into [:bundle] (sort-by (juxt part-rank name) parts)))
+
+(defn bundle-type? [t] (and (vector? t) (= :bundle (first t))))
+
+(defn- given
+  "What a child of type t gives a join: :leaf, a set of parts, nil (a
+   literal or a param: by its place) or ::none."
+  [t]
+  (cond (= :leaf t)        :leaf
+        (bundle-type? t)   (set (rest t))
+        (= :any t)         nil
+        (part-name? t)     #{t}
+        :else              ::none))
+
+(defn- join-type
+  "{:parts [pa pb] :out type} of a join of a and b (zip): each child
+   gives leaves (:leaf), a bundle (:bundle) or one part -- a literal its
+   part by its place, durations then pitches. Leaves come of leaves with
+   parts written on them, or of durations with pitches (or drums);
+   anything else is a bundle of its parts."
+  [short a b]
+  (let [fail  (fn [msg data] (throw (ex-info (str "musics.algo.tree: " (label short) ": " msg) data)))
+        [ga gb] (map (comp given out-type) [a b])
+        _     (doseq [[i g c] [[1 ga a] [2 gb b]] :when (= ::none g)]
+                (fail (str "child " i ", " (pr-str (show c)) ", gives " (out-type c)
+                           ", not a part of a note -- name its part: (as-part :volume …)") {:child (show c)}))
+        _     (when (= :leaf ga gb) (fail "two streams of notes -- a part each, or a par of them" {}))
+        leaf? (or (= :leaf ga) (= :leaf gb))
+        _     (when (and leaf? (or (nil? ga) (nil? gb)))
+                (fail "onto notes, name the part a literal gives: (as-part :volume …)" {}))
+        taken (set (mapcat #(when (set? %) %) [ga gb]))
+        free  (remove #(or (taken %) (and (= % :pitch) (taken :drum))) [:duration :pitch])
+        ga    (or ga (if-let [f (first free)] #{f} (fail "child 1 is a literal and no part is free -- name it: (as-part :volume …)" {})))
+        gb    (or gb (if-let [f (first (remove (if (set? ga) ga #{}) free))] #{f}
+                       (fail "child 2 is a literal and no part is free -- name it: (as-part :volume …)" {})))
+        both  (when-not leaf? (concat ga gb))
+        slot  #(if (= :drum %) :pitch %)]
+    (when (and both (not (apply distinct? (map slot both))))
+      (fail (str "two streams for one part -- " (str/join " " (map str both))) {}))
+    {:parts (mapv (fn [g c] (cond (= :leaf g) :leaf (bundle-type? (out-type c)) :bundle :else (first g))) [ga gb] [a b])
+     :out   (let [ps (set both)]
+              (cond leaf?                                                   :leaf
+                    (and (ps :duration) (or (ps :pitch) (ps :drum)))       :leaf
+                    :else                                                   (bundle-type ps)))}))
+
+(declare constructor)
+
+(defn- bridged
+  "child inside the smallest bridge chain from what it gives to `want`
+   (musics.algo.logic.tree/bridge: (pulses->durations child) for pulses
+   where durations go), or nil when there is none."
+  [want child]
+  (when-let [term ((requiring-resolve 'musics.algo.logic.tree/bridge) (out-type child) want)]
+    (letfn [(build [t] (if (seq? t) ((constructor (reg/algo (first t))) (build (second t))) child))]
+      (build term))))
+
+(defn- bridge-children
+  "children with each that doesn't fit its slot (`wants`, a type each)
+   bridged, where a chain of bridges turns what it gives into what the
+   slot wants; the rest as they are."
+  [wants children]
+  (mapv (fn [want c] (if (or (nil? want) (fits? want (out-type c))) c (or (bridged want c) c)))
+        (concat wants (repeat nil)) children))
+
+(defn- join-wants
+  "What a join's two children are bridged to when one gives raw material:
+   the first part neither gives yet, durations then pitches."
+  [a b]
+  (let [taken (set (mapcat #(let [g (given (out-type %))] (when (set? g) g)) [a b]))
+        free  (remove #(or (taken %) (and (= % :pitch) (taken :drum))) [:duration :pitch])
+        raw?  #(= ::none (given (out-type %)))]
+    [(when (raw? a) (first free)) (when (raw? b) (first (if (raw? a) (rest free) free)))]))
+
+(defn- join
+  "A join node (zip) of children: two, or more folded from the left --
+   (zip d p v) is (zip (zip d p) v); as names the outermost."
+  [{:keys [short] :as entry} children as]
+  (when (< (count children) 2)
+    (throw (ex-info (str "musics.algo.tree: " (label short) " takes 2 or more children, got " (count children)) {:algo short})))
+  (let [node (fn [a b as]
+               (let [[a b] (bridge-children (join-wants a b) [a b])]
+                 (map->Node (merge {:kind :algo :entry entry :children [a b] :as as} (join-type short a b)))))
+        [a b & more] children]
+    (if (seq more)
+      (node (reduce #(node %1 %2 nil) (node a b nil) (butlast more)) (last more) as)
+      (node a b as))))
+
+(defn as-part
+  "child giving the part k of a note (:volume, :articulation, :panning
+   …), or notes (:leaf), for a join (zip): a literal's or a :number
+   stream's part."
+  [k child]
+  (when-not (or (= :leaf k) (part-name? k))
+    (throw (ex-info (str "musics.algo.tree: as-part: " (pr-str k) " is no part of a note -- :leaf, :duration :pitch :drum :articulation, or "
+                         (str/join " " overridable)) {:part k})))
+  (map->Node {:kind :as-part :name k :children [(->node 'as-part child)]}))
 
 (defn- check! [{:keys [short in]} children]
   (when (not= (count in) (count children))
@@ -110,8 +239,11 @@
     (fn [& args]
       (let [[args as] (if (= :as (last (butlast args))) [(drop-last 2 args) (last args)] [args nil])
             children  (mapv #(->node (label short) %) args)]
-        (check! entry children)
-        (map->Node {:kind :algo :entry entry :children children :as as})))
+        (if (:join entry)
+          (join entry children as)
+          (let [children (if (= (count (:in entry)) (count children)) (bridge-children (:in entry) children) children)]
+            (check! entry children)
+            (map->Node {:kind :algo :entry entry :children children :as as})))))
     {::entry entry :type ::algo}))
 
 (defn show
@@ -119,9 +251,14 @@
   [x]
   (cond
     (node? x) (case (:kind x)
-                :algo    (concat (list (label (get-in x [:entry :short])))
-                                 (map show (:children x))
-                                 (when-let [as (:as x)] [:as as]))
+                :algo    (let [[c & cs] (:children x)
+                               folded?  (and (get-in x [:entry :join]) (identical? (:entry c) (:entry x)) (nil? (:as c)))]
+                           ;; a join of a join prints as one: (zip d p v)
+                           (concat (if folded?
+                                     (concat (show c) (map show cs))
+                                     (cons (label (get-in x [:entry :short])) (map show (:children x))))
+                                   (when-let [as (:as x)] [:as as])))
+                :as-part (list 'as-part (:name x) (show (first (:children x))))
                 :param   (:key x)
                 :literal (:value x))
     (algo? x) (label (:short (::entry (meta x))))
@@ -146,13 +283,14 @@
     :algo  (concat (mapcat (fn [i c] (occurrences c (conj path i))) (range) (:children n))
                    (for [p (get-in n [:entry :params])]
                      {:path path :short (get-in n [:entry :short]) :as (:as n) :p p}))
+    :as-part (occurrences (first (:children n)) (conj path 0))
     :param [{:path path :read (:key n)}]
     nil))
 
 (defn- decide-keys
   "Occurrences -> the same, each with its :key (see the ns docstring) and
-   :at, the context names it is read under, most specific first: the
-   instance's (?bass.k), the algo's (?euclid.k), the plain one (?k).
+   :at, the names it is read under, most specific first: the
+   instance's (bass.k), the algo's (euclid.k), the plain one (k).
    A tctx writes a key under the name that matches it."
   [occs]
   (let [shared? (->> (remove #(or (:read %) (:as %)) occs)
@@ -165,10 +303,10 @@
                           (shared? (:name p)) (:name p)
                           :else              (keyword (str (label short) "." pn)))]]
       (assoc o :key key
-               :own (str "?" (if (namespace key) (str (namespace key) "." (name key)) (name key)))
-               :at (vec (remove nil? [(when as (str "?" (name as) "." pn))
-                                      (when-not read (str "?" (label short) "." pn))
-                                      (str "?" pn)]))))))
+               :own (if (namespace key) (str (namespace key) "." (name key)) (name key))
+               :at (vec (remove nil? [(when as (str (name as) "." pn))
+                                      (when-not read (str (label short) "." pn))
+                                      pn]))))))
 
 (defn- spec-of [{:keys [read short p at own]}]
   (if read
@@ -181,10 +319,11 @@
   [tree]
   (let [occs  (decide-keys (occurrences tree []))
         by    (group-by :path (remove :read occs))
+        kids  (fn [walk n path] (mapv (fn [i c] (walk c (conj path i))) (range) (:children n)))
         walk  (fn walk [n path]
-                (if (= :algo (:kind n))
-                  (assoc n :key (mapv :key (get by path))
-                           :children (mapv (fn [i c] (walk c (conj path i))) (range) (:children n)))
+                (case (:kind n)
+                  :algo (assoc n :key (mapv :key (get by path)) :children (kids walk n path))
+                  :as-part (assoc n :children (kids walk n path))
                   n))
         specs (reduce (fn [acc o] (if (some #(= (:key o) (first %)) acc) acc (conj acc [(:key o) (spec-of o)])))
                       [] occs)]
@@ -227,7 +366,7 @@
                     {:key k :value v :spec spec}))))
 
 (defn- coerce
-  "A value as written in text (?key:D.major is a keyword, ?on?:true too),
+  "A value as written in text (@{ key:D.major } is a keyword, on?:true too),
    or a music key's own (a !key: is a Key), in the type `spec` wants."
   [{:keys [type]} v]
   (cond
@@ -241,13 +380,14 @@
 (defn- defaults [specs]
   (into {} (map (fn [[k s]] [k (:default s)])) specs))
 
-(defn- envs [tctx] (:envelopes-atom tctx))
+(defn- envs [tctx] (:params-atom tctx))
 
 (defn tctx?
-  "A tctx: a Context whose envelopes atom carries the tree's :specs."
+  "A tctx: {:params-atom a}, a holding {name value} with the tree's
+   :specs as its meta."
   [x]
-  (and (map? x) (instance? clojure.lang.IAtom (:envelopes-atom x))
-       (contains? (meta (:envelopes-atom x)) :specs)))
+  (and (map? x) (instance? clojure.lang.IAtom (:params-atom x))
+       (contains? (meta (:params-atom x)) :specs)))
 
 (defn specs
   "A tctx's specs: key -> spec (with :at, the context names it reads)."
@@ -255,20 +395,20 @@
   (:specs (meta (envs tctx))))
 
 (defn- at-of
-  "The context name a key is written under: (at-of specs :bass/k) is
-   \"?bass.k\"; a string is taken as it is."
+  "The name a key is written under: (at-of specs :bass/k) is \"bass.k\";
+   a string is taken as it is."
   [specs k]
   (cond (string? k) k
         (get specs k) (get-in specs [k :own])
         :else (throw (ex-info (str "musics.algo.tree: " k " is not a param of this tctx") {:key k}))))
 
 (defn- validator
-  "Checks every @ value in the envelopes against its spec; other names
-   (the music's own keys) pass."
+  "Checks every value against its spec; a name no param has is refused,
+   but for seed (mu's: the random seed a run starts from)."
   [a]
   (fn [m]
     (let [by-at (into {} (for [[k s] (:specs (meta a))] [(:own s) [k s]]))]
-      (doseq [[n v] m :when (and (string? n) (= \? (first n)))]
+      (doseq [[n v] m :when (not= "seed" n)]
         (if-let [[k s] (by-at n)]
           (check-value! k v s)
           (throw (ex-info (str "musics.algo.tree: " n " is not a param of this tctx") {:key n}))))
@@ -297,12 +437,15 @@
 (defn setp!
   "Set params in a tctx, each checked against its spec: (setp! tctx :k
    5), (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). A
-   key is a tree's key (:k, :euclid.n, :bass/k) or a context name
-   (\"?bass.k\"). All values land in one swap!, so a bad one leaves
+   key is a tree's key (:k, :euclid.n, :bass/k) or the name it is
+   written under (\"bass.k\"). All values land in one swap!, so a bad one leaves
    every value as it was. Returns the params."
   ([tctx m]
-   (let [ss (specs tctx)]
-     (swap! (envs tctx) merge (into {} (for [[k v] m] [(at-of ss k) v])))
+   (let [ss   (specs tctx)
+         by   (into {} (for [[_ s] ss] [(:own s) s]))
+         spec #(or (get ss %) (by %))]
+     ;; a value as text writes it (key:D.major, a name) in the type its spec wants
+     (swap! (envs tctx) merge (into {} (for [[k v] m] [(at-of ss k) (if-let [s (spec k)] (coerce s v) v)])))
      (params tctx)))
   ([tctx k v & kvs] (setp! tctx (apply hash-map k v kvs))))
 
@@ -314,17 +457,17 @@
     (params tctx)))
 
 (defn tctx
-  "A new tctx for `tree`: an ordinary Context (doc/md/decisions.md,
-   2026-10-14) whose settings are ? names (\"?k\", \"?bass.k\"), set
-   with setp!, each checked against its spec on every change. It holds
-   only what is set (`overrides`, then setp!); the rest falls through to
-   the contexts given to run, then to the defaults. The tree isn't
-   stored, its specs are."
+  "A new tctx for `tree`: {:params-atom a}, a holding {name value} --
+   the names a param is written under in an @{ } (\"k\", \"bass.k\") --
+   set with setp!, each checked against its spec on every change. It
+   holds only what is set (`overrides`, then setp!); the rest falls
+   through to the other sources run is given, then to the defaults. The
+   tree isn't stored, its specs are."
   ([tree] (tctx tree {}))
   ([tree overrides]
    (registries/log! :tctx)
    (let [a (atom {} :meta {:specs (spec-map tree)})
-         t {:envelopes-atom a :duration nil}]
+         t {:params-atom a}]
      (set-validator! a (validator a))
      (when (seq overrides) (setp! t overrides))
      t)))
@@ -375,7 +518,10 @@
   (case (:kind n)
     :literal (:value n)
     :param   (get vals (:key n))
-    :algo    (let [ds (mapv #(evaluate % vals) (:children n))
+    :as-part (evaluate (first (:children n)) vals)
+    :algo    (let [ds (cond->> (mapv #(evaluate % vals) (:children n))
+                        ;; a join (zip) is told what each child gives
+                        (:parts n) (mapv (fn [p v] {:part p :value v}) (:parts n)))
                    v  (try (reg/call (:entry n) ds (mapv #(get vals %) (:key n)) (source-run (:as n)))
                            (catch Exception e
                              (throw (ex-info (str "musics.algo.tree: " (pr-str (show n)) " threw: " (.getMessage e))
@@ -383,42 +529,49 @@
                (when *trace* (swap! *trace* conj {:node (show n) :data v}))
                v)))
 
-(defn- from-contexts
-  "A param's value from contexts, nearest first; in each, the most
-   specific of its names (:at) wins, then the music key its spec names
-   (:context, e.g. degrees->pitches' key reads !key:). Read once per
-   run, so the latest value a context holds counts: no timing. [value]
-   or nil."
-  [ctxs {:keys [at context]}]
-  (some (fn [ctx]
-          (some (fn [n] (when-let [v (c/ctx-value-chain [ctx] n Double/POSITIVE_INFINITY)] [v]))
-                (cond-> at context (conj context))))
-        ctxs))
+(defn- from-source
+  "A param's value from one source of settings: a tctx, or a map keyed
+   by the tree's keys (:k, :bass/k) or by the names an @{ } writes
+   (\"k\", \"bass.k\") -- the most specific name (:at) wins. [value] or nil."
+  [src k {:keys [at]}]
+  (let [m (if (tctx? src) @(envs src) src)]
+    (cond (contains? m k) [(get m k)]
+          :else (some #(when (contains? m %) [(get m %)]) at))))
+
+(defn- from-music
+  "A param whose spec names a music key (:context, e.g. degrees->pitches'
+   key reads !key:) reads it from the music's contexts, nearest first;
+   read once per run, so the latest value counts. [value] or nil."
+  [ctxs {:keys [context]}]
+  (when context
+    (some #(when-let [v (c/ctx-value-chain [%] context Double/POSITIVE_INFINITY)] [v]) ctxs)))
 
 (defn- settings*
   [specs src chain]
-  (let [given (when-not (tctx? src) src)
-        ctxs  (cond->> (map #(if (vector? %) (first %) %) chain) (tctx? src) (cons src))]
+  (let [srcs (if (vector? src) (remove nil? src) [src])
+        ctxs (map #(if (vector? %) (first %) %) chain)]
     (into {} (for [[k s] specs]
-               [k (if-let [[v] (if (contains? given k) [(get given k)] (from-contexts ctxs s))]
+               [k (if-let [[v] (or (some #(from-source % k s) srcs) (from-music ctxs s))]
                     (let [v (coerce s v)] (check-value! k v s) v)
                     (:default s))]))))
 
 (defn settings
-  "The values `tree` runs with, key -> value: from `src` (a tctx or a
-   plain map), then `chain`, contexts nearest first (a voice's [ctx
-   offset] links too: no timing here), then the defaults -- each checked
-   against its spec."
+  "The values `tree` runs with, key -> value: from `src` -- a tctx, a
+   plain map, or a vector of them nearest first -- then, for a param
+   that names a music key, `chain`, the music's contexts nearest first (a
+   voice's [ctx offset] links too: no timing here), then the defaults --
+   each checked against its spec."
   ([tree src] (settings tree src nil))
   ([tree src chain] (settings* (second (resolve-tree (as-node tree))) src chain)))
 
 (defn run
-  "Run `tree` with the settings in `src` -- a tctx, or a plain map (keys
-   it lacks fall through) -- then `chain`, contexts nearest first (the
-   music's own: a ^{ } or a voice's chain), where a param is a ? name
-   (?k, ?euclid.k, ?bass.k). What none of them sets takes its default.
-   Every value is checked against its spec; throws, listing them, when a
-   required param is unset."
+  "Run `tree` with the settings in `src` -- a tctx, a plain map, or a
+   vector of them nearest first (keys one lacks fall through) -- where a
+   param is its key (:k, :bass/k) or the name an @{ } writes (\"k\",
+   \"euclid.k\", \"bass.k\"); a param that names a music key (key,
+   meter) then reads `chain`, the music's contexts nearest first. What
+   none of them sets takes its default. Every value is checked against
+   its spec; throws, listing them, when a required param is unset."
   ([tree src] (run tree src nil))
   ([tree src chain]
    (let [[t specs] (resolve-tree (as-node tree))
@@ -509,19 +662,12 @@
    [tree tctx] -- blocks until Finalize; nil when the window is closed.
      (build-tree)              a new tree
      (build-tree tree)         edit an existing one
-     (build-tree tree tctx)    ... keeping its settings
-   The same with :repl first -- (build-tree :repl), (build-tree :repl
-   tree) -- composes at the REPL instead, step for step the same
-   (musics.algo.tree.builder/repl-build)."
-  [& args]
+     (build-tree tree tctx)    ... keeping its settings"
+  [& [tree tctx]]
   (registries/log! :build-tree)
-  (let [repl?       (= :repl (first args))
-        [tree tctx] (if repl? (rest args) args)
-        draft       (requiring-resolve 'musics.algo.tree.builder/draft)
-        d           (if tree (draft tree) (draft))]
-    (if repl?
-      ((requiring-resolve 'musics.algo.tree.builder/repl-build) d tctx)
-      @((requiring-resolve 'musics.gui.composer/open!) d tctx))))
+  (let [draft (requiring-resolve 'musics.algo.tree.builder/draft)
+        d     (if tree (draft tree) (draft))]
+    @((requiring-resolve 'musics.gui.composer/open!) d tctx)))
 
 (defn gui
   "A settings window (musics.gui.params): (gui tctx), (gui tree) -- a new

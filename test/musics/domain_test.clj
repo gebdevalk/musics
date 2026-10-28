@@ -1,14 +1,14 @@
 (ns ^:domain musics.domain-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.value :as v]
             [musics.domain :as d]
             [musics.common.music-elements :as el]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
 (defn- walk [text]
-  (gp/parse-domain-string text))
+  (v/read-domain text))
 
 (defn- fixture
   "Load a DSL fixture from dev-resources/fixtures -- keeps escape-heavy

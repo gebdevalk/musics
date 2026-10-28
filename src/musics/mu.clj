@@ -13,7 +13,9 @@
             [musics.mu.tools]
             [musics.mu.algos]
             [musics.mu.complete :as complete]
-            [musics.mu.library])
+            [musics.mu.library]
+            ;; commits :ROOT, with every default, before anything is read
+            [musics.mu.store])
   (:import (org.jline.keymap KeyMap)
            (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)

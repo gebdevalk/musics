@@ -5,7 +5,7 @@
 % (c4*2/3) scales it directly, inherited by every later note that
 % omits its own Duration.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 [transpose_demo:
   \motif

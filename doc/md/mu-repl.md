@@ -6,8 +6,10 @@ not Clojure data. Every input is parsed by instaparse, through a grammar
 that includes `musics.ebnf`, so musics text means in the REPL what it
 means in a `.mus` file.
 
-Decided step by step (2026-10-08) and built on branch `mu`:
-`(mu!)` runs it. Section 9 lists what is still open.
+Decided step by step (2026-10-08) and built on branch `mu`: `lein mu`
+runs it. With the GUI (`gui`) it is the program's only interface: a
+`.mus` file and the GUI editor's text are mu input too. Section 9 lists
+what is still open.
 
 ## 1. Approach
 
@@ -20,8 +22,9 @@ Decided step by step (2026-10-08) and built on branch `mu`:
   `git worktree add ../musics-frepl frepl-standby`. Worth borrowing:
   `musics/lang/runtime.clj` (stack, quotations, executing entries), the
   kernel words as a model, and the REPL loop (JLine, prompt, history).
-- **One grammar for `.mus` and mu.** The REPL grammar includes
-  `musics.ebnf`'s rules and adds only what a stack language needs.
+- **One grammar for `.mus` and mu.** `musics.ebnf` defines the
+  literals; `mu.ebnf`, appended to it, the top level (`MuInput`), the
+  one start rule for a file and the prompt alike.
 
 ## 2. What a line contains
 
@@ -47,7 +50,8 @@ refused, since bare `a` would always be the note.
 **Top level against literals.** At the top level a bare name is a word
 (`transpose`, postfix, from the stack). Inside `[ ]`, `{ }` and `^{ }`
 the text is `.mus` text, unchanged: `transpose c d ( … )` is the text
-command, `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
+command (at the top level it is refused, pointing at
+`[transpose c d ( … )]` or the word, `x c d transpose`), `\name` a variable (the value bound to it, see Memory), `:name` a reference, `c4\f` a glued
 dynamic, `!mf` an instruction. Text pasted from a `.mus` file means
 what it means in the file.
 
@@ -113,7 +117,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 - `: name … ;` defines a word. The colon needs a space after it. The
   name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
-  (`?empty`); `?name:value` is an algo's param, never a word.
+  (`?empty`). `@{ name:value }` is an algo's settings, a value of its
+  own; `?name:value` is refused (music holds `!` keys only).
 - **Locals are optional**: with a stack effect `( a b -- c )`, its
   input names are bound as locals; without one, the word is plain stack
   code. Any name may be a local, leaf letters included.
@@ -127,6 +132,13 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - a word is qualified as `ns/word` (`tool/cycle`, `duration/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
+- `"musics.algo.random" require` loads a Clojure namespace while mu runs,
+  its public functions words under its last name (`random/uniform`), or
+  under a short alias given after it (`"musics.algo.random" 'r require`,
+  `r/uniform`); a `.clj` file too (`"my/words.clj" require`, named by its
+  `ns` form). Requiring again reloads it, a file afresh, so an edit is
+  heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
+  an alias;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel` (the stack, quotations, numbers,
   binding, the repo, help, files), `tool`, `music`, `play` (playback and
@@ -159,9 +171,13 @@ followed by nothing, a duration or `*n`.
   leaf is itself, a parallel goes in whole. Only music goes in a
   literal; a number bound to a name is pushed with a bare `\name`.
 - `:=` again rebinds: what comes later sees the new value; nothing is
-  changed in place. A literal is read before its input runs, so it sees
-  bindings of earlier inputs: `'m [c d] := [\m e]` on one line is
-  refused -- use `\m` in the next input.
+  changed in place. An input's literals are read up to each `:=`, just
+  before that part runs, so `'m [c d] := [\m e]` works on one line; a
+  literal before the `:=` that binds its name is refused. After a `:=`
+  the reading starts afresh (durations, relative pitch).
+- A name bound to another (`'dp 'duration-pulse :=`) is a short
+  name for an algo param: `@{ dp:1/8 }` is read, kept and shown as
+  `@{ duration-pulse:1/8 }`.
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;
@@ -228,12 +244,12 @@ followed by nothing, a duration or `*n`.
   recalled, corrected and run again.
 - **The stack lasts the session**: leaving mu (`bye`, or Ctrl+D) and
   entering it again keeps the stack as it was.
-- **`"song.mus" load`** reads a file and commits it as the file says
-  (every named part stored), as `parse` does, unlike a literal at the
-  prompt, which waits for `R!`.
-- **Entry point**: `(mu!)` in `musics.core`, replacing today's nested
-  musics-text REPL of that name. The implementation lives in its own
-  namespace, `musics.mu`.
+- **`"song.mus" load`** runs a file as mu input on a stack of its own
+  and stores the music it leaves, each part under its name or an auto
+  id (`musics.mu.store`), unlike a literal at the prompt, which waits
+  for `R!`; its bindings and definitions stay. `.ly`, `.abc` and `.gmn`
+  are converted first. `x "x.mid" render` writes a MIDI file.
+- **Entry point**: `lein mu` (`musics.mu/-main`).
 
 ## 8. Words
 
@@ -251,8 +267,9 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
-| **defining, namespaces** | `:` `;` `use` `in` |
+| **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<`, `playing` or `<`, `hush`, `solo` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `soundfonts` (the `.sf2` files, numbered), `soundfont` (a file in quotes, or a number from `soundfonts`), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **repo** | `ids` `usages` `ctx` `defaults` |
 | **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
@@ -296,7 +313,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (rests left out); back onto a line, one per note, rests taking none: `with-volumes` `with-articulations` `with-instruments` `with-drums`, and `as-drums` (notes made drums) |
+| **access** | `first` `last` `nth` `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -334,9 +351,50 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   out, and a loop inside refused.
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
-  changes only that half product of the line. Two loops zip into a loop
-  of the notes they take to line up again: three durations against four
-  pitches give `repeat ~ [ … ]` of twelve notes.
+  changes only that half product of the line.
+- **`zip` builds leaves from their parts**: the top two, or everything
+  above a `|` mark, each part a stream in the order a leaf holds them --
+  durations, pitches (or drums), articulations, dynamics, ornaments,
+  tremolos, ties -- then overrides by key (`:volume`, `:instrument`,
+  `:pan` …). A stream a reader or an algo word gave knows its part
+  (`pitches`, `volume/walk`); a `:name` before a stream names it
+  (`:volume '[90 60]`, plurals too); the others take the free parts in
+  that order. There is one note per duration; the other parts cycle
+  under the durations and step once per note, rests included: at a rest
+  (an `r` among the durations, or a `nil` pitch) their values go
+  unused, so every part's n-th value belongs to the n-th note. A `nil`
+  writes nothing, the note keeping its context's value. Durations in a
+  loop give a loop as long as all the parts take to line up again:
+  three durations against four pitches give `repeat ~ [ … ]` of twelve
+  notes.
+
+  ```
+  | [c8 d e] durations [c e g] pitches :volume '[90 nil 50] :articulation '[:accent] zip
+  ```
+
+  A dynamic is the weight an articulation gives, so only one the text
+  can write is taken (`-20` alone, a ghost note).
+- **Onto a line**: an unnamed line (or note) among zip's inputs is
+  written on, keeping its form -- repeats, loops, nested lines,
+  instructions, bar lines. Its notes set the length; each part cycles
+  and steps once per note, a rest's value unused, and a part given
+  replaces the line's own: `[c d e f] volume/euclid zip` gives each note
+  the next volume, `| [c d e] :duration '[/8] zip` makes them eighths.
+  A line under `:name` gives only that part (`| :duration [c4 r e g]
+  '[60 62 64 65] zip`); onto a line every stream needs its part known,
+  and only one line is written on.
+- **A bundle**: without durations and pitches (or drums) `zip` gives
+  the parts as columns, each as long as it is: they cycle on their own
+  once durations join them, as loose parts do, so zipping a bundle later
+  gives what zipping its parts now gives (a color against a talea). A
+  loop stays a loop, written as a looped stream is: `'[:pitch '[60 62]
+  [~] :volume '[90 80 70]]`. An endless stream that isn't a loop is
+  taken to the longest finite part's length, and refused with nothing
+  finite beside it. `| :pitch '[60 62 64] :volume '[90 70] zip` is `'[:pitch
+  '[60 62 64] :volume '[90 70]]`. A bundle is data, so it reads back as it prints, and `zip` takes it
+  again as its parts. It can't sound: the play words, `render`, `par`,
+  `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
+  default duration.
 - **Shared with the trees, not yet one implementation**: mu's tools and
   the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
@@ -537,17 +595,21 @@ Every algo on a half-product or product shelf is a word in that shelf's
 namespace (`musics.mu.algos`, generated from the registry):
 `pitch/lorenz`, `pitch/walk-degrees`, `duration/euclid`,
 `duration/emi`, `volume/walk`, `articulation/tala`, `leaf/pocket`,
-`parallel/drums`, … — the same names as in trees. The namespaces aren't
-in use, so a word is written qualified, or after `"pitch" use`; `words`
+`parallel/drums`, … — the same names as in trees. A word is its
+algo's registry name: `euclid` is written once (its `:algo` metadata),
+`musics.algo.tree.half-products` derives `:duration/euclid` from it
+(euclid, then `pulses->durations`), and that key is the word
+`duration/euclid`. The namespaces aren't in use, so a word is written qualified, or after `"pitch" use`; `words`
 lists them with their counts, `"duration/emi" see` gives the effect,
-the doc and the `?` params.
+the doc and the settings it reads, `@{ k n … }`.
 
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
-^{ ?k:5 ?n:16 } duration/euclid          the context on top is its settings
-[c8 d4 e8] dup durations ^{ ?index:1 } duration/necklace swap pitches zip
-                                         the rhythm rotated, the pitches kept
-^{ !key:D.major ?len:4 } pitch/walk-degrees   a key param follows the music's !key:
+@{ k:5 n:16 } duration/euclid            the settings on top are its own
+[c8 d4 e8] dup durations @{ index:1 } duration/necklace swap pitches zip
+                                         the rhythm rotated, a rest's pitch unused
+[!key:D.major c d e f] '( @{ len:4 } pitch/walk-degrees zip ) :deg >
+                                         played in a line, a key param follows its !key:
 ```
 
 - **Inputs**: as many as the algo has (a source none). A line is taken
@@ -558,67 +620,28 @@ duration/euclid                          → '[3/16 3/16 1/8]
   duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
   several inputs must repeat by the same count. A repeat inside a line
   is written out, a loop inside refused.
-- **A shared seed**: `?seed:7` in the settings runs the algo on that
+- **A shared seed**: `seed:7` in the settings runs the algo on that
   random seed, so two words with one seed and one source read the same
-  run: `^{ ?seed:7 } pitch/walk` and `^{ ?seed:7 } volume/walk` rise and
+  run: `@{ seed:7 } pitch/walk` and `@{ seed:7 } volume/walk` rise and
   fall together.
-- **Onto a line**: `[c d e f] volume/euclid with-volumes` gives each
-  note the next volume (rests take none); `with-articulations` takes
-  `'[:accent :staccato]` (drums too: an accent is a drum's weight),
-  `with-instruments` programs and names (`'[40 :sea 73]`). Instruments
-  and drums are two worlds: an instrument is a program, its notes pitches;
-  a drum is a key of the kit (`!kit:brush`). `with-instruments` refuses a
-  drum and `with-drums` (`'[:kick :hhc 38]`) a note; `as-drums` turns
-  notes into drums, keeping their length, volume and accent.
-- **Settings**: a `^{ … }` on top is the algo's settings, `?name:value`
-  (`doc/md/algo-space.md`, the tctx as a context): read first, then the
-  music's own (`:ROOT`'s, so `!key:` reaches a key param), then the
-  defaults. A setting the algo doesn't read is ignored; a value out of
+- **Instruments and drums** are two worlds: an instrument is a program,
+  its notes pitches; a drum is a key of the kit (`!kit:brush`). Zipped
+  onto a line, `:instrument` (programs and names, `'[40 :sea 73]`)
+  refuses a drum and `:drum` (`'[:kick :hhc 38]`) a note; `as-drums`
+  turns notes into drums, keeping their length, volume and accent.
+  `:articulation` takes drums too: an accent is a drum's weight.
+- **Settings** are an algo's own, `@{ name:value … }` -- the tctx,
+  apart from the music's `^{ }`, which an algo word refuses. A word
+  reads, first found: an `@{ }` right before it, its own; a live
+  voice's settings (`set`); the head of the recipe it runs in, the
+  `@{ }` the recipe opens with, which reaches every word in it; then
+  the defaults. Only a key and a meter param read the music -- the
+  line a live voice plays in, `:ROOT`'s otherwise -- after the
+  settings. A setting the algo doesn't read is ignored; a value out of
   range is an error naming the word.
 - **Results**: streams come back as streams, leaves as a line, parts as
-  `{ }`. `zip` keeps a rest among an algo's durations a rest.
-
-### From Clojure
-
-mu's words are Clojure functions too (`musics.mu.words`, aliased `mu`
-in `lein repl`'s `user`), so the same vocabulary works from either
-side. A word is a function of what it takes from the stack, in mu's
-order, and returns what it leaves (nil for nothing, a vector for
-several):
-
-```clojure
-(def x (mu/mu "[c d e g]"))          ; mu runs mu text: a literal or a phrase
-(mu/retrograde x)                    ; #mu "[G4/4 E4 D4 C4]"
-(mu/R x)                             ; the short form: R I RI M H T
-(mu/= x (mu/mu "[C4 D4 E4 G4]"))     ; true: = is eq, music by its notes
-(mu/times x 3)                       ; #mu "repeat 3 [C4/4 D4 E4 G4]"
-(mu/head x 2)                        ; an optional count stays optional
-(mu/line x x) (mu/together x x)      ; [n] and {n} count their arguments
-(mu/mute x #(> (mu/pitch %) 63))     ; a Clojure fn stands in for a quotation
-(apply mu/line (take 2 (mu/elements x)))   ; clojure.core's own take, filter, map …
-(mu/play x)
-```
-
-- Every word with a Clojure name is there, but not those that only make
-  sense on mu's own stack or prompt (`dup`, `swap`, `call`, `if`,
-  `each`, `reduce`, `seq`, `par`, `use`, `clear`, …), nor those
-  clojure.core already has by name and meaning, whatever the argument
-  order (`take` `drop` `take-last` `drop-last` `take-while` `drop-while`
-  `filter` `remove` `map` `partition` `split-at` `iterate` `first`
-  `last` `nth` `count` `range` `distinct` `dedupe` `shuffle`
-  `interleave` `min` `max` `mod` `abs` `not` `int` `float`): from
-  Clojure those are Clojure's, on `(mu/elements x)` -- a value's
-  elements as a seq (a loop's endlessly) -- and `mu/line` makes music
-  of the result. `cycle` stays: on music it makes a loop. `repeat`,
-  `key`, `next` and `load` stay too: Clojure's mean something else. The signs without
-  a letter (`[~]`, `[*]`, `+`, …) are reached through their twins
-  (`cycle`, `times`) or through `mu/mu`.
-- A Clojure fn given where a quotation goes takes the top value and
-  gives its result.
-- Values print as mu prints them, tagged `#mu`: a line, a leaf, a stream
-  (an endless one by its start).
-- `musics.mu.bridge` builds the functions from mu's registry when the
-  namespace loads, so a new word is there without further work.
+  `{ }`. `zip` keeps a rest among an algo's durations a rest, its pitch
+  going unused.
 
 ### First set
 

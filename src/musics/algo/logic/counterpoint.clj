@@ -404,7 +404,7 @@
 (defn ->mus
   "A result as musics text: the voices in parallel, { [..] [..] },
    pitches absolute and spelled in the mode, ready for
-   musics.core/parse (optionally named id)."
+   musics.mu.store/read! (optionally named id)."
   ([result] (->mus result nil))
   ([{:keys [voices parts mode]} id]
    (let [ci    (first (keep-indexed (fn [i [_ k]] (when (= :cantus k) i)) parts))

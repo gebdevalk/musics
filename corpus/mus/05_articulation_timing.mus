@@ -6,7 +6,7 @@
 % Contrasted extreme-to-extreme, as suggested: portato -- staccatissimo,
 % then legato (via a slur, LilyPond-style '(' ')') -- staccato.
 
-motif = [C4/4 d e f g f e d]
+'motif [C4/4 d e f g f e d] :=
 
 [portato_vs_staccatissimo:
   !mf

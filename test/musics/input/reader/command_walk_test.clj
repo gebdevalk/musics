@@ -1,9 +1,13 @@
 (ns ^:parsing musics.input.reader.command-walk-test
   (:require [clojure.test :refer [deftest is testing are]]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.value :as v]
             [musics.domain.context :as c]
             [musics.domain :as d]
-            [musics.common.music-elements :as el]))
+            [musics.common.music-elements :as el]
+            [musics.mu.eval :as e]
+            [musics.mu.store :as store]
+            [musics.repo :as repo]
+            [musics.test-support :refer [with-fresh-session]]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
@@ -14,7 +18,7 @@
   "Parse + walk text via the grammar parser, return top-level tokens
    (the root container's direct children, keyword refs resolved)."
   [text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string text)
+  (let [{:keys [tree root-id]} (v/read-domain text)
         root (get tree root-id)]
     (mapv (partial resolve-child tree) (:children root))))
 
@@ -31,7 +35,7 @@
    they pop, which is :ROOT itself at the bare top level -- :ROOT is
    meant to be a read-only, guaranteed-value endpoint)."
   [text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string (str "[" text "]"))
+  (let [{:keys [tree root-id]} (v/read-domain (str "[" text "]"))
         root    (get tree root-id)
         wrapper (resolve-child tree (first (:children root)))]
     (mapv (partial resolve-child tree) (:children wrapper))))
@@ -121,7 +125,7 @@
 ;; (builder/deep-children!); a part referenced from outside changes as a copy.
 
 (deftest reverse-recurses-into-nested-lines
-  (let [{:keys [tree]} (gp/parse-domain-string "[verse: retrograde ( c4 [inner: d4 e4] f4 )]")
+  (let [{:keys [tree]} (v/read-domain "[verse: retrograde ( c4 [inner: d4 e4] f4 )]")
         verse (get tree :verse)
         inner (get tree :inner)]
     (is (= [65 :inner 60] (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
@@ -129,7 +133,7 @@
     (is (= [[64] [62]] (mapv :pitches (:children inner))) "and the line inside it too")))
 
 (deftest transpose-recurses-and-copies-a-reference
-  (let [{:keys [tree]} (gp/parse-domain-string "[mot: c4 d4] [song: transpose c d ( e4 [inner: f4] :mot repeat 2 [g4] )]")
+  (let [{:keys [tree]} (v/read-domain "[mot: c4 d4] [song: transpose c d ( e4 [inner: f4] :mot repeat 2 [g4] )]")
         song (get tree :song)
         [_ inner-id copy-id it] (:children song)]
     (is (= [[67]] (mapv :pitches (:children (get tree inner-id)))) "a nested line moves")
@@ -139,13 +143,12 @@
     (is (= [[69]] (mapv :pitches (:children (:source it)))) "a repeat's body moves")))
 
 (deftest a-name-inside-a-nameless-body-is-refused
-  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[retrograde ( x: c4 d4 )]" "[3:2( x: c8 d e )]" "motif = [x: c4 d4]\n[\\motif]"]]
-    (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (gp/parse-domain-string t)) t))
+  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[retrograde ( x: c4 d4 )]" "[3:2( x: c8 d e )]"]]
+    (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (v/read-domain t)) t))
   (testing "a line of its own inside it keeps its name"
-    (is (contains? (:tree (gp/parse-domain-string "[transpose c d ( [x: c4 d4] )]")) :x))
-    (is (contains? (:tree (gp/parse-domain-string "motif = [[x: c4 d4]]\n[\\motif]")) :x))))
+    (is (contains? (:tree (v/read-domain "[transpose c d ( [x: c4 d4] )]")) :x))))
 
-(defn- pitches-of [text id] (mapv (comp first :pitches) (:children (get (:tree (gp/parse-domain-string text)) id))))
+(defn- pitches-of [text id] (mapv (comp first :pitches) (:children (get (:tree (v/read-domain text)) id))))
 
 (deftest transpose-by-semitones
   (is (= [65 67] (pitches-of "[x: transpose 5 ( c4 d4 )]" :x)))
@@ -160,10 +163,10 @@
   (is (= [65 63 61 58] (pitches-of "[x: I 5 ( c4 d4 e4 g4 )]" :x)) "I5: inverted, then up 5")
   (testing "R alone is still a bar's rest"
     (is (= [:REST 64 62] (mapv #(if (= :REST (:type %)) :REST (first (:pitches %)))
-                               (:children (get (:tree (gp/parse-domain-string "[x: R1 R ( d4 e4 )]")) :x))))))
-  (is (= [true false] (mapv :tied (remove #(= 62 (first (:pitches %))) (:children (get (:tree (gp/parse-domain-string "[x: R ( c4~ c8 d4 )]")) :x)))))
+                               (:children (get (:tree (v/read-domain "[x: R1 R ( d4 e4 )]")) :x))))))
+  (is (= [true false] (mapv :tied (remove #(= 62 (first (:pitches %))) (:children (get (:tree (v/read-domain "[x: R ( c4~ c8 d4 )]")) :x)))))
       "a tie turns round with its notes")
-  (is (thrown-with-msg? Exception #"jumps" (gp/parse-domain-string "[R ( c4 d4 $ e4 DC )]"))))
+  (is (thrown-with-msg? Exception #"jumps" (v/read-domain "[R ( c4 d4 $ e4 DC )]"))))
 
 (deftest the-short-forms
   (is (= [65 67] (pitches-of "[x: TRP 5 ( c4 d4 )]" :x)) "TRP is transpose")
@@ -172,20 +175,20 @@
   (is (= #{60 62 64} (set (pitches-of "[x: SFL ( c4 d4 e4 )]" :x))) "SFL is shuffle"))
 
 (deftest choose-takes-one-weight-per-element
-  (is (= [3 1] (:weights (get (:tree (gp/parse-domain-string "[x: choose 3,1 [[c4] [d4]]]"))
-                              (first (:children (get (:tree (gp/parse-domain-string "[x: choose 3,1 [[c4] [d4]]]")) :x)))))))
-  (is (thrown-with-msg? Exception #"1 weights for 2 elements" (gp/parse-domain-string "[choose 3 [[c4] [d4]]]")))
-  (is (thrown-with-msg? Exception #"must not all be 0" (gp/parse-domain-string "[choose 0,0 [[c4] [d4]]]"))))
+  (is (= [3 1] (:weights (get (:tree (v/read-domain "[x: choose 3,1 [[c4] [d4]]]"))
+                              (first (:children (get (:tree (v/read-domain "[x: choose 3,1 [[c4] [d4]]]")) :x)))))))
+  (is (thrown-with-msg? Exception #"1 weights for 2 elements" (v/read-domain "[choose 3 [[c4] [d4]]]")))
+  (is (thrown-with-msg? Exception #"must not all be 0" (v/read-domain "[choose 0,0 [[c4] [d4]]]"))))
 
 (deftest shuffle-and-rotate-now
   (is (= #{60 62 64 65} (set (pitches-of "[x: shuffle ( c4 d4 e4 f4 )]" :x))))
   (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))
-  (is (= 1 (:rotate (get (:tree (gp/parse-domain-string "[x: rotate 1 [c4 d4]]")) (first (:children (get (:tree (gp/parse-domain-string "[x: rotate 1 [c4 d4]]")) :x))))))
+  (is (= 1 (:rotate (get (:tree (v/read-domain "[x: rotate 1 [c4 d4]]")) (first (:children (get (:tree (v/read-domain "[x: rotate 1 [c4 d4]]")) :x))))))
       "rotate n [ … ] stays a part, rotated as it plays"))
 
 (deftest reverse-refuses-a-repeat-with-endings
   (is (thrown-with-msg? Exception #"volta endings can't be played backwards"
-                        (gp/parse-domain-string "[retrograde ( c4 repeat 2 [d4 e4] volta [f4] )]"))))
+                        (v/read-domain "[retrograde ( c4 repeat 2 [d4 e4] volta [f4] )]"))))
 
 ;; ── Key-implied accidentals ─────────────────────────────────
 ;; A bare (unmarked) pitch letter resolves against the active key's own
@@ -205,7 +208,7 @@
    in a real container and this recurses into it, rather than reading
    only :ROOT's own direct children the way `tokens` does."
   [text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string text)]
+  (let [{:keys [tree root-id]} (v/read-domain text)]
     (letfn [(walk [node]
               (cond
                 (d/leaf? node)      [node]
@@ -387,7 +390,7 @@
         "m13, 11 KEPT")))
 
 (deftest chordmode-is-not-a-command
-  (is (thrown? Exception (gp/parse-domain-string "[chordmode ( C4:m7 )]")) "chord symbols stand alone: C4:m7"))
+  (is (thrown? Exception (v/read-domain "[chordmode ( C4:m7 )]")) "chord symbols stand alone: C4:m7"))
 
 (deftest a-note-without-a-quality-stays-a-note
   (is (= [60] (:pitches (first-wrapped-token "C4"))))
@@ -397,7 +400,7 @@
   (testing "A quality word the grammar's own Quality regex can't match
             is a parse error, not a silent no-op or a walk-time failure
             -- the grammar and the table are meant to agree exactly"
-    (is (thrown? Exception (gp/parse-domain-string "[C4:bogus]")))))
+    (is (thrown? Exception (v/read-domain "[C4:bogus]")))))
 
 (deftest chord-symbol-inversion-moves-existing-tone-without-duplicating
   (testing "Plain /bass, when that pitch CLASS is already part of the
@@ -519,7 +522,7 @@
     (let [t (first-wrapped-token (str "c4:" n))]
       (is (= [60] (:pitches t)) (str n " is a tremolo"))
       (is (some #(= ["tremolo" n] %) (:modifiers t)))))
-  (is (thrown? Exception (gp/parse-domain-string "[c4:12]")) "12 is neither a tremolo nor a quality"))
+  (is (thrown? Exception (v/read-domain "[c4:12]")) "12 is neither a tremolo nor a quality"))
 
 ;; ── Ornaments glued onto notes ───────────────────────────────
 
@@ -769,13 +772,13 @@
   (testing "[verse: ...] never touches the :SEQ auto-id counter -- id
             assignment is lazy (ensure-id, at pop time), so an explicit
             name means the counter slot is never even requested"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "[verse: c4 d4]")]
+    (let [{:keys [auto-ids]} (v/read-domain "[verse: c4 d4]")]
       (is (= {} auto-ids)))))
 
 (deftest unnamed-sibling-still-gets-the-first-real-slot
   (testing "A later unnamed container gets :s1, not :s2 -- the earlier
             named sibling never consumed :s1 for itself"
-    (let [{:keys [tree auto-ids]} (gp/parse-domain-string "[verse: c4 d4] [c4 d4]")]
+    (let [{:keys [tree auto-ids]} (v/read-domain "[verse: c4 d4] [c4 d4]")]
       (is (= {:SEQ 1} auto-ids))
       (is (contains? tree :s1))
       (is (not (contains? tree :s2))))))
@@ -786,7 +789,7 @@
             (the wrapping [ ] does spend exactly one, for itself --
             transpose can no longer sit bare at Program's own top
             level, see musics.ebnf's own TopElement comment)"
-    (let [{:keys [auto-ids]} (gp/parse-domain-string "[transpose c d ( c4 d4 e4 )]")]
+    (let [{:keys [auto-ids]} (v/read-domain "[transpose c d ( c4 d4 e4 )]")]
       (is (= {:SEQ 1} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
@@ -795,7 +798,7 @@
             register under a top-level id or link into the parent's own
             :children) -- but it still needs a real id of its own for
             print-structure/inspection to show"
-    (let [{:keys [tree]} (gp/parse-domain-string "[v: repeat 2 [c4 d4]]")
+    (let [{:keys [tree]} (v/read-domain "[v: repeat 2 [c4 d4]]")
           iter (first (:children (get tree :v)))]
       (is (some? (:id (:source iter)))))))
 
@@ -837,56 +840,42 @@
           "outer sequence's own context (no root fallback) sees nothing --
            !f never touched it, it's scoped to the inner Sequence alone"))))
 
-;; ── Variables (name = ( ... ) / \name) ───────────────────────
+;; ── Variables (\name, bound by mu's :=) ───────────────────────
 
-;; Grammar-native now (musics.ebnf's VarDef/VarRef), resolved in the same
-;; single top-to-bottom walk as everything else -- see walker's
-;; walk-var-def/walk-var-ref. tokens/first-token (above) only ever look at
-;; :ROOT's own children, and a VarDef is deliberately never one of those
-;; (it's stashed in the walk's :var-map, not appended anywhere) -- so
-;; these tests go through gp/parse-domain-string directly instead, the
-;; same way the auto-id tests above already do.
+(defn- read-mu
+  "Read text as a file is read (musics.mu.store/read!) into a fresh repo,
+   mu's state restored afterwards; the repo it leaves."
+  [text]
+  (let [saved @e/state]
+    (try
+      (with-fresh-session
+        (when-not (store/read! text) (throw (ex-info "didn't read" {:text text})))
+        (into {} @(repo/registry)))
+      (finally (reset! e/state saved)))))
 
-(deftest var-def-splices-flat-into-the-reference-site
-  (testing "\\motif's children land as direct siblings, not nested inside
-            a separate container -- same flat-splice shape transpose's
-            own body already gets"
-    (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = [c4 d4]\n[v: \\motif e4]")]
-      (is (= 3 (count (:children (get tree :v)))))
-      (is (every? d/leaf? (:children (get tree :v)))))))
+(deftest a-bound-name-splices-flat-into-the-reference-site
+  (let [tree (read-mu "'motif [c4 d4] := [v: \\motif e4]")]
+    (is (= 3 (count (:children (get tree :v)))))
+    (is (every? d/leaf? (:children (get tree :v))))))
 
-(deftest var-ref-before-def-is-a-walk-error
-  (testing "A variable must be defined before it's referenced -- this is
-            structural (a single walk), not just a style rule: nothing
-            is in :var-map yet for anything not yet walked"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
-          (gp/parse-domain-string "[v: \\motif]\nmotif = [c4 d4]")))))
+(deftest a-name-must-be-bound-first
+  (let [saved @e/state]
+    (try
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"bound by the := it comes before"
+                            (e/run-text [] "[v: \\motif] 'motif [c4 d4] :=")))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"nothing is bound to nope"
+                            (e/run-text [] "[v: \\nope]")))
+      (finally (reset! e/state saved)))))
 
-(deftest undefined-var-ref-is-a-walk-error
-  (testing "Referencing a variable that's never defined at all fails the
-            same way as referencing one too early"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"referenced before"
-          (gp/parse-domain-string "[v: \\nope]")))))
+(deftest rebinding-is-position-sensitive
+  (let [tree (read-mu "'motif [c4] := [a: \\motif] 'motif [d4] := [b: \\motif]")]
+    (is (= [60] (:pitches (first (:children (get tree :a))))))
+    (is (= [62] (:pitches (first (:children (get tree :b))))))))
 
-(deftest var-reassignment-is-position-sensitive
-  (testing "A later definition of the same name overwrites the map entry
-            -- since the walk is sequential, a reference sees whichever
-            value was current at that point, not always the last one"
-    (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = [c4]\n[a: \\motif]\nmotif = [d4]\n[b: \\motif]")]
-      (is (= [60] (:pitches (first (:children (get tree :a))))))
-      (is (= [62] (:pitches (first (:children (get tree :b)))))))))
-
-(deftest var-def-instruction-sticks-forward-via-replay
-  (testing "An instruction written inside a variable's own definition
-            (!f, or a note-glued \\f) reaches the reference site's
-            context and sticks forward, past the reference, exactly like
-            transpose/reverse/a grace decoration already do --
-            same builder/replay-context! mechanism"
-    (let [{:keys [tree]} (gp/parse-domain-string
-                          "motif = [!f c4 d4]\n[v: \\motif e4]")
-          vctx (:context (get tree :v))]
+(deftest a-bound-lines-instruction-sticks-forward-via-replay
+  (testing "!f inside the bound line reaches the reference site's context
+            and sticks forward, as transpose/a grace decoration do"
+    (let [vctx (:context (get (read-mu "'motif [!f c4 d4] := [v: \\motif e4]") :v))]
       (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
       (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))
 
@@ -924,7 +913,7 @@
 
 (deftest a-note-cannot-carry-a-hairpin
   (doseq [text ["[c4\\<]" "[c4\\>]" "[c4\\mf\\<]" "[c4\\mf<]" "[<c e g>4\\ff>]"]]
-    (is (thrown? clojure.lang.ExceptionInfo (gp/parse-domain-string text)) text)))
+    (is (thrown? clojure.lang.ExceptionInfo (v/read-domain text)) text)))
 
 (deftest a-crescendo-is-an-instruction
   (testing "!vol:mf< ... !vol:ff> ramps the context between the two levels"

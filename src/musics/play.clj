@@ -6,9 +6,10 @@
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
-            [musics.core :as m]
+            [musics.algo.tree :as t]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
+            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]))
 
@@ -79,7 +80,7 @@
 (defn resume!
   "Go on after pause"
   []
-  (m/resume!))
+  (engine/resume!))
 
 (defn echo!
   "Print each note as it sounds (its instrument or drum), or stop printing"
@@ -93,33 +94,84 @@
   "Play through Fluidsynth (qsynth, via VirMIDI)"
   []
   (mt/cancel-staged!)
-  (m/connect :fluidsynth))
+  (engine/connect! :fluidsynth))
 
 (defn gervill!
   "Play through Gervill, Java's own synthesizer, with FluidR3_GM"
   []
   (mt/cancel-staged!)
-  (m/connect :gervill))
+  (engine/connect! :gervill))
 
 (defn soundfonts!
   "The .sf2 files soundfont takes by number"
   []
-  (doseq [[i f] (map-indexed vector (m/soundfonts))] (println (str i "> " f))))
+  (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
 
 (defn soundfont!
   "Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
   [file-or-n]
   (when-not (or (string? file-or-n) (integer? file-or-n))
     (fail "needs a file in quotes or a number from soundfonts, got" (p/show file-or-n)))
-  (println (m/soundfont file-or-n)))
+  (println (engine/soundfont! file-or-n)))
+
+(defn- keep-javafx!
+  "JavaFX ends when its last window closes, unless told not to: then a
+   window couldn't open again. By reflection, so loading mu needs no
+   JavaFX class."
+  []
+  (clojure.lang.Reflector/invokeStaticMethod "javafx.application.Platform" "setImplicitExit" (object-array [false])))
 
 (defn gui!
   "Open musics' GUI beside mu: transport, the parts and their contexts as
    sliders, the Wall, Record MIDI; closing it leaves mu running and gui
-   opens it again"
-  []
-  (m/gui)
-  ;; JavaFX ends when its last window closes, unless told not to: then
-  ;; gui couldn't open it again. By reflection, so loading mu needs no
-  ;; JavaFX class.
-  (clojure.lang.Reflector/invokeStaticMethod "javafx.application.Platform" "setImplicitExit" (object-array [false])))
+   opens it again. With a live voice on top (:riff gui), a window of its
+   settings, a control each; with a tree (compose), its settings and a
+   preview"
+  {:mu {:optional {:x (some-fn keyword? integer? t/node?)}}}
+  ([]
+   ((requiring-resolve 'musics.gui.core/launch!) :dark)
+   (keep-javafx!))
+  ([x]
+   (if (t/node? x) (t/gui x) (t/gui (live/tctx-of "gui" x)))
+   (keep-javafx!)))
+
+;; -- live voices: a play word given a recipe (musics.mu.live) ----------------
+
+(defn set-settings!
+  "Change a live voice's settings, heard on its next note: :riff @{ k:5 } set"
+  {:mu {:names ["set"]}}
+  [voice settings]
+  (when-not (= :TCONTEXT (mt/kind settings))
+    (fail "takes a voice and settings, :riff @{ k:5 } set -- got" (p/show settings)))
+  (let [m (live/settings-of settings)]
+    (when (empty? m) (fail "the settings are empty -- write @{ k:5 }"))
+    (t/setp! (live/tctx-of "set" voice) m)))
+
+(defn unset!
+  "Leave a live voice's setting to its recipe's head and the defaults again: :riff 'k unset"
+  [voice nm]
+  (when-not (symbol? nm) (fail "takes a setting's name, 'k -- got" (p/show nm)))
+  (t/unsetp! (live/tctx-of "unset" voice) (str nm)))
+
+(defn settings!
+  "A live voice's settings: each param its recipe reads, its value, range,
+   default and what it does"
+  [voice]
+  (t/describe (live/tctx-of "settings" voice)))
+
+(defn retree!
+  "A new recipe for a live voice, its settings and position kept: '( … ) :riff retree"
+  [recipe voice]
+  (when-not (live/recipe? recipe) (fail "takes a recipe '( … ) and a live voice -- got" (p/show recipe)))
+  (live/retree! "retree" recipe voice))
+
+(defn compose
+  "The composer window: build a tree by drag and drop; Finalize leaves it
+   on the stack, a recipe for a play word (compose :riff >); with a tree,
+   edit it"
+  {:mu {:optional {:tree t/node?}}}
+  ([] (compose nil))
+  ([tree]
+   (keep-javafx!)
+   (or (first (if tree (t/build-tree tree) (t/build-tree)))
+       (fail "the composer was closed without a tree"))))

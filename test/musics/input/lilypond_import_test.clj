@@ -16,13 +16,13 @@
             [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.input.lilypond-import :as li]
-            [musics.input.grammar-parser :as gp]
+            [musics.mu.grammar :as g] [musics.mu.value :as v]
             [musics.domain.context :as c]))
 
 ;; ── Helpers ─────────────────────────────────────────────────
 
 (defn- parses? [mus-text]
-  (not (insta/failure? (gp/parse-string mus-text))))
+  (not (insta/failure? (g/parse mus-text))))
 
 (defn- root-sequence
   "Parse+walk mus-text (already run through ly-text->mus-text, so :ROOT's
@@ -33,7 +33,7 @@
    the actual top-level piece -- the wrapper's SECOND child, right after
    that assignment."
   [mus-text]
-  (let [{:keys [tree root-id]} (gp/parse-domain-string mus-text)
+  (let [{:keys [tree root-id]} (v/read-domain mus-text)
         root       (get tree root-id)
         [wrap-id]  (:children root)
         wrapper    (get tree wrap-id)
@@ -176,7 +176,7 @@
       (is (= [66 64 62] (pitches out)) "around d', then d' to e': 126 - p"))
     (is (= [63 62 60] (pitches (li/ly-text->mus-text "{ \\inversion c' g' \\relative c' { e4 f g } }")))
         "a \\relative body, as LilyPond 2.24 plays it")
-    (let [{:keys [tree root-id]} (gp/parse-domain-string (li/ly-text->mus-text "\\relative c' { \\inversion c' g' { e4 f g } }"))
+    (let [{:keys [tree root-id]} (v/read-domain (li/ly-text->mus-text "\\relative c' { \\inversion c' g' { e4 f g } }"))
           wrapper (get tree (first (:children (get tree root-id))))]
       (is (= [63 62 60] (vec (keep (comp first :pitches) (:children wrapper)))) "in \\relative too"))
     (is (str/includes? (flat (li/ly-text->mus-text "{ \\retrograde \\relative c' { c4 d e } }")) "retrograde ( c d e )")

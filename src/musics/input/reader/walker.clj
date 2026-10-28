@@ -10,7 +10,7 @@
    history (see the project root CLAUDE.md), not carried forward here.
 
    Every leaf/instruction/variable rule (Note, Pitch, Assignment,
-   VarDef, BangConst, Ramp, etc.) is unaffected by the bracket/command
+   VarRef, BangConst, Ramp, etc.) is unaffected by the bracket/command
    spelling -- that part of this file stays the same regardless of
    which era's grammar it's reading. What has no case here at all:
    :Unit/:AtomicAlgo/:ElementAlgo/:musics/algo/:Time/:Tempo/:Key (dropped
@@ -144,7 +144,7 @@
 (defn- walk-key-chain
   "Nearest-first vector of every Context still open on the walker's own
    stack right now -- same idea as respell-fn's chain (below) and
-   musics.core's full-ctx-chain, but built from the in-progress walk
+   musics.domain.resolve/full-ctx-chain, but built from the in-progress walk
    stack rather than a finished tree: pitch is resolved eagerly, note
    by note, as the walk descends, so there's no tree yet to search."
   [state]
@@ -522,64 +522,15 @@
     state))
 
 ;; ============================================================
-;; Variables (name = [ ... ] / \name)
+;; Variables (\name)
 ;; ============================================================
-;; Real grammar constructs (VarDef/VarRef), resolved in the same single
-;; top-to-bottom walk everything else uses.
-;;
-;; walk-var-def builds the value the same way a real Sequence would (its
-;; own :context, so an instruction inside it -- !f or a note-glued \f --
-;; has somewhere real to write to), then, instead of registering it,
-;; stashes {:children :context} in state's :var-map under its name and
-;; discards the scratch container. walk-var-ref looks the name up,
-;; splices the stored children in flat (same shape a tuplet's body
-;; already gets spliced in), and replays the stored context onto the
-;; current container via flat/replay-context! -- the exact mechanism
-;; already used for :CONTEXT references and for a transient command's own
-;; context, reused a third time here for the same reason: an instruction
-;; written inside src-ctx must still take effect once src-ctx itself is
-;; discarded.
-;;
-;; A variable must be defined before it's referenced (same rule LilyPond
-;; itself uses) -- not just conventionally, but structurally: this is a
-;; single walk, so nothing is in :var-map yet for anything that hasn't
-;; been walked yet. A VarRef whose name isn't there yet is a walk-time
-;; error, not a silent no-op.
+;; \name splices the children of the music bound to name (mu's := ;
+;; musics.mu.value/var-map hands them in as :var-map) flat into the
+;; current container, and replays its context onto the current one via
+;; flat/replay-context! -- the mechanism :CONTEXT references and
+;; transient commands use too.
 
 (declare walk-children)
-
-(defn- walk-var-def [state children]
-  (let [name-node (find-child children :VarName)
-        name      (when name-node (second name-node))
-        seq-node  (find-child children :Sequence)]
-    (if (and name seq-node)
-      ;; :last-pitch/:last-dur/:last-ratio/:in-slur? are shared, mutable
-      ;; atoms threaded through the WHOLE walk, not per-container state
-      ;; -- see walker's own walk-var-def for the confirmed-
-      ;; live bug this save/restore closes.
-      (let [saved-pitch @(:last-pitch state)
-            saved-dur   @(:last-dur state)
-            saved-ratio @(:last-ratio state)
-            saved-slur  @(:in-slur? state)
-            saved-drum  @(:last-drum state)
-            _           (reset! (:last-drum state) nil)
-            _           (reset! (:last-pitch state) nil)
-            _           (reset! (:last-dur state) 1/4)
-            _           (reset! (:last-ratio state) 1)
-            _           (reset! (:in-slur? state) false)
-            s1     (flat/push-container state :VARDEF)
-            s2     (walk-children s1 (rest seq-node))
-            built  (peek (:stack s2))
-            s3     (update s2 :stack pop)]
-        (reset! (:last-pitch state) saved-pitch)
-        (reset! (:last-dur state) saved-dur)
-        (reset! (:last-ratio state) saved-ratio)
-        (reset! (:in-slur? state) saved-slur)
-        (reset! (:last-drum state) saved-drum)
-        (swap! (:var-map s3) assoc name
-               {:children (:children built) :context (:context built)})
-        s3)
-      state)))
 
 (defn- walk-var-ref [state children]
   (let [name-node (find-child children :VarName)
@@ -587,8 +538,7 @@
         entry     (get @(:var-map state) name)]
     (when-not entry
       (let [[line column] (or (node-position state name-node) [nil nil])]
-        (throw (ex-info (str "Variable \"" name "\" referenced before its "
-                             "definition, or never defined"
+        (throw (ex-info (str "\\" name ": nothing is bound to " name
                              (when line (str " (line " line ", column " column ")")))
                         {:var name :line line :column column}))))
     (let [target-ctx (flat/current-context state)
@@ -601,7 +551,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare walk-algo-assignment walk-context walk-reference
+(declare walk-algo-assignment walk-settings walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
@@ -671,6 +621,11 @@
                          (-> s (update :stack pop) (flat/append-child (apply list (:children (peek (:stack s))))))
                          (flat/pop-container s)))
         :Nil         (flat/append-child state nil)
+        ;; a list inside data that loops: {:type :LOOP :items (…)}
+        :DataLoop    (let [s   (walk-element state (first (filter #(and (vector? %) (= :Data (first %))) children)))
+                           idx (dec (count (:stack s)))]
+                       (update-in s [:stack idx :children]
+                                  (fn [cs] (conj (pop cs) {:type :LOOP :items (peek cs)}))))
         ;; ---- Container identifying field (Data's `type`) ----
         ;; Wraps a bare Name and identifies the container, not its
         ;; content -- stamp it onto the container being built rather
@@ -692,7 +647,6 @@
         ;; ---- References ----
         :Reference   (walk-reference state children)
         ;; ---- Variables ----
-        :VarDef      (walk-var-def state children)
         :VarRef      (walk-var-ref state children)
         ;; ---- Comments: real, tagged nodes (see musics.ebnf's ws/
         ;; Comment) so a later parse error's position is always relative
@@ -706,6 +660,7 @@
         :BangConst    (walk-bang-const    state children)
         :Assignment   (walk-assignment    state children)
         :AlgoAssignment (walk-algo-assignment state children)
+        :Settings    (walk-settings state children)
         :KeyAssignment (walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
@@ -858,7 +813,7 @@
    into their parent, or kept as a variable's value -- by what the text
    writes."
   {:TRANSPOSE "transpose ( … )" :REVERSE "a command's ( … )" :DECORATED "grace"
-   :TUPLET "a tuplet n:m( … )" :VARDEF "a variable's [ … ]"})
+   :TUPLET "a tuplet n:m( … )"})
 
 (defn- walk-bareword
   "name: -- names the container it opens. Inside a body that is never
@@ -1089,7 +1044,7 @@
       state)))
 
 (defn- algo-value
-  "An AlgoAssignment's value as plain data: a number, a string, a
+  "A setting's value (@{ name:value }) as plain data: a number, a string, a
    keyword (a bare name), a vector (a comma list or a ( ) list)."
   [[tag v :as node]]
   (case tag
@@ -1100,18 +1055,35 @@
     :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
     :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
     :StructValue   (extract-struct-values node)
-    (throw (ex-info (str "?: not a value an algo param takes: " (pr-str node)) {:node node}))))
+    (throw (ex-info (str "@{ }: not a value an algo param takes: " (pr-str node)) {:node node}))))
 
 (defn- walk-algo-assignment
-  "?name:value -- an algo param, stored in the current context under
-   \"?name\", as a point at the current beat (one value, no ramp)."
+  "?name:value -- refused: an algo's params are @{ name:value }, apart
+   from the music's keys."
+  [_state children]
+  (let [nm (second (find-child children :AlgoName))]
+    (throw (ex-info (str "?" nm ": an algo's settings are @{ " nm ":… } -- music holds ! keys only")
+                    {:name nm}))))
+
+(defn- walk-settings
+  "@{ name:value … } -- an algo's settings: a :TCONTEXT holding :params,
+   [name value] pairs as written, and :text, the text that writes them
+   back. A short name bound to a long one (mu's 'dp 'duration-pulse :=,
+   as :param-aliases) is kept, and written back, as the long one."
   [state children]
-  (let [nm  (second (find-child children :AlgoName))
-        vn  (first (remove #(tag? % :AlgoName) children))
-        v   (algo-value vn)
-        raw (str "?" nm ":" (or (node-text state vn) (pr-str v)))]
-    (c/ctx-append (flat/current-context state) (str "?" nm) (duration state) v :fixed)
-    (flat/append-child state {:type :assignment :key (str "?" nm) :val v :raw raw})))
+  (let [ps (vec (for [c children :when (tag? c :Setting)
+                      :let [kids (rest c)
+                            nm   (second (find-child kids :AlgoName))
+                            nm   (get (:param-aliases state) nm nm)
+                            vn   (first (remove #(tag? % :AlgoName) kids))
+                            v    (algo-value vn)]]
+                  [nm v (str nm ":" (or (node-text state vn) (pr-str v)))]))
+        s  (flat/push-container state :TCONTEXT)
+        i  (dec (count (:stack s)))
+        s  (update-in s [:stack i] #(assoc (flat/ensure-id s %)
+                                           :params (mapv (fn [[n v]] [n v]) ps)
+                                           :text (str/join " " (map peek ps))))]
+    (flat/pop-container s)))
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)
@@ -1787,11 +1759,10 @@
   #{:Note :Chord :ChordSymbol :Rest :MultiRest :Drum})
 
 (defn- needs-wrapper?
-  "A bare top-level Leaf, repeat or tuplet (mu reads one): walked
-   directly, a repeat's Iterator would sit inline in :ROOT's :children
-   with no id of its own in :repo, a tuplet's notes in :ROOT itself, so
-   parse would report nothing and nothing could play it. Wrapped, it's
-   an ordinary addressable part."
+  "A bare top-level Leaf, repeat or tuplet: walked directly, a repeat's
+   Iterator would sit inline in :ROOT's :children with no id of its own
+   in :repo, a tuplet's notes in :ROOT itself, so nothing could store or
+   play it. Wrapped, it's an ordinary addressable part."
   [node]
   (and (vector? node)
        (or (contains? top-level-leaf-tags (first node)) (#{:repeat :RepeatBars :tuplet} (first node)))))
@@ -1817,12 +1788,12 @@
 
 (defn walk-each
   "Walk top-level nodes one by one in ONE walk's state -- so a later
-   node's relative pitch and elided duration follow the one before it,
-   exactly as across a Program's top-level elements -- and record, per
+   node's relative pitch and elided duration follow the one before it
+   -- and record, per
    node, the id it produced: its container's, a bare leaf's wrapper's,
    or an unnamed definition's (a ^{ } context). Returns walk's result
-   plus :ids, one per node, in order. For mu, which turns each literal
-   of an input into a value of its own."
+   plus :ids, one per node, in order: each literal of a mu input
+   becomes a value of its own."
   [nodes input session]
   (loop [st (initial-state input session) remaining (seq nodes) ids []]
     (if-let [node (first remaining)]
@@ -1835,25 +1806,3 @@
                        (written-id node))]
         (recur st' (rest remaining) (conj ids id)))
       (assoc (flat/finish st) :ids ids))))
-
-(defn walk
-  "Walk a raw instaparse tree (musics.ebnf's own) and build domain
-   objects. Returns {:tree map :root-id keyword :auto-ids map} where
-   :tree is the id->container map. input is the original parsed text
-   (for token ID extraction via insta/span). session, if given, is an
-   existing {:repo :auto-ids} to continue building onto (same :ROOT, id
-   counters picking up where they left off) instead of starting fresh.
-   A bare top-level Leaf or repeat (see musics.ebnf's TopElement) is
-   auto-wrapped in its own one-child Sequence rather than walked
-   directly -- see wrap-bare-leaf above."
-  [tree & [input session]]
-  (let [state            (initial-state input session)
-        program-children (rest tree)]
-    (loop [st state remaining (vec program-children)]
-      (if (seq remaining)
-        (let [node (first remaining)]
-          (recur (if (needs-wrapper? node)
-                   (wrap-bare-leaf st node)
-                   (walk-element st node))
-                 (rest remaining)))
-        (flat/finish st)))))

@@ -21,7 +21,7 @@
    No :ROOT seeded -- matches musics.repo/reset-all!'s own behavior
    exactly, so a test builds its own :ROOT the same way it already does
    right after (repo/reset-all!). See with-fresh-session below for the
-   musics.core-level guarantee instead."
+   musics.mu.store-level guarantee instead."
   [& body]
   `(binding [reg/*repo-registry* (atom {})
              reg/*algo-registry* (atom {})
@@ -33,8 +33,8 @@
 
 (defmacro with-fresh-session
   "Like with-fresh-registries, but ALSO seeds a real :ROOT -- the same
-   recipe musics.core/reset itself uses (builder/empty-session)
-   -- for a test that expects the musics.core-level 'a session always
+   recipe musics.mu.store/reset-all! itself uses (builder/empty-session)
+   -- for a test that expects the musics.mu.store-level 'a session always
    has :ROOT' guarantee rather than musics.repo's own bare 'nothing exists
    at all' right after reset-all!."
   [& body]

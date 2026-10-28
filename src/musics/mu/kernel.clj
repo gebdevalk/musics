@@ -6,6 +6,7 @@
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
   (:require [musics.mu.eval :as e :refer [word! need]]
+            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]))
@@ -154,42 +155,57 @@
                     "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ >"))
       (let [id (mt/voice-id word k) s (pop s)]
         (if-let [{:keys [x ctx]} (and (empty? s) (get (mt/live-voices) id))]
-          [id (cond-> [x] ctx (conj ctx))]
+          [id (cond-> (or (live/replay id) [x]) ctx (conj ctx))]
           [id s])))
     [nil s]))
 
-(word! "play" "play" "( material [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass >) starts its own music again"
-       (fn [s]
-         (let [[target s] (target-of s "play")]
-           (need s 1 "play")
-           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
-             (need s 1 "play")
-             (mt/play! (peek s) ctx false target)
-             (pop s)))))
+(defn- music-and-recipe
+  "[x recipe stack]: under the context, a recipe (a quotation, or a
+   composer's tree) and the music under it -- none when a mark | is
+   under the recipe (taken off) or nothing is -- else just the music."
+  [s word]
+  (if (and (seq s) (live/recipe? (peek s)))
+    (let [r (peek s) s (pop s)]
+      (cond (empty? s)          [nil r s]
+            (v/mark? (peek s))  [nil r (pop s)]
+            :else               [(peek s) r (pop s)]))
+    (do (need s 1 word) [(peek s) nil (pop s)])))
 
-(word! "play" "play+" "( material [^{ }] [voice] -- )  play it now, joining what plays (also >+)"
-       (fn [s]
-         (let [[target s] (target-of s "play+")]
-           (need s 1 "play+")
-           (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
-             (need s 1 "play+")
-             (mt/play! (peek s) ctx true target)
-             (pop s)))))
+(defn- play-now
+  "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."
+  [word join?]
+  (fn [s]
+    (let [[target s] (target-of s word)
+          _          (need s 1 word)
+          [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])
+          [x r s]    (music-and-recipe s word)]
+      (if r
+        (live/play! x r ctx join? target nil)
+        (mt/play! x ctx join? target))
+      s)))
+
+(word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass >) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
+       (play-now "play" false))
+
+(word! "play" "play+" "( material [recipe] [^{ }] [voice] -- )  play it now, joining what plays (also >+)"
+       (play-now "play+" true))
 
 (word! "play" ">" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
 (word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
-  "( material [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
+  "( material [recipe] [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
   [word join?]
   (fn [s]
     (let [[target s] (target-of s word)
           [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
-      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
-        (need s 1 word)
-        (mt/stage! (peek s) ctx n join? target)
-        (pop s)))))
+      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])
+            [x r s] (music-and-recipe s word)]
+        (if r
+          (live/play! x r ctx join? target [n])
+          (mt/stage! x ctx n join? target))
+        s))))
 
 (word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
        (staged-word "play-next" false))

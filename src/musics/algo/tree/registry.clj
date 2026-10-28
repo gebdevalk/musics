@@ -131,6 +131,7 @@
      :doc      (some-> (:doc m) str/split-lines first str/trim)
      :in       (vec (:in a))
      :out      (:out a :any)
+     :join     (:join a)
      :children (vec kids)
      :args     (mapv #(cond-> (select-keys % [:name :kind]) (kid? (:name %)) (assoc :kind :child)) as)
      :params   (mapv spec (concat (remove (comp kid? :name) as) (extra-params a)))
@@ -141,7 +142,7 @@
 
 (defn call
   "Apply `entry`'s fn to its children's data and param values. A
-   specialised algo (:via, musics.algo.tree.half) runs its source, then
+   specialised algo (:via, musics.algo.tree.half-products) runs its source, then
    its bridge on that; its :lift, when it has one, first turns each
    child into what the source takes (given the bridge's values).
    `source-run` (a fn of the source entry and its values) may run a
@@ -174,7 +175,7 @@
       :else  (f))))
 
 (defn register-entry!
-  "Register a ready-made entry (a specialised algo, musics.algo.tree.half)
+  "Register a ready-made entry (a specialised algo, musics.algo.tree.half-products)
    under its short and full names. Returns it."
   [{:keys [short full] :as e}]
   (when-let [other (get @by-short short)]
@@ -248,6 +249,6 @@
   "Every registered algo: short -> {:full :category :shelf :works :doc :in :out :params :via}."
   []
   (into (sorted-map)
-        (map (fn [[k e]] [k (-> (select-keys e [:full :category :works :doc :in :out :params :via])
+        (map (fn [[k e]] [k (-> (select-keys e [:full :category :works :doc :in :out :join :params :via])
                                 (assoc :shelf (shelf e)))]))
         @by-short))
