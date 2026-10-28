@@ -8,5 +8,8 @@
  ;; exposed names (euclid, indisp, tilt, ...).
  ;; musics.algo.tree/expose-ns takes namespace names as bare symbols.
  ;; musics.mu.words interns mu's words from its registry (musics.mu.bridge).
- :linters {:unresolved-var {:exclude [musics.algo.tree.lib musics.mu.words]}
+ ;; musics.engine locks on the engine's own :lock, (locking (:lock eng) …):
+ ;; one Object per engine, not a local -- clj-kondo can't tell.
+ :linters {:locking-suspicious-lock {:level :off}
+           :unresolved-var {:exclude [musics.algo.tree.lib musics.mu.words]}
            :unresolved-symbol {:exclude [(musics.algo.tree/expose-ns)]}}}

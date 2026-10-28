@@ -2,7 +2,6 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [musics.test-support :refer [with-fresh-registries with-fresh-session]]
             [musics.repo :as repo]
-            [musics.registries :as reg]
             [musics.conductor :as conductor]
             [musics.engine :as engine]
             [musics.events :as ev]

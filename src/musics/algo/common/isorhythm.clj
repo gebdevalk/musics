@@ -22,8 +22,7 @@
    zip-parts below is the N-way generalization -- any number of named,
    independently-cycling streams (not just a fixed pitch+duration
    pair), combined the same lcm-of-all-lengths way."
-  (:require [musics.domain :as d]
-            [musics.algo.common.numeric :as num]))
+  (:require [musics.algo.common.numeric :as num]))
 
 (defn color-talea
   "Combine a color (pitch sequence) and a talea (duration sequence) into

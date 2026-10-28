@@ -8,8 +8,7 @@
 ;; 2026-04-28) that already listed henon alongside logistic/lorenz as
 ;; sibling pitch-shape generators for the same "gesture" concept.
 
-(ns musics.algo.random.henon
-  (:require [musics.algo.common.scaling :as scaling]))
+(ns musics.algo.random.henon)
 
 (defn- henon-step
   "[x' y'] for the classical Hénon map at [x y], given a/b:
