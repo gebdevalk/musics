@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Parallels / Lines / QuotedName
-         / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
+         / Recipe / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -20,6 +20,19 @@ StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
 EffectIn    = (EffectName <ws>)*
 EffectOut   = (<ws> EffectName)*
 <EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+(* A recipe: an algo tree, the music's brackets with @ -- @( alias? algo
+   name:value … inputs … ) one algo, @[ … ] its inputs zipped into a
+   line, @{ … } lines side by side -- and an optional head before it,
+   @^{ … }, the settings of the whole tree (musics.recipe). Inside, a
+   name:value is a param (a leaf), a bracket or a literal an input. *)
+Recipe       = (Settings <ws>)? RecipeTree
+<RecipeTree> = RecipeNode | RecipeZip | RecipePar
+RecipeNode   = <'@('> <ws>? RecipeName (<ws> RecipeName)? (<ws> RecipeItem)* <ws>? <')'>
+RecipeZip    = <'@['> <ws>? RecipeItem (<ws> RecipeItem)* <ws>? <']'>
+RecipePar    = <'@{'> <ws>? RecipeItem (<ws> RecipeItem)* <ws>? <'}'>
+RecipeName   = #'[a-zA-Z_][a-zA-Z0-9_\-?>+]*(?:/[a-zA-Z_][a-zA-Z0-9_\-?>+]*)?(?![:.])'
+<RecipeItem> = Setting / RecipeTree / Composite / repeat / Leaf / MuNumber / StringLit
 
 (* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>

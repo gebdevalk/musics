@@ -72,7 +72,7 @@
 (defn- param-aliases
   "The bindings of a name to another name ('dp 'duration-pulse :=) as
    {\"dp\" \"duration-pulse\"}: an algo param written by its short name
-   in an @{ } is read as the long one."
+   in an @^{ } is read as the long one."
   [bindings]
   (into {} (for [[k x] bindings :when (symbol? x)] [k (str x)])))
 
@@ -105,6 +105,14 @@
                       nodes (:ids r))
         :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
+
+(defrecord Recipe [tree tctx source])
+
+(defn recipe?
+  "A recipe: an algo tree written @( ) @[ ] @{ }, its settings beside it
+   (musics.recipe)."
+  [x]
+  (instance? Recipe x))
 
 (defn node
   "A Material's own node."

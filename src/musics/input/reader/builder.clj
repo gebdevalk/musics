@@ -36,7 +36,7 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   :CONTEXT (^{ }) and :TCONTEXT (@{ }, an algo's settings)."
+   :CONTEXT (^{ }) and :TCONTEXT (@^{ }, an algo's settings)."
   #{:CONTEXT :TCONTEXT})
 
 ;; ============================================================

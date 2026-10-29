@@ -359,14 +359,14 @@
     (and (number? min) (number? v) (< v min))     (str "at least " min)
     (and (number? max) (number? v) (> v max))     (str "at most " max)))
 
-(defn- check-value! [k v spec]
+(defn check-value! [k v spec]
   (when-let [why (problem spec v)]
     (throw (ex-info (str "musics.algo.tree: " k " " (pr-str v) " should be " why
                          " (" (name (:algo spec)) (when (:doc spec) (str ", " (:doc spec))) ")")
                     {:key k :value v :spec spec}))))
 
-(defn- coerce
-  "A value as written in text (@{ key:D.major } is a keyword, on?:true too),
+(defn coerce
+  "A value as written in text (@^{ key:D.major } is a keyword, on?:true too),
    or a music key's own (a !key: is a Key), in the type `spec` wants."
   [{:keys [type]} v]
   (cond
@@ -403,14 +403,16 @@
         :else (throw (ex-info (str "musics.algo.tree: " k " is not a param of this tctx") {:key k}))))
 
 (defn- validator
-  "Checks every value against its spec; a name no param has is refused,
-   but for seed (mu's: the random seed a run starts from)."
+  "Checks every value against the spec of each param that reads its name
+   (bass.k, euclid.k, k); a name no param reads is refused, but for seed
+   (mu's: the random seed a run starts from)."
   [a]
   (fn [m]
-    (let [by-at (into {} (for [[k s] (:specs (meta a))] [(:own s) [k s]]))]
+    (let [by-name (reduce (fn [acc [k s]] (reduce #(update %1 %2 (fnil conj []) [k s]) acc (:at s)))
+                          {} (:specs (meta a)))]
       (doseq [[n v] m :when (not= "seed" n)]
-        (if-let [[k s] (by-at n)]
-          (check-value! k v s)
+        (if-let [ks (by-name n)]
+          (doseq [[k s] ks] (check-value! k (coerce s v) s))
           (throw (ex-info (str "musics.algo.tree: " n " is not a param of this tctx") {:key n}))))
       true)))
 
@@ -418,11 +420,15 @@
   (into {} (map-indexed (fn [i [k s]] [k (assoc s :order i)])) (second (resolve-tree (as-node tree)))))
 
 (defn values
-  "What a tctx sets itself, key -> value (keys it leaves to the chain or
-   to their defaults are absent)."
+  "What a tctx sets itself, key -> value: under the most specific name
+   the key is read by (bass.k, then euclid.k, then k). Keys it leaves to
+   the chain or to their defaults are absent."
   [tctx]
   (let [m @(envs tctx)]
-    (into {} (for [[k s] (specs tctx) :let [n (:own s)] :when (contains? m n)] [k (get m n)]))))
+    (into {} (for [[k s] (specs tctx)
+                   :let [hit (some #(when (contains? m %) [(get m %)]) (:at s))]
+                   :when hit]
+               [k (first hit)]))))
 
 (defn params
   "A tctx's params, key -> value: what it sets, else the default."
@@ -458,7 +464,7 @@
 
 (defn tctx
   "A new tctx for `tree`: {:params-atom a}, a holding {name value} --
-   the names a param is written under in an @{ } (\"k\", \"bass.k\") --
+   the names a param is written under in an @^{ } (\"k\", \"bass.k\") --
    set with setp!, each checked against its spec on every change. It
    holds only what is set (`overrides`, then setp!); the rest falls
    through to the other sources run is given, then to the defaults. The
@@ -531,7 +537,7 @@
 
 (defn- from-source
   "A param's value from one source of settings: a tctx, or a map keyed
-   by the tree's keys (:k, :bass/k) or by the names an @{ } writes
+   by the tree's keys (:k, :bass/k) or by the names an @^{ } writes
    (\"k\", \"bass.k\") -- the most specific name (:at) wins. [value] or nil."
   [src k {:keys [at]}]
   (let [m (if (tctx? src) @(envs src) src)]
@@ -567,7 +573,7 @@
 (defn run
   "Run `tree` with the settings in `src` -- a tctx, a plain map, or a
    vector of them nearest first (keys one lacks fall through) -- where a
-   param is its key (:k, :bass/k) or the name an @{ } writes (\"k\",
+   param is its key (:k, :bass/k) or the name an @^{ } writes (\"k\",
    \"euclid.k\", \"bass.k\"); a param that names a music key (key,
    meter) then reads `chain`, the music's contexts nearest first. What
    none of them sets takes its default. Every value is checked against

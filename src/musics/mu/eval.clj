@@ -164,19 +164,19 @@
         (run-items (subvec stack 0 n) (:body entry) {:locals locals :values (:values entry)})))))
 
 (def ^:dynamic *head*
-  "While a quotation that opens with an @{ } runs: that @{ }'s settings,
+  "While a quotation that opens with an @^{ } runs: that @^{ }'s settings,
    {name value}, read by every algo word in it (musics.mu.algos) after its
-   own local @{ } -- the recipe's head. The nearest quotation's wins."
+   own local @^{ } -- the recipe's head. The nearest quotation's wins."
   nil)
 
 (defn head-of
-  "The settings of a quotation's opening @{ }, {name value}, else nil."
+  "The settings of a quotation's opening @^{ }, {name value}, else nil."
   [{:keys [body env]}]
   (when-let [i (some-> (first body) (#(when (= :Settings (first %)) %)) meta :mu/index)]
     (into {} (:params (v/node (nth (:values env) i))))))
 
 (defn call
-  "Run a quotation on stack; one that opens with an @{ } runs with it as
+  "Run a quotation on stack; one that opens with an @^{ } runs with it as
    its head (*head*)."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
@@ -236,6 +236,8 @@
     :Retrograde (run-word stack "[R]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
+    ;; an algo tree, built by musics.recipe (which builds on what eval runs)
+    :Recipe     (conj stack ((requiring-resolve 'musics.recipe/build) node env))
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

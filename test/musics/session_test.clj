@@ -540,7 +540,7 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-algo-params
-  (parse! "@{ k:5 style:rock iv:0,2,4 key:\"D.major\" }")
+  (parse! "@^{ k:5 style:rock iv:0,2,4 key:\"D.major\" }")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (persist/write (.getPath tmp)))

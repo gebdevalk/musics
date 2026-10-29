@@ -1071,8 +1071,8 @@
                                     :val val :raw (str "!" name-val ":" (pr-str val))})))
       state)))
 
-(defn- algo-value
-  "A setting's value (@{ name:value }) as plain data: a number, a string, a
+(defn algo-value
+  "A setting's value (@^{ name:value }) as plain data: a number, a string, a
    keyword (a bare name), a vector (a comma list or a ( ) list)."
   [[tag v :as node]]
   (case tag
@@ -1083,18 +1083,18 @@
     :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
     :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
     :StructValue   (extract-struct-values node)
-    (throw (ex-info (str "@{ }: not a value an algo param takes: " (pr-str node)) {:node node}))))
+    (throw (ex-info (str "@^{ }: not a value an algo param takes: " (pr-str node)) {:node node}))))
 
 (defn- walk-algo-assignment
-  "?name:value -- refused: an algo's params are @{ name:value }, apart
+  "?name:value -- refused: an algo's params are @^{ name:value }, apart
    from the music's keys."
   [_state children]
   (let [nm (second (find-child children :AlgoName))]
-    (throw (ex-info (str "?" nm ": an algo's settings are @{ " nm ":… } -- music holds ! keys only")
+    (throw (ex-info (str "?" nm ": an algo's settings are @^{ " nm ":… } -- music holds ! keys only")
                     {:name nm}))))
 
 (defn- walk-settings
-  "@{ name:value … } -- an algo's settings: a :TCONTEXT holding :params,
+  "@^{ name:value … } -- an algo's settings: a :TCONTEXT holding :params,
    [name value] pairs as written, and :text, the text that writes them
    back. A short name bound to a long one (mu's 'dp 'duration-pulse :=,
    as :param-aliases) is kept, and written back, as the long one."

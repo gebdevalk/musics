@@ -138,7 +138,7 @@ Consequences for the aspects, decided the same day:
   indispensability at the pulse's resolution, the meter the music's
   `!Meter:` where it plays) or by its length (`:accent :agogic`, from
   the rhythm alone), so every pulse source is also `volume/euclid`,
-  `articulation/euclid`, ... (`@{ volume-accent:agogic }`).
+  `articulation/euclid`, ... (`@^{ volume-accent:agogic }`).
 - **Taking a line apart** is half done: in mu, a leaf reader on a line
   (`pitches`, `durations`, …) gives that half product as a stream, and
   `zip` puts them back (`x durations x pitches zip` is `x`), so one

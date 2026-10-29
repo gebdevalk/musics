@@ -365,15 +365,15 @@ Assignment    = <'!'> AssignName Ramp
 AssignName = #'(?!(?:Key|key|K|k)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* AlgoAssignment: ?name:value is read only to be refused -- an algo's
-   params are written in their own container, @{ name:value … }
+   params are written in their own container, @^{ name:value … }
    (Settings), never among the music's keys. *)
 AlgoAssignment = <'?'> AlgoName <':'> Value
-(* Settings: an algo's params, @{ k:5 n:16 bass.k:3 } -- a tctx, apart
+(* Settings: an algo's params, @^{ k:5 n:16 bass.k:3 } -- a tctx, apart
    from the music's ^{ }. A name may be qualified by an algo or a named
    instance (euclid.k, bass.k, pitch/walk.lo), read before the plain k.
    One value each, no ramps: an algo reads its params once per run. A
    value of mu's, not of music text: no line or ^{ } holds one. *)
-Settings       = <'@{'> ws? (Setting (ws Setting)*)? ws? <'}'>
+Settings       = <'@^{'> ws? (Setting (ws Setting)*)? ws? <'}'>
 Setting        = AlgoName <':'> Value
 AlgoName       = #'[a-zA-Z][a-zA-Z0-9_\-?]*(?:/[a-zA-Z][a-zA-Z0-9_\-?>]*)?(?:\.[a-zA-Z][a-zA-Z0-9_\-?]*)?'
 (* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks

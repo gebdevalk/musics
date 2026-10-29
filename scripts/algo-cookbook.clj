@@ -331,9 +331,9 @@
     :tree [["(def other (transpose (take> (zip (cycle> [1/8]) (cycle> scale)))))" "reads :len and :semitones too"]]
     :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
-   {:title "Settings written as @{ }, from several sources"
+   {:title "Settings written as @^{ }, from several sources"
     :tree [["riff" "from recipe 1"]]
-    :params [["(def written (into {} (:params (v/node (mt/read-text \"@{ k:5 root:67 euclid.n:16 }\")))))" "@{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
+    :params [["(def written (into {} (:params (v/node (mt/read-text \"@^{ k:5 root:67 euclid.n:16 }\")))))" "@^{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
              ["(def mine (t/tctx riff {:k 2}))" "a tctx that sets k itself"]]
     :runs [["the written settings" "riff" "written" "(t/run riff written)"]
            ["the tctx first, nearest first" "riff" "[mine written]" "(t/run riff [mine written])"]]}
@@ -371,7 +371,7 @@
     :extra [["committed" "(:ids (store/read! (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @{ } writes (\"k\"); the tree isn't stored, its specs are"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @^{ } writes (\"k\"); the tree isn't stored, its specs are"]
    ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx, a map or a vector of them nearest first, then -- for key and meter -- the music's contexts in chain, then the defaults; every value checked"]
    ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
    ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]

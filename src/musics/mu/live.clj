@@ -15,12 +15,13 @@
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
+            [musics.recipe :as recipe]
             [musics.wall :as wall]))
 
 (defn recipe?
-  "A quotation, or a tree (the composer's)."
+  "A quotation, a tree (the composer's) or a recipe @( ) (musics.recipe)."
   [x]
-  (or (v/quotation? x) (t/node? x)))
+  (or (v/quotation? x) (t/node? x) (v/recipe? x)))
 
 (defn- music? [x] (or (v/material? x) (mt/leaf? x) (mt/endless? x) (and (sequential? x) (every? mt/leaf? x))))
 
@@ -45,7 +46,10 @@
         (peek left)))))
 
 (defn- run-fn [recipe x cache]
-  (fn [tctx chain] (as-leaves (result recipe x tctx chain cache))))
+  (if (v/recipe? recipe)
+    ;; lazy all the way: the voice pulls what it plays, never more
+    (fn [tctx chain] (recipe/result recipe tctx chain))
+    (fn [tctx chain] (as-leaves (result recipe x tctx chain cache)))))
 
 (defn- empty-tctx
   "A tctx with no params yet: the recipe's algo words fit it."
@@ -66,14 +70,24 @@
   "Bind live name to recipe on x (nil: none), keeping the name's settings
    when it has some. Returns the name."
   [name recipe x]
-  (let [tctx  (or (:tctx (wall/registered name)) (empty-tctx))
+  (let [tctx  (or (:tctx (wall/registered name)) (when (v/recipe? recipe) (:tctx recipe)) (empty-tctx))
         cache (atom {})]
+    (when (v/recipe? recipe)
+      (when (some? x) (e/mu-error "a recipe @( ) makes its own notes -- play it on nothing: | @( … ) :riff >"))
+      (when-not (= :leaf (t/out-type (:tree recipe)))
+        (e/mu-error "a live voice plays a line of notes -- this recipe gives" (pr-str (t/out-type (:tree recipe))) "; run it and play what it gives"))
+      ;; a name keeps its settings: the recipe's own fill in what it doesn't set yet
+      (when-not (identical? tctx (:tctx recipe))
+        (t/fit! tctx (:tree recipe))
+        (let [set @(:params-atom tctx)
+              new (into {} (remove (fn [[n]] (contains? set n)) @(:params-atom (:tctx recipe))))]
+          (when (seq new) (t/setp! tctx new)))))
     (swap! sources assoc name {:x x :recipe recipe :cache cache})
     (tree-live/bind-run! name (run-fn recipe x cache) (p/show recipe) tctx)
     name))
 
 (defn- seed-from-head!
-  "The voice's settings take the recipe's head (the @{ } it opens with)
+  "The voice's settings take the recipe's head (the @^{ } it opens with)
    for every param it doesn't set yet, so settings and gui show them; an
    unset goes back to the head as written."
   [tctx recipe]
@@ -93,8 +107,11 @@
     (bind! name recipe x)
     (let [tctx (:tctx (wall/registered name))
           ;; run once now, so a recipe that fails is refused here, not heard
-          first-run (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves)
-          form (if (some? x) x first-run)]
+          first-run (if (v/recipe? recipe)
+                      (do (doall (take 1 (recipe/result recipe tctx nil))) nil)
+                      (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves))
+          ;; a recipe @( ) is endless: each note of an endless rest is its next one
+          form (cond (some? x) x (v/recipe? recipe) (mt/read-text "repeat ~ [r8]") :else first-run)]
       (seed-from-head! tctx recipe)
       (if staged
         (mt/stage! form ctx (first staged) join? named name)
@@ -124,7 +141,7 @@
 (defn tctx-of [word voice] (:tctx (wall/registered (live-name word voice))))
 
 (defn settings-of
-  "{\"k\" 5 …}: the settings an @{ } holds."
+  "{\"k\" 5 …}: the settings an @^{ } holds."
   [x]
   (into {} (:params (v/node x))))
 
