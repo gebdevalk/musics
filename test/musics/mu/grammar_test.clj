@@ -73,8 +73,8 @@
       "parsed, so it can be refused with a clear message")
   (is (= [:LooseInstruction] (tags "?k:5")) "?name:value is parsed only to be refused, not a word")
   (is (= [:LooseInstruction :LooseInstruction] (tags "?euclid.n:8 ?pitch/walk.lo:48")) "qualified too")
-  (is (= [:Settings] (tags "@{ k:5 euclid.n:8 pitch/walk.lo:48 }")) "an algo's settings")
-  (is (= [:Settings] (tags "@{ }")) "empty too"))
+  (is (= [:Settings] (tags "@^{ k:5 euclid.n:8 pitch/walk.lo:48 }")) "an algo's settings")
+  (is (= [:Settings] (tags "@^{ }")) "empty too"))
 
 (deftest definitions
   (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]

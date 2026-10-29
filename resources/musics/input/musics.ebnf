@@ -126,12 +126,15 @@ type        = Name
 
 (* DataElement: element for data containers *)
 <ExtendedDataElement> = Atom | Primitive | Keyword | Name
-<DataElement>         = Atom | Primitive | Nil | DataLoop | Data | Keyword
+<DataElement>         = Atom | Primitive | Nil | Idem | DataLoop | Data | Keyword
 (* nil (no value: a rest's pitch), a list inside data ('[60 64], a
    chord's pitches), a loop of one ('[60 62] [~], a bundle's column that
    repeats) and a keyword (:accent, :Sea), so a stream of values reads
    back as it prints *)
 DataLoop              = Data ws? <'[~]'>
+(* ./. inside data: idem, the value before once more ('[1/1 ./. 2/1]),
+   as in a line it is the bar before *)
+Idem                  = <'./.'>
 Nil                   = <'nil'>
 <Atom>                = Pitch | Duration | BareDuration | Articulation | BangConst | StringLit
 <Primitive>           = SignedRatio | SignedFloat | SignedInt
@@ -340,8 +343,13 @@ VarName = #'(?!(prallmordent|prallprall|lineprall|prallup|pralldown|downprall|pr
 
 Partial = <'partial'> ws Duration
 
-BangConst     = <'!'> Name
-KeyAssignment = <'!'> KeyName <':'> KeySpec
+BangConst     = <'!'> Name At?
+KeyAssignment = <'!'> KeyName <':'> KeySpec At?
+(* At: @time, a point's time in whole notes from its context's start, as
+   a timed ramp's duration counts them -- @4 four whole notes, @3/8 three
+   eighths: ^{ !vol:50< !vol:mf@3/8 !vol:90@2 }. In a line it counts from
+   the line's start too (where with puts a context's instructions). *)
+At            = <'@'> DurationExpr
 (* the key's names: K, its canonical one (capital, as T and M are for
    Tempo and Meter), Key, key and k *)
 KeyName       = 'Key' | 'key' | 'K' | 'k'
@@ -352,20 +360,20 @@ KeyName       = 'Key' | 'key' | 'K' | 'k'
    genuinely ambiguous whenever the tonic is letters-only unless this
    exclusion forces KeyAssignment to win. *)
 Assignment    = <'!'> AssignName Ramp
-              | <'!'> AssignName <':'> Value RampMark?
+              | <'!'> AssignName <':'> Value RampMark? At?
 
 AssignName = #'(?!(?:Key|key|K|k)\b)[a-zA-Z][a-zA-Z0-9_]*'
 
 (* AlgoAssignment: ?name:value is read only to be refused -- an algo's
-   params are written in their own container, @{ name:value … }
+   params are written in their own container, @^{ name:value … }
    (Settings), never among the music's keys. *)
 AlgoAssignment = <'?'> AlgoName <':'> Value
-(* Settings: an algo's params, @{ k:5 n:16 bass.k:3 } -- a tctx, apart
+(* Settings: an algo's params, @^{ k:5 n:16 bass.k:3 } -- a tctx, apart
    from the music's ^{ }. A name may be qualified by an algo or a named
    instance (euclid.k, bass.k, pitch/walk.lo), read before the plain k.
    One value each, no ramps: an algo reads its params once per run. A
    value of mu's, not of music text: no line or ^{ } holds one. *)
-Settings       = <'@{'> ws? (Setting (ws Setting)*)? ws? <'}'>
+Settings       = <'@^{'> ws? (Setting (ws Setting)*)? ws? <'}'>
 Setting        = AlgoName <':'> Value
 AlgoName       = #'[a-zA-Z][a-zA-Z0-9_\-?]*(?:/[a-zA-Z][a-zA-Z0-9_\-?>]*)?(?:\.[a-zA-Z][a-zA-Z0-9_\-?]*)?'
 (* Invalidate: counterpart of ! -- !mf sets a context value, !/mf marks

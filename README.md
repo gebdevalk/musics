@@ -53,7 +53,7 @@ them to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in
 | [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms: composing, settings, live playback |
-| [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 47 worked recipes, each run for real (on GitHub, open it locally) |
+| [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 53 worked recipes, each run for real (on GitHub, open it locally) |
 | [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: its words and design |
 | [doc/md/parsing.md](doc/md/parsing.md) | The text notation and its parser |
 | [doc/md/lilypond.md](doc/md/lilypond.md) | Coming from LilyPond: construct by construct |

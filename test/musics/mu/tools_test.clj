@@ -9,6 +9,7 @@
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.library]
+            [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.tools]
             [musics.mu.value :as v]
@@ -596,3 +597,45 @@
   (is (= 128 (count (str/split-lines (with-out-str (top "\"\" find-instrument"))))) "nothing: all of them")
   (is (= "no instrument is called or starts with \"zz\"\n" (with-out-str (top "\"zz\" find-instrument"))))
   (is (str/includes? (top "3 find-drum") "needs the start of a name")))
+
+(defn- velocities
+  "[beat velocity] of each note music x (mu text) plays."
+  [x]
+  (mapv (juxt :beat :velocity) (filter #(= :note (:kind %)) (mt/events (peek (e/run-text [] x))))))
+
+(deftest a-control-becomes-a-context
+  (testing "the steps follow each other by the durations"
+    (is (= "^{ !volume:50 !volume:70@1 !volume:90@2 }" (top "| :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx")))
+    (is (= "^{ !volume:50 !volume:70@1 !volume:90@2 }" (top "| :duration '[1/1] [~] :volume '[50 70 90] >ctx")) "a looping duration: a step a bar")
+    (is (= "^{ !Tempo:120 !Tempo:90@1/2 !panning:-1.0 !panning:1.0@1/2 }" (top "| :duration '[1/2] :Tempo '[120 90] :pan '[-1.0 1.0] >ctx")) "several keys")
+    (is (= "^{ !K:D.major !K:G.major@1 }" (top "| :duration '[1/1] :key '[\"D.major\" \"G.major\"] >ctx")) "a key"))
+  (testing "the longest finite column sets the length, the shorter ones cycle"
+    (is (= "^{ !volume:50 !volume:70@1/4 !volume:50@1/2 }" (top "| :duration '[1/4 1/4 1/4] :volume '[50 70] >ctx")))
+    (is (= "^{ !volume:50 !volume:50@1/4 !volume:50@1/2 }" (top "| :duration '[1/4 1/4 1/4] :volume '[50] [~] >ctx")) "a loop taken to it"))
+  (testing "a curve glides to the next value"
+    (is (= "^{ !volume:50< !volume:90@1 }" (top "| :duration '[1/1 2/1] :volume '[50 90] :curve '[:lin] >ctx")))
+    (is (= "^{ !volume:90>s !volume:50@1 }" (top "| :duration '[1/1] :volume '[90 50] :curve '[:smooth :step] >ctx")) "down, smooth"))
+  (testing "laid under music by with"
+    (is (= [38 38 114 114] (map second (take 4 (velocities "[c4 d e f] | :duration '[1/2] :volume '[30 90] >ctx with")))))
+    (is (apply < (map second (take 4 (velocities "[c4 d e f g] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with"))))
+        "a ramp: each note louder"))
+  (testing "refused"
+    (is (re-find #"every column loops" (top "| :duration '[1/1] [~] :volume '[50] [~] >ctx")))
+    (is (re-find #"a part of a note" (top "| :duration '[1/1] :pitch '[60] >ctx")))
+    (is (re-find #"needs :duration" (top "| :volume '[50] >ctx")))
+    (is (re-find #"needs a context key" (top "| :duration '[1/1] >ctx")))
+    (is (re-find #"a curve is step lin" (top "| :duration '[1/1] :volume '[50] :curve '[:wobble] >ctx")))))
+
+(deftest idem-in-data-is-the-value-before
+  (is (= "'[1 1 2]" (top "'[1/1 ./. 2/1]")))
+  (is (= "'[50 50 50 70]" (top "'[50 ./. ./. 70]")) "again and again")
+  (is (re-find #"idem repeats the value before it" (top "'[./. 1]")))
+  (is (= "[C4/4 D4 | ./. | E4]" (top "[c d | ./. | e]")) "in a line still the bar before"))
+
+(deftest a-point-at-a-time
+  (let [vel #(map second (take 4 (velocities %)))]
+    (is (= [38 38 114 114] (vel "[c4 d e f] ^{ !vol:30 !vol:90@1/2 } with")) "@ counts whole notes from the start")
+    (is (= [38 38 38 38] (vel "[c4 d e f] ^{ !vol:30 !vol:90@4 } with")) "@4: four whole notes")
+    (is (apply < (vel "[c4 d e f g] ^{ !vol:30< !vol:90@1 } with")) "a ramp mark glides to it")
+    (is (= [38 38 76 76] (vel "[c4 d e f] ^{ !pp !mf@1/2 } with")) "a dynamic mark too"))
+  (is (= "^{ !vol:50< !vol:mf@3/8 !vol:90@2 !K:D.major@4 }" (top "^{ !vol:50< !vol:mf@3/8 !vol:90@2 !K:D.major@4 }")) "reads back as written"))

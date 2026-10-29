@@ -116,6 +116,20 @@
 ;; stream bridges to duration
 ;; ---------------------------------------------------------------------------
 
+(defn leaves->durations
+  "Each note's duration, a rest as itself: a line's rhythm, as a line
+   taken apart gives it."
+  {:algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
+  [leaves]
+  (map #(if (d/rest? %) % (:duration %)) leaves))
+
+(defn leaves->pitches
+  "Each note's pitch -- a chord's lowest, nil for a rest or a drum -- as a
+   line taken apart gives it."
+  {:algo {:category "bridge" :in [:leaf] :out :pitch :works :value}}
+  [leaves]
+  (map #(some->> (:pitches %) seq (apply min)) leaves))
+
 (defn pulses->durations
   "Each onset lasts until the next one; a 0 lengthens the note before it,
    and 0s before the first onset are one Rest."

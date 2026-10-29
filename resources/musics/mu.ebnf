@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Parallels / Lines / QuotedName
-         / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
+         / TreeRecipe / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
 (* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
@@ -20,6 +20,20 @@ StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
 EffectIn    = (EffectName <ws>)*
 EffectOut   = (<ws> EffectName)*
 <EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+
+(* A tree recipe: an algo tree written concatenatively, as mu is --
+   @<< ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip >> (musics.recipe).
+   Inside, words build the tree on a stack of their own: an algo takes
+   the params and the 'alias lying on top, then its inputs, and pushes
+   itself; zip and par join the top two (or all above a |); dup swap
+   over rot arrange; data and numbers are leaves. ^{ … } first is the
+   head, the settings of the whole tree. No music inside: music comes
+   from the stack under the recipe. The closer >> stands alone. *)
+TreeRecipe   = <'@<<'> (<ws> TreeHead)? (<ws> TreeItem)* <ws> <'>>'>
+TreeHead     = <'^{'> <ws>? (Setting (<ws> Setting)*)? <ws>? <'}'>
+<TreeItem>   = Setting / QuotedName / Data / TreeLoop / Mark / MuNumber / StringLit / TreeWord
+TreeLoop     = <'[~]'>
+TreeWord     = #'[a-zA-Z_][a-zA-Z0-9_\-?>+]*(?:/[a-zA-Z_][a-zA-Z0-9_\-?>+]*)?(?![:.])'
 
 (* '( … ): code held, not run -- the quoted counterpart of '[ … ]. *)
 Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
@@ -78,7 +92,7 @@ Parallels = <'{'> #'[0-9]+' <'}'>
 (* [2] [3] … [n] -- the top n one after another, a line of n elements. *)
 Lines = <'['> #'[0-9]+' <']'>
 (* A word: a name or one of the symbol words, either possibly ns/…; a
-   name may start with + (+octave, say) or ?. *)
+   name may start with + (+octave, say), ? or > before a letter (>ctx). *)
 Word     = WordName | SymbolWord
 <SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\|\]|\[\|\]|\[\\\]|\[:\]|\*\*|\*|\+|-|/|\.s|\.\.|\.|<<|<>|<=|>=|:=|=|<|>|R!|R@)'
-WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*|\+[a-zA-Z][a-zA-Z0-9_\-?>+]*|\?[a-zA-Z_][a-zA-Z0-9_\-?>+]*+(?![:./]))'
+WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*|[+>][a-zA-Z][a-zA-Z0-9_\-?>+]*|\?[a-zA-Z_][a-zA-Z0-9_\-?>+]*+(?![:./]))'

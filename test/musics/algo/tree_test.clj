@@ -141,14 +141,14 @@
     (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
     (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
     (t/setp! tctx :k 5)
-    (is (= {"k" 5} @(:params-atom tctx)) "a setting is the name an @{ } writes")
+    (is (= {"k" 5} @(:params-atom tctx)) "a setting is the name an @^{ } writes")
     (is (= {:k 5} (t/values tctx)))))
 
 (deftest settings-come-from-sources-nearest-first
   (let [tctx (t/tctx riff)]
     (t/setp! tctx :k 2)
     (is (= 2 (count (t/run riff [nil tctx]))) "the tctx")
-    (is (= 5 (count (t/run riff [{"k" 5} tctx]))) "a nearer source wins: a word's own @{ } over the voice's")
+    (is (= 5 (count (t/run riff [{"k" 5} tctx]))) "a nearer source wins: a word's own @^{ } over the voice's")
     (t/unsetp! tctx :k)
     (is (= 3 (count (t/run riff [nil tctx]))) "unset again, the default"))
   (testing "the most specific name wins within a source; written values are coerced"

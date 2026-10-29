@@ -1028,3 +1028,71 @@
       base (onto-base base ps)
       (and (has :duration) (or (has :pitch) (has :drum))) (notes-of ps)
       :else (bundle-of ps))))
+
+;; -- >ctx: a control as a context ------------------------------------------------
+
+(def ^:private curve-marks
+  "A :curve column's names: how the value glides to the next point -- a
+   ramp's direction is the way the values go, these its curve letter."
+  {:step nil :lin "" :smooth "s" :in "i" :out "o"})
+
+(defn- ctx-columns
+  "[[part x] …] of what >ctx takes: a :name before each stream -- :duration,
+   :curve, or a context key (:volume, :Tempo, :pan, :Key …)."
+  [xs]
+  (loop [xs (seq xs) out []]
+    (if-let [[x & more] xs]
+      (cond
+        (not (keyword? x)) (e/mu-error ">ctx: name each stream -- :duration '[1/1 1/1] :volume '[50 90] -- got" (p/show x))
+        (empty? more)      (e/mu-error ">ctx:" (str x) "names no stream -- write it before one")
+        :else (let [part (if (#{:curve :curves} x) :curve (label-part x))]
+                (when (and (part-ranks part) (not= :duration part))
+                  (e/mu-error ">ctx: makes a context, the music's ! keys --" (str x) "is a part of a note (zip writes those)"))
+                (recur (next more) (conj out [part (first more)]))))
+      out)))
+
+(defn- instruction-text
+  "The instruction setting context key k to v, as text writes it."
+  [k v]
+  (let [text #(cond (keyword? %) (name %)
+                    (string? %)  %
+                    (sequential? %) (str/join "," %)
+                    :else (str %))]
+    (if (= :Key k)
+      (str "!K:" (if (instance? musics.common.music_elements.Key v) (el/key->str v) (text v)))
+      (str "!" (name k) ":" (text v)))))
+
+(defn control->ctx
+  "The ^{ } of a control, as >ctx takes it: :duration and one or more
+   context keys, each a stream, and an optional :curve (step lin smooth
+   in out). The steps start at 0 and follow each other by the durations;
+   each key's value holds until the next (step) or glides to it. The
+   longest finite column sets how many steps there are, a shorter one
+   cycling, a loop or an endless stream taken to that length."
+  [xs]
+  (let [cols  (ctx-columns xs)
+        ps    (streams-of cols)
+        _     (when-not (some #(= :duration (:part %)) ps) (e/mu-error ">ctx: needs :duration -- the time each value holds"))
+        _     (when-not (some #(not (#{:duration :curve} (:part %))) ps)
+                (e/mu-error ">ctx: needs a context key beside the durations -- :volume '[50 90] …"))
+        fin   (remove #(or (:endless %) (:loop %)) ps)
+        _     (when (empty? fin) (e/mu-error ">ctx: every column loops or is endless -- take some first"))
+        _     (when-let [p (first (filter #(empty? (:els %)) fin))] (e/mu-error ">ctx: no" (name (:part p)) "to take"))
+        n     (apply max (map (comp count vec :els) fin))
+        col   (into {} (for [{:keys [part els]} ps]
+                         [part (vec (take n (cycle (vec (take n els)))))]))
+        durs  (mapv #(let [d (if (rest-value? %) (:duration %) %)]
+                       (if (and (number? d) (pos? d)) d (e/mu-error ">ctx: a duration is a length, got" (p/show %))))
+                    (col :duration))
+        times (vec (reductions + 0 (butlast durs)))
+        curve #(let [c (some-> (get (col :curve) %) name keyword)]
+                 (if (contains? curve-marks (or c :step)) (curve-marks (or c :step))
+                     (e/mu-error ">ctx: a curve is step lin smooth in or out, got" (p/show (get (col :curve) %)))))
+        at    #(when (pos? %) (str "@" %))
+        instrs (for [[k vs] col :when (not (#{:duration :curve} k))
+                     i (range n) :let [v (vs i)] :when (some? v)]
+                 (let [c    (curve i)
+                       nxt  (some #(when (some? %) %) (map vs (range (inc i) n)))
+                       mark (when (and c (number? v) (number? nxt)) (str (if (< nxt v) ">" "<") c))]
+                   (str (instruction-text k v) mark (at (times i)))))]
+    (read-text (str "^{ " (str/join " " instrs) " }"))))

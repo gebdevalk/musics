@@ -81,7 +81,7 @@ is kept as `name*`):
 - **Tree and tctx are separate:** one tree runs against several tctxs,
   and `(t/fit! tctx other-tree)` prepares a tctx for another tree.
 - **Settings are their own:** a tctx holds an algo's settings under the
-  names an `@{ }` writes (`"k"`, `"euclid.k"`, `"bass.k"`), apart from
+  names an `@^{ }` writes (`"k"`, `"euclid.k"`, `"bass.k"`), apart from
   the music's context. `run` takes a tctx, a plain map, or a vector of
   them nearest first (`(t/run riff [mine written])`); a param none of
   them sets takes its default. In each the most specific name wins

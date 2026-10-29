@@ -2069,3 +2069,98 @@ exception, so a word's settings are always its local `@{ }`, the live
 voice's, the head, then the defaults. Recipes are trees already -- the
 stack builds them -- so this covers trees written as recipes; the
 composer's trees keep their tctx and naming (`bass.k`).
+
+## 2026-10-28 — An algo's results as context: >ctx, points at @time, ./. as idem in data
+
+zip lays values on notes, one per note; what changes over time --
+volume, tempo, pan, key, anything a context holds -- is a context
+instead, and an algo had no way to make one. `>ctx` turns a control, a
+`:duration` column beside one or more context keys (and an optional
+`:curve`), into a `^{ }`; the existing `with` lays it under music. No
+separate timeline type or time-aligned joint: a context already is a
+timeline, sampled at each note's onset, so the one missing piece was
+the step from values to a context. It makes a ctx only; making an
+`@{ }` from the stack belongs with modulating an algo's settings, still
+to be discussed.
+
+Time comes from durations as a column, so the durations can be
+generated too, and a fixed step is a looping one (`'[1/1] [~]`). The
+longest finite column sets the length, the shorter ones cycling --
+unlike zip, where durations count notes and so set it: here they only
+mark when values change, so none is lost by being longer. Steps first;
+ramps by the `:curve` column, written with the ramp marks a context
+already has.
+
+A `^{ }` could hold no later point: everything in it was at its start,
+so chained timed ramps overwrote one another. `@t` after an
+instruction places its point, in whole notes as a timed ramp's duration
+counts them (`@4`, `@3/8`). Spacers (`s1`, LilyPond's) were weighed:
+they are relative and need a carry-over, where `@t` maps one to one onto
+a context's points and reads alone. In a line `@t` counts from the
+line's start, where `with` writes a context's instructions.
+
+`./.` inside data is idem, the value before once more (`'[1/1 ./.
+2/1]`), expanded when read; in a line it stays the bar simile. `>ctx`
+is named as `>` reads, "to a context"; word names may now start with
+`>` before a letter, the play words `>` `>>` `>+` `>>+` unchanged.
+
+## 2026-10-29 — Recipes as a tree: @( ) @[ ] @{ } with @^{ } settings (written in RPN since, see below)
+
+An algo tree is written like music: the music domain is a Composite (a
+leaf is a part, a composite a part with parts, every part with a
+context), and the algo tree follows it -- a param is a leaf, an algo a
+composite, an input with inputs. The brackets are the music's with `@`,
+each naming what it makes: `@( )` one algo (a process, as `( )` runs now
+in mu), `@[ ]` a line (zip), `@{ }` a parallel (par), `@^{ }` the
+settings (the music's `^{ }`); the settings moved from `@{ }` to `@^{ }`
+for that. An `@( )` is written as a sequence is, a name and its parts:
+an optional alias (the key prefix, as `[bass: …]` names a sequence), the
+algo, then params and inputs in any order. `@{{ }}` for par and
+`@<< >>` were weighed and dropped once the brackets were shifted so that
+each makes its own kind.
+
+A recipe is built in three phases, each a depth-first visit, as music is
+read and played: collect every param into one flat tctx (no hierarchy),
+associate the tree with it, run with each param resolved by name at the
+moment of use, as a leaf samples its context. A flat tctx still aims a
+setting at one node by naming: the alias's name, the algo's, the plain
+one, the default. A param written in a node is a local override because
+it is collected under its specific name, not by an extra ordering rule;
+two un-aliased nodes of one algo writing one param would share that
+name, so they are refused. Collecting keeps every name with its spec, so
+the settings can all be shown and a typo is refused before running.
+
+It reuses `musics.algo.tree` (its trees, tctx, naming and live playing)
+rather than a second evaluator, and lives in `musics.recipe` beside the
+RPN recipes `'( … )` for now. The result is lazy, so an endless recipe
+plays note by note.
+
+## 2026-10-29 — Tree recipes in RPN: @<< … >>, the bracket form dropped
+
+The bracket recipes had the model right -- a Composite, three phases, a
+flat tctx resolved by name -- but not the writing: brackets made the
+tree a second, nested language beside mu's stack. A tree recipe is now
+written concatenatively, as mu is, between `@<<` and a `>>` that stands
+alone. Inside, the words build the tree on a stack of their own: an algo
+takes its inputs from the top and pushes its node; `zip`/`par` join the
+top two or all above a `|`; `dup` `swap` `over` `rot` arrange. Params and
+an alias come *before* their algo, as everything in RPN precedes what
+consumes it; the algo takes them off the top. The three phases are
+unchanged.
+
+The data is threaded by the stack, as the voice state threads the music
+through `musics.events`: no music literal is written inside a recipe.
+What the tree needs below its own stack is an input, taken from the
+stack under the recipe when it runs (its count the recipe's arity), so
+one recipe works on any music, and a generator simply takes nothing.
+Bridges (`leaves->durations`, `leaves->pitches`) take such a line apart
+into what a slot wants; the type searches leave those bridges out unless
+they start from leaves, since zipping a part on and taking it off again
+makes nothing. A `dup`'d node is one node, evaluated once per run, so
+both uses read the same draws. Settings outside a recipe stay `@^{ }`;
+one under a recipe is merged at use, as `set` is, so a recipe written
+without values runs with whatever it is given.
+
+`'( … )` stays the simple recipe: mu words run as written. Weighed and
+dropped: a simple `@( )` form beside it, a quoted `@"…"`, and a `( )`
+Forth mode.

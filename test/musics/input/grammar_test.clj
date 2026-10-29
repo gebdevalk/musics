@@ -93,7 +93,7 @@
 ;; Bracket scheme: [ ] Sequence, { } Parallel, ^{ } Context, '[ ] Data.
 ;; ( ) Scope is \transpose/\reverse's own transient body, and a VarDef's
 ;; value reuses Sequence's own [ ] directly. Unit and grammar-native
-;; AtomicAlgo/ElementAlgo (@[ ]/@{ }) no longer exist in this grammar
+;; AtomicAlgo/ElementAlgo (@[ ]/@^{ }) no longer exist in this grammar
 ;; at all -- see musics.ebnf's own header comment.
 (deftest composites-parse
   (testing "Sequence"
@@ -725,7 +725,7 @@
 
 (deftest an-algos-settings-are-a-value-of-their-own
   (let [{:keys [tree]} (v/read-domain
-                        "@{ k:5 n:16 bass.k:3 pitch/walk.lo:48 key:\"D.major\" style:rock iv:0,2,4 r:3/8 x:-0.5 rising?:true }")
+                        "@^{ k:5 n:16 bass.k:3 pitch/walk.lo:48 key:\"D.major\" style:rock iv:0,2,4 r:3/8 x:-0.5 rising?:true }")
         node (some #(when (= :TCONTEXT (:type %)) %) (vals tree))
         at   (into {} (:params node))]
     (is (= ["k" "n" "bass.k" "pitch/walk.lo"] (take 4 (map first (:params node)))) "in written order")
@@ -740,8 +740,8 @@
     (is (= :true (at "rising?")) "a name with ?")
     (is (str/starts-with? (:text node) "k:5 n:16 bass.k:3") "written back as written"))
   (testing "music holds the music's keys only"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\{ k:" (v/read-domain "[s: !tempo:90 ?k:5 c4]")))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\{ k:" (v/read-domain "^{set: ?k:5}")))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\^\{ k:" (v/read-domain "[s: !tempo:90 ?k:5 c4]")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\^\{ k:" (v/read-domain "^{set: ?k:5}")))))
 
 (deftest a-meter-as-its-factors
   (let [meter-of (fn [text] (let [{:keys [tree]} (v/read-domain text)

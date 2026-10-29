@@ -261,14 +261,21 @@ among them is written on, keeping its form, a part given replacing its
 own (`x volume/walk zip`), and without durations and pitches it gives a
 bundle, the parts as columns, each as long as it is (`'[:pitch '[60
 62 64] :volume '[90 70]]`), which zip takes again as its parts and
-which can't sound. The algos are words by what they deliver
+which can't sound. What changes over time is a context, not a note's
+part: `>ctx` (`musics.mu.material/control->ctx`) turns a control above a
+`|` -- `:duration` and one or more context keys (`:volume`, `:Tempo`,
+`:pan`, `:Key` …), each a stream, and an optional `:curve` (`step` `lin`
+`smooth` `in` `out`) -- into a `^{ }` of points at their times (`|
+:duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx` is `^{ !volume:50
+!volume:70@1 !volume:90@2 }`), the longest finite column setting how
+many steps, the shorter ones cycling; `with` lays it under a line. The algos are words by what they deliver
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
-result), an `@{ k:5 }` on top as its own settings -- an algo's settings
+result), an `@^{ k:5 }` on top as its own settings -- an algo's settings
 are a value of their own, `:TCONTEXT`, apart from the music's `^{ }`,
 which an algo word refuses -- then a live voice's (`set`), then the
-head of the recipe it runs in (the `@{ }` a quotation opens with,
+head of the recipe it runs in (the `@^{ }` a quotation opens with,
 `musics.mu.eval/*head*`, which reaches every word in it), then the
 defaults; only a key or meter param reads the music (the line a live
 voice plays in, else `:ROOT`'s); `seed:7` among them runs it on that
@@ -726,7 +733,8 @@ bridges named in the plural (`pulses->durations`, `strokes->durations`,
 :metric` by place in the music's meter or `:agogic` by length;
 `numbers->instruments`/`points->instruments`: a number's place in its
 range as one of a `:palette`, programs or General MIDI names, all 128
-when empty), each
+when empty; `leaves->durations`/`leaves->pitches`: music taken apart,
+a line under a tree recipe read as the half product a slot wants), each
 mapping a singular value bridge where one exists (`degree->pitch`,
 `number->pitch`, `number->duration`), with how it works in its
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
@@ -815,7 +823,7 @@ pitches. The builder places an algo inside its bridges the same way
 its bare name unless two different algos read it with different specs
 (then `:<short>.<name>`); a named instance's are `:<as>/<name>`. Each is
 written under a name -- `"k"`, `"euclid.k"`, `"bass.k"` -- in text
-`@{ k:5 euclid.k:3 bass.k:2 }` (see Grammar).
+`@^{ k:5 euclid.k:3 bass.k:2 }` (see Grammar).
 **The tctx** is its own shape, `{:params-atom a}`, `a` holding only what
 is set as plain values under those names; the tree's specs ride on the
 atom's metadata (`t/specs`), never the tree itself: one tree can run
@@ -891,7 +899,7 @@ occurrence), so only the words the change reaches run, and the others
 keep their random values. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready to read. `doc/html/algo-cookbook.html` (generated and
 verified by `scripts/algo-cookbook.clj`, which runs every recipe;
-printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables
+printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 53 recipes plus reference tables
 read from the registry;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).
@@ -900,6 +908,51 @@ registry's types: `find-algos` (by category, input, output, param),
 `how` (smallest trees from one type to another, `:input` for what you
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
 that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
+
+### Recipes: `musics.recipe`
+
+A tree recipe is an algo tree written concatenatively, as mu is, between
+`@<<` and a closing `>>` that stands alone -- a value of mu's
+(`musics.mu.value/Recipe`, read by `mu.ebnf`'s `TreeRecipe`, built by
+`musics.recipe/build` from mu's evaluator):
+
+```
+@<< ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip >>        a generator
+@^{ k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run          its settings given from outside
+[c8 d e f g a b c] @<< dup duration/emi zip >> run            music from the stack, changed
+```
+
+Inside, the words build the tree on a stack of their own: an algo (its
+registry name, `euclid`, `pitch/walk`, or a mu word's `shelf/name`)
+takes the params (`k:3`) and the `'alias` lying on top of it, then as
+many inputs as it has, and pushes its node, bridges put in where a type
+doesn't fit (the trees' constructors); `zip` and `par` join the top two,
+or everything above a `|`; `dup` `swap` `over` `rot` arrange, a `dup`'d
+node one node, read once per run (`:share`, `musics.algo.tree/evaluate`);
+data `'[ ]` (`'[ ] [~]` a loop), numbers and strings are leaves; a head
+`^{ }` comes first. No music is written inside: what the tree takes from
+below its own stack are its inputs (`:in0` …, their count the recipe's
+`:arity`), the values under the recipe when it runs, a line taken apart
+by the slot's type (`leaves->durations`, `leaves->pitches`). One tree
+must be left. As in the music domain, a param is a leaf and an algo a
+composite. Built in three phases: **collect** every param into one flat
+tctx -- the head's under the names it writes, a node's own under its
+specific name (`bass.k`, else `euclid.k`, so it wins over a plain `k`),
+every name checked against the specs of the params that read it (a
+typo, a value out of range, or two un-aliased nodes of one algo writing
+one param are refused); **associate** the tree with that tctx, the
+recipe value; **run**, its params resolved by the naming rule -- the
+alias's, the algo's, the plain name, the default (`musics.algo.tree`'s
+`:at` names). An `@^{ }` under a recipe is merged into a copy of its
+tctx at use (`with-settings`), checked the same way. `musics.recipe/result`
+is lazy, a `seed` in the settings starting the draws there; mu's `run`
+(`musics.mu.tools`) takes the recipe's inputs from the stack and puts a
+finite result there (a line, a `{ }`), refusing an endless one; `see`
+prints the tree it builds; a play word plays one live -- a generator
+from nothing (`| @<< … >> :riff >`), one with an input on the music
+under it -- the voice pulling the lazy result note by note, its tctx
+the voice's settings (`set`, `settings`, `gui`, the Wall). `'( … )`
+stays the simple recipe, any mu words run as written.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -1124,15 +1177,16 @@ only — no separate stage/commit step). `scripts/setup-midi-in.sh` +
 output's) system setup — a real USB keyboard needs no kernel module,
 unlike `snd-virmidi`.
 
-### Algorithm registries: not reachable from musics text
+### Algorithm registries: not reachable from music
 
-Text-level algorithm invocation isn't part of the grammar. Playback
-algorithms live entirely on the `play`/`musics.wall` side — a tree
-bound ahead of time under its own name (`musics.algo.tree/live!`)
-— never in text; see "Wall: per-voice playback algorithms" above. See
-`doc/md/decisions.md` for why (`@[ ]`/`@{ }` grammar-native invocation and
-`musics/input/algo_registry.clj` both existed once and were deliberately
-removed, not just left unreachable).
+No line or `^{ }` invokes an algorithm: music text holds music. An
+algo tree is written as a mu value of its own, a tree recipe (`@<< … >>`,
+`musics.recipe`, see "Recipes" above), and
+played by mu's play words; playback algorithms otherwise live on the
+`play`/`musics.wall` side, a tree bound under its own name
+(`musics.algo.tree/live!`). See `doc/md/decisions.md` for why an
+earlier `@[ ]`/`@{ }` invocation inside music and
+`musics/input/algo_registry.clj` were removed.
 
 `musics.algo.common.isorhythm/color-talea` and `musics.algo.common.split/
 split-leaf-voice` are two ordinary Clojure functions worth knowing by
@@ -1467,8 +1521,9 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body; the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `@{ }`    | `Settings`    | an algo's settings, `@{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }` |
-| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, a `:keyword` beside any value) |
+| `@^{ }`    | `Settings`    | an algo's settings, `@^{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }`; a recipe's head |
+| `@<< >>`  | `TreeRecipe`  | (`mu.ebnf`) an algo tree in RPN: `@<< ^{ … }? words … >>` |
+| `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 `( )` means two things, never ambiguous with each other since they're
@@ -1484,11 +1539,9 @@ parenthesized `Value` after `!name:`, is a third, textually-distinct
 use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
 
-`AtomicAlgo`/`ElementAlgo` (`@[ ]`/`@{ }`, grammar-native algorithm
-invocation) don't exist in this grammar at all — see the "Algorithm
-registries" note above for what replaced them (parameterized playback
-algorithms live entirely on the `play`/`musics.wall` side now, never in
-text). `(par ...)` is likewise not this grammar's own spelling for
+No algorithm is invoked inside music (the old `AtomicAlgo`/`ElementAlgo`
+are gone); a tree recipe, `@<< … >>`, is a mu value of its own, read
+by `mu.ebnf` -- see the "Algorithm registries" note above. `(par ...)` is likewise not this grammar's own spelling for
 anything — that's tier 3's play-arg mini-language (see "The play-arg
 mini-language" below for `musics.compose/par`, a genuinely different,
 Clojure-data-side mechanism with its own reasons for existing,
@@ -1648,8 +1701,8 @@ pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
 (a chord's next starting from its first tone, as relative chords do),
 chord-symbol roots and bass notes alike; octave 4 at the start.
 
-An algo's settings are their own value, `@{ name:value … }`
-(`Settings`), never among the music's keys: `@{ k:5 n:16 bass.k:3 }`.
+An algo's settings are their own value, `@^{ name:value … }`
+(`Settings`), never among the music's keys: `@^{ k:5 n:16 bass.k:3 }`.
 The walker (`walk-settings`) makes a `:TCONTEXT` node holding `:params`,
 `[name value]` pairs as written, and `:text`, which prints it back; it
 is a definition form like a `^{ }`, plain data that `R!` stores and
@@ -1658,11 +1711,11 @@ is a definition form like a `^{ }`, plain data that `R!` stores and
 strings, a bare name (a keyword), a comma list or a `( )` list (a
 vector). No ramps -- an algo reads its params once per run. No line or
 `^{ }` holds one: `?name:value` (`AlgoAssignment`) is parsed only to be
-refused, "an algo's settings are @{ k:… } -- music holds ! keys only".
+refused, "an algo's settings are @^{ k:… } -- music holds ! keys only".
 A name bound to another name in mu (`'dp 'duration-pulse :=`) is a
 short name: `musics.mu.value` hands such bindings to the walker as
-`:param-aliases`, and `@{ dp:1/8 }` is kept and written back as
-`@{ duration-pulse:1/8 }`. Trees read them as their settings (`t/run
+`:param-aliases`, and `@^{ dp:1/8 }` is kept and written back as
+`@^{ duration-pulse:1/8 }`. Trees read them as their settings (`t/run
 tree [local tctx head] chain`; see "Simple composition" below).
 
 A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,
@@ -1700,6 +1753,17 @@ already parses today as `Assignment`(`AssignName` "p") + `Ramp`(bare
 `DynamicMark` word (pianissimo) — a directly demonstrable ambiguity, not
 a hypothetical one. A direction is always bare (`<`/`>`, no `\`), since
 `!` already marks "this is an instruction".
+
+A point can carry its time, `@t` (`At`), after a value form --
+`!vol:mf@3/8`, `!vol:50<@1`, `!mf@1`, `!K:D.major@2` -- in whole notes
+from the start of the container it is written in, as a timed ramp's
+duration counts them (`@4` four whole notes, `@3/8` three eighths): so a
+`^{ }`, which holds no notes and had every point at its start, can hold
+values that change later, `^{ !vol:50< !vol:70@1 !vol:90@2 }`, a ramp
+mark gliding to the next point wherever its `@` puts it. The walker's
+`point-time` reads it, and `with-at` keeps it on the instruction's
+`:raw`, so the context prints back as written. In a line it counts from
+the line's start too -- where `with` puts a context's instructions.
 
 A bare (unmarked) pitch letter resolves against the active `Key`'s own
 implied accidental by default — real staff-notation behavior: under

@@ -14,8 +14,8 @@
    pitches (a chord's lowest, nil for a rest) or leaves -- and a stream
    is taken as it is; a repeat or loop around the inputs is run on what
    it repeats and put back around the result. Its settings, first found
-   wins: an @{ k:5 n:16 } on top, its own; a live voice's (set); the
-   head of the recipe it runs in, the @{ } it opens with
+   wins: an @^{ k:5 n:16 } on top, its own; a live voice's (set); the
+   head of the recipe it runs in, the @^{ } it opens with
    (musics.mu.eval/*head*); for a param that names a music key (key,
    meter), the music's (a live voice's chain, :ROOT's: !key:); the
    defaults. seed:7 among them runs the algo on that random seed, so two
@@ -24,7 +24,7 @@
    parts as { }.
 
      duration/euclid                    ( -- durations )
-     @{ k:5 n:16 } duration/euclid      ( settings -- durations )
+     @^{ k:5 n:16 } duration/euclid      ( settings -- durations )
      [c8 d e f g] durations duration/emi ( durations -- durations )"
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
@@ -41,7 +41,7 @@
 (def ^:dynamic *live*
   "While a live voice's recipe runs (musics.mu.live): {:tctx t :chain c
    :cache a :seen s} -- every algo word reads t's settings after its own
-   @{ } (t is fitted to its tree, so it knows every param the recipe
+   @^{ } (t is fitted to its tree, so it knows every param the recipe
    reads), then the recipe's head, then -- for key and meter -- c (the
    music the voice plays in) and :ROOT's, then the defaults. a (an atom, kept across runs) holds each word's last
    result, by the word and how many times it ran before in this run (s,
@@ -100,12 +100,12 @@
     (if (sequential? v) (mt/as-part out (apply list v)) v)))
 
 (defn- settings
-  "[stack local]: an @{ } on top is the word's own settings, {name value};
+  "[stack local]: an @^{ } on top is the word's own settings, {name value};
    a ^{ } there is the music's, refused."
   [word s]
   (case (when (seq s) (mt/kind (peek s)))
     :TCONTEXT [(pop s) (into {} (:params (v/node (peek s))))]
-    :CONTEXT  (e/mu-error (str word ":") "^{ } is the music's -- an algo's settings are @{ k:5 }")
+    :CONTEXT  (e/mu-error (str word ":") "^{ } is the music's -- an algo's settings are @^{ k:5 }")
     [s nil]))
 
 (defn- around
@@ -148,11 +148,11 @@
    :leaf "line" :part "parallel"})
 
 (defn- effect
-  "The stack effect and what the word is: ( durations [@{ … }] --
-   durations )  its doc  @{ its params }."
+  "The stack effect and what the word is: ( durations [@^{ … }] --
+   durations )  its doc  @^{ its params }."
   [{:keys [in out doc params]}]
-  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[@{ … }] -- " (plural out (name out)) " )  "
-       doc "  @{ " (str/join " " (map #(name (:name %)) params)) " }"))
+  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[@^{ … }] -- " (plural out (name out)) " )  "
+       doc "  @^{ " (str/join " " (map #(name (:name %)) params)) " }"))
 
 (defn register-all!
   "A word for every algo on a shelf in `shelves`. Returns how many."

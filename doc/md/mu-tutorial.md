@@ -660,22 +660,22 @@ says what one does and which settings it reads:
 
 ```
 "duration/euclid" see
-duration/euclid ( [@{ … }] -- durations )
-  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @{ k n rotation duration-pulse }
+duration/euclid ( [@^{ … }] -- durations )
+  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @^{ k n rotation duration-pulse }
 ```
 
-A source takes nothing from the stack. Settings on top, `@{ … }`, are
+A source takes nothing from the stack. Settings on top, `@^{ … }`, are
 its own, each written `name:value` -- an algo's settings, kept apart
 from the music's `^{ }`:
 
 ```
 duration/euclid                                        → '[3/16 3/16 1/8]
-@{ k:5 n:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
-@{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
+@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
                                                        → [C4/4. E4 G4/4]
 ```
 
-Three beats among eight eighths is the tresillo. A setting the `@{ }`
+Three beats among eight eighths is the tresillo. A setting the `@^{ }`
 doesn't give takes the algo's default. Only two settings read the
 music, a key and a meter: played in a line, an algo that turns scale
 steps into pitches plays in the line's `!key:`.
@@ -685,7 +685,7 @@ apart into what it wants: durations, pitches or the notes themselves.
 `duration/necklace` gives a rotation of a rhythm on its grid:
 
 ```
-[c4. d8 e4] durations @{ index:1 duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
                                                        → '[r4 1/8 1/4 1/8]
 ```
 
@@ -694,9 +694,9 @@ works on what the loop repeats -- so a loop of a rhythm varied is a
 loop of the varied rhythm, ready to zip with a loop of pitches:
 
 ```
-[c4. d8 e4] [~] durations @{ index:1 duration-pulse:1/8 } duration/necklace
+[c4. d8 e4] [~] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
     → '[r4 1/8 1/4 1/8] [~]
-@{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
+@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```
 
@@ -711,7 +711,7 @@ line's form. With eight beats among eight eighths, `volume/euclid`
 gives the meter's accents:
 
 ```
-[c8 d e f g a b c] @{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
+[c8 d e f g a b c] @^{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
@@ -727,13 +727,36 @@ it lacks -- a contour with its dynamics waiting for a rhythm -- and
 
 A bundle can't sound: playing it is refused, saying what it lacks.
 
+What changes over time -- volume, tempo, panning, the key -- isn't a
+part of each note but a context, `^{ }`. `>ctx` makes one from a
+control: above a `|` mark, `:duration` and one or more context keys,
+each a stream. Each value holds from where the durations put it until
+the next:
+
+```
+| :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx    → ^{ !volume:50 !volume:70@1 !volume:90@2 }
+```
+
+`./.` in data is idem, the value before once more, and `@1` after an
+instruction puts its point a whole note from the start (`@3/8` three
+eighths in). A looping duration gives a step of that length each time,
+`'[1/1] [~]` a new value every bar, and the longest finite column sets
+how many steps there are, the shorter ones cycling. With `:curve '[:lin]`
+(or `:smooth`, `:in`, `:out`; `:step` holds) each value glides to the
+next. `with` lays the context under a line:
+
+```
+[c4 d e f g a b c] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with >
+| :duration '[1/4] [~] @^{ len:8 } volume/uniform :volume swap >ctx    an algo's volumes, a new one each quarter
+```
+
 A long setting name gets a short one with `:=`, a name bound to a
-name: from then on the short one is read as the long one in an `@{ }`,
+name: from then on the short one is read as the long one in an `@^{ }`,
 which keeps, and shows, the long one:
 
 ```
 'vp 'volume-pulse :=
-@{ vp:1/8 }                       → @{ volume-pulse:1/8 }
+@^{ vp:1/8 }                       → @^{ volume-pulse:1/8 }
 ```
 
 A random algo runs differently each time. `seed:7` in its settings
@@ -742,8 +765,8 @@ the same run -- a walk heard as pitch and as volume, rising and
 falling together:
 
 ```
-@{ seed:7 len:6 } pitch/walk     → '[48 48 48 53 60 60]
-@{ seed:7 len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+@^{ seed:7 len:6 } pitch/walk     → '[48 48 48 53 60 60]
+@^{ seed:7 len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
 ```
 
 ### Noise, masks, rows and automata
@@ -754,17 +777,17 @@ range, a walk (brown) drifts; `boundary:reflect` bounces it off its
 clip bounds, given as its pitch range too:
 
 ```
-[c8] [~] durations @{ len:16 } pitch/uniform zip >
-[c8] [~] durations @{ len:16 dice:5 } pitch/pink zip >
-[c8] [~] durations @{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip >
-@{ seed:4 len:16 } duration/pink @{ seed:5 len:16 } pitch/pink zip >
+[c8] [~] durations @^{ len:16 } pitch/uniform zip >
+[c8] [~] durations @^{ len:16 dice:5 } pitch/pink zip >
+[c8] [~] durations @^{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip >
+@^{ seed:4 len:16 } duration/pink @^{ seed:5 len:16 } pitch/pink zip >
 ```
 
 A tendency mask draws between two bounds that move, here closing from
 48..84 onto 66 (`lo-start lo-end hi-start hi-end`):
 
 ```
-[c16] [~] durations @{ len:32 } pitch/tendency zip >
+[c16] [~] durations @^{ len:32 } pitch/tendency zip >
 ```
 
 `pitch/row-classes` is a twelve-tone row (`kind:allInterval`: every
@@ -773,9 +796,9 @@ seed reads one row, so it can be rhythm too -- Babbitt's time points --
 and volume:
 
 ```
-@{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
-@{ seed:3 kind:allInterval } duration/row-time-points @{ seed:3 kind:allInterval } pitch/row-classes zip >
-@{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip >
+@^{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + >
+@^{ seed:3 kind:allInterval } duration/row-time-points @^{ seed:3 kind:allInterval } pitch/row-classes zip >
+@^{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @^{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip >
 ```
 
 `duration/ca` is a cellular automaton, a bar of `width` pulses per
@@ -783,8 +806,8 @@ generation (`rule:90` Sierpinski, `30` chaos, `110` structure,
 `start:random`), as notes or drums:
 
 ```
-@{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
-@{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
+@^{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip >
+@^{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums >
 ```
 
 ### Chords and a walking bass
@@ -830,7 +853,7 @@ settings changes what you hear on the next note, without starting over.
   settings too.
 
 ```
-:riff @{ k:5 } set        five beats instead of the default three, heard at once
+:riff @^{ k:5 } set        five beats instead of the default three, heard at once
 :riff settings             every setting the recipe's algos read: value, range, default
 :riff 'k unset             back to the recipe's head or the default
 '( duration/euclid [c e g a] pitches shuffle zip [~] ) :riff retree    a new recipe, the same settings, the voice going on
@@ -838,15 +861,15 @@ settings changes what you hear on the next note, without starting over.
 :riff stop
 ```
 
-A recipe that opens with an `@{ }` has it as its head: it reaches every
+A recipe that opens with an `@^{ }` has it as its head: it reaches every
 algo word in the recipe, and it is what `settings` shows and `set`
-changes. An `@{ }` right before one word is that word's alone, winning
+changes. An `@^{ }` right before one word is that word's alone, winning
 over the head. A setting given with `set` comes before the head as
 written; `unset` goes back to it. The voice keeps its place, so a change
 goes on from where it is, not from the start.
 
 ```
-| '( @{ seed:7 len:16 } duration/euclid pitch/walk zip @{ len:8 } volume/walk zip [~] ) :swell >
+| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell >
 ```
 
 Here `seed` and `len` reach every word, and `volume/walk` alone reads
@@ -858,6 +881,18 @@ the music's notes as the recipe changes them:
 ```
 [c d e g] [~] '( 5 + ) :up >     the loop a fourth higher
 '( 7 + ) :up retree              … now a fifth, from the next note
+```
+
+A recipe can also be a tree, written between `@<<` and `>>` in RPN: each
+algo takes its inputs from the recipe's own stack, its settings written
+right before it, `zip` joins the top two (the algo tree tutorial,
+section 8, has the rest). No music is written inside; a tree that needs
+music takes it from under the recipe:
+
+```
+| @<< '[1/8] [~] scale [~] zip >> :sc >                     from nothing
+[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> :vol >   on the music under it
+@^{ k:5 } @<< duration/euclid '[60] [~] zip >> run          settings from outside; run puts a finite one on the stack
 ```
 
 All play words take a recipe: `>>` from the next boundary (`| '( … ) ||

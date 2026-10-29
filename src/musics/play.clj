@@ -138,13 +138,13 @@
 ;; -- live voices: a play word given a recipe (musics.mu.live) ----------------
 
 (defn set-settings!
-  "Change a live voice's settings, heard on its next note: :riff @{ k:5 } set"
+  "Change a live voice's settings, heard on its next note: :riff @^{ k:5 } set"
   {:mu {:names ["set"]}}
   [voice settings]
   (when-not (= :TCONTEXT (mt/kind settings))
-    (fail "takes a voice and settings, :riff @{ k:5 } set -- got" (p/show settings)))
+    (fail "takes a voice and settings, :riff @^{ k:5 } set -- got" (p/show settings)))
   (let [m (live/settings-of settings)]
-    (when (empty? m) (fail "the settings are empty -- write @{ k:5 }"))
+    (when (empty? m) (fail "the settings are empty -- write @^{ k:5 }"))
     (t/setp! (live/tctx-of "set" voice) m)))
 
 (defn unset!
