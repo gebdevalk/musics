@@ -28,8 +28,9 @@
     (is (every? #(some #{:input} (flatten %)) trees))
     (is (every? #(= :leaf (t/out-type (t/as-node (lt/->tree %)))) trees))
     (is (seq (t/run (lt/->tree (first trees)) {:input [1 0 1 1]})) "it runs on your input"))
+  (is (= [[:leaves->pitches :input]] (map vec (lt/how :leaf :pitch 1))) "music taken apart")
   (testing "no bridge answers quickly, empty"
-    (is (empty? (lt/how :leaf :pitch 1)))))
+    (is (empty? (lt/how :pitch :pulse 1)))))
 
 (deftest feeds-why-not-examples-surprise
   (is (= :pulses->durations (some #{:pulses->durations} (lt/feeds :pulse))))

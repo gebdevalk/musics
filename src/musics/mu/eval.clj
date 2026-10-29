@@ -237,7 +237,7 @@
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
     ;; an algo tree, built by musics.recipe (which builds on what eval runs)
-    :Recipe     (conj stack ((requiring-resolve 'musics.recipe/build) node env))
+    :TreeRecipe (conj stack ((requiring-resolve 'musics.recipe/build) node env))
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

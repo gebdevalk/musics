@@ -69,9 +69,14 @@
         m))))
 
 (defn- entries
-  "The registry as [short entry] pairs, sorted by name."
-  []
-  (:entries (cached)))
+  "The registry as [short entry] pairs, sorted by name -- for a chain
+   from `from`, without the bridges that take a leaf apart unless it
+   starts with leaves: a chain that zips a part on and takes it off
+   again makes nothing (leaves->pitches)."
+  ([] (:entries (cached)))
+  ([from]
+   (cond->> (entries)
+     (not= :leaf from) (remove #(let [{:keys [in out]} (val %)] (and (= [:leaf] in) (not= :leaf out)))))))
 
 (defn- algoo
   "short is one of es (registry pairs), with input types ins and output
@@ -291,7 +296,7 @@
    with :input for what you have (->tree / show)."
   ([from to] (how from to 5))
   ([from to n]
-   (let [es (entries)]
+   (let [es (entries from)]
      ;; a depth no type chain reaches is skipped, not searched
      (smallest n 3 #(if (reachable? es %1 from to) (bridgeo es %1 %2 to from) fail)))))
 
@@ -322,7 +327,7 @@
    only: what doc/md/bridge-table.md tabulates."
   ([from to] (steps from to 4))
   ([from to max-steps]
-   (let [es (entries)]
+   (let [es (entries from)]
      (first (filter #(reachable? es % from to) (range 0 (inc max-steps)))))))
 
 (defn feeds

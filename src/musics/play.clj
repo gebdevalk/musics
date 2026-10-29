@@ -11,9 +11,7 @@
             [musics.mu.eval :as e]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
-            [musics.mu.print :as p]
-            [musics.mu.value :as v]
-            [musics.recipe :as recipe]))
+            [musics.mu.print :as p]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
@@ -166,24 +164,6 @@
   [recipe voice]
   (when-not (live/recipe? recipe) (fail "takes a recipe '( … ) and a live voice -- got" (p/show recipe)))
   (live/retree! "retree" recipe voice))
-
-(defn run
-  "A recipe's result on the stack: a line, a { } for a par, a stream
-   otherwise -- refused when it is endless (play it, or take some):
-   @( cycle> '[1/8] ) … run"
-  [r]
-  (when-not (v/recipe? r) (fail "takes a recipe @( ) @[ ] @{ } -- got" (p/show r)))
-  (let [out  (t/out-type (:tree r))
-        x    (recipe/result r)
-        cut  (fn [xs] (let [h (vec (take 10001 xs))]
-                        (when (> (count h) 10000) (fail "the recipe is endless -- play it, or take some (@( take> … ))"))
-                        h))]
-    (cond
-      (= :leaf out) (mt/line (cut x))
-      (= :part out) (mt/par-of (map #(mt/line (cut %)) x))
-      (t/bundle-type? out) (fail "the recipe gives a bundle" (pr-str out) "-- zip it with durations and pitches")
-      (sequential? x) (mt/as-part out (apply list (cut x)))
-      :else x)))
 
 (defn compose
   "The composer window: build a tree by drag and drop; Finalize leaves it

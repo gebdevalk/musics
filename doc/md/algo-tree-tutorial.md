@@ -299,37 +299,68 @@ A random algo's `seed` is a setting like any other: in the head
 
 ## 8. A recipe as a tree
 
-A recipe can also be written as a tree, with the music's brackets and
-`@` before them. `@( … )` is one algo: an optional alias, the algo, then
-its params (`k:3`) and its inputs, in any order. `@[ … ]` zips its inputs
-into a line, `@{ … }` puts lines side by side, and `@^{ … }` before the
-tree holds the settings for all of it:
+A recipe can also be a tree, written in RPN between `@<<` and `>>`. Inside,
+the words build the tree on a stack of their own: an algo takes as many
+inputs as it has from the top and pushes itself, `zip` joins the top two
+(`par` puts them side by side), and the params (`k:3`) and an alias
+(`'bass`) go right *before* the algo they belong to. A `^{ }` first holds
+the settings for all of it:
 
 ```
-@^{ seed:7 } @[ @( duration/euclid k:3 n:8 ) @( pitch/walk len:8 ) ] run
-    → [C3/8. C3 C3/8]
-@[ [c e g] @( duration/euclid k:3 n:8 ) ] run       → [C4/8. E4 G4/8]
-@{ @[ '[1/4] '[60] ] @[ '[1/8] '[72 74] ] } run     → {[C4/4] [C5/8]}
+@<< ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip >> run   → [C3/8. C3 C3/8]
+@<< k:3 n:8 euclid '[60 64 67] [~] zip >> run                         → [C4/8. E4 G4/8]
+@<< '[1/4] '[60] zip '[1/8] '[72 74] zip par >> run                   → {[C4/4] [C5/8]}
 ```
 
-A param written in an `@( )` is that node's own; the head's reaches every
-node that reads that name. Which value a node gets is decided by name,
-most specific first: its alias's (`bass.k`), its algo's (`duration/euclid.k`),
-the plain one (`k`), then the default:
+A bridge goes in where a type doesn't fit, as in a composer tree; `see`
+shows the tree a recipe builds:
 
 ```
-@^{ k:5 } @[ @( duration/euclid ) @( cycle> '[60] ) ] run count           → 5
-@^{ k:5 } @[ @( duration/euclid k:2 ) @( cycle> '[60] ) ] run count       → 2
-@^{ k:5 bass.k:6 } @[ @( bass duration/euclid ) @( cycle> '[60] ) ] run count → 6
+@<< euclid lorenz zip >> see
+  builds (zip (pulses->durations (euclid)) (points->pitches (lorenz)))
 ```
+
+A param written before an algo is that node's own; the head's reaches
+every node that reads that name. Which value a node gets is decided by
+name, most specific first: its alias's (`bass.k`), its algo's
+(`duration/euclid.k`), the plain one (`k`), then the default:
+
+```
+@<< ^{ k:5 } duration/euclid '[60] [~] zip >> run count                → 5
+@<< ^{ k:5 } k:2 duration/euclid '[60] [~] zip >> run count            → 2
+@<< ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip >> run count → 6
+```
+
+The settings can also come from outside, an `@^{ }` right under the
+recipe, so one recipe runs with different ones:
+
+```
+@^{ seed:7 k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run   → [C3/8. C3 C3/8]
+```
+
+No music is written inside: music comes from the stack under the recipe.
+What the tree needs below its own stack is taken from there when it runs,
+a line taken apart into what the slot wants:
+
+```
+[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> run
+    → [C4/4\volume:44.0 D4\volume:76.0 E4\volume:44.0]
+[c8 d e f g a b c] @<< dup duration/emi zip >> run      the line, its rhythm varied
+```
+
+`dup` (and `swap` `over` `rot`) arrange the stack; a `dup`'d algo is one
+node, run once, so `len:8 uniform dup numbers->pitches swap
+numbers->volumes …` gives pitch and volume from the same draws.
 
 `run` puts the result on the stack. A recipe is lazy, so an endless one
-is refused there and played instead, live and from nothing; its settings
-are the voice's:
+is refused there and played instead, live; its settings are the voice's.
+A recipe that takes nothing plays from nothing, one that takes music
+plays on the music under it:
 
 ```
-| @[ @( cycle> '[1/8] ) @( cycle> @( scale ) ) ] :sc >
+| @<< '[1/8] [~] scale [~] zip >> :sc >
 :sc @^{ root:62 } set
+[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> :vol >
 ```
 
 ## 9. The GUI

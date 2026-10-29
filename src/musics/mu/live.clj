@@ -19,7 +19,7 @@
             [musics.wall :as wall]))
 
 (defn recipe?
-  "A quotation, a tree (the composer's) or a recipe @( ) (musics.recipe)."
+  "A quotation, a tree (the composer's) or a tree recipe @<< … >> (musics.recipe)."
   [x]
   (or (v/quotation? x) (t/node? x) (v/recipe? x)))
 
@@ -48,7 +48,7 @@
 (defn- run-fn [recipe x cache]
   (if (v/recipe? recipe)
     ;; lazy all the way: the voice pulls what it plays, never more
-    (fn [tctx chain] (recipe/result recipe tctx chain))
+    (fn [tctx chain] (recipe/result recipe tctx chain (when (some? x) [x])))
     (fn [tctx chain] (as-leaves (result recipe x tctx chain cache)))))
 
 (defn- empty-tctx
@@ -73,7 +73,10 @@
   (let [tctx  (or (:tctx (wall/registered name)) (when (v/recipe? recipe) (:tctx recipe)) (empty-tctx))
         cache (atom {})]
     (when (v/recipe? recipe)
-      (when (some? x) (e/mu-error "a recipe @( ) makes its own notes -- play it on nothing: | @( … ) :riff >"))
+      (case (:arity recipe)
+        0 (when (some? x) (e/mu-error "this recipe takes nothing from the stack, it makes its own notes -- play it on nothing: | @<< … >> :riff >"))
+        1 (when (nil? x) (e/mu-error "this recipe changes music: give it the music under it, x @<< … >> :riff >"))
+        (e/mu-error "a live voice plays one line -- this recipe takes" (:arity recipe) "from the stack; run it"))
       (when-not (= :leaf (t/out-type (:tree recipe)))
         (e/mu-error "a live voice plays a line of notes -- this recipe gives" (pr-str (t/out-type (:tree recipe))) "; run it and play what it gives"))
       ;; a name keeps its settings: the recipe's own fill in what it doesn't set yet
@@ -108,9 +111,9 @@
     (let [tctx (:tctx (wall/registered name))
           ;; run once now, so a recipe that fails is refused here, not heard
           first-run (if (v/recipe? recipe)
-                      (do (doall (take 1 (recipe/result recipe tctx nil))) nil)
+                      (do (doall (take 1 (recipe/result recipe tctx nil (when (some? x) [x])))) nil)
                       (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves))
-          ;; a recipe @( ) is endless: each note of an endless rest is its next one
+          ;; a tree recipe @<< >> is endless: each note of an endless rest is its next one
           form (cond (some? x) x (v/recipe? recipe) (mt/read-text "repeat ~ [r8]") :else first-run)]
       (seed-from-head! tctx recipe)
       (if staged

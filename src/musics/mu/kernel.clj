@@ -165,7 +165,11 @@
    under the recipe (taken off) or nothing is -- else just the music."
   [s word]
   (if (and (seq s) (live/recipe? (peek s)))
-    (let [r (peek s) s (pop s)]
+    (let [r (peek s) s (pop s)
+          ;; a tree recipe takes settings given before it, @^{ … } @<< … >>
+          [r s] (if (and (v/recipe? r) (seq s) (= :TCONTEXT (mt/kind (peek s))))
+                  [((requiring-resolve 'musics.recipe/with-settings) r (into {} (:params (v/node (peek s))))) (pop s)]
+                  [r s])]
       (cond (empty? s)          [nil r s]
             (v/mark? (peek s))  [nil r (pop s)]
             :else               [(peek s) r (pop s)]))

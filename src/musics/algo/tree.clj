@@ -520,7 +520,20 @@
           (get @*runs* k)
           (let [v (reg/call source [] vs)] (swap! *runs* assoc k v) v))))))
 
-(defn- evaluate [n vals]
+(declare evaluate*)
+
+(defn- evaluate
+  "A node's result. A node marked :share (one node used twice, mu's dup
+   in a recipe) is evaluated once per run, so both uses read one result."
+  [n vals]
+  (if-let [sid (and *runs* (:share n))]
+    (let [k [::share sid]]
+      (if (contains? @*runs* k)
+        (get @*runs* k)
+        (let [v (evaluate* n vals)] (swap! *runs* assoc k v) v)))
+    (evaluate* n vals)))
+
+(defn- evaluate* [n vals]
   (case (:kind n)
     :literal (:value n)
     :param   (get vals (:key n))

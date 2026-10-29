@@ -2104,7 +2104,7 @@ line's start, where `with` writes a context's instructions.
 is named as `>` reads, "to a context"; word names may now start with
 `>` before a letter, the play words `>` `>>` `>+` `>>+` unchanged.
 
-## 2026-10-29 — Recipes as a tree: @( ) @[ ] @{ } with @^{ } settings
+## 2026-10-29 — Recipes as a tree: @( ) @[ ] @{ } with @^{ } settings (written in RPN since, see below)
 
 An algo tree is written like music: the music domain is a Composite (a
 leaf is a part, a composite a part with parts, every part with a
@@ -2134,3 +2134,33 @@ It reuses `musics.algo.tree` (its trees, tctx, naming and live playing)
 rather than a second evaluator, and lives in `musics.recipe` beside the
 RPN recipes `'( … )` for now. The result is lazy, so an endless recipe
 plays note by note.
+
+## 2026-10-29 — Tree recipes in RPN: @<< … >>, the bracket form dropped
+
+The bracket recipes had the model right -- a Composite, three phases, a
+flat tctx resolved by name -- but not the writing: brackets made the
+tree a second, nested language beside mu's stack. A tree recipe is now
+written concatenatively, as mu is, between `@<<` and a `>>` that stands
+alone. Inside, the words build the tree on a stack of their own: an algo
+takes its inputs from the top and pushes its node; `zip`/`par` join the
+top two or all above a `|`; `dup` `swap` `over` `rot` arrange. Params and
+an alias come *before* their algo, as everything in RPN precedes what
+consumes it; the algo takes them off the top. The three phases are
+unchanged.
+
+The data is threaded by the stack, as the voice state threads the music
+through `musics.events`: no music literal is written inside a recipe.
+What the tree needs below its own stack is an input, taken from the
+stack under the recipe when it runs (its count the recipe's arity), so
+one recipe works on any music, and a generator simply takes nothing.
+Bridges (`leaves->durations`, `leaves->pitches`) take such a line apart
+into what a slot wants; the type searches leave those bridges out unless
+they start from leaves, since zipping a part on and taking it off again
+makes nothing. A `dup`'d node is one node, evaluated once per run, so
+both uses read the same draws. Settings outside a recipe stay `@^{ }`;
+one under a recipe is merged at use, as `set` is, so a recipe written
+without values runs with whatever it is given.
+
+`'( … )` stays the simple recipe: mu words run as written. Weighed and
+dropped: a simple `@( )` form beside it, a quoted `@"…"`, and a `( )`
+Forth mode.

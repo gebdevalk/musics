@@ -129,11 +129,17 @@
   (run "[!key:D.major c d e] '( @^{ start:0.0 step-bound:0.0 len:3 } pitch/walk-degrees zip ) :deg >")
   (is (= 62 (first (pitches "[!key:D.major c d e]" :deg))) "!key: of the line reaches the bridge's key: D major's tonic"))
 
-(deftest a-recipe-plays-live-and-set-changes-it
-  (run "| @[ @( cycle> '[1/8] ) @( cycle> @( scale ) ) ] :sc >")
+(deftest a-tree-recipe-plays-live-and-set-changes-it
+  (run "| @<< '[1/8] [~] scale [~] zip >> :sc >")
   (is (= :sc (:algo (engine/voice-at :sc))))
   (is (= [60 62 64] (pitches "[c d e]" :sc)) "each note the next the recipe gives, lazily")
   (run ":sc @^{ root:62 } set")
   (is (= 62 (:root (t/params (live/tctx-of "set" :sc)))) "its settings are the voice's")
-  (is (re-find #"makes its own notes" (try (run "[c d] @( cycle> '[1/8] ) :x >") (catch Exception ex (ex-message ex))))
-      "a recipe plays on nothing"))
+  (is (re-find #"takes nothing" (try (run "[c d] @<< '[1/8] [~] scale [~] zip >> :x >") (catch Exception ex (ex-message ex))))
+      "a generator plays on nothing"))
+
+(deftest a-tree-recipe-plays-on-the-music-under-it
+  (run "[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> :vol >")
+  (is (= :vol (:algo (engine/voice-at :vol))))
+  (is (= [60 62 64] (pitches "[c d e]" :vol)) "the music's own notes")
+  (is (= 2 (count (distinct (map :velocity (notes "[c d e]" :vol))))) "with the recipe's volumes on them"))

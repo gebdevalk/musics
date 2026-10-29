@@ -204,15 +204,19 @@
 
 (defn see!
   "Show a word: its stack effect and what it does -- \"dup\" see, or
-   'dup see, '[R] see"
+   'dup see, '[R] see; a tree recipe: the tree it builds, bridges put in"
   [word]
+  (if (v/recipe? word)
+    ;; a tree recipe: as written, and the tree it builds, bridges put in
+    (println (:source word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
+             (str "\n  takes " (:arity word) " from the stack under it"))
   (let [n (name-of word) entry (e/lookup @e/state n)]
     (println (cond (nil? entry) (str "unknown word: " n)
                    (:source entry) (:source entry)
                    :else (let [[_ eff what] (re-matches #"(?s)(\(.*?\))\s\s(.*)" (str (:effect entry)))]
                            (if eff
                              (str n " " eff "\n  " what)
-                             (str n " " (:effect entry))))))))
+                             (str n " " (:effect entry)))))))))
 
 (defn- file-text
   "The musics text of the file at path: a .mus file as it is, LilyPond

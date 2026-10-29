@@ -910,39 +910,48 @@ that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
 ### Recipes: `musics.recipe`
 
-A recipe is an algo tree written with the music's brackets, `@` before
-them, a value of mu's (`musics.mu.value/Recipe`, read by `mu.ebnf`'s
-`Recipe`, built by `musics.recipe/build` from mu's evaluator):
+A tree recipe is an algo tree written concatenatively, as mu is, between
+`@<<` and a closing `>>` that stands alone -- a value of mu's
+(`musics.mu.value/Recipe`, read by `mu.ebnf`'s `TreeRecipe`, built by
+`musics.recipe/build` from mu's evaluator):
 
 ```
-@^{ seed:7 }                                          the head: settings for the whole tree
-@[ @( pulses->durations @( euclid k:3 n:8 ) )         zip: its inputs into a line
-   @( bass pitch/walk len:8 ) ]                       one algo: alias? algo name:value … inputs …
-@{ line line … }                                      par: lines side by side
+@<< ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip >>        a generator
+@^{ k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run          its settings given from outside
+[c8 d e f g a b c] @<< dup duration/emi zip >> run            music from the stack, changed
 ```
 
-As in the music domain, a param is a leaf and an algo a composite, an
-input that has inputs: inside an `@( )`, after an optional alias and
-the algo (its registry name, `euclid`, `pitch/walk`, or a mu word's
-`shelf/name`), params (`k:3`) and inputs (a nested bracket, or a plain
-value -- data, a line taken apart into what the slot wants, a number)
-come in any order. Built in three phases, each depth first: **collect**
-every param into one flat tctx -- the head's under the names it writes,
-a node's own under its specific name (`bass.k`, else `euclid.k`, so it
-wins over the head's plain `k`), every name checked against the specs
-of the params that read it (a typo, a value out of range, or two
-un-aliased nodes of one algo writing one param are refused); **associate**
-the tree with that tctx, the recipe value; **run**, each algo after its
-inputs, its params resolved by the naming rule -- the alias's, the
-algo's, the plain name, the default (`musics.algo.tree`'s `:at` names).
-The tree is a `musics.algo.tree` tree (`@[ ]` its `zip`, `@{ }` its
-`parts`/`+part`), the tctx its tctx. `musics.recipe/result` is lazy, a
-`seed` in the settings starting the draws there; mu's `run` puts a
-finite result on the stack (a line, a `{ }`), refusing an endless one;
-a play word plays one live from nothing (`| @( … ) :riff >`), the voice
-pulling the lazy result note by note, its tctx the voice's settings
-(`set`, `settings`, `gui`, the Wall). It sits beside the RPN recipes
-`'( … )` for now.
+Inside, the words build the tree on a stack of their own: an algo (its
+registry name, `euclid`, `pitch/walk`, or a mu word's `shelf/name`)
+takes the params (`k:3`) and the `'alias` lying on top of it, then as
+many inputs as it has, and pushes its node, bridges put in where a type
+doesn't fit (the trees' constructors); `zip` and `par` join the top two,
+or everything above a `|`; `dup` `swap` `over` `rot` arrange, a `dup`'d
+node one node, read once per run (`:share`, `musics.algo.tree/evaluate`);
+data `'[ ]` (`'[ ] [~]` a loop), numbers and strings are leaves; a head
+`^{ }` comes first. No music is written inside: what the tree takes from
+below its own stack are its inputs (`:in0` …, their count the recipe's
+`:arity`), the values under the recipe when it runs, a line taken apart
+by the slot's type (`leaves->durations`, `leaves->pitches`). One tree
+must be left. As in the music domain, a param is a leaf and an algo a
+composite. Built in three phases: **collect** every param into one flat
+tctx -- the head's under the names it writes, a node's own under its
+specific name (`bass.k`, else `euclid.k`, so it wins over a plain `k`),
+every name checked against the specs of the params that read it (a
+typo, a value out of range, or two un-aliased nodes of one algo writing
+one param are refused); **associate** the tree with that tctx, the
+recipe value; **run**, its params resolved by the naming rule -- the
+alias's, the algo's, the plain name, the default (`musics.algo.tree`'s
+`:at` names). An `@^{ }` under a recipe is merged into a copy of its
+tctx at use (`with-settings`), checked the same way. `musics.recipe/result`
+is lazy, a `seed` in the settings starting the draws there; mu's `run`
+(`musics.mu.tools`) takes the recipe's inputs from the stack and puts a
+finite result there (a line, a `{ }`), refusing an endless one; `see`
+prints the tree it builds; a play word plays one live -- a generator
+from nothing (`| @<< … >> :riff >`), one with an input on the music
+under it -- the voice pulling the lazy result note by note, its tctx
+the voice's settings (`set`, `settings`, `gui`, the Wall). `'( … )`
+stays the simple recipe, any mu words run as written.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -1170,8 +1179,8 @@ unlike `snd-virmidi`.
 ### Algorithm registries: not reachable from music
 
 No line or `^{ }` invokes an algorithm: music text holds music. An
-algo tree is written as a mu value of its own, a recipe (`@( )` `@[ ]`
-`@{ }` with its head `@^{ }`, `musics.recipe`, see "Recipes" below), and
+algo tree is written as a mu value of its own, a tree recipe (`@<< … >>`,
+`musics.recipe`, see "Recipes" above), and
 played by mu's play words; playback algorithms otherwise live on the
 `play`/`musics.wall` side, a tree bound under its own name
 (`musics.algo.tree/live!`). See `doc/md/decisions.md` for why an
@@ -1512,9 +1521,7 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `@^{ }`    | `Settings`    | an algo's settings, `@^{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }`; a recipe's head |
-| `@( )`    | `RecipeNode`  | (`mu.ebnf`) one algo of a recipe: `@( alias? algo name:value … inputs … )` |
-| `@[ ]`    | `RecipeZip`   | (`mu.ebnf`) a recipe's inputs zipped into a line |
-| `@{ }`    | `RecipePar`   | (`mu.ebnf`) a recipe's lines side by side |
+| `@<< >>`  | `TreeRecipe`  | (`mu.ebnf`) an algo tree in RPN: `@<< ^{ … }? words … >>` |
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
@@ -1532,7 +1539,7 @@ use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
 
 No algorithm is invoked inside music (the old `AtomicAlgo`/`ElementAlgo`
-are gone); a recipe, `@( )` `@[ ]` `@{ }`, is a mu value of its own, read
+are gone); a tree recipe, `@<< … >>`, is a mu value of its own, read
 by `mu.ebnf` -- see the "Algorithm registries" note above. `(par ...)` is likewise not this grammar's own spelling for
 anything — that's tier 3's play-arg mini-language (see "The play-arg
 mini-language" below for `musics.compose/par`, a genuinely different,

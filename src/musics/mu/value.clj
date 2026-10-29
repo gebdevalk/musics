@@ -106,11 +106,11 @@
         :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
 
-(defrecord Recipe [tree tctx source])
+(defrecord Recipe [tree tctx source arity])
 
 (defn recipe?
-  "A recipe: an algo tree written @( ) @[ ] @{ }, its settings beside it
-   (musics.recipe)."
+  "A tree recipe, @<< … >>: an algo tree, its settings beside it and how
+   many inputs it takes from the stack under it (musics.recipe)."
   [x]
   (instance? Recipe x))
 
