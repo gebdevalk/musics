@@ -563,7 +563,7 @@ a :pulse into :pitch within 3 levels").
 **Self-writing examples.** `t/examples` runs each found tree with
 default settings (`t/run`) and shows the first few values, like a
 cookbook recipe. `scripts/algo-cookbook.clj` could use it to propose
-recipes for algos the 47 recipes don't cover yet. A person still picks
+recipes for algos the 53 recipes don't cover yet. A person still picks
 and annotates the good ones.
 
 **A guided exercise mode.** Take a random valid tree, remove one node,

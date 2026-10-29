@@ -733,7 +733,8 @@ bridges named in the plural (`pulses->durations`, `strokes->durations`,
 :metric` by place in the music's meter or `:agogic` by length;
 `numbers->instruments`/`points->instruments`: a number's place in its
 range as one of a `:palette`, programs or General MIDI names, all 128
-when empty), each
+when empty; `leaves->durations`/`leaves->pitches`: music taken apart,
+a line under a tree recipe read as the half product a slot wants), each
 mapping a singular value bridge where one exists (`degree->pitch`,
 `number->pitch`, `number->duration`), with how it works in its
 metadata (`:works` -- `:value` and `:shape` are lazy, `:whole` reads a
@@ -898,7 +899,7 @@ occurrence), so only the words the change reaches run, and the others
 keep their random values. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
 text, ready to read. `doc/html/algo-cookbook.html` (generated and
 verified by `scripts/algo-cookbook.clj`, which runs every recipe;
-printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 47 recipes plus reference tables
+printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 53 recipes plus reference tables
 read from the registry;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).

@@ -65,62 +65,75 @@ other inputs of those algos may come from anywhere. `·` the same type,
 
 | from \ to | articulation | duration | index | instrument | leaf | model | number | onset | part | pitch | point | pulse | stroke | volume | weight |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| **articulation** | · | – | – | – | 1 | – | – | – | – | – | – | – | – | – | – |
-| **duration** | – | · | – | – | 1 | – | – | – | – | – | – | – | – | – | – |
+| **articulation** | · | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
+| **duration** | – | · | – | – | 1 | – | – | – | 2 | – | – | – | – | – | – |
 | **index** | – | – | · | – | – | – | – | – | – | – | – | – | – | – | – |
-| **instrument** | – | – | – | · | 1 | – | – | – | – | – | – | – | – | – | – |
-| **leaf** | – | – | – | – | · | – | – | – | – | – | – | – | – | – | – |
+| **instrument** | – | – | – | · | – | – | – | – | – | – | – | – | – | – | – |
+| **leaf** | – | 1 | – | – | · | 2 | – | – | 1 | 1 | – | – | – | – | – |
 | **model** | – | – | – | – | 2 | · | – | – | 2 | 1 | – | – | – | – | – |
-| **number** | 3 | 1 | 3 | – | 1 | 2 | · | 2 | 2 | 1 | – | 1 | 2 | 3 | 2 |
-| **onset** | – | 1 | – | – | 2 | – | – | · | – | – | – | – | – | – | – |
-| **part** | – | – | – | – | – | – | – | – | · | – | – | – | – | – | – |
+| **number** | 2 | 1 | 2 | 1 | 2 | 2 | · | 2 | 2 | 1 | – | 1 | 2 | 1 | 1 |
+| **onset** | – | 1 | – | – | 2 | – | – | · | 3 | – | – | – | – | – | – |
+| **part** | – | – | – | – | 1 | – | – | – | · | – | – | – | – | – | – |
 | **pitch** | – | – | – | – | 1 | 1 | – | – | 1 | · | – | – | – | – | – |
-| **point** | 4 | 1 | 4 | – | 2 | 2 | 1 | 3 | 2 | 1 | · | 2 | 3 | 4 | 3 |
-| **pulse** | 2 | 1 | 2 | – | 2 | – | – | 1 | 1 | – | – | · | 1 | 2 | 1 |
-| **stroke** | – | 1 | – | – | 2 | – | – | – | – | – | – | – | · | – | – |
-| **volume** | – | – | – | – | 1 | – | – | – | – | – | – | – | – | · | – |
-| **weight** | 1 | 2 | 1 | – | 2 | – | – | 2 | 2 | – | – | 1 | 2 | 1 | · |
+| **point** | 3 | 1 | 3 | 1 | 2 | 2 | 1 | 3 | 2 | 1 | · | 2 | 3 | 1 | 2 |
+| **pulse** | 1 | 1 | 2 | – | 2 | – | – | 1 | 3 | – | – | · | 1 | 1 | 1 |
+| **stroke** | – | 1 | – | – | 2 | – | – | – | 3 | – | – | – | · | – | – |
+| **volume** | – | – | – | – | – | – | – | – | – | – | – | – | – | · | – |
+| **weight** | 1 | 2 | 1 | – | 3 | – | – | 2 | 4 | – | – | 1 | 2 | 1 | · |
 
-How many algos give and take each type:
+How many algos give and take each type, the specialised ones
+(`pitch/lorenz`, `volume/walk`, …) included:
 
 | type | given by | taken by |
 |---|:-:|:-:|
-| articulation | 1 | 1 |
-| duration | 7 | 1 |
+| articulation | 30 | 0 |
+| duration | 111 | 10 |
 | index | 1 | 0 |
-| instrument | 0 | 1 |
-| leaf | 5 | 4 |
+| instrument | 33 | 0 |
+| leaf | 5 | 6 |
 | model | 1 | 1 |
-| number | 26 | 7 |
-| onset | 10 | 2 |
-| part | 13 | 1 |
-| pitch | 22 | 9 |
-| point | 2 | 3 |
-| pulse | 30 | 17 |
+| number | 31 | 11 |
+| onset | 10 | 1 |
+| part | 5 | 2 |
+| pitch | 113 | 9 |
+| point | 2 | 5 |
+| pulse | 38 | 18 |
 | stroke | 1 | 1 |
-| volume | 1 | 1 |
-| weight | 4 | 6 |
+| volume | 63 | 0 |
+| weight | 7 | 6 |
 
 ## What the table shows
 
-**1. One way.** Every half product reaches `:leaf` in one step, and none
-reaches another half product: no duration becomes a pitch, no pitch a
+**1. One way.** Durations and pitches reach `:leaf` in one step, through
+`zip`; volume, articulation and instrument reach it too, but not in the
+table: `zip` writes any part onto leaves as it joins (`:join`), while its
+slots are typed duration and pitch, which is what the chains read. No
+half product reaches another: no duration becomes a pitch, no pitch a
 duration. `pitch → model` and `pitch → part` are generators that take a
-melody (`markov-train`, `counterpoint`), not conversions.
+melody (`markov-train`, `counterpoint`), not conversions. The one way
+back is `leaves->durations`/`leaves->pitches`, which take music apart --
+a line under a tree recipe, read as the half product a slot wants. A
+chain that doesn't start from leaves never uses them: zipping a part on
+and taking it off again makes nothing.
 
 **2. Rhythm never makes pitches, nor pitches rhythm.** The `pulse` row
 has no `pitch`, the `pitch` row no `pulse`. Durations and pitches meet
 only in `zip`.
 
 **3. All raw material reaches leaves within two steps** (a bridge, then
-`zip`) -- except `:index`, which nothing takes;
-`:layer` takes one more (`layer`), and `:part` is already leaves.
+`zip`) -- except `:index`, which nothing takes, and `:weight`, which
+takes three (pulses first); `:layer` takes one more (`layer`), and
+`:part` is already leaves.
 
-**4. Gaps.**
+**4. Where the half products come from.**
 
-- **`:instrument` has no producer**: instruments come from literals
-  (`(cycle> ["violin" "flute"])`).
-- **`:volume` and `:articulation`** come only from weights.
+- **`:volume` and `:articulation`** from weights (`weights->volumes`,
+  `weights->articulations`), pulses (a rhythm's accents,
+  `pulses->volumes`/`pulses->articulations`) and numbers
+  (`numbers->volumes`, …), and every source of these as a specialised
+  algo (`volume/walk`).
+- **`:instrument`** from numbers and points (`numbers->instruments`,
+  `points->instruments`, a place in the range as one of a `:palette`).
 - **`:stroke`** comes only from `konnakol`.
 
 **5. No algo gives `:any`** (step 4 of the leaf principle). The ones
