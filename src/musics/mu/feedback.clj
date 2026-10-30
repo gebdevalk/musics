@@ -66,32 +66,20 @@
 
 (def keys-hint "Alt+j dislike · Alt+k meh · Alt+l like · Alt+K again")
 
-(defn- run-audition
-  "Play items in turn. An item with :expand is replaced, when reached, by
-   the items it gives (none: it is left out), so an audition can grow as
-   it goes."
-  [items q]
+(defn- run-audition [items q]
   (try
     (say keys-hint)
-    (loop [items items i 0]
-      (cond
-        (>= i (count items))
+    (loop [i 0]
+      (if (>= i (count items))
         (say "audition: done")
-
-        (:expand (items i))
-        (let [items (into (into (subvec items 0 i) ((:expand (items i)))) (subvec items (inc i)))]
-          (swap! audition assoc :items items)
-          (recur items i))
-
-        :else
         (let [{:keys [show play]} (items i)]
           (swap! audition assoc :i i)
           (say show)
           (play)
           (case (await-command q)
-            :next  (recur items (inc i))
-            :back  (recur items (max 0 (dec i)))
-            :again (recur items i)
+            :next  (recur (inc i))
+            :back  (recur (max 0 (dec i)))
+            :again (recur i)
             :stop  nil))))
     (catch Throwable t (say (str "audition stopped: " (.getMessage t))))
     (finally (reset! audition nil))))
@@ -116,42 +104,47 @@
                               sounds)))))
 
 (defn- presets
-  "[[program name] ...]: the instruments Gervill holds now, bank 0
-   without the drum kits -- what a program change reaches."
-  []
-  (->> (gervill/instruments @engine/synth)
+  "[[program name] ...]: the instruments of the .sf2 at path a program
+   change reaches -- bank 0, the drum kits left out."
+  [path]
+  (->> (gervill/instruments path)
        (remove :percussion?)
        (filter #(zero? (:bank %)))
-       (map (juxt :program :name))
-       (into (sorted-map))
-       vec))
+       (map (juxt :program (comp str/trim :name)))
+       (into (sorted-map))))
+
+(defn- named?
+  "Does text name the instrument, in its own name or its General MIDI
+   program's (frenchHorn, horn), in any case?"
+  [text program name]
+  (let [squash #(str/replace (str/lower-case %) #"[-_ ]" "")
+        t      (squash text)]
+    (or (str/includes? (squash name) t)
+        (some-> (data/program->name program) clojure.core/name squash (str/includes? t)))))
 
 (defn start-soundfont-trial!
-  "Play x through Gervill with each soundfont of fonts, [[n path] ...],
-   in turn, in the background, as an audition: through every instrument
-   it holds (^{ !i:p } over x), then on to the next soundfont, each shown
-   by n, the number soundfont takes it by. A soundfont's instruments are
-   read when it is reached, by loading it."
-  [x fonts]
+  "Play x through Gervill with every instrument of each soundfont of
+   fonts, [[n path] ...], or those text names (named?), in turn, in the
+   background, as an audition: ^{ !i:p } over x, a soundfont loaded when
+   its first instrument is reached, each shown by n, the number soundfont
+   takes it by. nil when no instrument is left to play."
+  [x fonts text]
   (let [loaded (atom nil)
         load!  (fn [path] (when (not= path @loaded) (engine/soundfont! path) (reset! loaded path)))
-        total  (count fonts)]
-    (start! (vec (map-indexed
-                  (fn [k [n path]]
-                    {:expand
-                     (fn []
-                       (say (str (inc k) "/" total "  " n "> " path " -- loading"))
-                       (load! path)
-                       (let [ps (presets)]
-                         (when (empty? ps) (say (str n "> holds no instrument a program reaches")))
-                         (vec (map-indexed
-                               (fn [j [program name]]
-                                 {:value x
-                                  :show  (str (inc k) "/" total "  " n "> " (.getName (java.io.File. ^String path))
-                                              "  " (inc j) "/" (count ps) "  !i:" program " " (str/trim name))
-                                  :play  #(do (load! path) (mt/play! x (mt/read-text (str "^{ !i:" program " }"))))})
-                               ps))))})
-                  fonts)))))
+        found  (vec (for [[n path] fonts
+                          [program name] (presets path)
+                          :when (named? text program name)]
+                      [n path program name]))
+        total  (count found)]
+    (when (seq found)
+      (start! (vec (map-indexed
+                    (fn [i [n path program name]]
+                      {:value x
+                       :show  (str (inc i) "/" total "  " n "> " (.getName (java.io.File. ^String path))
+                                   "  !i:" program " " name)
+                       :play  #(do (load! path) (mt/play! x (mt/read-text (str "^{ !i:" program " }"))))})
+                    found)))
+      total)))
 
 ;; -- rating -----------------------------------------------------------------
 

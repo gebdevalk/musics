@@ -23,17 +23,18 @@ soundfonts                            the .sf2 files in /usr/share/sounds/sf2 an
 3 soundfont                           swap to the 4th of them; what plays goes on
 "~/Music/sf/Crysrhod.sf2" soundfont   or one by its file
 [c e g] try-soundfonts                the chord through every instrument of each
-[c e g] "piano" try-soundfonts        through those with piano in their name
+[c e g] "horn" try-soundfonts         through the instruments with horn in their name
 fluidsynth                            Fluidsynth instead
 ```
 
 `soundfont` connects to Gervill first when playing through Fluidsynth.
-`try-soundfonts` is an audition (`doc/md/feedback.md`): each soundfont
-is loaded when its turn comes and the music plays once through each of
-its instruments (`!i:` with every program it holds; drum kits and
-other banks left out), shown with the soundfont's number, the
-instrument's place among them, its program and name, before the next
-soundfont follows;
+`try-soundfonts` is an audition (`doc/md/feedback.md`): the music plays
+once through each instrument of every soundfont (`!i:` with every
+program it holds; drum kits and other banks left out), or of those a
+text names -- in the soundfont's own name for it or its General MIDI
+name (`frenchHorn`), any case -- each soundfont loaded when its first
+instrument is reached. Each is shown with its place in the run, its
+soundfont's number, its program and its name;
 Alt+L moves on, Alt+J goes back, Alt+K plays it again, `stop` (Alt+.)
 stops, and `n soundfont` keeps the one you liked. Playing ends on the
 last soundfont tried.

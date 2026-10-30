@@ -119,22 +119,22 @@
 
 (defn try-soundfonts!
   "Play the music on top through every instrument of each of soundfonts
-   in turn, or with a text on top of those whose file has it in its name
-   (x \"strings\" try-soundfonts), in the background, as an audition: Alt+L the next,
-   Alt+J back, Alt+K again, a rating records the soundfont, stop (Alt+.)
-   stops; n soundfont keeps one"
+   in turn, or with a text on top through those it names, in their own
+   name or their General MIDI one (x \"horn\" try-soundfonts), in the
+   background, as an audition: Alt+L the next, Alt+J back, Alt+K again,
+   a rating records the soundfont, stop (Alt+.) stops; n soundfont
+   keeps one"
   {:mu {:optional {:named string?}}}
   ([x] (try-soundfonts! x ""))
   ([x named]
    (when-not (or (v/material? x) (mt/leaf? x) (mt/endless? x))
      (fail "needs music to play, got" (p/show x)))
-   (let [all   (engine/soundfonts)
-         fonts (filterv (fn [[_ path]] (str/includes? (str/lower-case path) (str/lower-case named)))
-                        (map-indexed vector all))]
-     (cond (empty? all)   (fail "no .sf2 file in" (str/join " or " gervill/soundfont-dirs))
-           (empty? fonts) (fail "no soundfont has" (pr-str named) "in its name -- soundfonts lists them"))
+   (let [all (engine/soundfonts)]
+     (when (empty? all) (fail "no .sf2 file in" (str/join " or " gervill/soundfont-dirs)))
      (mt/cancel-staged!)
-     (feedback/start-soundfont-trial! x fonts))))
+     (if-let [n (feedback/start-soundfont-trial! x (map-indexed vector all) named)]
+       (println n "instruments")
+       (fail "no instrument of a soundfont has" (pr-str named) "in its name")))))
 
 (defn- keep-javafx!
   "JavaFX ends when its last window closes, unless told not to: then a

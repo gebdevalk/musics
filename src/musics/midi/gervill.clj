@@ -52,9 +52,10 @@
       (.getName sb))))
 
 (defn instruments
-  "[{:bank :program :percussion? :name} ...]: the instruments synth holds."
-  [^Synthesizer synth]
-  (for [^Instrument i (.getLoadedInstruments synth)
+  "[{:bank :program :percussion? :name} ...]: the instruments of the .sf2
+   at path, read without loading their samples."
+  [path]
+  (for [^Instrument i (.getInstruments (MidiSystem/getSoundbank (io/file (expand path))))
         :let [p (.getPatch i)]]
     {:bank (.getBank p) :program (.getProgram p) :name (.getName i)
      :percussion? (and (instance? ModelPatch p) (.isPercussion ^ModelPatch p))}))
