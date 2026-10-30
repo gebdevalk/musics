@@ -802,7 +802,7 @@ bridge); its params are the source's, then the bridge's prefixed with
 the half product (`:pitch-lo`, `:duration-pulse`), so two half
 products of one source never share a bridge setting; a bridge's
 `:from-lo`/`:from-hi` default to the range the source gives at its own
-defaults (probed seeded). Two with the same `:as` and source read one
+defaults (probed over eight seeds, so a random walk's range is where its runs go, not one run's band). Two with the same `:as` and source read one
 run of it within a `t/run` -- x as pitch, y as volume of one attractor.
 An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
 `oblique`, `rnn`, `tuplets`, `necklace`, `bracelet`, `crossover`,

@@ -44,7 +44,9 @@
 (deftest the-input-range-defaults-to-what-the-source-gives
   (let [{lo :default} (first (filter #(= :pitch-from-lo (:key %)) (t/param-keys (algo :pitch/walk))))
         {hi :default} (first (filter #(= :pitch-from-hi (:key %)) (t/param-keys (algo :pitch/walk))))]
-    (is (< 50 lo 60 hi 70) "walk starts at 60 and stays near it")
+    (is (< 40 lo 60 hi 80) "walk starts at 60; the range is where its runs go, over several seeds")
+    (is (< 1 (count (distinct (t/run (algo :pitch/walk) {:len 8 :seed 7}))))
+        "so one seed's run isn't clamped onto one pitch")
     (rc/seed! 11)
     (let [ps (t/run (algo :pitch/walk) {})]
       (is (< 1 (count (distinct ps))) "the defaults already move"))))

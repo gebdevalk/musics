@@ -307,7 +307,7 @@ inputs as it has from the top and pushes itself, `zip` joins the top two
 the settings for all of it:
 
 ```
-@( ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip ) run   → [C3/8. C3 C3/8]
+@( ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
 @( k:3 n:8 euclid '[60 64 67] [~] zip ) run                         → [C4/8. E4 G4/8]
 @( '[1/4] '[60] zip '[1/8] '[72 74] zip par ) run                   → {[C4/4] [C5/8]}
 ```
@@ -335,7 +335,7 @@ The settings can also come from outside, an `@^{ }` right under the
 recipe, so one recipe runs with different ones:
 
 ```
-@^{ seed:7 k:3 n:8 len:8 } @( euclid pitch/walk zip ) run   → [C3/8. C3 C3/8]
+@^{ seed:7 k:3 n:8 len:8 } @( euclid pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
 ```
 
 No music is written inside: music comes from the stack under the recipe.
