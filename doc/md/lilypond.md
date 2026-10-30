@@ -1,9 +1,8 @@
 # From LilyPond to musics
 
 For converting by hand, or reading a converted file. To convert a whole
-file automatically: `(m/ly-to-mus "piece.ly")` writes `piece.mus` beside
-it, and `(m/play-ly-file "piece.ly")` converts, parses and plays in one
-step.
+file automatically, `"piece.ly" load` in mu converts it and stores the
+parts it names, ready to play (`:melody >`).
 
 ## Pitches
 

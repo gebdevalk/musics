@@ -4,9 +4,17 @@ What `clojure.core.logic` could do for this project, where it pays, and
 where it does not. It also covers spelled pitch values
 (`{:n "c" :a 0 :o 4 :m 60}`), which core.logic relates to MIDI numbers.
 
-Status: proposal. The code below is a sketch. It has not been run yet:
-Maven was blocked from the sandbox this was written in, so try it in a
-REPL before trusting it.
+Status: partly built.
+
+- **Built:** section 6, choosing connectable algos, is
+  `musics.algo.logic.tree`: the composer's typing of a draft and the
+  registry's questions (`how`, `feeds`, `why-not`, `examples`,
+  `surprise`). Its help idea is `musics.assist`. Species counterpoint
+  was built in core.logic as well (`musics.algo.logic.counterpoint`,
+  `doc/md/counterpoint.md`), beside the greedy generator of section 5.
+- **Still proposals:** spelled pitches and Markov chains on them
+  (sections 2–4), and the rewrite of the other constraint generators
+  (section 5). The code for these is a sketch that has never been run.
 
 ---
 
@@ -571,12 +579,11 @@ and ask for the missing piece. `fill` checks the answer and gives the
 `why-not` hint when it's wrong. Seeded through `musics.algo.random`, so a
 lesson is the same every time.
 
-**Where it surfaces.** At the REPL as `t/how` and friends; in the
-builder window as a "?" on a dimmed algo (`why-not`) and a
-"suggest" for the active hole (`fill`); and in `build-tree :repl` as
-a `?` command. `(assist :pulse :pitch)` (`musics.core`) hands a pair
-of types to `how`; the rest of `assist` asks `musics.assist`, the same
-kind of relation over REPL actions instead of algos.
+**Where it surfaces.** In code as `lt/how` and friends, and in the
+composer window (mu's `compose`), which dims what doesn't fit.
+`musics.assist/explain` hands a pair of types to `how` (`(explain
+:pulse :pitch)`); the rest of it is the same kind of relation over
+actions instead of algos.
 
 ### Integration
 

@@ -5,6 +5,12 @@ How the help system could work if it reasoned over facts with core.logic
 and `musics.algo.logic.counterpoint`) instead of printing sentences written by
 hand.
 
+Status: built (2026-10-04) as `musics.assist`, which drives the GUI's
+Assist window and the state of its transport buttons. This page is the
+design as it was proposed, kept for its reasoning; "the REPL" in it is
+the Clojure REPL that musics had then, and "the help system today" is
+the adviser it replaced.
+
 ## Summary
 
 Today's help is hand-written. It tells you what to do next from four

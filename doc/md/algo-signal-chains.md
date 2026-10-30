@@ -1,21 +1,35 @@
+# Algo signal chains
+
+A map of how the generative modules in `musics/algo/` can feed one
+another (ranks, grids, pitch sequences, chaotic streams) on the way into
+`musics.wall`, `musics.engine` and the domain model.
+
+- **Solid edges** are real code dependencies or already-tested chains.
+- **Thick edges** mark a module whose functions carry `:algo` metadata:
+  they are composed into a `musics.algo.tree` tree and bound by name
+  into `musics.wall` for live playback.
+- **Dashed boxes** are loaded only by tests (`doc/md/namespace.md`,
+  "Unreached").
+
+It was surveyed against the real `:require` graph of `musics/algo/`;
+see `doc/md/decisions.md` if it drifts from the code.
+
+To print it as an A3-landscape pair, from the repo root:
+
+```bash
+npx -y @mermaid-js/mermaid-cli -i doc/md/algo-signal-chains.md \
+  -o /tmp/diagram.png -b '#ffffff' -w 4960 --scale 1
+```
+
+Given a Markdown file, mermaid-cli writes one image per diagram
+(`/tmp/diagram-1.png`). Wrap that image in an SVG sized
+`width="420mm" height="297mm"`, convert it with `mutool convert`, then
+split it into two A4-portrait pages with `mutool poster -x 2 -y 1`, for
+a printer with no A3 tray.
+
+```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'fontSize': '34px', 'fontFamily': 'Helvetica, Arial, sans-serif', 'lineColor': '#55503f', 'edgeLabelBackground': '#ffffff', 'textColor': '#201e19', 'primaryTextColor': '#201e19'}, 'flowchart': {'nodeSpacing': 70, 'rankSpacing': 110, 'padding': 24, 'htmlLabels': true}} }%%
 flowchart TB
-    %% algo-signal-chains.mmd -- a map of how musics/algo/'s generative modules
-    %% can feed one another (ranks, grids, pitch sequences, chaotic
-    %% streams) on the way into musics.wall/core.async-engine and the real
-    %% domain model. Solid edges are real code dependencies or already-
-    %% tested chains; thick edges mark a module's fns carrying :algo
-    %% metadata, composed into an musics.algo.tree tree, bound by name into
-    %% musics.wall for live playback. Surveyed against the real musics/algo/ :require
-    %% graph, not reasoned from memory -- see doc/md/decisions.md if this
-    %% drifts from the code later.
-    %%
-    %% Regenerate (A3-landscape print pair), from the repo root:
-    %%   npx -y @mermaid-js/mermaid-cli -i doc/md/algo-signal-chains.mmd \
-    %%     -o /tmp/diagram.png -b '#ffffff' -w 4960 --scale 1
-    %%   (wrap diagram.png in an SVG sized width="420mm" height="297mm",
-    %%    convert with `mutool convert`, then `mutool poster -x 2 -y 1`
-    %%    to split into two A4-portrait pages for a printer with no A3 tray)
     classDef math fill:#eeeee6,stroke:#8a8571,color:#55503f,stroke-width:2px
     classDef rng fill:#e3f0ea,stroke:#2e6e58,color:#1d3f32,stroke-width:2.4px
     classDef gen fill:#f7ecd9,stroke:#a9702b,color:#5c3d18,stroke-width:2.4px
@@ -37,21 +51,22 @@ flowchart TB
     end
 
     subgraph RANK[" rank &amp; grid generators "]
-        INDISP["indisp.indispensability<br/><i>Barlow ranks → tilt / power-law → density-grid</i>"]
-        METRIC["metric.metric<br/><i>binary-decomposition · continued-fraction · modular</i>"]
+        INDISP["indispensability<br/><i>Barlow ranks → tilt / power-law → density-grid</i>"]
+        METRIC["metric<br/><i>binary-decomposition · continued-fraction · modular</i>"]
     end
 
-    subgraph RHYTHM[" rhythmic generators — 13 files "]
-        EUCLID["rhythm · fractal-geometric · necklace · decompose<br/><i>euclidean · fibonacci · cantor-set · vuza-canon</i>"]
+    subgraph RHYTHM[" rhythmic generators — 15 files "]
+        EUCLID["rhythm · fractal-geometric · necklace · decompose · automaton<br/><i>euclidean · fibonacci · cantor-set · vuza-canon</i>"]
         SIEVE["phase-sieve<br/><i>xenakis-sieve · clapping-music</i>"]
-        STOCH["stochastic · constraint<br/><i>genetic-rhythm · rnn-rhythm · all-interval</i>"]
-        WORLDF["world · physical · poly · sonification · micro<br/><i>tala-pattern · pendulum · polyrhythm · data-to-rhythm</i>"]
+        STOCH["stochastic · constraint · transform<br/><i>genetic-rhythm · rnn-rhythm · all-interval</i>"]
+        WORLDF["world · physical · poly · sonification · micro · drums<br/><i>tala-pattern · pendulum · polyrhythm · data-to-rhythm</i>"]
     end
 
     subgraph MELODIC[" melodic generators "]
         MELODY["melody<br/><i>markov / l-system / constraint / modulating</i>"]
         CPOINT["counterpoint<br/><i>multi-voice motif imitation</i>"]
-        SLON["slonimsky<br/><i>0 callers</i>"]:::dormant
+        SLON["slonimsky<br/><i>polations: infra · inter · ultra</i>"]
+        SERIAL["serial<br/><i>rows · set classes</i>"]
     end
 
     subgraph CHAOS[" chaotic streams "]
@@ -68,6 +83,7 @@ flowchart TB
     end
 
     subgraph CONVERGE[" convergence — domain-ready structures "]
+        BRIDGE["bridge<br/><i>raw material → half products: durations, pitches, volumes …</i>"]
         PULSE["pulse / grid→pulses<br/><i>any grid → real Pulse records</i>"]
         ISO["isorhythm / color-talea<br/><i>pitch seq × duration seq → paired events</i>"]
         SPLIT["split / split-leaf-voice<br/><i>1 melody → N faster voices</i>"]
@@ -76,7 +92,7 @@ flowchart TB
     subgraph ENGINE[" outside musics/algo/ "]
         TREE["musics.algo.tree<br/><i>:algo metadata → trees + tctx, bound by name</i>"]
         WALL["musics.wall<br/><i>name → wall fn, per-voice</i>"]
-        ASYNC["core.async-engine<br/><i>plays each voice's own :view</i>"]
+        ASYNC["musics.events + musics.engine<br/><i>each voice's own stream, one sender thread</i>"]
         DOMAIN["musics.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
     end
 
@@ -94,10 +110,11 @@ flowchart TB
     class RCORE,RAND rng
     class INDISP,METRIC gen
     class EUCLID,SIEVE,STOCH,WORLDF gen
-    class MELODY,CPOINT gen
+    class MELODY,CPOINT,SLON,SERIAL gen
     class LOGIS,HENON,LOREN gen
-    class RESHAPE,ZFILT,GATE,ROTATE tool
-    class PULSE,ISO,SPLIT conv
+    class ROTATE tool
+    class BRIDGE conv
+    class RESHAPE,ZFILT,GATE,PULSE,ISO,SPLIT dormant
     class TREE,WALL,ASYNC,DOMAIN engine
 
     NUM --> SCALE
@@ -131,10 +148,11 @@ flowchart TB
     EUCLID --> ISO
     MELODY --> SPLIT
 
-    GATE & RESHAPE & ZFILT & LOGIS & HENON & LOREN & ISO & SPLIT & INDISP ==>|":algo"| TREE
+    INDISP & METRIC & RAND & EUCLID & SIEVE & STOCH & WORLDF & MELODY & CPOINT & SLON & SERIAL & LOGIS & HENON & LOREN & BRIDGE ==>|":algo"| TREE
     TREE ==>|"live!"| WALL
 
     PULSE --> DOMAIN
     WALL --> ASYNC
     ASYNC --> DOMAIN
     INDISP -->|"meter-indispensability"| DOMAIN
+```

@@ -1,557 +1,283 @@
 # A guide into `musics`
 
-`musics` is a Clojure DSL for writing music as text and hearing it played
-back live, in real time, from the REPL. This is a practical, top-to-bottom
-walkthrough of actually using it — write a piece, play it, inspect it,
-change it while it's still sounding. For the architecture underneath any
-of this (why it's built the way it is), see `CLAUDE.md`; for a dense
-notation reference, see `doc/md/parsing.md`; coming from LilyPond, see
-`doc/md/lilypond.md`; for the full domain model, see `doc/md/domain.md`.
+`musics` is for writing music as text and hearing it played live. You
+use it through **mu**, a musical REPL in the terminal, and a **GUI**
+beside it. This guide goes from top to bottom through actually using
+it: write a piece, play it, look at it, change it while it's still
+sounding, and keep it.
 
-This is a REPL-driven project, not an app with a CLI — everything below
-happens by evaluating forms interactively.
+- For every word that works on music, see `doc/md/mu-tutorial.md`.
+- For algorithms, from single words to recipes playing live, see
+  `doc/md/algo-tree-tutorial.md`.
+- For the full notation, see `doc/md/parsing.md`; coming from
+  LilyPond, see `doc/md/lilypond.md`.
+- For the architecture underneath, see `CLAUDE.md`.
 
-## Setup
+## Starting
 
-Parsing text into the domain model and running tests needs nothing beyond
-a JVM and Leiningen. Hearing actual sound additionally needs Fluidsynth +
-qsynth + a virtual MIDI port — see `doc/md/setup.md` for that. Everything in this guide up through "Playing
-it back" works without any of that; you'll just get silent MIDI-shaped
-data instead of sound.
-
-Start a REPL and load the API:
-
-```clojure
-lein repl
-(require '[musics.core :as m])
+```bash
+lein mu
 ```
 
-Everything from here on is called through `m/...`. `(m/assist)` says what
-you can do now and how to get to playing something. `(m/help)` lists every
-public command with a one-line summary; `(m/help "parse")` prints a
-specific one's full docstring.
+mu shows its version and the words that drive it, then a prompt:
+`mu<0>`, where the number is how many values are on the stack. `bye` or
+Ctrl+D leaves.
+
+To hear anything, connect a synthesizer once:
+- `gervill`: Java's own synthesizer, nothing to set up;
+- `fluidsynth`: through qsynth and a virtual MIDI port (see `doc/md/setup.md`).
+
+Without either, everything below still works; you just don't hear it.
+
+A few words for finding your way:
+- `words` lists every word;
+- `"dup" see` says what one word does (`dup ( a -- a a )  copy the top`);
+- Tab completes words, instrument names, context keys and stored parts.
 
 ## Your first piece
 
-```clojure
-(def ids (m/parse "[verse: !mf c4 d e f]"))
-(m/connect)
-(m/play :verse)
+```
+[verse: !mf c4 d e f] >
 ```
 
-Three lines, three distinct steps — worth understanding each one, because
-this shape (parse → connect → play) is the shape of everything else in
-this guide too.
+This is one line with two parts. `[verse: !mf c4 d e f]` is music: a
+line named `verse`, at mezzo-forte, of four quarter notes. Typed at the
+prompt, it becomes a value on the stack. `>` plays the top of the
+stack, now.
 
-## The core idea: parsing commits immediately
+That shape is the shape of everything else in this guide: music goes
+on the stack, words after it change it, combine it and play it.
 
-`(m/parse text)` reads your text against whatever's currently
-committed, and commits the result right away — one atomic swap!, no
-separate stage/commit step, visible to everything (`find`, `play`,
-`inspect`, ...) the instant the call returns:
+## Values, names and the store
 
-```clojure
-(m/parse "[verse: c4 d]")
-(m/find :verse)        ;; => it's already there
+A value on the stack is just a value: nothing is stored anywhere yet.
+`.s` shows the stack, top first; `clear` empties it.
+
+```
+[c d e]            → [C4/4 D4 E4]
+[c d e] .s         shows the stack
 ```
 
-The return value is a map, `{:ids [...]}`, the top-level ids this call
-introduced or changed:
+There are two ways to keep music:
 
-```clojure
-(:ids (m/parse "[verse: c4 d]"))   ;; => [:verse]
-```
+- **For the session:** bind a name. `\name` is the value wherever you
+  write it, in music too.
 
-If a parse comes out wrong, it's already committed — there's no
-"abort" to undo it. Just parse the corrected text under the same id;
-the old value is simply gone the moment the new one replaces it (see
-"Live coding" below for how to do this without glitching what's
-already sounding).
+  ```
+  'motif [c e g] :=
+  \motif 5 +                → [!K:F.major F4/4 A4 C5]
+  [melody: \motif f g \motif]
+  ```
 
-A single `(parse ...)` call can define more than one part at once, and
-they land together as one atomic commit:
+- **In the repo**, the store that the GUI, files and playback share:
+  `R!` stores the value under its own name, or under an id you give.
+  `R@` fetches it again, and `:name` inside music refers to it.
 
-```clojure
-(m/parse "[melody: c4 d e f] [bass: c,4 c c c]")  ;; bass's `,` is a
-                                     ;; relative octave-down tick (see
-                                     ;; "Notes, octaves, durations" below) --
-                                     ;; a bare digit after a lowercase
-                                     ;; letter is always a Duration, never
-                                     ;; an octave, so bass can't be written
-                                     ;; c3 c3 c3 c3 the way it might look
-                                     ;; -- :melody and :bass both become
-                                     ;; visible together
-```
+  ```
+  [verse: !mf c4 d e f] R!          → :verse
+  [c d e] :mel R!                   → :mel
+  :verse R@                         → [verse: !mf C4/4 D4 E4 F4]
+  [song: :verse :verse g2] R!       a part that uses :verse twice
+  ```
 
-**Committing still doesn't make it audible.** That's a second, separate
-knob — see "Playing it back" below. This split (commit vs. make
-audible, as two genuinely separate steps) is what lets you prepare an
-edit mid-performance without it glitching whatever's currently sounding —
-see "Live coding" further down, which is the whole point of it.
+Storing under a name that is already taken replaces what was there,
+and mu warns you when another part uses it:
+`Redefining :verse also affects [:song]`.
 
-## Parsing several parts in a row: `mu!`
+To look at what's stored:
 
-`(m/mu!)` drops into a nested REPL where a bare, quoted musics string
-commits itself, with no `parse` call around it:
+| Word | Does |
+|---|---|
+| `ids` | every stored part: `(:mel :song :verse)` |
+| `:verse usages` | who uses `:verse`: `#{:ROOT :song}` |
+| `:verse ctx` | its contexts, nearest first: `:verse: volume=60@0` |
+| `:verse R@` | the part itself, onto the stack |
 
-```clojure
-(m/mu!)
-mu=> "[verse: !mf c4 d e f]"
-{:ids [:verse]}
-mu=> (+ 1 2)                 ;; ordinary Clojure still works
-3
-mu=> (exit)                  ;; or (quit), :repl/quit, Ctrl+D
-user=>
-```
+## Writing music: a short tour
 
-The quotes stay: an unquoted `[verse: ...]` is read as a Clojure vector
-before `mu!` sees it.
-
-## Writing music: a syntax tour
-
-The essentials; `doc/md/parsing.md` has the full notation.
+Anything you can write in a `.mus` file you can type at the prompt.
+These are the essentials; `doc/md/parsing.md` has the full notation.
+mu prints every value back in full, as shown after the `→`.
 
 ### Notes, octaves, durations
 
-```mus
-[c4 d8 e16 f]        % quarter, eighth, sixteenth; f keeps the sixteenth
-[c4. d8 e2~ e8]      % dotted quarter; a tie
-[C4/4 G4/4 C5/2]     % absolute pitches: uppercase + octave digit (+ / before a duration)
-[c4 f# b& cn']       % accidentals # ## & && n; ' and , move an octave
+```
+[c4 d8 e16 f]          → [C4/4 D4/8 E4/16 F4]          f keeps the sixteenth
+[c4. d8 e2~ e8]        → [C4/4. D4/8 E4/2~ E4/8]       a dotted quarter, a tie
+[C4/4 G4/4 C5/2]       → [C4/4 G4 C5/2]                absolute pitches
+[c4 f# b& cn']         → [C4/4 F#4 B&4 C6]             accidentals # ## & && n; ' and , move an octave
 ```
 
-A lowercase letter is always relative: the nearest pitch to the previous
-one (a fourth or fifth away at most). The first note of a `parse` call
-starts from C4; after that, each note continues from the one written
-just before it — across lines and across the parts of a `{ }` too — so
-start a part with an absolute pitch when its register matters. An uppercase
-letter is absolute, and without an octave it keeps the one before it, as
-a duration carries over: `[C5/4 D E]` is C5 D5 E5, in chords and chord
-symbols too (`<C5 E G>`, `C2/1:7 | F:7`). A digit after a lowercase letter is a duration,
-never an octave — `c3` is a C lasting 1/3 of a whole note — so move
-octaves with ticks (`c,`) or write an absolute pitch (`C3/4`).
+- **Lowercase is relative:** a lowercase letter is the pitch nearest
+  the one before it (a fourth or a fifth away at most), starting from
+  C4.
+- **Uppercase is absolute:** `C5/4`. Without an octave it keeps the one
+  before it, as a duration carries over: `[C5/4 D E]` is C5 D5 E5.
+- **A digit after a lowercase letter is always a duration**, never an
+  octave. Move octaves with ticks (`c,` `c'`) or write an absolute
+  pitch (`C3/4`).
 
 ### Dynamics
 
-```mus
-[!mf c4 d e f]          % a dynamic instruction: from here on
-[c4 d\f e f]            % glued to a note: that note only
-[!vol:p< c4 d e !vol:f g]  % a crescendo is an instruction: p, rising to f
+```
+[!mf c4 d e f]              a dynamic instruction, from here on
+[c4 d\f e f]                → [C4/4 D4\volume:70 E4 F4]   glued to one note
+[!vol:p< c4 d e !vol:f g]   a crescendo is an instruction: p, rising to f
 ```
 
 ### Chords, rests, drums
 
-```mus
-[<c e g>4 r4 r <d f# a>2]    % chord, rest, rest (previous duration), chord
-[x8 x\kick x4\36]            % drums: plain, by name, by MIDI number
-[x8\snare-> x8\snare-^ x8\snare\ghost]  % accented, marcato, ghost
+```
+[<c e g>4 r4 r <d f# a>2]                 a chord, two rests, a chord
+[x8 x\kick x4\36]                         drums: plain, by name, by MIDI number
+[x8\snare-> x8\snare-^ x8\snare\ghost]    accented, marcato, ghost
 ```
 
-A drum's accent rides on the volume in force: `->` (or `\accent`) +5,
-`-^` (`\marcato`) +10, `\ghost` −20 on the 0–100 scale.
+### Lines and parallel parts
 
-### Sequences and parallel parts
-
-```mus
-[melody: c4 d e f]                     % [ ]  one line after another
-{duet: [sop: C5/4 d e] [alto: E4/4 f g]}  % { }  simultaneous parts
 ```
-
-Both can carry a name (`melody:`) that registers them as a part, and
-`:name` uses a registered part inside another:
-
-```mus
-[verse: c4 d e f]
-[song: :verse :verse g2]
+[melody: c4 d e f]                          [ ] one note after another
+{duet: [sop: C5/4 d e] [alto: E4/4 f g]}    { } parts at the same time
+[c d] [e f] {2}                             → {[C4/4 D4] [E4 F4]}   the top two side by side
 ```
 
 ### Key, tempo, meter
 
-```mus
-[!key:D.major f4 c]            % F# C#: a bare letter takes the key's accidental
-[!acc:explicit !key:D.major f4] % F: every bare letter literal
+```
+[!key:D.major f4 c]                 → [!key:D.major F#4/4 C#4]   a bare letter takes the key's accidental
+[!acc:explicit !key:D.major f4]     → F4: every letter literal
 [!tempo:120 !Meter:7/8 c8 d e f g a b]
-[!tempo:3/8=90 !allegro c4]    % note value = BPM; a named tempo
+[!tempo:3/8=90 !allegro c4]         a note value = BPM; a named tempo
 ```
 
-### Tuplets, repeats, grace notes, ornaments, slurs
+An instruction always belongs inside a line or a `^{ }` context; at the
+prompt on its own, `!mf` is refused.
 
-```mus
-[3:2( c8 d e ) f4]          % a triplet: three eighths in the time of two
+### Tuplets, repeats, grace notes, ornaments, chord symbols
+
+```
+[3:2( c8 d e ) f4]          a triplet: three eighths in the time of two
 repeat 2 [c4 d e f]
-repeat 4 [c8 d]
-[acciaccatura c16 d4 e]     % a grace note
-[c4\trill d\mordent e( f g)]  % ornaments, a slur
-[c4:32]                      % a tremolo: 8, 16, 32, 64 or 128
+[c d] 2 times               → repeat 2 [C4/4 D4]
+[acciaccatura c16 d4 e]     → [C4/16 D4/8. E4/4]   the grace note takes its time from the next
+[c4\trill d\mordent e( f g)]   ornaments, a slur
+[c4:32]                     a tremolo: 8, 16, 32, 64 or 128
+[C4/1:7 | F3/2:m7 B&3:7]    chord symbols: a root and a quality
 ```
 
-### Chords
+### Bar lines and comments
 
-```mus
-[<c e g>4 <d f a>]           % chords spelled out
-[C4/1:7 | F3/2:m7 B&3:7 | E&3/1:M7 | A3:d7]   % chord symbols: a root and a quality
-[c2:M f:M g:7 c:M]           % relative roots and durations, as notes have
 ```
-
-A quality: `7` dominant seventh, `m` minor, `M` major (`M7` major
-seventh), `d` diminished, `A` augmented, `s` suspended, `9` `11` `13`,
-or LilyPond's own words (`maj7`, `dim7`, `sus4`); `.5-` alters a step,
-`^3` drops one, `/E` puts E in the bass. A chord keeps the duration
-going, so in `E&3/1:M7 | A3:d7` both are whole notes.
-
-### Bar lines
-
-```mus
-[c4 d e f | g a b c' || c1]
-```
-
-Zero-duration markers — but each fires a `:mark` signal during playback
-that you can hook actions on; see "Hooking into playback" below.
-
-### Comments and variables
-
-```mus
+[c4 d e f | g a b c' || c1]     bar lines: zero length, but cues while playing
 % a line comment; %{ a block comment %}
-motif = [c4 d e]
-[melody: \motif f g \motif]
-```
-
-A variable is defined at the top level, before use, and its notes are
-spliced in where it's referenced; an instruction inside it (`!f`) takes
-effect there and continues after.
-
-## Inspecting what you've built
-
-Every one of these reads whatever's currently committed — there's no
-history to pin against, only "now":
-
-```clojure
-(m/ids)                    ;; every registered id
-(m/find :verse)            ;; the raw container/leaf
-(m/inspect)                ;; session overview
-(m/inspect :verse)         ;; a specific part's structure
-(m/children :verse)        ;; direct children, keyword refs resolved
-(m/leaves :verse)          ;; just the pitched leaves
-(m/ctx :verse)              ;; short-form context chain, :ROOT excluded
-(m/ctx-value :verse :volume 0.0) ;; sample a context value at a given time
-(m/describe :verse)        ;; abbreviated structural report
-(m/print-structure :verse) ;; pretty-printed, using the surface grammar's brackets
-(m/locate :verse [0 1])    ;; navigate a path of index/id selectors
 ```
 
 ## Playing it back
 
-```clojure
-(m/connect)                        ;; open MIDI, wire up the engine (once)
-(m/play :verse)                    ;; single part -- returns a short
-                                    ;; track id, e.g. :TA
-(m/play [:verse1 :verse2])         ;; sequentially -- [] is ALWAYS
-                                    ;; sequential, same [ ] Sequence
-                                    ;; brackets you'd write in text
-(m/play #{:melody :bass})          ;; polyphony -- #{} is ALWAYS parallel
-                                    ;; (the text notation writes it { }),
-                                    ;; forked onto separate MIDI channels, each
-                                    ;; voice labeled :TA/:TB/... by
-                                    ;; ASCENDING MEAN PITCH (lowest -> :TA)
-(m/stop!)                          ;; halt
-(m/pause!) (m/resume!)             ;; a sounding note is held in place,
-                                    ;; not re-triggered, across pause/resume
-(m/all-notes-off)                  ;; silence everything immediately
-```
-
-`play`'s argument is a small mini-language — exactly one Form (a bare
-keyword is a single part; `[Form+]` is always sequential; `#{Form+}` is
-always parallel, groups nest), plus an OPTIONAL trailing `:algo name`.
-`play` no longer accepts several top-level forms implicitly sequenced --
-`(m/play :verse1 :verse2)` is now `(m/play [:verse1 :verse2])`, matching
-the same one-Form discipline every nested level already has. See
-`musics.engine/play`'s own docstring for the full grammar, including
-context-refs.
-
-`play` always flushes everything -- every voice anywhere, at any path,
-however it got there -- and starts fresh, registering the new voice(s)
-under auto-picked short track id(s) (`:TA`, `:TB`, ... `:TZ`) instead
-of an explicit path. `play-add` shares the exact same mini-language and
-also mints id(s), but never flushes -- it JOINS what's already sounding
-instead of replacing it. `play-change` is the third, narrower variant:
-supersede only whatever's currently AT a path you pick yourself (its own
-older, variadic-args call shape, unchanged), every other path untouched.
-
-```clojure
-(m/play-add [:extra :harmony])       ;; join what's already sounding, own
-                                      ;; auto id, doesn't touch anything else
-(m/play-change :bass :new-bass)      ;; supersede only whatever's AT :bass
-                                      ;; right now
-```
-
-Either `play` or `play-add` can take an OPTIONAL algorithm too, via a
-trailing `:algo name` on the call itself (`nil` for none), or a
-`[Form :algo name]` tag anywhere in the tree -- a `algos`-registered name
-run on every node that voice plays, assigned before its very first node
-runs:
-
-```clojure
-(m/play :verse :algo :my-algo)             ;; whole call, one voice
-(m/play #{[:a :algo :algo-a] [:b :algo :algo-b]}) ;; each branch its own
-```
-
-The return value mirrors wherever `#{}` was actually written, recursively
--- `(m/play #{:melody :bass})` -> `#{:TA :TB}`, every id a real,
-directly usable top-level path on its own.
-
-A voice's own algorithm is baked in ONCE, at the moment it's minted --
-immutable for that voice's whole life, never reassigned afterward.
-`(m/assign-algo! path name)` does NOT reach an already-playing voice at
-all; it only PREPARES `path` so that the *next* voice minted there
-(a `play-change` call with no `:algo` of its own, or a `play`/
-`play-add` call that happens to auto-mint into that path) picks `name`
-up. To change what's already playing, either supersede it outright
-(`play-change path new-form :algo name`), or re-register what the SAME
-name resolves to (a change to its tctx, or `t/retree!`, below) -- every voice already pointing
-at that name picks up the rebuild on its very next node, with nothing
-about the voice itself touched. `(m/algo-assignments)` reads back
-whatever's currently PREPARED (not what's currently playing). See
-`CLAUDE.md`'s "Wall: per-voice playback algorithms" section for the
-full design.
-
-### Feeding an algorithm its own parameters
-
-A `:algo name` in a tag or on `play`/`play-add`/`play-change` is ALWAYS
-just a bare, already-registered name. `musics.algo.tree/live!` binds a name to
-a tree and a tctx (an atom of the tree's settings); every change to the
-tctx is heard on the next note by every voice following the name:
-
-```clojure
-(require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer [transpose]])
-(def up (t/tctx (transpose :nodes) {:semitones 5}))
-(t/live! :up5 (transpose :nodes) up)   ;; a transform: binds the name only
-(m/play :melody :algo :up5)
-(t/setp! up :semitones 7)         ;; heard on the next note
-```
-
-See `doc/md/algorithms.md` for composing trees. A bare Name that was never
-registered plays as-is (identity), never throws.
-
-A brand-new voice always starts from whatever's currently committed —
-`(m/connect)` never needs to be redone after a later commit, and
-neither does any subsequent `(m/play ...)` call; see "Live coding"
-below for what a voice that's already playing does instead.
-
-## Composing algorithms by drag and drop: `build-tree`
-
-Instead of typing a tree of algorithms, you can put one together by hand:
-
-```clojure
-(def result (build-tree))      ; opens the composer; blocks until Finalize
-(let [[tree tctx] result]
-  (t/run tree tctx)            ; the notes
-  (t/live! :riff tree tctx))   ; or play it endlessly
-```
-
-The window has the tree on the left and the algorithms on the right:
-
-- **The pane** lists the categories (output, rhythmic, melodic, metric,
-  random, indisp, shape, bridges, sources, common), each with how many
-  of its algos fit where you're building. Click one to see its algos,
-  **◀ Back** to return. Algos that don't fit are dimmed.
-- **The canvas** shows the tree with its brackets. Every open slot is a
-  numbered box saying what it needs: `[ ① grid ]`.
-- **Drag an algo** onto the canvas. Dropped on an open slot it fills it,
-  on a node it replaces it, on the empty canvas it becomes the root. A
-  slot turns green when the dragged algo fits and red when it doesn't;
-  a misfit is refused. Clicking an algo instead places it in the active
-  slot.
-- **Root to leaves:** after each drop the next open slot becomes active,
-  and the pane only offers what fits there. Start with the root —
-  usually `zip` (in output) — and work down.
-- **Literals and params:** the two fields at the bottom of the pane put
-  a value (`[60 64 67]`) or a param keyword (`:nodes`) in the active
-  slot.
-- **Undo / Redo** (Ctrl+Z / Ctrl+Y), **Remove** (empties the active
-  slot), and a status line with the tree as text.
-- **Settings** appear under the tree once it's complete, as sliders.
-- **Finalize** (enabled when no slot is open) closes the window and
-  returns `[tree tctx]`; closing it returns `nil`.
-
-`(build-tree tree tctx)` opens an existing tree to edit it.
-
-The same at the REPL, step for step, is `(build-tree :repl)`:
+`>` plays now and stops what plays; `>>` plays at the next boundary;
+a `+` joins instead of replacing. `stop` (or Alt+.) stops everything,
+`pause` (Alt+,) pauses and goes on.
 
 ```
-canvas: (zip¹ ▸② ③)
-active: slot 2, needs :duration
-pane:   bridge   (b: back)
-  -  1 axis             point -> number        One coordinate of each point.
-  -  2 degrees->pitches number -> pitch        Whole numbers as scale steps of :key from the tonic in :octave: 0 the
-     ...
-     9 pulses->durations pulse -> duration      Each onset lasts until the next one; a 0 lengthens the note before it,
-    10 strokes->durations stroke -> duration     A syllable starts a note, "-" lengthens it; "-" before the first
-     ...
-> 9
-canvas: (zip¹ (pulses->durations² ▸③) ④)
-active: slot 3, needs :pulse
-pane:   categories
-  -  1 output     0 fit of 5
-     2 rhythmic   33 fit of 56
-     ...
+[c d e f g] >
+[c d e f g] [~] >          loop it until stop
+[e f g a b] >>             takes over at the end of the current pass
+[c d] [e f] {2} >          two parts at once
 ```
 
-A number opens a category or places an algo (`-` marks what doesn't
-fit); `b` goes back; `s 4` selects slot 4; `l [60 64 67]` or `:nodes`
-fills the active slot; `r` removes, `u` undoes, `y` redoes; `k :k 5`
-changes a setting once the tree is complete; `f` finalizes, `q` cancels.
-`?` lists these.
+Music with a name plays as a **voice** of that name, and playing it
+again replaces only that voice:
 
-## Playing in from a MIDI keyboard
-
-Needs a real MIDI input device — see `doc/md/setup.md`'s "MIDI input"
-section (`./scripts/setup-midi-in.sh`); unlike output, no kernel module
-is needed for a real USB keyboard.
-
-```clojure
-(require '[musics.input.midi :as midi])
-(midi/open-midi "your-keyboard-name")   ;; or (midi/open-midi) for a GUI
-                                         ;; picker -- starts midi-through
-                                         ;; immediately: play the keyboard,
-                                         ;; hear it live through the same
-                                         ;; Fluidsynth setup (m/connect) uses
-
-(require '[musics.input.midi-record :as rec])
-(rec/open-record)   ;; blocks -- play a phrase, end on a note below C1
-                     ;; (this DSL's own C1, MIDI 24) to stop; quantizes
-                     ;; and returns the phrase as musics text
-
-(midi/close-midi)   ;; stops midi-through, releases the device
+```
+[bass: c2 g] [~] >          the voice :bass
+[mel: e8 f g a] [~] >       a second voice; :bass goes on
+voices                      what plays, the highest voice on top
 ```
 
-`(m/gui)`'s "Record MIDI" panel wraps the same thing: Start, play, Stop
-(or the low note), hand-edit the generated text in place, name it,
-Write — saves `<name>.mus` to disk (`(m/parse-file ...)` it yourself
-afterward, same as any other `.mus` file).
+`doc/md/mu-tutorial.md`, section 2, has every play word.
 
-## Live coding: mutating a piece while it plays
+## Changing it while it plays
 
-This is the feature everything above was building toward. Because
-committing and "what's actually playing" are two separate things —
-each voice reads through its own private snapshot, captured once at
-birth, not the live repo — you can prepare a change mid-performance two
-different ways — `test/musics/pipeline_test.clj` is a full runnable, tested
-example of both, side by side, on the same material.
+Nothing you do to the stack or the store disturbs what is sounding. A
+voice plays the music it was given, so you can prepare a change at
+leisure and let it take over at a moment you choose:
 
-**Direct — nothing is playing yet, so a fresh `play` just picks it up:**
-
-```clojure
-(m/parse "[melody: g4 a b c5]")    ;; redefine an existing part -- c5 is
-                                    ;; a duration change (fifth-note),
-                                    ;; not an octave -- committed
-                                    ;; immediately
-(m/play :melody)                   ;; a brand-new voice always starts
-                                    ;; from whatever's current -- no
-                                    ;; extra step needed
+```
+[bass: f2 c] [~] >>         :bass changes at the end of its pass
+[mel: g8 a b c] [~] | >>    at the next bar line instead
+:mel hush                   silence :mel, keeping its place; again to undo
+:bass solo                  only :bass sounds; again to undo
+3 < 12 + 3 >>               voice 3, an octave up, at its boundary
 ```
 
-**Scheduled — a voice is ALREADY sounding the old content, and you want
-to cut it over at a chosen boundary rather than glitch it mid-note:**
+`3 <` puts what voice 3 plays on the stack, `12 +` moves it up an
+octave, and `3 >>` plays it as voice 3. Voices go by index from low to
+high (`1` the lowest), the drums from `0` down.
 
-```clojure
-(m/schedule-tx! :melody :exit)   ;; the next time :melody's own section
-                                  ;; finishes, redirect that ONE voice to
-                                  ;; whatever's currently committed --
-                                  ;; resolved at the moment it actually
-                                  ;; fires, not when it was scheduled
-(m/parse "[melody: g4 a b c5]")  ;; commit the edit whenever you like,
-                                  ;; before or after the schedule call
+A voice can also play a **recipe**: a quotation that makes the music,
+or changes the music under it. Each note it reaches is the next one the
+recipe gives *now*, so a change to its settings is heard on the next
+note:
+
+```
+| '( duration/euclid [c e g] pitches zip [~] ) :riff >
+:riff @^{ k:5 } set         five beats instead of three, heard at once
+:riff settings              every setting and its range
+[c d e g] [~] '( 5 + ) :up >   the loop, a fourth higher
 ```
 
-Either way, nothing sounding gets interrupted or glitched — the old
-content keeps playing until the exact moment you (or the schedule) says
-otherwise.
+`doc/md/mu-tutorial.md` (section 16) and `doc/md/algo-tree-tutorial.md`
+go on from here.
 
-## Hooking into playback: the conductor
+## Files
 
-Three kinds of signal fire during playback, all going through the same
-mechanism (`musics.conductor`) that `schedule-tx!` above is built on:
+| Word | Does |
+|---|---|
+| `"piece.mus" load` | read a file and store the parts it names: `stored :dyn_constant_soft …` |
+| `"piece.ly" load` | the same for LilyPond, ABC (`.abc`) and GUIDO (`.gmn`), converted first |
+| `x "x.mid" render` | write a MIDI file |
+| `x "x.mid" 60 render` | the same for endless music: the first 60 seconds |
 
-- **`:section`** — a container's own start/end (`:enter`/`:exit`).
-- **`:bar`** — a voice crossing its own bar boundary, computed from
-  whatever `Meter` is in scope. No central authority: each voice counts
-  its own bars, so this is per-voice, not "the piece's" bar count.
-- **`:mark`** — an author-placed `|`/`||`/`|||`/`||||` bar line.
+A `.mus` file is mu input, read just as the prompt reads it, so
+anything you type can go in one.
 
-You can register and fire your own named actions directly, independent of
-any of this:
+## The GUI
 
-```clojure
-(m/register-action! :flash-lights (fn [& _] (println "!")))
-(m/trigger! :flash-lights)
-```
+`gui` opens the GUI beside mu, on what mu plays, and closing it leaves
+mu running. Its main window holds the transport, a field to watch a
+stored part and the buttons that open the other windows:
+- **A watched part** gets a window of its own, its contexts as sliders
+  that change what plays (`Root panel...` does the same for the
+  defaults).
+- **Editor...**: text read as mu reads a file.
+- **Browser...**: the stored parts and their structure.
+- **Play Builder...**: what to play, and how, built by hand.
+- **Conductor...**: actions on the cues a voice passes, at a section, a
+  bar or a bar line.
+- **Wall...**: every live voice's settings as controls.
+- **Record MIDI:** play a phrase on a MIDI keyboard and get it back as
+  musics text, to edit, name and write as a `.mus` file. A keyboard
+  needs no setup beyond `doc/md/setup.md`'s "MIDI input".
+- **Persistence...**: write the repo to a file and load it back.
+- **Reset:** a fresh, empty repo.
 
-Or tie one to a boundary:
-
-```clojure
-(m/schedule! :verse :exit :flash-lights)   ;; fires once, the next time
-                                            ;; :verse's section ends
-```
-
-`schedule-tx!` (above) is just this same mechanism with the action being
-"redirect one voice's own :view." See `CLAUDE.md`'s "Conductor" section
-for the full signal shapes (`:id`/`:phase` for each kind) if you want
-to hook `:bar` or `:mark` directly.
-
-## Persistence
-
-```clojure
-(m/write "session.edn")          ;; whatever's currently committed
-(m/load "session.edn")           ;; replaces it wholesale
-```
-
-## Importing LilyPond
-
-```clojure
-(m/ly-to-mus "/path/to/piece.ly")       ;; best-effort conversion, writes
-                                         ;; a sibling .mus file, returns its path
-(m/parse (slurp (m/ly-to-mus "/path/to/piece.ly")))
-(m/play-ly-file "/path/to/piece.ly")    ;; convert + parse + play, in memory
-```
-
-Doesn't touch the current session on its own — load the result yourself.
-See `musics.input.lilypond-import` for what's handled and what's known to
-be out of scope (markup, lyrics, engraving overrides).
+`:riff gui` opens just one voice's settings, and the controls and the
+prompt stay two views of the same settings.
 
 ## Gotchas
 
-- **A script needs `(System/exit 0)`.** In `lein repl` you just keep
-  working after `(m/play ...)`; a one-shot script run with
-  `lein run -m clojure.main script.clj` stays alive after playback
-  (the MIDI receiver's thread), so end it with `(System/exit 0)` after
-  your `Thread/sleep`.
-- **Repeating pitch cycles need absolute pitches.** A cycle written in
-  text (a color to `cycle>`, say) needs capital letters with
-  octaves (`C4 D4 E4`). Lowercase letters are relative, so a lowercase
-  cycle drifts up or down with every repeat instead of returning to its
-  start.
-
-## Starting over
-
-```clojure
-(m/reset)   ;; wipes session, variables, MIDI connection, and everything
-             ;; committed to musics.repo -- a genuinely fresh start
-```
+- **Storing replaces.** `R!` under a name that's taken replaces the
+  part for everything that uses it; mu names those parts. Give the new
+  one its own name if that's not what you want.
+- **Endless music has no end to write.** `render` and `run` refuse it;
+  give `render` the seconds to write, or play it.
 
 ## Where to go next
 
-- **`CLAUDE.md`** — the architecture underneath everything above:
-  `musics.repo`'s flat store, `musics.conductor`'s signal/schedule
-  design, the flat domain model and Barlow indispensability.
-- **`doc/md/domain.md`** — full domain-model reference (Context/Envelope,
-  container shapes, the transform functions).
-- **`doc/md/algorithms.md`** — what kinds of algorithm this project
-  supports (generators, transformers, filters, ...), which ones `play`'s
-  own `:algo` tag can reach and which are plain Clojure calls instead,
-  and how to write and hook up your own.
-- **`doc/md/parsing.md`** — full grammar/syntax reference.
-- **`doc/md/lilypond.md`** — LilyPond to musics, construct by construct.
-- **`doc/md/setup.md`** — MIDI output (Fluidsynth/qsynth/VirMIDI) and MIDI
-  input (a real keyboard, `midi-through`/`record-midi`) system setup.
-- **`test/musics/pipeline_test.clj`** — a complete, tested, runnable example of
-  the full parse → play → mutate → cut-over cycle.
+- `doc/md/mu-tutorial.md`: every music word, section by section.
+- `doc/md/algo-tree-tutorial.md`: algorithms as words, trees and recipes.
+- `doc/md/parsing.md`: the full notation.
+- `doc/md/lilypond.md`: LilyPond to musics, construct by construct.
+- `doc/md/setup.md`: sound output, and MIDI input from a keyboard.
+- `doc/md/walk-through.md`: one piece followed from text to sound.
+- `CLAUDE.md`: the architecture underneath all of it.

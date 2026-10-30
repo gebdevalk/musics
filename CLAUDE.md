@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `musics` is a Clojure DSL for writing music as text, parsed into a domain model,
-and played back as MIDI in real time (Fluidsynth via a virtual ALSA MIDI port)
-or rendered to a MIDI file. It's a REPL-driven project, not an app with a CLI —
-the primary interface is `src/musics/core.clj`, evaluated interactively.
+and played back as MIDI in real time (Gervill, or Fluidsynth via a virtual
+ALSA MIDI port) or rendered to a MIDI file. It is used through **mu**, the
+musical REPL (`lein mu`, `src/musics/mu.clj`), and the **GUI** beside it
+(mu's `gui`); there is no Clojure REPL API.
 
 ### Shape of the system
 
@@ -20,14 +21,14 @@ code is *for*," not "what this code can't reach." The top tier reaches
 back into the other two rather than data only ever flowing forward:
 
 1. **Material** — `musics.ebnf` (grammar) → `walker.clj`
-   (walk) → `musics.domain.domain`/`musics.repo` (the versioned,
+   (walk) → `musics.domain`/`musics.repo` (the flat,
    id-addressed store). Produces durable, addressable content: what
    the music *is*, parsed once at authoring/commit time.
 2. **Sound** — `musics.events` (a Form's performance as a lazy stream
    of timed events) + `musics.engine` (one sender thread reading those
    streams a lookahead ahead of the clock) + `musics.domain.resolve`
-   (context sampling, actualization) + `musics.midi.midi_live`/
-   `midi_file` (MIDI dispatch). Turns committed material into real-time or rendered
+   (context sampling, actualization) + `musics.midi.live`/
+   `musics.midi.file` (MIDI dispatch). Turns committed material into real-time or rendered
    sound.
 3. **The playground** — `play`'s own mini-language (`musics.engine`,
    mu's play words) + `musics.wall` (per-voice
@@ -36,14 +37,14 @@ back into the other two rather than data only ever flowing forward:
    into the engine to spawn voices and assign algorithms, for one
    particular performance rather than describing the music itself.
 
-`musics.repo` (the versioned store) is shared plumbing underneath all
+`musics.repo` (the flat store) is shared plumbing underneath all
 three, not a tier of its own — and it's the same global, mutable
 registry every tier reads from directly (`musics.registries`'s
 `^:dynamic` atoms; see "Repo state" below), not something tier 2/3
 access through an abstraction tier 1 could change without touching
 both callers. That's a deliberate simplicity tradeoff for a
 single-user REPL tool, the same one already reasoned through for
-global-vs-instance state generally (`review.txt`, point 1) — not an
+global-vs-instance state generally (`doc/md/audits/review.txt`, point 1) — not an
 oversight this grouping is meant to paper over. What the grouping
 *does* buy: it names where a given piece of code belongs and which
 direction its dependencies run (tier 3 requires tiers 1/2; neither
@@ -95,7 +96,7 @@ next touched anyway, not as a dedicated pass.
 
 **The flat-model migration is complete, and a live signaling layer has
 been built on top of it since.** In its current shape: a single, flat,
-id-addressed `repo` map (`musics.domain.domain`, no parent pointers)
+id-addressed `repo` map (`musics.domain`, no parent pointers)
 sits under `musics.repo`, itself just as flat — `id -> node`, no history,
 no tx-numbering, only ever the CURRENT value under each id; `musics.conductor`
 bridges structural boundaries (section enter/exit, bar crossings,
@@ -677,8 +678,8 @@ plays unchanged (identity).
 `musics.algo.tree` (`src/musics/algo/tree.clj`) is the one way to combine this
 project's algorithms and to play them (see `doc/md/decisions.md`,
 2026-09-27/28). Two separate things: a **tree** (an immutable value —
-what is computed) and a **tctx** (its settings, an ordinary Context
-whose keys are `?` names, also the GUI's model):
+what is computed) and a **tctx** (its settings, `{:params-atom a}`
+holding values by name, also the GUI's model):
 
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
