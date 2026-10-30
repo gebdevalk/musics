@@ -14,6 +14,7 @@
             [musics.mu.algos]
             [musics.mu.complete :as complete]
             [musics.mu.library]
+            [musics.version :refer [version]]
             ;; commits :ROOT, with every default, before anything is read
             [musics.mu.store])
   (:import (org.jline.keymap KeyMap)
@@ -129,10 +130,11 @@
       (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
       (.bind ^KeyMap main (Reference. name) k))))
 
-(def header
-  "What mu shows when it starts: the words that drive the engine."
+(defn header
+  "What mu shows when it starts: its version and the words that drive the engine."
+  []
   (str/join "\n"
-            ["mu -- a concatenative, real-time, interactive REPL for musics"
+            [(str "mu " @version " -- a concatenative, real-time, interactive REPL for musics")
              ""
              "Write music and it goes on the stack; words after it change it, combine it"
              "and play it, while it plays. Tab completes names, 'see' explains a word"
@@ -153,7 +155,7 @@
 (defn repl
   "Run mu until bye or Ctrl+D."
   []
-  (println header)
+  (println (header))
   (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
                             (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
     (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))
@@ -169,9 +171,12 @@
 
 (defn -main
   "Run mu on its own: lein mu (an alias for lein trampoline run -m
-   musics.mu, so JLine gets the real terminal). Leaving exits the JVM,
-   whose MIDI and engine threads would otherwise keep it running."
-  [& _]
-  (repl)
+   musics.mu, so JLine gets the real terminal); lein mu --version prints
+   the version only. Leaving exits the JVM, whose MIDI and engine threads
+   would otherwise keep it running."
+  [& args]
+  (if (some #{"--version"} args)
+    (println "mu" @version)
+    (repl))
   (System/exit 0))
 

@@ -146,6 +146,9 @@ hosted REPL language (musics.lang) lives on the `concat` branch / the
 
 ```bash
 lein mu                 # mu, the musical REPL -- with the GUI (gui), the interface
+lein mu --version       # mu 0.3.<merges>.<commits>: develop's merges into main
+                        # (first parent) and its commits, counted by git
+                        # (musics.version); the banner shows it too
 scripts/repl-start.sh   # a headless nREPL on 7888 unless one is running, for
                         # development checks only (no Clojure REPL API)
                         # (run by the SessionStart hook in .claude/settings.json)

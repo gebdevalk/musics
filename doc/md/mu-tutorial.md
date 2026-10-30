@@ -7,7 +7,7 @@ through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the line under `→` is what
 mu printed.
 
-Start mu with `lein mu`. `bye` or Ctrl+D
+Start mu with `lein mu`; its first line shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
 ## 0. The stack
