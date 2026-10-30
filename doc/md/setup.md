@@ -22,10 +22,17 @@ gervill                               Gervill with FluidR3_GM
 soundfonts                            the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf, numbered
 3 soundfont                           swap to the 4th of them; what plays goes on
 "~/Music/sf/Crysrhod.sf2" soundfont   or one by its file
+[c e g] try-soundfonts                the chord through each of them in turn
+[c e g] "piano" try-soundfonts        through those with piano in their name
 fluidsynth                            Fluidsynth instead
 ```
 
 `soundfont` connects to Gervill first when playing through Fluidsynth.
+`try-soundfonts` is an audition (`doc/md/feedback.md`): each soundfont
+is shown with its number, the music plays and the next one follows;
+Alt+L moves on, Alt+J goes back, Alt+K plays it again, `stop` (Alt+.)
+stops, and `n soundfont` keeps the one you liked. Playing ends on the
+last soundfont tried.
 
 Gervill's buffer is 30 ms by default (Java's own default is 200 ms,
 heard as a lag). Setting it needs

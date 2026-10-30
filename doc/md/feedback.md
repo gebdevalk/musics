@@ -61,6 +61,11 @@ played with `>`/`play` when that is a single note, chord or drum.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
 - `stop` (Alt+.) stops an audition.
+- `try-soundfonts` ( x -- ), or ( x text -- ), is an audition of
+  soundfonts: x plays through each of `soundfonts` in turn, or through
+  those with the text in their name (`[c e g] "piano" try-soundfonts`),
+  each shown by the number `soundfont` takes it by. A rating records
+  the soundfont with x.
 - `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.

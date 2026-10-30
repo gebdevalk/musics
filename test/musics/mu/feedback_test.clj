@@ -74,7 +74,7 @@
 
 (deftest rating-the-auditions-item-moves-on
   (let [q (LinkedBlockingQueue.)]
-    (reset! mfb/audition {:items [(value "x8\\36") (value "x8\\36,39")] :i 1 :queue q})
+    (reset! mfb/audition {:items [{:value (value "x8\\36")} {:value (value "x8\\36,39")}] :i 1 :queue q})
     (top "like")
     (is (= ["x8\\36,39" 1 :audition] ((juxt :what :score :where) (last (fb/ratings)))))
     (is (= :next (.poll q)) "a rating moves on")
@@ -127,3 +127,23 @@
           (top "stop")
           (is (wait-until #(nil? @mfb/audition) 1000) "stop stops it")
           (finally (reset! mfb/auto? true)))))))
+
+(deftest trying-the-soundfonts-plays-the-music-through-each
+  (let [played (atom [])]
+    (with-redefs [engine/soundfonts (constantly ["/sf/a.sf2" "/sf/b.sf2"])
+                  engine/soundfont! (fn [path] (swap! played conj path) "bank")
+                  mt/play!          (fn [x _ & _] (swap! played conj (p/show x)))
+                  engine/busy?      (constantly false)
+                  mfb/gap-ms        (atom 30)]
+      (top "[c d] try-soundfonts")
+      (is (wait-until #(nil? @mfb/audition) 2000))
+      (is (= ["/sf/a.sf2" "[C4/4 D4]" "/sf/b.sf2" "[C4/4 D4]"] @played))
+      (is (some #{"2/2  1> /sf/b.sf2"} @said) "each shown by the number soundfont takes it by")
+      (testing "those with a text in their name"
+        (reset! played [])
+        (top "[c d] \"B.sf\" try-soundfonts")
+        (is (wait-until #(nil? @mfb/audition) 2000))
+        (is (= ["/sf/b.sf2" "[C4/4 D4]"] @played))
+        (is (some #{"1/1  1> /sf/b.sf2"} @said) "keeping its number")
+        (is (re-find #"no soundfont has \"x\"" (top "[c] \"x\" try-soundfonts"))))))
+  (is (re-find #"try-soundfonts: needs music" (top "3 try-soundfonts"))))
