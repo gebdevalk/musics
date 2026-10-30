@@ -183,7 +183,7 @@
      ;; a file's namespace is loaded afresh, so a function taken out of it goes
      (try (if file? (do (remove-ns sym) (load-file n)) (core/require sym :reload))
           (catch java.io.FileNotFoundException _ (fail "no namespace" (str sym) "on the classpath")))
-     (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym)))
+     (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym) (assoc-in [:sources alias] n)))
      ((requiring-resolve 'musics.mu.library/register!) sym alias)
      (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
 
@@ -247,6 +247,20 @@
     (if-let [{:keys [ids]} ((requiring-resolve 'musics.mu.store/read!) (file-text path))]
       (println "stored" (str/join " " (map pr-str ids)))
       (fail "the file didn't parse:" path))))
+
+(defn save-session!
+  "Save the session to a file: what is stored, mu's words and bindings
+   (not the stack): \"piece.edn\" save-session"
+  [file]
+  ((requiring-resolve 'musics.persist/persist-session) (name-of file)))
+
+(defn restore-session!
+  "Restore a session saved with save-session: what is stored and mu's
+   words and bindings are replaced by the file's; the stack stays"
+  [file]
+  (let [path (name-of file)]
+    (when-not (.exists (java.io.File. ^String path)) (fail "no such file:" path))
+    ((requiring-resolve 'musics.persist/restore-session) path)))
 
 (defn render!
   "Write what playing the music would sound as to a MIDI file, no clock

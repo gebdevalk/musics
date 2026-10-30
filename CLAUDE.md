@@ -332,7 +332,9 @@ grammar); `bye` or Ctrl+D leaves. An input's literals are read up to
 each `:=`, just before that part runs, so `'m [c d] := [\m e]` works in
 one input or file. At the top level a text command (`transpose c d ( … )`,
 `R ( … )`, `grace …`) is refused (`TopCommand`), pointing at the line it
-belongs in or the postfix word. `"x.mus" load` reads a file (`.ly`,
+belongs in or the postfix word. `"x.edn" save-session` saves what is
+stored and mu's words and bindings, `restore-session` puts them back in
+place of mu's own. `"x.mus" load` reads a file (`.ly`,
 `.abc`, `.gmn` converted), `x "x.mid" render` writes a MIDI file.
 Sounds are rated as you hear them (`doc/md/feedback.md`): `like`/`meh`/
 `dislike` or Alt+l Alt+k Alt+j at the prompt (`musics.mu.feedback`), `audition`
@@ -387,9 +389,17 @@ persist/replace whatever's currently committed (via `musics.repo/seed!`),
 not the performance layered on top of it (a voice's `:algo` assignment
 can transform pitch/duration wholesale). `musics.mu.store/reset-all!`
 (the GUI's Reset) wipes `musics.repo` entirely and re-bootstraps a fresh
-`:ROOT`. `persist-session`/`restore-session` are the fuller pair
-for that — same repo+auto-ids round-trip as `write`/`load`,
-plus whatever's CURRENTLY LIVE right now (`musics.engine/live-algos`,
+`:ROOT`. `persist-session`/`restore-session` (mu's `"x.edn"
+save-session`/`restore-session`, the GUI's Persist/Restore Session)
+are the fuller pair for that — same repo+auto-ids round-trip as
+`write`/`load`, plus mu's own state as mu text, `:mu` in the file
+(`musics.mu.session`: the namespaces required and in use, the words of
+`: … ;`, each literal written as its value prints so it reads alone as
+it read in its input, and the bindings of `:=` whose value reads back
+as itself -- one holding a word's locals is skipped, named; not the
+stack), which restoring runs after the repo in place of mu's words and
+bindings (a file without `:mu` leaves them), plus whatever's CURRENTLY
+LIVE right now (`musics.engine/live-algos`,
 path -> Name read straight off each live voice's own immutable `:algo`
 field — deliberately NOT `algo-assignments`/`:algo-prepared`, a separate,
 narrower table that an ordinary `:algo`-tagged `play`/`play-add` call

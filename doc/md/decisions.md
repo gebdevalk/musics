@@ -2188,3 +2188,22 @@ rebinding: `R!` binds the id to a new recipe, and a voice playing the
 one stored there follows it by id, from its next note, with the new
 recipe's settings. Weighed and dropped: `set` reaching the stored
 recipe, and a word writing a voice's settings back into it.
+
+## 2026-10-30 — mu's words and bindings saved with the session, as mu text
+
+A session file (`persist-session`, mu's `save-session`) holds mu's own
+state beside the repo: the namespaces required and in use, the words of
+`: … ;` and the bindings of `:=`, written as mu text, an input that
+defines them again (`musics.mu.session`), restored after the repo so a
+binding may name what is stored. Text rather than the evaluator's maps,
+since printing is isomorphic to reading and the text can be read and
+edited; the values would otherwise need a freezing of their own, as the
+repo's do. A definition's literals are written as their values print,
+since a duration or a relative pitch carried over from earlier in its
+input would read otherwise alone. A binding is written only when its
+value reads back as itself and holds no word's locals; the others are
+named and left out. Restoring replaces mu's words and bindings, as it
+replaces the repo; the stack is not kept, as Forth keeps none. Weighed
+and dropped: a separate `.mus` file beside the session file, merging on
+restore, and saving a performance mid-play (a voice's position is a
+chain of continuations, which no file holds).

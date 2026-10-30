@@ -605,6 +605,8 @@ and play it, or rate them (section 17).
 | `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
 | `R@` or `fetch` | fetch from the repo: `:mel R@` |
 | `: name ( a -- b ) … ;` | define a word of your own |
+| `"x.edn" save-session` | save what is stored, your words and your bindings to a file (not the stack) |
+| `"x.edn" restore-session` | put them back, in place of what is stored and of your words and bindings |
 
 ```
 'motif [c e g] :=

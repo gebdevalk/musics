@@ -237,6 +237,8 @@ go on from here.
 | `"piece.ly" load` | the same for LilyPond, ABC (`.abc`) and GUIDO (`.gmn`), converted first |
 | `x "x.mid" render` | write a MIDI file |
 | `x "x.mid" 60 render` | the same for endless music: the first 60 seconds |
+| `"piece.edn" save-session` | save the session: what is stored, your words (`: … ;`) and bindings (`:=`), not the stack |
+| `"piece.edn" restore-session` | put it back, replacing what is stored and your words and bindings |
 
 A `.mus` file is mu input, read just as the prompt reads it, so
 anything you type can go in one.
@@ -258,7 +260,8 @@ stored part and the buttons that open the other windows:
 - **Record MIDI:** play a phrase on a MIDI keyboard and get it back as
   musics text, to edit, name and write as a `.mus` file. A keyboard
   needs no setup beyond `doc/md/setup.md`'s "MIDI input".
-- **Persistence...**: write the repo to a file and load it back.
+- **Persistence...**: write the repo to a file and load it back; Persist
+  and Restore Session do what `save-session` and `restore-session` do.
 - **Reset:** a fresh, empty repo.
 
 `:riff gui` opens just one voice's settings, and the controls and the

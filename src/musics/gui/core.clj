@@ -993,7 +993,7 @@
                               :on-action {:event/type :persistence-restore-session}})]})
               (ui/label {:text "Load/Restore REPLACE everything currently committed — this isn't a merge."
                          :style "-fx-font-style: italic;"})]})
-          (ui/label {:text "Persist Session / Restore Session don't capture what an algo name holds, or any conductor schedule table."
+          (ui/label {:text "Persist Session also keeps mu's words and bindings (not the stack), Restore Session replacing mu's own; neither keeps what an algo name holds, or any conductor schedule table."
                      :style "-fx-font-style: italic;"})
           (ui/label {:text (or (when busy? "Working…") message "")})
           (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))

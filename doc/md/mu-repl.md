@@ -249,6 +249,12 @@ followed by nothing, a duration or `*n`.
   id (`musics.mu.store`), unlike a literal at the prompt, which waits
   for `R!`; its bindings and definitions stay. `.ly`, `.abc` and `.gmn`
   are converted first. `x "x.mid" render` writes a MIDI file.
+- **A session is saved whole**: `"piece.edn" save-session` writes what is
+  stored, mu's words and its bindings, the latter two as mu text (the
+  namespaces required and in use, each `: … ;` with its literals written
+  out in full, each `'name value :=` whose value can be written; not the
+  stack); `"piece.edn" restore-session` replaces the repo, the words and
+  the bindings with the file's, the stack staying.
 - **Entry point**: `lein mu` (`musics.mu/-main`).
 
 ## 8. Words

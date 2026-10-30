@@ -22,7 +22,9 @@
    reading -- no custom EDN readers needed, just plain data."
   (:refer-clojure :exclude [load])
   (:require [clojure.edn :as edn]
+            [clojure.string :as str]
             [musics.engine :as engine]
+            [musics.mu.session :as mu-session]
             [musics.registries :as reg]
             [musics.repo :as repo]
             [musics.domain.context :as c]
@@ -239,23 +241,27 @@
    algo-assignments defaults to {} -- nothing live yet is a valid,
    empty case, not an error."
   ([repo auto-ids] (session->edn repo auto-ids {}))
-  ([repo auto-ids algo-assignments]
+  ([repo auto-ids algo-assignments] (session->edn repo auto-ids algo-assignments nil))
+  ([repo auto-ids algo-assignments mu]
    (binding [*ctx-refs* (java.util.IdentityHashMap.)]
-     (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
-              :auto-ids         auto-ids
-              :algo-assignments algo-assignments}))))
+     (pr-str (cond-> {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+                      :auto-ids         auto-ids
+                      :algo-assignments algo-assignments}
+               mu (assoc :mu mu))))))
 
 (defn edn->session
   "Deserialize an EDN string (from session->edn) back into {:repo
-   :auto-ids :algo-assignments}. Also reads a plain repo->edn-produced
+   :auto-ids :algo-assignments :mu}, :mu mu's words and bindings as mu
+   text (nil when the file has none). Also reads a plain repo->edn-produced
    string just fine -- algo-assignments simply comes back {} when the
    key isn't present, same as a fresh, nothing-assigned-yet session."
   [edn-str]
-  (let [{:keys [repo auto-ids algo-assignments]} (edn/read-string edn-str)]
+  (let [{:keys [repo auto-ids algo-assignments mu]} (edn/read-string edn-str)]
     (binding [*ctx-refs* (atom {})]
       {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
        :auto-ids         auto-ids
-       :algo-assignments (or algo-assignments {})})))
+       :algo-assignments (or algo-assignments {})
+       :mu               mu})))
 
 ;; ============================================================
 ;; Files
@@ -276,23 +282,32 @@
   (println "[musics] Session loaded from" path))
 
 (defn persist-session
-  "Like write, and also each live voice's algo (path -> name,
-   musics.engine/live-algos). Not kept: what a name in the algo registry
-   holds (code), the conductor's tables (cues of one performance)."
+  "Like write, and also mu's words and bindings, as mu text
+   (musics.mu.session), and each live voice's algo (path -> name,
+   musics.engine/live-algos). Not kept: mu's stack, what a name in the
+   algo registry holds (code), the conductor's tables (cues of one
+   performance)."
   [path]
-  (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session)
-                           (engine/live-algos)))
+  (let [[mu skipped] (mu-session/text)]
+    (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session)
+                             (engine/live-algos) mu))
+    (when (seq skipped)
+      (println "[musics] Not saved, their values can't be written as text:" (str/join " " (map #(str "\\" %) skipped)))))
   (println "[musics] Session persisted to" path))
 
 (defn restore-session
-  "Like load, then prepares each saved voice path's algo
+  "Like load, then replaces mu's words and bindings with the file's,
+   then prepares each saved voice path's algo
    (musics.engine/assign-algo!), so the next untagged play at that path
    plays through it again; makes a silent engine first when none exists.
    A later connect! makes a new engine, without these."
   [path]
-  (let [{:keys [repo auto-ids algo-assignments]} (edn->session (slurp path))]
+  (let [{:keys [repo auto-ids algo-assignments mu]} (edn->session (slurp path))]
     (repo/seed! repo)
     (swap! reg/session assoc :auto-ids auto-ids)
+    ;; after the repo, so a binding can refer to what is stored; replaces mu's words
+    ;; and bindings -- a file without them (write's, an older one) leaves mu's as they are
+    (when (some? mu) (mu-session/restore! mu))
     (when (seq algo-assignments)
       (when-not engine/*engine*
         (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
