@@ -311,7 +311,7 @@ namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 gathered into a line, `| … seq`). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
-`musics.play` and `musics.rate` (and any namespace mu's `require`
+`musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
 loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
 too) -- `musics.mu.library` registers each
 public function under its name, a trailing `!` left off, and its
@@ -2002,12 +2002,15 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   :gervill)` plays through it instead of Fluidsynth/VirMIDI, its
   `Receiver` going to the engine as VirMIDI's does;
   `musics.engine/soundfont!`/`soundfonts` load any `.sf2` (mu: `gervill`
-  `fluidsynth` `soundfont` `soundfonts`; `x try-soundfonts` plays x
-  through every instrument of each in turn as an audition, `x "horn"
-  try-soundfonts` through those named so, by their own or General MIDI
-  name, `musics.mu.feedback/start-soundfont-trial!`; the presets are
-  read from the files, `gervill/instruments`, the samples only when a
-  soundfont is loaded).
+  `fluidsynth`, and `musics.soundfont`, mu's `soundfont` namespace:
+  `soundfont` `soundfonts` `list-soundfonts` `list-groups` -- General
+  MIDI's groups of eight, `musics.common.music-data/gm-groups` -- and
+  `try-soundfonts` ( [x] [n] [pick] -- ), x or a phrase through every
+  instrument of every soundfont as an audition, `musics.mu.feedback/
+  start-soundfont-trial!`: n a soundfont, a pick a pair of programs, a
+  group by the start of its name, else the instruments a text names;
+  the presets are read from the files, `gervill/instruments`, the
+  samples only when a soundfont is loaded).
   Its 30 ms latency needs `:jvm-opts`' `--add-exports
   java.desktop/com.sun.media.sound`. An output that doesn't open
   within 5 s (a Bluetooth speaker asleep) is an error, not a wait

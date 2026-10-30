@@ -1,21 +1,17 @@
 (ns musics.play
   "mu's play words as Clojure functions, done for their effect: stopping,
-   the voices, hushing, pausing, echoing, the synthesizer and the GUI --
+   the voices, hushing, pausing, echoing, the synthesizer (its soundfonts are musics.soundfont's) and the GUI --
    registered into mu's play namespace by musics.mu.library. Starting
    music (play, >, play-next, >>, …) reads the stack's shape -- a
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
-            [musics.common.music-data :as data]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
-            [musics.midi.gervill :as gervill]
-            [musics.mu.feedback :as feedback]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
-            [musics.mu.print :as p]
-            [musics.mu.value :as v]))
+            [musics.mu.print :as p]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
@@ -105,52 +101,6 @@
   []
   (mt/cancel-staged!)
   (engine/connect! :gervill))
-
-(defn soundfonts!
-  "The .sf2 files soundfont takes by number"
-  []
-  (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
-
-(defn list-soundfonts!
-  "Each soundfont's number (what soundfont takes) and name"
-  []
-  (let [fs (engine/soundfonts)
-        w  (count (str (dec (count fs))))]
-    (doseq [[i f] (map-indexed vector fs)]
-      (println (format (str "%" w "d  %s") i (str/replace (.getName (java.io.File. ^String f)) #"(?i)\.sf2$" ""))))))
-
-(defn list-groups!
-  "General MIDI's groups of eight instruments: number, name, programs"
-  []
-  (let [w (apply max (map count data/gm-groups))]
-    (doseq [[i g] (map-indexed vector data/gm-groups)]
-      (println (format (str "%2d  %-" w "s  %3d-%d") i g (* 8 i) (+ 7 (* 8 i)))))))
-
-(defn soundfont!
-  "Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
-  [file-or-n]
-  (when-not (or (string? file-or-n) (integer? file-or-n))
-    (fail "needs a file in quotes or a number from soundfonts, got" (p/show file-or-n)))
-  (println (engine/soundfont! file-or-n)))
-
-(defn try-soundfonts!
-  "Play the music on top through every instrument of each of soundfonts
-   in turn, or with a text on top through those it names, in their own
-   name or their General MIDI one (x \"horn\" try-soundfonts), in the
-   background, as an audition: Alt+L the next, Alt+J back, Alt+K again,
-   a rating records the soundfont, stop (Alt+.) stops; n soundfont
-   keeps one"
-  {:mu {:optional {:named string?}}}
-  ([x] (try-soundfonts! x ""))
-  ([x named]
-   (when-not (or (v/material? x) (mt/leaf? x) (mt/endless? x))
-     (fail "needs music to play, got" (p/show x)))
-   (let [all (engine/soundfonts)]
-     (when (empty? all) (fail "no .sf2 file in" (str/join " or " gervill/soundfont-dirs)))
-     (mt/cancel-staged!)
-     (if-let [n (feedback/start-soundfont-trial! x (map-indexed vector all) named)]
-       (println n "instruments")
-       (fail "no instrument of a soundfont has" (pr-str named) "in its name")))))
 
 (defn- keep-javafx!
   "JavaFX ends when its last window closes, unless told not to: then a

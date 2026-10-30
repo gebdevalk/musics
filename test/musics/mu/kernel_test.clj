@@ -310,21 +310,6 @@
           (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
 
-(deftest soundfont-words
-  (testing "soundfonts numbers the files soundfont takes"
-    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (engine/soundfonts))) (out "soundfonts"))))
-  (testing "list-soundfonts: each number and name, aligned"
-    (with-redefs [engine/soundfonts (constantly (vec (for [i (range 11)] (str "/sf/f" i ".sf2"))))]
-      (let [ls (str/split-lines (out "list-soundfonts"))]
-        (is (= [" 0  f0" "10  f10"] [(first ls) (last ls)])))))
-  (testing "list-groups: General MIDI's groups of eight"
-    (let [ls (str/split-lines (out "list-groups"))]
-      (is (= 16 (count ls)))
-      (is (= " 7  brass                  56-63" (nth ls 7)))))
-  (testing "soundfont refuses what is neither a file nor a number, and a number too high"
-    (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
-    (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
-
 (deftest echo-prints-each-note-as-it-sounds
   (is (= "x\\38 Acoustic Snare" (musics.mu.material/echo-line {:channel 9 :pitches [38]})))
   (is (= "\\i:40 violin  C4 E4 G4" (musics.mu.material/echo-line {:channel 2 :pitches [60 64 67] :program 40})))

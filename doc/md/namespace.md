@@ -151,8 +151,9 @@ musics.mu                    182   mu, the musical REPL: the prompt loop (JLine)
 musics.kernel                257   kernel words: numbers, the repo, namespaces, require, help, files, load, render
 musics.tool                  309   tool words: making, reading, reshaping
 musics.music                 576   music words: transposing, row forms, the readers, as-drums …
-musics.play                  177   play words: stop, voices, hush, set, settings, retree, compose, gui
+musics.play                  165   play words: stop, voices, hush, set, settings, retree, compose, gui
 musics.rate                   74   rate words: like, dislike, audition …
+musics.soundfont             113   soundfont words: soundfonts, list-groups, try-soundfonts …
 musics.feedback               92   the ratings file
 musics.recipe                190   tree recipes @( … ): RPN words built into a tree and its tctx, run lazily; stored as their text
 musics.version                18   mu's version, 0.3.<merges>.<commits>, counted by git

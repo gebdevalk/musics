@@ -7,7 +7,6 @@
             [musics.engine :as engine]
             [musics.feedback :as fb]
             [musics.input.reader.builder :as builder]
-            [musics.midi.gervill :as gervill]
             [musics.mu.eval :as e]
             [musics.mu.feedback :as mfb]
             [musics.mu.kernel]
@@ -128,36 +127,3 @@
           (top "stop")
           (is (wait-until #(nil? @mfb/audition) 1000) "stop stops it")
           (finally (reset! mfb/auto? true)))))))
-
-(deftest trying-the-soundfonts-plays-the-music-through-every-instrument-of-each
-  (let [played  (atom [])
-        holds   {"/sf/a.sf2" [{:bank 0 :program 40 :name "Violin" :percussion? false}
-                              {:bank 0 :program 0 :name "Piano " :percussion? false}
-                              {:bank 0 :program 0 :name "Kit" :percussion? true}
-                              {:bank 8 :program 1 :name "Other bank" :percussion? false}]
-                 "/sf/b.sf2" [{:bank 0 :program 48 :name "Strings" :percussion? false}]}
-        run     (fn [input]
-                  (reset! played [])
-                  (with-out-str (top input))
-                  (wait-until #(nil? @mfb/audition) 2000))]
-    (with-redefs [engine/soundfonts   (constantly ["/sf/a.sf2" "/sf/b.sf2"])
-                  engine/soundfont!   (fn [path] (swap! played conj path) "bank")
-                  gervill/instruments holds
-                  mt/play!            (fn [x ctx & _] (swap! played conj (str (p/show x) " " (p/show ctx))))
-                  engine/busy?        (constantly false)
-                  mfb/gap-ms          (atom 30)]
-      (is (run "[c d] try-soundfonts"))
-      (is (= ["/sf/a.sf2" "[C4/4 D4] ^{ !i:0 }" "[C4/4 D4] ^{ !i:40 }"
-              "/sf/b.sf2" "[C4/4 D4] ^{ !i:48 }"]
-             @played)
-          "each soundfont loaded once, its bank-0 instruments in program order, no kit")
-      (is (some #{"2/3  0> a.sf2  !i:40 Violin"} @said) "shown by the number soundfont takes it by")
-      (testing "a text picks the instruments, by their own name or their General MIDI one"
-        (is (run "[c d] \"STRING\" try-soundfonts"))
-        (is (= ["/sf/b.sf2" "[C4/4 D4] ^{ !i:48 }"] @played))
-        (is (some #{"1/1  1> b.sf2  !i:48 Strings"} @said) "keeping its soundfont's number")
-        (is (run "[c d] \"acousticGrand\" try-soundfonts"))
-        (is (= ["/sf/a.sf2" "[C4/4 D4] ^{ !i:0 }"] @played) "program 0's General MIDI name")
-        (is (re-find #"no instrument of a soundfont has \"b.sf\"" (top "[c] \"b.sf\" try-soundfonts"))
-            "not the soundfont's file"))))
-  (is (re-find #"try-soundfonts: needs music" (top "3 try-soundfonts"))))

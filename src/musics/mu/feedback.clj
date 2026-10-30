@@ -113,27 +113,18 @@
        (map (juxt :program (comp str/trim :name)))
        (into (sorted-map))))
 
-(defn- named?
-  "Does text name the instrument, in its own name or its General MIDI
-   program's (frenchHorn, horn), in any case?"
-  [text program name]
-  (let [squash #(str/replace (str/lower-case %) #"[-_ ]" "")
-        t      (squash text)]
-    (or (str/includes? (squash name) t)
-        (some-> (data/program->name program) clojure.core/name squash (str/includes? t)))))
-
 (defn start-soundfont-trial!
   "Play x through Gervill with every instrument of each soundfont of
-   fonts, [[n path] ...], or those text names (named?), in turn, in the
-   background, as an audition: ^{ !i:p } over x, a soundfont loaded when
+   fonts, [[n path] ...], that pick? takes ((pick? program name)), in
+   turn, in the background, as an audition: ^{ !i:p } over x, a soundfont loaded when
    its first instrument is reached, each shown by n, the number soundfont
    takes it by. nil when no instrument is left to play."
-  [x fonts text]
+  [x fonts pick?]
   (let [loaded (atom nil)
         load!  (fn [path] (when (not= path @loaded) (engine/soundfont! path) (reset! loaded path)))
         found  (vec (for [[n path] fonts
                           [program name] (presets path)
-                          :when (named? text program name)]
+                          :when (pick? program name)]
                       [n path program name]))
         total  (count found)]
     (when (seq found)
