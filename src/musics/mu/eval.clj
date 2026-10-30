@@ -224,7 +224,8 @@
                   (check-name! (second name-node))
                   (define! (:in @state) (second name-node)
                            {:body (vec body) :effect (when effect {:in ins :out outs})
-                            :values (:values env) :source (:source (meta node))})
+                            :values (:values env) :source (:source (meta node))
+                            :at (first (insta/span node))})
                   stack)
     :Group (let [xs (run-items [] (vec (rest node)) env)]
              (when (empty? xs) (mu-error "( … ): leaves nothing to gather into a line"))

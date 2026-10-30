@@ -15,9 +15,11 @@
             [musics.input.lilypond-import :as ly]
             [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
+            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
+            [musics.recipe :as recipe]
             [musics.repo :as repo]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
@@ -77,17 +79,22 @@
 
 (defn store
   "Store, silently, under the id on top if given; leaves the id it
-   stored under"
+   stored under. A recipe is stored as its text; a live voice playing
+   the recipe stored under that id plays the new one from its next note"
   {:mu {:names ["R!"] :optional {:id keyword?}}}
-  ([value] (mt/store! value nil))
-  ([value id] (mt/store! value id)))
+  ([value] (store value nil))
+  ([value id]
+   (let [stored (mt/store! value id)]
+     (when (v/recipe? value) (live/follow! stored (recipe/stored (repo/current stored))))
+     stored)))
 
 (defn fetch
-  "What the repo holds under :id"
+  "What the repo holds under :id: music, or a recipe rebuilt from its text"
   {:mu {:names ["R@"]}}
   [id]
   (when-not (keyword? id) (fail "needs a name, like :motif, got" (p/show id)))
-  (mt/fetch id))
+  (let [n (repo/current id)]
+    (if (= :RECIPE (:type n)) (recipe/stored n) (mt/fetch id))))
 
 (defn- stored-id
   "The id x names -- a name, or material fetched with R@ -- if something
@@ -176,7 +183,7 @@
      ;; a file's namespace is loaded afresh, so a function taken out of it goes
      (try (if file? (do (remove-ns sym) (load-file n)) (core/require sym :reload))
           (catch java.io.FileNotFoundException _ (fail "no namespace" (str sym) "on the classpath")))
-     (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym)))
+     (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym) (assoc-in [:sources alias] n)))
      ((requiring-resolve 'musics.mu.library/register!) sym alias)
      (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
 
@@ -208,7 +215,7 @@
   [word]
   (if (v/recipe? word)
     ;; a tree recipe: as written, and the tree it builds, bridges put in
-    (println (:source word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
+    (println (p/show word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
              (str "\n  takes " (:arity word) " from the stack under it"))
   (let [n (name-of word) entry (e/lookup @e/state n)]
     (println (cond (nil? entry) (str "unknown word: " n)
@@ -240,6 +247,20 @@
     (if-let [{:keys [ids]} ((requiring-resolve 'musics.mu.store/read!) (file-text path))]
       (println "stored" (str/join " " (map pr-str ids)))
       (fail "the file didn't parse:" path))))
+
+(defn save-session!
+  "Save the session to a file: what is stored, mu's words and bindings
+   (not the stack): \"piece.edn\" save-session"
+  [file]
+  ((requiring-resolve 'musics.persist/persist-session) (name-of file)))
+
+(defn restore-session!
+  "Restore a session saved with save-session: what is stored and mu's
+   words and bindings are replaced by the file's; the stack stays"
+  [file]
+  (let [path (name-of file)]
+    (when-not (.exists (java.io.File. ^String path)) (fail "no such file:" path))
+    ((requiring-resolve 'musics.persist/restore-session) path)))
 
 (defn render!
   "Write what playing the music would sound as to a MIDI file, no clock

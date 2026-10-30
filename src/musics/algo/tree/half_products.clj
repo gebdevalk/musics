@@ -68,12 +68,15 @@
 
 (defn- probe
   "The range of what `source` gives with its own defaults (at most 512
-   values, seeded), or nil: a required param, a throw, or a flat run."
+   values a run, over eight seeds: a random walk's one run covers a
+   narrow band of where its runs go), or nil: a required param, a throw,
+   or a flat run."
   [source]
   (let [ps (:params source)]
     (when-not (some (comp t/nan? :default) ps)
       (try
-        (let [xs (->> (rc/with-seed 2026 (vec (take 512 (reg/call source [] (mapv :default ps)))))
+        (let [xs (->> (range 2026 2034)
+                      (mapcat (fn [seed] (rc/with-seed seed (vec (take 512 (reg/call source [] (mapv :default ps)))))))
                       flatten (filter number?))]
           (when (seq xs)
             (let [lo (apply min xs) hi (apply max xs)]

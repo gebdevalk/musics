@@ -605,6 +605,8 @@ and play it, or rate them (section 17).
 | `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
 | `R@` or `fetch` | fetch from the repo: `:mel R@` |
 | `: name ( a -- b ) … ;` | define a word of your own |
+| `"x.edn" save-session` | save what is stored, your words and your bindings to a file (not the stack) |
+| `"x.edn" restore-session` | put them back, in place of what is stored and of your words and bindings |
 
 ```
 'motif [c e g] :=
@@ -883,16 +885,17 @@ the music's notes as the recipe changes them:
 '( 7 + ) :up retree              … now a fifth, from the next note
 ```
 
-A recipe can also be a tree, written between `@<<` and `>>` in RPN: each
+A recipe can also be a tree, written between `@(` and `)` in RPN: each
 algo takes its inputs from the recipe's own stack, its settings written
 right before it, `zip` joins the top two (the algo tree tutorial,
 section 8, has the rest). No music is written inside; a tree that needs
 music takes it from under the recipe:
 
 ```
-| @<< '[1/8] [~] scale [~] zip >> :sc >                     from nothing
-[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> :vol >   on the music under it
-@^{ k:5 } @<< duration/euclid '[60] [~] zip >> run          settings from outside; run puts a finite one on the stack
+| @( '[1/8] [~] scale [~] zip ) :sc >                     from nothing
+[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol >   on the music under it
+@^{ k:5 } @( duration/euclid '[60] [~] zip ) run          settings from outside; run puts a finite one on the stack
+@( arp: k:3 euclid '[60 64 67] [~] zip ) R!               stored as :arp, as its text; :arp R@ gives it back
 ```
 
 All play words take a recipe: `>>` from the next boundary (`| '( … ) ||

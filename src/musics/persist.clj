@@ -1,14 +1,10 @@
 (ns musics.persist
   "Serialize/deserialize a session (repo + auto-ids) to/from EDN.
 
-   Moved up from musics.domain.persist -- freeze/thaw's own reach was
-   already the whole session (repo + auto-ids), not just the domain
-   model in isolation, and the persist-session/restore-session pair
-   (musics.persist/write and friends, below) that builds on this next needs to reach further still,
-   into musics.engine's live voice state (see engine/live-algos) --
-   engine state, not domain-model state at all. musics.domain wasn't the right home for
-   that, so this ns moved to be a peer of musics.repo/core.wall/
-   musics.conductor/core.engine/core.registries instead.
+   A session reaches beyond the domain model -- the auto-ids, and with
+   persist-session/restore-session mu's words and bindings
+   (musics.mu.session) -- so this ns is a peer of musics.repo, not part
+   of musics.domain.
 
    Two obstacles to a naive (spit (pr-str repo)):
    - Leaf/Rest/Drum/Bar/Iterator have custom print-method overrides (for
@@ -22,7 +18,8 @@
    reading -- no custom EDN readers needed, just plain data."
   (:refer-clojure :exclude [load])
   (:require [clojure.edn :as edn]
-            [musics.engine :as engine]
+            [clojure.string :as str]
+            [musics.mu.session :as mu-session]
             [musics.registries :as reg]
             [musics.repo :as repo]
             [musics.domain.context :as c]
@@ -228,34 +225,24 @@
        :auto-ids auto-ids})))
 
 (defn session->edn
-  "Like repo->edn, plus algo-assignments (path -> Name, whatever's
-   CURRENTLY LIVE at persist-session time -- musics.engine/
-   live-algos -- EDN-safe by construction: always nil or a bare
-   keyword). NOT the resolved wall fn itself, which is a live closure
-   and can never survive an EDN round-trip -- restoring replays each
-   Name through assign-algo! (into the prep table, picked up by
-   whatever you play there next), re-resolving it against whatever's
-   registered at restore time (see musics.persist/restore-session).
-   algo-assignments defaults to {} -- nothing live yet is a valid,
-   empty case, not an error."
-  ([repo auto-ids] (session->edn repo auto-ids {}))
-  ([repo auto-ids algo-assignments]
-   (binding [*ctx-refs* (java.util.IdentityHashMap.)]
-     (pr-str {:repo             (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
-              :auto-ids         auto-ids
-              :algo-assignments algo-assignments}))))
+  "Like repo->edn, plus mu's words and bindings as mu text (mu, nil for
+   none; musics.mu.session)."
+  [repo auto-ids mu]
+  (binding [*ctx-refs* (java.util.IdentityHashMap.)]
+    (pr-str (cond-> {:repo     (into {} (map (fn [[id part]] [id (freeze-part part)]) repo))
+                     :auto-ids auto-ids}
+              mu (assoc :mu mu)))))
 
 (defn edn->session
-  "Deserialize an EDN string (from session->edn) back into {:repo
-   :auto-ids :algo-assignments}. Also reads a plain repo->edn-produced
-   string just fine -- algo-assignments simply comes back {} when the
-   key isn't present, same as a fresh, nothing-assigned-yet session."
+  "Deserialize an EDN string (from session->edn, or repo->edn) back into
+   {:repo :auto-ids :mu}, :mu mu's words and bindings as mu text (nil
+   when the file has none)."
   [edn-str]
-  (let [{:keys [repo auto-ids algo-assignments]} (edn/read-string edn-str)]
+  (let [{:keys [repo auto-ids mu]} (edn/read-string edn-str)]
     (binding [*ctx-refs* (atom {})]
-      {:repo             (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
-       :auto-ids         auto-ids
-       :algo-assignments (or algo-assignments {})})))
+      {:repo     (into {} (map (fn [[id part]] [id (thaw-part part)]) repo))
+       :auto-ids auto-ids
+       :mu       mu})))
 
 ;; ============================================================
 ;; Files
@@ -276,26 +263,23 @@
   (println "[musics] Session loaded from" path))
 
 (defn persist-session
-  "Like write, and also each live voice's algo (path -> name,
-   musics.engine/live-algos). Not kept: what a name in the algo registry
-   holds (code), the conductor's tables (cues of one performance)."
+  "Like write, and also mu's words and bindings, as mu text
+   (musics.mu.session). Not kept: mu's stack, and nothing of what plays
+   -- a performance isn't a document."
   [path]
-  (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session)
-                           (engine/live-algos)))
+  (let [[mu skipped] (mu-session/text)]
+    (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session) mu))
+    (when (seq skipped)
+      (println "[musics] Not saved, their values can't be written as text:" (str/join " " (map #(str "\\" %) skipped)))))
   (println "[musics] Session persisted to" path))
 
 (defn restore-session
-  "Like load, then prepares each saved voice path's algo
-   (musics.engine/assign-algo!), so the next untagged play at that path
-   plays through it again; makes a silent engine first when none exists.
-   A later connect! makes a new engine, without these."
+  "Like load, then replaces mu's words and bindings with the file's; a
+   file without them (write's) leaves mu's as they are."
   [path]
-  (let [{:keys [repo auto-ids algo-assignments]} (edn->session (slurp path))]
+  (let [{:keys [repo auto-ids mu]} (edn->session (slurp path))]
     (repo/seed! repo)
     (swap! reg/session assoc :auto-ids auto-ids)
-    (when (seq algo-assignments)
-      (when-not engine/*engine*
-        (engine/set-engine! (engine/engine nil (repo/registry) :ROOT)))
-      (doseq [[voice-path name] algo-assignments]
-        (engine/assign-algo! voice-path name))))
+    ;; after the repo, so a binding can refer to what is stored
+    (when (some? mu) (mu-session/restore! mu)))
   (println "[musics] Session restored from" path))

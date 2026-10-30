@@ -22,14 +22,16 @@ EffectOut   = (<ws> EffectName)*
 <EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 
 (* A tree recipe: an algo tree written concatenatively, as mu is --
-   @<< ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip >> (musics.recipe).
-   Inside, words build the tree on a stack of their own: an algo takes
-   the params and the 'alias lying on top, then its inputs, and pushes
-   itself; zip and par join the top two (or all above a |); dup swap
-   over rot arrange; data and numbers are leaves. ^{ … } first is the
-   head, the settings of the whole tree. No music inside: music comes
-   from the stack under the recipe. The closer >> stands alone. *)
-TreeRecipe   = <'@<<'> (<ws> TreeHead)? (<ws> TreeItem)* <ws> <'>>'>
+   @( riff: ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip ) (musics.recipe),
+   the algo twin of '( ) as @^{ } is of ^{ }. An id first names it, as a
+   part names itself, and R! stores it under that name. Inside, words
+   build the tree on a stack of their own: an algo takes the params and
+   the 'alias lying on top, then its inputs, and pushes itself; zip and
+   par join the top two (or all above a |); dup swap over rot arrange;
+   data and numbers are leaves. ^{ … } first is the head, the settings
+   of the whole tree. No music inside: music comes from the stack under
+   the recipe. *)
+TreeRecipe   = <'@('> <ws>? (Id <ws>)? (TreeHead (<ws> TreeItem)* / TreeItem (<ws> TreeItem)*)? <ws>? <')'>
 TreeHead     = <'^{'> <ws>? (Setting (<ws> Setting)*)? <ws>? <'}'>
 <TreeItem>   = Setting / QuotedName / Data / TreeLoop / Mark / MuNumber / StringLit / TreeWord
 TreeLoop     = <'[~]'>

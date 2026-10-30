@@ -154,7 +154,7 @@ musics.music                 576   music words: transposing, row forms, the read
 musics.play                  177   play words: stop, voices, hush, set, settings, retree, compose, gui
 musics.rate                   74   rate words: like, dislike, audition …
 musics.feedback               92   the ratings file
-musics.recipe                190   tree recipes @<< … >>: RPN words built into a tree and its tctx, run lazily
+musics.recipe                190   tree recipes @( … ): RPN words built into a tree and its tctx, run lazily; stored as their text
 musics.version                18   mu's version, 0.3.<merges>.<commits>, counted by git
 
 musics.gui.core             1237   cljfx entry: the windows

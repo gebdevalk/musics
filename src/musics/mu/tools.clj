@@ -91,11 +91,11 @@
           (sequential? x)      (mt/as-part out (apply list (cut x)))
           :else x)))
 
-(word! "music" "run" "( inputs… [@^{ }] recipe -- result )  a tree recipe's result: run on the values it takes from the stack under it (the music it changes), with settings given before it merged into its own: @^{ k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run; [c8 d e f] @<< dup duration/emi zip >> run. A line, a { } for parts, a stream otherwise; an endless one is refused -- play it"
+(word! "music" "run" "( inputs… [@^{ }] recipe -- result )  a tree recipe's result: run on the values it takes from the stack under it (the music it changes), with settings given before it merged into its own: @^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run; [c8 d e f] @( dup duration/emi zip ) run. A line, a { } for parts, a stream otherwise; an endless one is refused -- play it"
        (fn [s]
          (need s 1 "run")
          (let [r (peek s) s (pop s)]
-           (when-not (v/recipe? r) (e/mu-error "run: takes a tree recipe @<< … >> -- got" (p/show r)))
+           (when-not (v/recipe? r) (e/mu-error "run: takes a tree recipe @( … ) -- got" (p/show r)))
            (let [[r s] (if (and (seq s) (= :TCONTEXT (mt/kind (peek s))))
                          [(recipe/with-settings r (into {} (:params (v/node (peek s))))) (pop s)]
                          [r s])

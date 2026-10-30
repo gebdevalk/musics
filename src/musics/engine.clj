@@ -405,7 +405,7 @@
 (defn assign-algo!
   "The algorithm the NEXT voice started at path gets when its play call
    names none -- never a voice already playing (whose :algo is fixed).
-   Used to prepare a track, and by musics.persist's restore-session."
+   Used to prepare a track (the GUI's Wall window)."
   ([path name] (assign-algo! *engine* path name))
   ([eng path name]
    (when eng (swap! (:algo-prepared eng) assoc (->path path) name))))

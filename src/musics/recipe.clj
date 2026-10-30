@@ -2,11 +2,11 @@
   "Tree recipes: an algo tree written concatenatively, as mu is
    (doc/md/decisions.md, 2026-10-29).
 
-     @<< ^{ seed:7 }  k:3 n:8 euclid  len:8 pitch/walk  zip >>      a generator
-     @^{ k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run           settings given from outside
-     [c8 d e f g a b c] @<< dup duration/emi zip >>                 music from the stack, changed
+     @( riff: ^{ seed:7 }  k:3 n:8 euclid  len:8 pitch/walk  zip )   a generator, named
+     @^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run              settings given from outside
+     [c8 d e f g a b c] @( dup duration/emi zip )                    music from the stack, changed
 
-   Inside @<< >> the words build the tree on a stack of their own: an algo
+   Inside @( ) the words build the tree on a stack of their own: an algo
    takes the params (name:value) and the 'alias lying on top, then as
    many inputs as it has, and pushes itself -- bridges put in where a
    type doesn't fit (musics.algo.tree's constructors); zip and par join
@@ -22,7 +22,11 @@
    that read it -- associate the tree with it, run with each param
    resolved by name: the alias's, the algo's, the plain one, the
    default. The tree is a musics.algo.tree tree, the tctx its tctx, the
-   result lazy."
+   result lazy.
+
+   R! stores a recipe as its text (a :RECIPE node, `node`), R@ reads it
+   back (`stored`): everything written inside comes along, the settings
+   given at use or set on a live voice don't."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
             [musics.algo.random.core :as rc]
@@ -34,7 +38,7 @@
             [musics.mu.material :as mt]
             [musics.mu.value :as v]))
 
-(defn- fail [& parts] (apply e/mu-error "@<< >>:" parts))
+(defn- fail [& parts] (apply e/mu-error "@( ):" parts))
 
 (defn- algo-of
   "The registry entry a word names: its registry name (euclid,
@@ -138,12 +142,19 @@
 (defn- algo-error [ex]
   (if (:mu/error (ex-data ex)) (throw ex) (fail (str/replace (ex-message ex) #"^musics\.algo\.tree: " ""))))
 
+(defn- body-text
+  "The text inside @( ), without the id naming it."
+  [source]
+  (or (second (re-matches #"(?s)@\(\s*(?:[a-zA-Z][a-zA-Z0-9_]*:\s+)?(.*?)\s*\)" (str source))) ""))
+
 (defn build
   "The recipe value of a :TreeRecipe parse node, its data read in env:
    the tree its words build, the inputs it takes from below (:arity), and
    its tctx -- the head's settings and its nodes' own, every name checked."
   [node env]
-  (let [[head & items] (if (= :TreeHead (first (second node))) (rest node) (cons nil (rest node)))
+  (let [[id-node & more] (rest node)
+        [id more]      (if (= :Id (first id-node)) [(keyword (second (second id-node))) more] [nil (rest node)])
+        [head & items] (if (= :TreeHead (ffirst more)) more (cons nil more))
         head-values (into {} (map setting (rest head)))
         written     (atom {})
         st          (try (reduce #(item %1 %2 env written) {:stack [] :inputs 0} items)
@@ -155,7 +166,18 @@
       (fail "leaves" (count left) "-- one tree: zip or par what it makes"))
     (let [tree (t/as-node (first left))
           tctx (try (t/tctx tree (merge head-values @written)) (catch clojure.lang.ExceptionInfo ex (algo-error ex)))]
-      (v/->Recipe tree tctx (:source (meta node)) (:inputs st)))))
+      (assoc (v/->Recipe tree tctx (body-text (:source (meta node))) (:inputs st)) :id id))))
+
+(defn node
+  "recipe as it is stored under id: its text, rebuilt when read."
+  [recipe id]
+  {:type :RECIPE :id id :text (:source recipe)})
+
+(defn stored
+  "The recipe stored as a :RECIPE node, rebuilt from its text."
+  [{:keys [id text]}]
+  (let [s (e/run-text [] (str "@( " text " )"))]
+    (assoc (peek s) :id id)))
 
 (defn with-settings
   "recipe with settings ({name value}, an @^{ } given at use) merged into

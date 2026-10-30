@@ -2164,3 +2164,56 @@ without values runs with whatever it is given.
 `'( … )` stays the simple recipe: mu words run as written. Weighed and
 dropped: a simple `@( )` form beside it, a quoted `@"…"`, and a `( )`
 Forth mode.
+
+## 2026-10-30 — Recipes are material: @( … ), stored as their text
+
+A recipe kept for a piece belongs with the piece, so it is stored in the
+repo, beside the parts, not in mu's own state as a word or a binding
+(both still work, for a tool of one's own). Once it is material it is
+spelled like material: `@( … )`, the algo twin of `'( )` as `@^{ }` is
+of `^{ }`, with an id first naming it as a part names itself
+(`@( riff: … )`). `@<< … >>` read as play words, its closer one more
+`>>`; `@: … @;` read as a definition, which a recipe isn't. `@( )`
+was the bracket recipes' spelling once; it means only this now.
+
+It is stored as its text, a `:RECIPE` node rebuilt when read: the tree
+holds algo constructors, which EDN can't carry, and the text holds
+everything written inside -- head, a node's own params, aliases -- so
+`write`/`load` keep a recipe with nothing of their own to add. The
+settings given at use and what `set` gives a live voice are not the
+recipe's: a voice's settings are a copy, so `set` acts during play only,
+and keeping what was tuned means writing it into the text and storing
+it again. Old values are not changed but replaced, as in Elixir's
+rebinding: `R!` binds the id to a new recipe, and a voice playing the
+one stored there follows it by id, from its next note, with the new
+recipe's settings. Weighed and dropped: `set` reaching the stored
+recipe, and a word writing a voice's settings back into it.
+
+## 2026-10-30 — mu's words and bindings saved with the session, as mu text
+
+A session file (`persist-session`, mu's `save-session`) holds mu's own
+state beside the repo: the namespaces required and in use, the words of
+`: … ;` and the bindings of `:=`, written as mu text, an input that
+defines them again (`musics.mu.session`), restored after the repo so a
+binding may name what is stored. Text rather than the evaluator's maps,
+since printing is isomorphic to reading and the text can be read and
+edited; the values would otherwise need a freezing of their own, as the
+repo's do. A definition's literals are written as their values print,
+since a duration or a relative pitch carried over from earlier in its
+input would read otherwise alone. A binding is written only when its
+value reads back as itself and holds no word's locals; the others are
+named and left out. Restoring replaces mu's words and bindings, as it
+replaces the repo; the stack is not kept, as Forth keeps none. Weighed
+and dropped: a separate `.mus` file beside the session file, merging on
+restore, and saving a performance mid-play (a voice's position is a
+chain of continuations, which no file holds).
+
+## 2026-10-30 — A session file keeps nothing of what plays
+
+`persist-session` no longer saves each live voice's algo name, which
+`restore-session` prepared again for the next play at that path. It was
+half a performance: the name without what it held, and no voice
+restarted. A session is what is stored plus mu's words and bindings; a
+performance isn't a document, and with recipes stored by id a piece's
+live parts are kept as what they are. `assign-algo!` stays, for
+preparing a track by hand.

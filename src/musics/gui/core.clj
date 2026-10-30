@@ -938,9 +938,8 @@
 ;; ============================================================
 ;; Persistence window -- write/load/persist-session/restore-session,
 ;; previously REPL-only. write/persist-session share the same
-;; :write-path field (Persist Session is "write, plus live algo
-;; assignments too" -- same destination, different amount of state
-;; captured); load/restore-session share :load-path the same way.
+;; :write-path field (Persist Session is "write, plus mu's words and
+;; bindings" -- same destination, different amount of state captured); load/restore-session share :load-path the same way.
 ;; ============================================================
 
 (defn- persistence-view
@@ -974,7 +973,7 @@
                 {:children
                  [(ui/button {:text "Write" :disabled? busy?
                               :on-action {:event/type :persistence-write}})
-                  (ui/button {:text "Persist Session (+ live algos)" :disabled? busy?
+                  (ui/button {:text "Persist Session (+ mu words)" :disabled? busy?
                               :on-action {:event/type :persistence-persist-session}})]})]})
           (ui/titled-panel
             {:title "Load (load / restore-session)"
@@ -989,11 +988,11 @@
                 {:children
                  [(ui/button {:text "Load" :disabled? busy?
                               :on-action {:event/type :persistence-load}})
-                  (ui/button {:text "Restore Session (+ live algos)" :disabled? busy?
+                  (ui/button {:text "Restore Session (+ mu words)" :disabled? busy?
                               :on-action {:event/type :persistence-restore-session}})]})
               (ui/label {:text "Load/Restore REPLACE everything currently committed — this isn't a merge."
                          :style "-fx-font-style: italic;"})]})
-          (ui/label {:text "Persist Session / Restore Session don't capture what an algo name holds, or any conductor schedule table."
+          (ui/label {:text "Persist Session also keeps mu's words and bindings (not the stack, nothing of what plays); Restore Session replaces mu's own with them."
                      :style "-fx-font-style: italic;"})
           (ui/label {:text (or (when busy? "Working…") message "")})
           (ui/button {:text "Close" :on-action {:event/type :close-persistence}})]}}})))
