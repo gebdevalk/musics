@@ -7,6 +7,7 @@
             [musics.engine :as engine]
             [musics.feedback :as fb]
             [musics.input.reader.builder :as builder]
+            [musics.midi.gervill :as gervill]
             [musics.mu.eval :as e]
             [musics.mu.feedback :as mfb]
             [musics.mu.kernel]
@@ -128,22 +129,32 @@
           (is (wait-until #(nil? @mfb/audition) 1000) "stop stops it")
           (finally (reset! mfb/auto? true)))))))
 
-(deftest trying-the-soundfonts-plays-the-music-through-each
-  (let [played (atom [])]
-    (with-redefs [engine/soundfonts (constantly ["/sf/a.sf2" "/sf/b.sf2"])
-                  engine/soundfont! (fn [path] (swap! played conj path) "bank")
-                  mt/play!          (fn [x _ & _] (swap! played conj (p/show x)))
-                  engine/busy?      (constantly false)
-                  mfb/gap-ms        (atom 30)]
+(deftest trying-the-soundfonts-plays-the-music-through-every-instrument-of-each
+  (let [played  (atom [])
+        loaded  (atom nil)
+        holds   {"/sf/a.sf2" [{:bank 0 :program 40 :name "Violin" :percussion? false}
+                              {:bank 0 :program 0 :name "Piano " :percussion? false}
+                              {:bank 0 :program 0 :name "Kit" :percussion? true}
+                              {:bank 8 :program 1 :name "Other bank" :percussion? false}]
+                 "/sf/b.sf2" [{:bank 0 :program 48 :name "Strings" :percussion? false}]}]
+    (with-redefs [engine/soundfonts   (constantly ["/sf/a.sf2" "/sf/b.sf2"])
+                  engine/soundfont!   (fn [path] (reset! loaded path) (swap! played conj path) "bank")
+                  gervill/instruments (fn [_] (holds @loaded))
+                  mt/play!            (fn [x ctx & _] (swap! played conj (str (p/show x) " " (p/show ctx))))
+                  engine/busy?        (constantly false)
+                  mfb/gap-ms          (atom 30)]
       (top "[c d] try-soundfonts")
       (is (wait-until #(nil? @mfb/audition) 2000))
-      (is (= ["/sf/a.sf2" "[C4/4 D4]" "/sf/b.sf2" "[C4/4 D4]"] @played))
-      (is (some #{"2/2  1> /sf/b.sf2"} @said) "each shown by the number soundfont takes it by")
+      (is (= ["/sf/a.sf2" "[C4/4 D4] ^{ !i:0 }" "[C4/4 D4] ^{ !i:40 }"
+              "/sf/b.sf2" "[C4/4 D4] ^{ !i:48 }"]
+             @played)
+          "each soundfont loaded once, its bank-0 instruments in program order, no kit")
+      (is (some #{"1/2  0> a.sf2  2/2  !i:40 Violin"} @said) "shown by the number soundfont takes it by")
       (testing "those with a text in their name"
         (reset! played [])
         (top "[c d] \"B.sf\" try-soundfonts")
         (is (wait-until #(nil? @mfb/audition) 2000))
-        (is (= ["/sf/b.sf2" "[C4/4 D4]"] @played))
-        (is (some #{"1/1  1> /sf/b.sf2"} @said) "keeping its number")
+        (is (= ["/sf/b.sf2" "[C4/4 D4] ^{ !i:48 }"] @played))
+        (is (some #{"1/1  1> b.sf2  1/1  !i:48 Strings"} @said) "keeping its number")
         (is (re-find #"no soundfont has \"x\"" (top "[c] \"x\" try-soundfonts"))))))
   (is (re-find #"try-soundfonts: needs music" (top "3 try-soundfonts"))))

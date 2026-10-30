@@ -118,9 +118,9 @@
   (println (engine/soundfont! file-or-n)))
 
 (defn try-soundfonts!
-  "Play the music on top through each of soundfonts in turn, or with a
-   text on top those whose file has it in its name (x \"strings\"
-   try-soundfonts), in the background, as an audition: Alt+L the next,
+  "Play the music on top through every instrument of each of soundfonts
+   in turn, or with a text on top of those whose file has it in its name
+   (x \"strings\" try-soundfonts), in the background, as an audition: Alt+L the next,
    Alt+J back, Alt+K again, a rating records the soundfont, stop (Alt+.)
    stops; n soundfont keeps one"
   {:mu {:optional {:named string?}}}

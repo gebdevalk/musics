@@ -66,20 +66,32 @@
 
 (def keys-hint "Alt+j dislike · Alt+k meh · Alt+l like · Alt+K again")
 
-(defn- run-audition [items q]
+(defn- run-audition
+  "Play items in turn. An item with :expand is replaced, when reached, by
+   the items it gives (none: it is left out), so an audition can grow as
+   it goes."
+  [items q]
   (try
     (say keys-hint)
-    (loop [i 0]
-      (if (>= i (count items))
+    (loop [items items i 0]
+      (cond
+        (>= i (count items))
         (say "audition: done")
+
+        (:expand (items i))
+        (let [items (into (into (subvec items 0 i) ((:expand (items i)))) (subvec items (inc i)))]
+          (swap! audition assoc :items items)
+          (recur items i))
+
+        :else
         (let [{:keys [show play]} (items i)]
           (swap! audition assoc :i i)
-          (say (str (inc i) "/" (count items) "  " show))
+          (say show)
           (play)
           (case (await-command q)
-            :next  (recur (inc i))
-            :back  (recur (max 0 (dec i)))
-            :again (recur i)
+            :next  (recur items (inc i))
+            :back  (recur items (max 0 (dec i)))
+            :again (recur items i)
             :stop  nil))))
     (catch Throwable t (say (str "audition stopped: " (.getMessage t))))
     (finally (reset! audition nil))))
@@ -99,18 +111,47 @@
 (defn start-audition!
   "Audition sounds one by one, in the background."
   [sounds]
-  (start! (mapv (fn [x] {:value x :show (describe (p/show x)) :play #(mt/play! x nil)}) sounds)))
+  (let [n (count sounds)]
+    (start! (vec (map-indexed (fn [i x] {:value x :show (str (inc i) "/" n "  " (describe (p/show x))) :play #(mt/play! x nil)})
+                              sounds)))))
+
+(defn- presets
+  "[[program name] ...]: the instruments Gervill holds now, bank 0
+   without the drum kits -- what a program change reaches."
+  []
+  (->> (gervill/instruments @engine/synth)
+       (remove :percussion?)
+       (filter #(zero? (:bank %)))
+       (map (juxt :program :name))
+       (into (sorted-map))
+       vec))
 
 (defn start-soundfont-trial!
   "Play x through Gervill with each soundfont of fonts, [[n path] ...],
-   in turn, in the background, as an audition shown by n, the number
-   soundfont takes it by: a rating records the soundfont with it."
+   in turn, in the background, as an audition: through every instrument
+   it holds (^{ !i:p } over x), then on to the next soundfont, each shown
+   by n, the number soundfont takes it by. A soundfont's instruments are
+   read when it is reached, by loading it."
   [x fonts]
-  (start! (mapv (fn [[n path]]
-                  {:value x
-                   :show  (str n "> " path)
-                   :play  #(do (engine/soundfont! path) (mt/play! x nil))})
-                fonts)))
+  (let [loaded (atom nil)
+        load!  (fn [path] (when (not= path @loaded) (engine/soundfont! path) (reset! loaded path)))
+        total  (count fonts)]
+    (start! (vec (map-indexed
+                  (fn [k [n path]]
+                    {:expand
+                     (fn []
+                       (say (str (inc k) "/" total "  " n "> " path " -- loading"))
+                       (load! path)
+                       (let [ps (presets)]
+                         (when (empty? ps) (say (str n "> holds no instrument a program reaches")))
+                         (vec (map-indexed
+                               (fn [j [program name]]
+                                 {:value x
+                                  :show  (str (inc k) "/" total "  " n "> " (.getName (java.io.File. ^String path))
+                                              "  " (inc j) "/" (count ps) "  !i:" program " " (str/trim name))
+                                  :play  #(do (load! path) (mt/play! x (mt/read-text (str "^{ !i:" program " }"))))})
+                               ps))))})
+                  fonts)))))
 
 ;; -- rating -----------------------------------------------------------------
 

@@ -2003,8 +2003,9 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `Receiver` going to the engine as VirMIDI's does;
   `musics.engine/soundfont!`/`soundfonts` load any `.sf2` (mu: `gervill`
   `fluidsynth` `soundfont` `soundfonts`; `x try-soundfonts`, or `x
-  "piano" try-soundfonts` for those named so, plays x through each in
-  turn as an audition, `musics.mu.feedback/start-soundfont-trial!`).
+  "piano" try-soundfonts` for those named so, plays x through every
+  instrument of each in turn as an audition, an audition item that
+  expands when reached, `musics.mu.feedback/start-soundfont-trial!`).
   Its 30 ms latency needs `:jvm-opts`' `--add-exports
   java.desktop/com.sun.media.sound`. An output that doesn't open
   within 5 s (a Bluetooth speaker asleep) is an error, not a wait

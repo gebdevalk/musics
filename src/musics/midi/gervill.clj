@@ -9,7 +9,7 @@
    --add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED."
   (:require [clojure.java.io :as io]
             [clojure.string :as str])
-  (:import (com.sun.media.sound AudioSynthesizer)
+  (:import (com.sun.media.sound AudioSynthesizer ModelPatch)
            (javax.sound.midi Instrument MidiChannel MidiSystem Synthesizer)
            (javax.sound.sampled AudioFormat AudioInputStream)))
 
@@ -50,6 +50,14 @@
       (.loadAllInstruments synth sb)
       (doseq [^MidiChannel ch (.getChannels synth) :when ch] (.programChange ch (.getProgram ch)))
       (.getName sb))))
+
+(defn instruments
+  "[{:bank :program :percussion? :name} ...]: the instruments synth holds."
+  [^Synthesizer synth]
+  (for [^Instrument i (.getLoadedInstruments synth)
+        :let [p (.getPatch i)]]
+    {:bank (.getBank p) :program (.getProgram p) :name (.getName i)
+     :percussion? (and (instance? ModelPatch p) (.isPercussion ^ModelPatch p))}))
 
 (defn soundbank-name
   "The name of the soundbank synth's instruments come from."
