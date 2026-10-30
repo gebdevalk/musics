@@ -398,27 +398,9 @@ are the fuller pair for that — same repo+auto-ids round-trip as
 it read in its input, and the bindings of `:=` whose value reads back
 as itself -- one holding a word's locals is skipped, named; not the
 stack), which restoring runs after the repo in place of mu's words and
-bindings (a file without `:mu` leaves them), plus whatever's CURRENTLY
-LIVE right now (`musics.engine/live-algos`,
-path -> Name read straight off each live voice's own immutable `:algo`
-field — deliberately NOT `algo-assignments`/`:algo-prepared`, a separate,
-narrower table that an ordinary `:algo`-tagged `play`/`play-add` call
-never even writes to; see "Wall" below). Name is EDN-safe by
-construction — always `nil` or a bare keyword, never a resolved wall fn
-itself, a live closure that can never survive a round-trip. Restoring
-replays each Name through `assign-algo!` — into the PREP table, not
-onto any voice directly, since restoring never recreates a live voice
-itself — so a later, untagged `play`/`play-change` call at that same
-path picks it back up automatically. A Name not re-registered yet plays
-unchanged (identity), same as `assign-algo!` always has.
-Deliberately does NOT also cover what a name in `*algo-registry*` holds
-(a tree or a hand-written fn is code, re-run by the user like any other
-definition) or `musics.conductor`'s schedule/repeating tables (pending cues in ONE
-specific live performance, not composed material — closer to a paused
-breakpoint than a saved document) — both left as documented, deliberate
-gaps rather than silently declared solved. See `doc/md/decisions.md` for
-why `persist-session`/`restore-session` exist as a separate pair from
-`write`/`load` rather than `write`/`load` themselves changing shape.
+bindings (a file without `:mu` leaves them). Nothing of what plays is
+kept -- a voice's algo, its position, the conductor's pending cues: a
+performance isn't a document (`doc/md/decisions.md`, 2026-10-30).
 
 ### Conductor: signals and scheduled actions
 
@@ -509,9 +491,7 @@ mechanism: `:algo-prepared`, `path -> name`, consulted ONLY when a
 top-level voice starts (`start-voice!`), and only when that call's
 own `:algo` argument is `nil`. `assign-algo!` never reaches an
 already-live voice — it only affects a mint that hasn't happened yet
-(preparing a track before you start it, or `musics.persist`'s own
-`restore-session` replaying a saved snapshot — see "Session, the repo,
-and playback" above). See `doc/md/decisions.md` for why a
+(preparing a track before you start it, the GUI's Wall window). See `doc/md/decisions.md` for why a
 voice's own `:algo` is immutable once minted rather than a live,
 externally-reassignable table.
 

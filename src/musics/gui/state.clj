@@ -293,9 +293,8 @@
          :assist-open? false
          :assist {:text ""}
          ;; Persistence popup -- musics.persist's write/load (plain repo
-         ;; material) and persist-session/restore-session (also
-         ;; round-trips a voice's :algo-assignments), previously REPL-
-         ;; only. Each op runs in a background future (see
+         ;; material) and persist-session/restore-session (also mu's
+         ;; words and bindings), previously REPL-only. Each op runs in a background future (see
          ;; run-persistence-op! below) since a full repo walk can be
          ;; non-trivial for a large session -- :busy? gates the panel's
          ;; own buttons meanwhile.
@@ -1524,9 +1523,8 @@
 
 ;; ============================================================
 ;; Persistence popup -- musics.persist's write/load (plain repo material)
-;; and persist-session/restore-session (also round-trips a voice's
-;; :algo-assignments -- see each fn's own docstring for what's NOT
-;; captured: what an algo name holds, conductor schedule tables), previously REPL-only.
+;; and persist-session/restore-session (also mu's words and bindings,
+;; not the stack, nothing of what plays), previously REPL-only.
 ;; ============================================================
 
 (defn open-persistence! [] (swap! *state assoc :persistence-open? true) nil)
@@ -1592,11 +1590,8 @@
   nil)
 
 (defn persistence-persist-session!
-  "Like persistence-write!, but also captures currently-LIVE voice
-   algorithm assignments -- musics.persist/persist-session. Does NOT
-   capture what an algo name holds (a tree is code, re-run like any
-   other definition), nor any musics.conductor schedule table --
-   documented gaps, not this panel's own limitation."
+  "Like persistence-write!, but also mu's words and bindings --
+   musics.persist/persist-session."
   []
   (let [path (str/trim (:write-path (:persistence @*state) ""))]
     (if (empty? path)
@@ -1605,11 +1600,8 @@
   nil)
 
 (defn persistence-restore-session!
-  "Like persistence-load!, but also replays a persist-session
-   snapshot's own algo-assignments into the PREP table (assign-algo!)
-   -- musics.persist/restore-session. Never recreates a live voice
-   itself; a later play/play-change at the same path picks the
-   prepared algo back up automatically."
+  "Like persistence-load!, but also replaces mu's words and bindings
+   with the file's -- musics.persist/restore-session."
   []
   (let [path (str/trim (:load-path (:persistence @*state) ""))]
     (if (empty? path)

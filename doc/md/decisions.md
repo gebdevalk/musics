@@ -2207,3 +2207,13 @@ replaces the repo; the stack is not kept, as Forth keeps none. Weighed
 and dropped: a separate `.mus` file beside the session file, merging on
 restore, and saving a performance mid-play (a voice's position is a
 chain of continuations, which no file holds).
+
+## 2026-10-30 — A session file keeps nothing of what plays
+
+`persist-session` no longer saves each live voice's algo name, which
+`restore-session` prepared again for the next play at that path. It was
+half a performance: the name without what it held, and no voice
+restarted. A session is what is stored plus mu's words and bindings; a
+performance isn't a document, and with recipes stored by id a piece's
+live parts are kept as what they are. `assign-algo!` stays, for
+preparing a track by hand.
