@@ -2,10 +2,10 @@
 
 Sound comes from one of two synthesizers:
 
-- **Gervill**, Java's own synthesizer, the default: `(m/connect)`, or
-  playing with nothing connected. No setup at all; see "Gervill" below.
-- **Fluidsynth**, through qsynth and a virtual MIDI port:
-  `(m/connect :fluidsynth)`. The setup below.
+- **Gervill**, Java's own synthesizer, the default: mu's `gervill`, or
+  just playing with nothing connected. No setup at all; see "Gervill" below.
+- **Fluidsynth**, through qsynth and a virtual MIDI port: mu's
+  `fluidsynth`. The setup below.
 
 Parsing, composing and the tests need neither.
 
@@ -17,19 +17,15 @@ thin *Emergency GM sound set*, so musics loads
 `/usr/share/sounds/sf2/FluidR3_GM.sf2` (`apt install
 fluid-soundfont-gm`), else `default-GM.sf2`.
 
-```clojure
-(m/connect)                                 ; Gervill with FluidR3_GM, as (m/connect :gervill)
-(m/connect :gervill "~/Music/sf/Grandpno.sf2")
-(m/connect :gervill nil :latency-ms 60)     ; a larger buffer, if it crackles
-(m/soundfonts)                              ; the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf
-(m/soundfont 3)                             ; swap to the 4th of them; what plays goes on
-(m/soundfont "~/Music/sf/Crysrhod.sf2")
-(m/connect :fluidsynth)                     ; Fluidsynth instead
+```
+gervill                               Gervill with FluidR3_GM
+soundfonts                            the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf, numbered
+3 soundfont                           swap to the 4th of them; what plays goes on
+"~/Music/sf/Crysrhod.sf2" soundfont   or one by its file
+fluidsynth                            Fluidsynth instead
 ```
 
-In mu: `gervill`, `fluidsynth`, `soundfonts`, `3 soundfont`,
-`"~/Music/sf/Crysrhod.sf2" soundfont`. `soundfont` connects to Gervill
-first when playing through Fluidsynth.
+`soundfont` connects to Gervill first when playing through Fluidsynth.
 
 Gervill's buffer is 30 ms by default (Java's own default is 200 ms,
 heard as a lag). Setting it needs
@@ -57,9 +53,9 @@ Until `snd-virmidi` loads automatically (see "Permanent" below):
    connected to `FLUID Synth` — automatic when qsynth's MIDI
    Auto-connect is on.
 
-Then, in the REPL, `(m/connect)` once per session opens the MIDI port,
-builds the engine and plays a short, silent warm-up so the first real
-note doesn't crackle. See `doc/md/tutorial.md` from there.
+Then, in mu (`lein mu`), `fluidsynth` once per session opens the MIDI
+port, builds the engine and plays a short, silent warm-up so the first
+real note doesn't crackle. See `doc/md/tutorial.md` from there.
 
 ## Automated setup (recommended)
 
@@ -67,17 +63,17 @@ note doesn't crackle. See `doc/md/tutorial.md` from there.
 ./scripts/setup.sh
 ```
 
-This single command handles everything below. After it completes, start a REPL:
+This single command handles everything below. After it completes, check
+it in mu:
 
-```clojure
-(require '[musics.midi.live :as live])
-(def rcv (live/open-receiver))   ;; auto-connects VirMIDI -> Fluidsynth
-(live/play-phrase rcv [[60 300 80] [64 300 80] [67 500 80]])
+```
+fluidsynth
+[c e g c'] >
 ```
 
-`open-receiver` automatically finds the VirMIDI port, finds the Fluidsynth
-port, and runs `aconnect` if they're not already connected. No manual port
-numbers needed.
+Connecting finds the VirMIDI port and the Fluidsynth port, and runs
+`aconnect` if they aren't connected yet (`musics.midi.live/open-receiver`).
+No manual port numbers needed.
 
 After restarting qsynth, connections may need re-establishing:
 
@@ -207,35 +203,15 @@ Hardware DAC → speakers
 | `musics.input.midi` | `src/musics/input/midi.clj` | Real-time MIDI input (overtone/midi-clj) + midi-through |
 | `musics.input.midi-record` | `src/musics/input/midi_record.clj` | Records + quantizes a performance into musics text |
 
-### Real-time usage (REPL)
+### A MIDI file
 
-```clojure
-(require '[musics.midi.live :as live])
-
-;; Auto-connects VirMIDI -> Fluidsynth
-(def rcv (live/open-receiver))
-
-;; Play a C major phrase
-(live/play-phrase rcv
-  [[60 300 80] [62 300 80] [64 300 80] [65 300 80]
-   [67 300 80] [69 300 80] [71 300 80] [72 500 80]])
-
-;; Play a chord
-(live/play-chord rcv 0 [60 64 67] 80 2000)
+```
+[verse: c4 d e f] "verse.mid" render      a part, written as it would play
+[c d e] [~] "loop.mid" 30 render          endless music: the first 30 seconds
 ```
 
-### File-based usage (REPL)
-
-```clojure
-;; a committed part, rendered as it would play -- no clock involved
-(render :verse "verse.mid")
-(render :endless "loop.mid" :until 30)   ; seconds, for endless material
-
-;; or by hand
-(require '[musics.midi.file :as mf])
-(def trk (mf/pitches->track [[60 240] [64 240] [67 480]]))
-(mf/play (mf/make-sequence [trk]))
-```
+`aplaymidi -p 128:0 verse.mid` plays the file through Fluidsynth, outside
+musics (`aplaymidi -l` lists the ports; Fluidsynth is usually 128:0).
 
 ## Scripts
 

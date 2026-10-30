@@ -75,9 +75,9 @@ typed by its first element or an explicit type:
 | `'[!mf !p !ff]` | instruction maps | untyped |
 
 The grammar's own comments call these a **color** (pitches) and a
-**talea** (durations). `musics.core/sq` hands a Data container's
-children to Clojure, so `(sq :talea)` can already feed a tree as a
-literal.
+**talea** (durations). In mu a Data value is a stream already, so
+`'[1/8 1/4] [~]` feeds an algo word or a recipe as it is; in code,
+`musics.compose/sq` hands a Data container's children to Clojure.
 
 ### Ids name containers only
 

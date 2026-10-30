@@ -4,10 +4,15 @@ Every generative function under `musics/algo/` is a plain Clojure function,
 and every one in `musics/algo/{indisp,metric,melodic,random,rhythmic}` is also
 a tree algo (its own `:algo` metadata; `(musics.algo.tree/algos)` lists all of
 them). `musics.algo.tree` is the one way to combine them and to play them, live
-or not. `CLAUDE.md`'s "Simple composition: `musics.algo.tree`" section is the
-reference; `doc/html/algo-cookbook.html` (a PDF via `scripts/docs.sh`) has 47
-worked recipes, each run for real; `dev/musics/examples/tree_tour.clj` is a
-walkthrough to evaluate form by form.
+or not.
+
+This page is the guide in code: how an algo is written and registered, and
+how trees are built, set and run in Clojure (in `musics.algo.*`, tests and
+scripts). In mu every algo is a word (`duration/euclid`, `pitch/walk`), and
+`doc/md/algo-tree-tutorial.md` shows how to combine them, from words to
+recipes playing live. `CLAUDE.md`'s "Simple composition: `musics.algo.tree`"
+section is the reference; `doc/html/algo-cookbook.html` (a PDF via
+`scripts/docs.sh`) has 53 worked recipes, each run for real.
 
 ## Make an algorithm usable in a tree
 
@@ -60,7 +65,7 @@ is kept as `name*`):
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 
 (def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
-(def tctx (t/tctx riff))       ; its settings: an ordinary Context, empty, so every param at its default
+(def tctx (t/tctx riff))       ; its settings, {:params-atom a}: empty, so every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
 (t/run riff tctx)
@@ -90,37 +95,41 @@ is kept as `name*`):
   the `!key:` of the contexts given as `run`'s chain, unless the
   settings give a `key`.
 
-## Three ways to sound
+## Playing a tree
 
-- **Compose by drag and drop:** `(build-tree)` opens a canvas and a
-  pane of shelves -> algos (what each delivers: pitch, duration,
-  volume, articulation, leaf, parallel, tools, and the workshop of raw
-  material); drop algos onto the tree's open slots
-  (only fitting ones are accepted), then Finalize returns `[tree tctx]`.
-  `(build-tree :repl)` does the same step by step at the REPL.
-- **A window for it:** `(gui tree)` (or `(gui tctx)`, `(gui tree tctx)`)
-  opens a settings window — a control per param, a live result preview,
-  Play once / Live as — and returns the tctx.
-- **Once:** `(t/play! riff tctx)`, or `(play (t/run riff tctx))`. A tree
-  ends in leaves (Leaf/Rest/Drum maps), which `play` walks as a plain
-  Form; a part (drums, counterpoint) plays its voices at once.
-- **Committed:** wrap the same Leaf/Rest maps in a container and
-  `musics.repo/commit-node!` it, to address it by id like `.mus` material.
-- **Live:** a name binds a tree and a tctx in `musics.wall`'s registry, so
-  any voice can follow it, and every change to the tctx is heard on the
-  next note:
+In mu:
 
-  ```clojure
-  (t/live! :riff riff tctx)                   ; an endless voice
-  (t/setp! tctx :k 3)
-  (t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))  ; same tctx, fitted
-  (t/stop! :riff)
-  ```
+- **A word, or a recipe:** every algo is a word, and a tree is a run of
+  words, or a tree recipe `@<< … >>`. `run` puts a finite result on the
+  stack, and a play word plays it: `>`, or live from nothing with
+  `| '( … ) :riff >`. `doc/md/algo-tree-tutorial.md` goes through it.
+- **Compose by drag and drop:** `compose` opens a canvas and a pane of
+  shelves -> algos (what each delivers: pitch, duration, volume,
+  articulation, leaf, parallel, tools, and the workshop of raw material).
+  You drop algos onto the tree's open slots (only fitting ones are
+  accepted), and Finalize leaves the tree on the stack as a recipe:
+  `compose :riff >`.
+- **A window for it:** `:riff gui` opens a live voice's settings, a
+  control per param; the GUI's Wall window shows every live voice's.
+- **Live:** a voice playing a recipe plays each next note of what the
+  recipe gives now: `:riff @^{ k:3 } set` is heard on the next note,
+  `'( … ) :riff retree` swaps the recipe and keeps the settings and the
+  position, and `:riff stop` ends it.
 
-  A tree that reads `:nodes` transforms a voice's own notes instead:
-  `(t/live! :up7 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 7}))`,
-  then `(play :verse :algo :up7)`. The GUI's Wall window shows a slider
-  per ranged param of every live name.
+In code, the same steps are `musics.algo.tree`'s:
+
+```clojure
+(t/play! riff tctx)                         ; once
+(t/live! :riff riff tctx)                   ; an endless voice; the name is bound in musics.wall
+(t/setp! tctx :k 3)                         ; heard on the next note
+(t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))  ; same tctx, fitted
+(t/stop! :riff)
+```
+
+A tree ends in leaves (Leaf/Rest/Drum maps), which the engine walks as
+a plain Form; a part (drums, counterpoint) plays its voices at once. A
+tree that reads `:nodes` transforms a voice's own notes instead, which
+is what a mu recipe with music under it does (`[c d e] '( 5 + ) :up >`).
 
 ## Where things live
 
@@ -128,7 +137,7 @@ is kept as `name*`):
 |---|---|
 | Trees, tctx, `run`/`trace`/`describe`, `defalgo`/`expose`, live entry points | `musics.algo.tree` |
 | Introspection and the short ↔ full registry | `musics.algo.tree.registry` |
-| Ready-made algos (`euclid`, `scale`, `zip` and `as-part`, the tools, `transpose`, indispensability, ...) | `musics.algo.tree.lib` (referred in `lein repl`'s `user` ns) |
+| Ready-made algos (`euclid`, `scale`, `zip` and `as-part`, the tools, `transpose`, indispensability, ...) | `musics.algo.tree.lib` |
 | Bridges (`pulses->durations`, `degrees->pitches`, ...) | `musics.algo.bridge` (exposed through `musics.algo.tree.lib`) |
 | Live playback by name | `musics.algo.tree.live` |
 | The name -> wall fn registry the engine reads per note | `musics.wall` |
@@ -138,9 +147,10 @@ is kept as `name*`):
 ## What's in `musics/algo/`
 
 Every tree algo, read from the registry, so the listing can't go stale:
-`(show-algos)` at the REPL, or the reference tables in the cookbook
-(`doc/html/algo-cookbook.html`). Helper functions that aren't algos are found
-through `doc` and their namespaces.
+in mu, `words` lists the algo words by shelf and `"pitch/walk" see` says
+what one does and which settings it reads; the cookbook's reference
+tables (`doc/html/algo-cookbook.html`) list them all. In code,
+`musics.algo.tree/show-algos` prints the same:
 
 ```clojure
 (show-algos)              ; every shelf, one line per algo
@@ -162,11 +172,18 @@ registry as core.logic facts, below).
 Jeppesen against a cantus you give, in any of the five kinds, and
 checks counterpoint against the same rules:
 
+```
+[D4/1 F E D G F A G F E D] @^{ voices:3 kind:2 } parallel/species >
+```
+
+In mu, `parallel/species` takes the cantus from the stack, its settings
+on top. In code:
+
 ```clojure
 (require '[musics.algo.logic.counterpoint :as cp])
 (def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] :voices 3 :kind 2}))
 (cp/check r)                 ; [] -- every hard rule kept
-(parse (cp/->mus r :cpt))    ; then (play :cpt)
+(cp/->mus r :cpt)            ; musics text, spelled in the mode
 ```
 
 As a tree algo: `(species cantus)` with `:voices`/`:kind`/... params.
@@ -212,7 +229,7 @@ any more parts written on them:
     cycle its result.
 - **Value bridges** convert one value and are named in the singular:
   `degree->pitch`, `number->pitch`, `number->duration`, `number->volume`. The stream
-  bridges map them; use them directly at the REPL.
+  bridges map them; call them directly in code.
 - **`zip`** joins two children at a time; more fold from the left,
   `(zip d p v)` being `(zip (zip d p) v)`, and print as written.
   - **Durations and pitches** give leaves: a collection is a chord and
@@ -275,7 +292,7 @@ each half product a bridge makes of it, a **specialised algo**
   grid of `:duration-pulse` (each rounds to whole pulses), varied, and
   read back as durations: `(zip (duration/emi (duration/euclid)) (cycle>
   scale))`. It reads the whole stream, so give it a finite one.
-- **The catalogue** (`(show-algos)`, `(build-tree)`'s pane) shows algos
+- **The catalogue** (mu's `words`, `compose`'s pane, `show-algos` in code) shows algos
   by shelf: what they deliver (`pitch`, `duration`, `volume`,
   `articulation`, `leaf`, `parallel`), `tools`, and the **workshop**
   with everything that takes or gives raw material -- raw sources,
@@ -290,7 +307,7 @@ never shadow `clojure.core`:
 |---|---|
 | `cycle>`, `shuffle>` | repeat forever / reshuffle every pass (lazy) |
 | `take>` | the first `:len` items |
-| `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (set `:fn` at the REPL) |
+| `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (`:fn` set in code; in mu, `map` and `filter` take a quotation) |
 | `remove>` | the items `:fn` doesn't drop; on leaves the line gets shorter |
 | `mute>` | leaves: each note `:fn` is true for becomes a rest of its duration, the rhythm stays |
 | `scale>` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
@@ -317,10 +334,12 @@ that next downbeat is bar 1's. `:density` thins the hats and ghost notes,
 reproducible. The result is a `par` group with one layer per kit piece,
 each layer a vector of Drum/Rest maps, so it plays as a whole:
 
-```clojure
-(play (t/run (drums) {:style :funk :swing 0.2}))
-(t/play! (drums) {:style :jazz :bars 4})
 ```
+@^{ style:funk swing:0.2 } parallel/drums >
+@^{ style:jazz bars:4 } parallel/drums [~] >
+```
+
+In code: `(t/play! (drums) {:style :jazz :bars 4})`.
 
 Each hit is ghosted, plain, accented or marcato: the same accents
 a written drum takes (`x8\38\ghost`, `x8\38->`, `x8\38-^`). They are
@@ -331,8 +350,9 @@ Timing and velocity spread come from `:humanization`.
 
 ### Asking the registry
 
-`musics.algo.logic.tree` (`lt` at the REPL) answers questions about the algos
-from their declared types, so the answers never go out of date:
+`musics.algo.logic.tree` (`lt` below) answers questions about the algos
+from their declared types, so the answers never go out of date. It is
+asked in code:
 
 ```clojure
 (require '[clojure.pprint :refer [print-table]])

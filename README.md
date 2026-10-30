@@ -33,7 +33,7 @@ lein mu
 ```
 [verse: !mf c4 d e f] R!          store a part; its name, :verse, is left
 R@ >                              fetch it and play it
-^{ ?k:3 ?n:8 ?duration-pulse:1/8 } duration/euclid [c e g] pitches zip >
+@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip >
 stop
 "song.mus" load                   read a file (.mus, .ly, .abc, .gmn)
 x "x.mid" render                  write a MIDI file
@@ -52,7 +52,7 @@ them to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in
 | [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step |
 | [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
-| [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms: composing, settings, live playback |
+| [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms in code: writing and registering an algo, trees in Clojure |
 | [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 53 worked recipes, each run for real (on GitHub, open it locally) |
 | [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: its words and design |
 | [doc/md/parsing.md](doc/md/parsing.md) | The text notation and its parser |

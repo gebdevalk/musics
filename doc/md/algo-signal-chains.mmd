@@ -2,11 +2,12 @@
 flowchart TB
     %% algo-signal-chains.mmd -- a map of how musics/algo/'s generative modules
     %% can feed one another (ranks, grids, pitch sequences, chaotic
-    %% streams) on the way into musics.wall/core.async-engine and the real
+    %% streams) on the way into musics.wall/musics.engine and the real
     %% domain model. Solid edges are real code dependencies or already-
     %% tested chains; thick edges mark a module's fns carrying :algo
     %% metadata, composed into an musics.algo.tree tree, bound by name into
-    %% musics.wall for live playback. Surveyed against the real musics/algo/ :require
+    %% musics.wall for live playback. Dashed boxes are loaded only by
+    %% tests (doc/md/namespace.md, "Unreached"). Surveyed against the real musics/algo/ :require
     %% graph, not reasoned from memory -- see doc/md/decisions.md if this
     %% drifts from the code later.
     %%
@@ -37,21 +38,21 @@ flowchart TB
     end
 
     subgraph RANK[" rank &amp; grid generators "]
-        INDISP["indisp.indispensability<br/><i>Barlow ranks → tilt / power-law → density-grid</i>"]
-        METRIC["metric.metric<br/><i>binary-decomposition · continued-fraction · modular</i>"]
+        INDISP["indispensability<br/><i>Barlow ranks → tilt / power-law → density-grid</i>"]
+        METRIC["metric<br/><i>binary-decomposition · continued-fraction · modular</i>"]
     end
 
-    subgraph RHYTHM[" rhythmic generators — 13 files "]
-        EUCLID["rhythm · fractal-geometric · necklace · decompose<br/><i>euclidean · fibonacci · cantor-set · vuza-canon</i>"]
+    subgraph RHYTHM[" rhythmic generators — 15 files "]
+        EUCLID["rhythm · fractal-geometric · necklace · decompose · automaton<br/><i>euclidean · fibonacci · cantor-set · vuza-canon</i>"]
         SIEVE["phase-sieve<br/><i>xenakis-sieve · clapping-music</i>"]
-        STOCH["stochastic · constraint<br/><i>genetic-rhythm · rnn-rhythm · all-interval</i>"]
-        WORLDF["world · physical · poly · sonification · micro<br/><i>tala-pattern · pendulum · polyrhythm · data-to-rhythm</i>"]
+        STOCH["stochastic · constraint · transform<br/><i>genetic-rhythm · rnn-rhythm · all-interval</i>"]
+        WORLDF["world · physical · poly · sonification · micro · drums<br/><i>tala-pattern · pendulum · polyrhythm · data-to-rhythm</i>"]
     end
 
     subgraph MELODIC[" melodic generators "]
         MELODY["melody<br/><i>markov / l-system / constraint / modulating</i>"]
         CPOINT["counterpoint<br/><i>multi-voice motif imitation</i>"]
-        SLON["slonimsky<br/><i>0 callers</i>"]:::dormant
+        SERIAL["serial<br/><i>rows · set classes · polations</i>"]
     end
 
     subgraph CHAOS[" chaotic streams "]
@@ -68,6 +69,7 @@ flowchart TB
     end
 
     subgraph CONVERGE[" convergence — domain-ready structures "]
+        BRIDGE["bridge<br/><i>raw material → half products: durations, pitches, volumes …</i>"]
         PULSE["pulse / grid→pulses<br/><i>any grid → real Pulse records</i>"]
         ISO["isorhythm / color-talea<br/><i>pitch seq × duration seq → paired events</i>"]
         SPLIT["split / split-leaf-voice<br/><i>1 melody → N faster voices</i>"]
@@ -76,7 +78,7 @@ flowchart TB
     subgraph ENGINE[" outside musics/algo/ "]
         TREE["musics.algo.tree<br/><i>:algo metadata → trees + tctx, bound by name</i>"]
         WALL["musics.wall<br/><i>name → wall fn, per-voice</i>"]
-        ASYNC["core.async-engine<br/><i>plays each voice's own :view</i>"]
+        ASYNC["musics.events + musics.engine<br/><i>each voice's own stream, one sender thread</i>"]
         DOMAIN["musics.domain / Meter<br/><i>Leaf · Pulse · bar length</i>"]
     end
 
@@ -94,10 +96,11 @@ flowchart TB
     class RCORE,RAND rng
     class INDISP,METRIC gen
     class EUCLID,SIEVE,STOCH,WORLDF gen
-    class MELODY,CPOINT gen
+    class MELODY,CPOINT,SERIAL gen
     class LOGIS,HENON,LOREN gen
-    class RESHAPE,ZFILT,GATE,ROTATE tool
-    class PULSE,ISO,SPLIT conv
+    class ROTATE tool
+    class BRIDGE conv
+    class RESHAPE,ZFILT,GATE,PULSE,ISO,SPLIT dormant
     class TREE,WALL,ASYNC,DOMAIN engine
 
     NUM --> SCALE
@@ -131,7 +134,7 @@ flowchart TB
     EUCLID --> ISO
     MELODY --> SPLIT
 
-    GATE & RESHAPE & ZFILT & LOGIS & HENON & LOREN & ISO & SPLIT & INDISP ==>|":algo"| TREE
+    INDISP & METRIC & RAND & EUCLID & SIEVE & STOCH & WORLDF & MELODY & CPOINT & SERIAL & LOGIS & HENON & LOREN & BRIDGE ==>|":algo"| TREE
     TREE ==>|"live!"| WALL
 
     PULSE --> DOMAIN

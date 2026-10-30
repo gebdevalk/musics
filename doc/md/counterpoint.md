@@ -26,6 +26,16 @@ raised leading tone at cadences).
 
 ## Interface
 
+In mu, `parallel/species` takes the cantus from the stack (a line of
+whole notes), its settings on top, and gives the parts side by side:
+
+```
+[D4/1 F E D G F A G F E D] @^{ voices:3 kind:2 } parallel/species >
+```
+
+Its settings are `voices`, `kind`, `cantus-in`, `mode` and `seed`, as
+below. In code:
+
 ```clojure
 (require '[musics.algo.logic.counterpoint :as cp])
 
@@ -51,7 +61,7 @@ raised leading tone at cadences).
 `check` takes a result, or the same shape written by hand (`:voices`,
 `:parts` with the cantus' kind `:cantus`, optional `:mode`), and reports
 every hard rule broken, with its bar. `->mus` gives musics text ready
-for `parse` and `play`, each note spelled from its letter in the mode
+to read (a `.mus` file, the GUI's Editor), each note spelled from its letter in the mode
 (the B♭ of D dorian is `B&4`, its leading tone `C#5`).
 
 Defaults: `:cantus-in` — with two voices the cantus is the lower part
