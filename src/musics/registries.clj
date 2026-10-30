@@ -26,7 +26,7 @@
    same kind of thing: `musics.engine`'s `:algo-prepared` (path ->
    name, consulted only at voice-mint time) lives on each ENGINE
    INSTANCE, not as a var here, by the same 'instance, not global'
-   discipline `:voices`/`:channel-claims`/etc. already follow -- see
+   discipline `:voices`/`:channels`/etc. already follow -- see
    that ns's own docstring.
 
    Deliberately a LEAF namespace: requires nothing else in this project,

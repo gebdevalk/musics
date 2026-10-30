@@ -1110,9 +1110,17 @@ start/end — and performs each as it comes due, parking until the next
 one. At one moment a note-off goes before signals, and signals before a
 note-on, so a repeated pitch is released before it sounds again.
 
-- Channels: a pool keyed by `[program cc]`, claimed when a voice's note
-  first needs one and released when the voice ends; 15 timbres at once,
+- Channels: `musics.midi.channels`, a pool shared with
+  `musics.midi.file` -- a channel carries one timbre, `[program cc]`
+  (`cc` `{10 pan}`), voices playing exactly that sharing it, taken when a
+  voice's note first needs one and released when the voice ends. A voice
+  whose program or pan changes stays on its channel while it is alone
+  there, sending only what changed (a program change, a CC 10) before
+  the note -- so a pan ramp is one channel and its CCs, and a note still
+  sounding there follows the pan -- and one sharing it moves to a
+  channel carrying the new timbre, else a free one. 15 timbres at once,
   a 16th drops its notes rather than take a channel (`channel-for!`).
+  A drum sounds on channel 9 and takes no pan.
   Under `!i:40,73,0` (or a note's own `\i:40,73`) its `:program` is a vector: the note sounds
   once per program at the same moment, each a layer of the voice with
   its own channel (`[path layer]`); `musics.midi.file` renders it the
@@ -2006,8 +2014,8 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `note-off`/`program-change`/`control-change`) is what `musics.engine`
   uses for real sound; `midi_file.clj` writes `.mid` files —
   `events->sequence`/`write-events` render `musics.events` output (one
-  track per voice, 1000 ticks a second, channels pooled by
-  `[program cc]` like the live engine's), behind `musics.midi.file/render`. `midi_live.clj`'s own device discovery
+  track per voice, 1000 ticks a second, channels from the live engine's
+  pool, `musics.midi.channels`), behind `musics.midi.file/render`. `midi_live.clj`'s own device discovery
   (`find-writable-device`) is backed by `overtone.midi` now, not a
   hand-rolled `MidiSystem` walk — see "MIDI input" above, which uses that
   same library directly for the opposite direction (`musics/input/midi.clj`/

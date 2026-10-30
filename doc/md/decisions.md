@@ -2217,3 +2217,17 @@ restarted. A session is what is stored plus mu's words and bindings; a
 performance isn't a document, and with recipes stored by id a piece's
 live parts are kept as what they are. `assign-algo!` stays, for
 preparing a track by hand.
+
+## 2026-10-30 — A voice keeps its MIDI channel through a change of program or pan
+
+A channel's pan (CC 10) and program apply to the whole channel, so
+voices share one only when they play the same `[program pan]`. But a
+voice alone on its channel has no one to disturb: it now stays there
+when its program or pan changes, the program change or CC sent before
+its next note. A pan ramp is one channel and a CC per step, as MIDI pan
+automation is, a note still sounding there following the pan; before,
+each step claimed a new channel, which the file writer, never giving
+one back, wrapped round after 15, panning other voices' notes. The pool
+is one pure namespace, `musics.midi.channels`, used by the engine and
+`render` alike, so the two can't go apart again. Drums stay unpanned:
+channel 9 is the whole kit's.
