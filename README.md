@@ -46,6 +46,35 @@ The documents are Markdown in `doc/md/`. `scripts/docs.sh` renders
 them to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in
 `doc/pdf/`.
 
+### Reading order
+
+To get playing:
+
+1. This README: what musics is, and the quick start above.
+2. [doc/md/setup.md](doc/md/setup.md), only for Fluidsynth. Gervill,
+   the default, needs no setup: type `gervill` in mu.
+3. [doc/md/tutorial.md](doc/md/tutorial.md): the guided tour, from
+   starting mu to writing, playing and changing a piece while it plays,
+   files and the GUI.
+4. [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md): sections 0–2 (the
+   stack, writing music, listening) first, the rest as you need it.
+5. [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md): when
+   you want algorithms, from `duration/euclid` to recipes playing live.
+
+Keep at hand: [parsing.md](doc/md/parsing.md) (the notation),
+[instruments.md](doc/md/instruments.md) (instrument, drum and kit
+names), [lilypond.md](doc/md/lilypond.md) (coming from LilyPond), and in
+mu itself `words`, `"dup" see` and Tab completion.
+
+To understand how it works: [walk-through.md](doc/md/walk-through.md),
+[CLAUDE.md](CLAUDE.md), [domain.md](doc/md/domain.md),
+[algorithms.md](doc/md/algorithms.md) and
+[decisions.md](doc/md/decisions.md). The design and history documents
+(`algo-space.md`, `grid.md`, `core-logic.md`, `ideas.md`,
+`doc/md/audits/`) can wait.
+
+### All documents
+
 | Document | What it covers |
 |---|---|
 | [doc/md/setup.md](doc/md/setup.md) | Audio setup: once, and every boot |
