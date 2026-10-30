@@ -19,7 +19,7 @@
             [musics.wall :as wall]))
 
 (defn recipe?
-  "A quotation, a tree (the composer's) or a tree recipe @<< … >> (musics.recipe)."
+  "A quotation, a tree (the composer's) or a tree recipe @( … ) (musics.recipe)."
   [x]
   (or (v/quotation? x) (t/node? x) (v/recipe? x)))
 
@@ -70,24 +70,37 @@
   "Bind live name to recipe on x (nil: none), keeping the name's settings
    when it has some. Returns the name."
   [name recipe x]
-  (let [tctx  (or (:tctx (wall/registered name)) (when (v/recipe? recipe) (:tctx recipe)) (empty-tctx))
+  (let [tctx  (or (:tctx (wall/registered name))
+                  ;; a copy: set on the voice never reaches the recipe
+                  (when (v/recipe? recipe) (t/tctx (:tree recipe) @(:params-atom (:tctx recipe))))
+                  (empty-tctx))
         cache (atom {})]
     (when (v/recipe? recipe)
       (case (:arity recipe)
-        0 (when (some? x) (e/mu-error "this recipe takes nothing from the stack, it makes its own notes -- play it on nothing: | @<< … >> :riff >"))
-        1 (when (nil? x) (e/mu-error "this recipe changes music: give it the music under it, x @<< … >> :riff >"))
+        0 (when (some? x) (e/mu-error "this recipe takes nothing from the stack, it makes its own notes -- play it on nothing: | @( … ) :riff >"))
+        1 (when (nil? x) (e/mu-error "this recipe changes music: give it the music under it, x @( … ) :riff >"))
         (e/mu-error "a live voice plays one line -- this recipe takes" (:arity recipe) "from the stack; run it"))
       (when-not (= :leaf (t/out-type (:tree recipe)))
         (e/mu-error "a live voice plays a line of notes -- this recipe gives" (pr-str (t/out-type (:tree recipe))) "; run it and play what it gives"))
       ;; a name keeps its settings: the recipe's own fill in what it doesn't set yet
-      (when-not (identical? tctx (:tctx recipe))
-        (t/fit! tctx (:tree recipe))
-        (let [set @(:params-atom tctx)
-              new (into {} (remove (fn [[n]] (contains? set n)) @(:params-atom (:tctx recipe))))]
-          (when (seq new) (t/setp! tctx new)))))
+      (t/fit! tctx (:tree recipe))
+      (let [set @(:params-atom tctx)
+            new (into {} (remove (fn [[n]] (contains? set n)) @(:params-atom (:tctx recipe))))]
+        (when (seq new) (t/setp! tctx new))))
     (swap! sources assoc name {:x x :recipe recipe :cache cache})
     (tree-live/bind-run! name (run-fn recipe x cache) (p/show recipe) tctx)
     name))
+
+(defn follow!
+  "recipe, just stored under id, for every live voice playing the recipe
+   stored there: each plays it from its next note, at its position, its
+   settings the new recipe's (what set gave the voice is left behind)."
+  [id recipe]
+  (doseq [[nm {:keys [x] :as src}] @sources
+          :when (= id (:id (:recipe src)))]
+    (when-let [tctx (:tctx (wall/registered nm))]
+      (reset! (:params-atom tctx) {}))
+    (bind! nm recipe x)))
 
 (defn- seed-from-head!
   "The voice's settings take the recipe's head (the @^{ } it opens with)
@@ -105,7 +118,7 @@
    fresh one) and play x -- or, on nothing, the recipe's first result --
    through it. staged: [count] when it waits for a boundary (>>)."
   [x recipe ctx join? target staged]
-  (let [named (or target (when (v/material? x) (mt/voice-name x)))
+  (let [named (or target (when (v/material? x) (mt/voice-name x)) (when (v/recipe? recipe) (:id recipe)))
         name  (or named (fresh-name))]
     (bind! name recipe x)
     (let [tctx (:tctx (wall/registered name))
@@ -113,7 +126,7 @@
           first-run (if (v/recipe? recipe)
                       (do (doall (take 1 (recipe/result recipe tctx nil (when (some? x) [x])))) nil)
                       (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves))
-          ;; a tree recipe @<< >> is endless: each note of an endless rest is its next one
+          ;; a tree recipe @( ) is endless: each note of an endless rest is its next one
           form (cond (some? x) x (v/recipe? recipe) (mt/read-text "repeat ~ [r8]") :else first-run)]
       (seed-from-head! tctx recipe)
       (if staged

@@ -107,9 +107,10 @@
         :auto-ids (:auto-ids r)}))))
 
 (defrecord Recipe [tree tctx source arity])
+;; :id, assoc'd on, the id it names itself with (@( riff: … )) or is stored under
 
 (defn recipe?
-  "A tree recipe, @<< … >>: an algo tree, its settings beside it and how
+  "A tree recipe, @( … ): an algo tree, its settings beside it and how
    many inputs it takes from the stack under it (musics.recipe)."
   [x]
   (instance? Recipe x))

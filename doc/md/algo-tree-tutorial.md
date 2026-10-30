@@ -299,7 +299,7 @@ A random algo's `seed` is a setting like any other: in the head
 
 ## 8. A recipe as a tree
 
-A recipe can also be a tree, written in RPN between `@<<` and `>>`. Inside,
+A recipe can also be a tree, written in RPN between `@(` and `)`. Inside,
 the words build the tree on a stack of their own: an algo takes as many
 inputs as it has from the top and pushes itself, `zip` joins the top two
 (`par` puts them side by side), and the params (`k:3`) and an alias
@@ -307,16 +307,16 @@ inputs as it has from the top and pushes itself, `zip` joins the top two
 the settings for all of it:
 
 ```
-@<< ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip >> run   → [C3/8. C3 C3/8]
-@<< k:3 n:8 euclid '[60 64 67] [~] zip >> run                         → [C4/8. E4 G4/8]
-@<< '[1/4] '[60] zip '[1/8] '[72 74] zip par >> run                   → {[C4/4] [C5/8]}
+@( ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip ) run   → [C3/8. C3 C3/8]
+@( k:3 n:8 euclid '[60 64 67] [~] zip ) run                         → [C4/8. E4 G4/8]
+@( '[1/4] '[60] zip '[1/8] '[72 74] zip par ) run                   → {[C4/4] [C5/8]}
 ```
 
 A bridge goes in where a type doesn't fit, as in a composer tree; `see`
 shows the tree a recipe builds:
 
 ```
-@<< euclid lorenz zip >> see
+@( euclid lorenz zip ) see
   builds (zip (pulses->durations (euclid)) (points->pitches (lorenz)))
 ```
 
@@ -326,16 +326,16 @@ name, most specific first: its alias's (`bass.k`), its algo's
 (`duration/euclid.k`), the plain one (`k`), then the default:
 
 ```
-@<< ^{ k:5 } duration/euclid '[60] [~] zip >> run count                → 5
-@<< ^{ k:5 } k:2 duration/euclid '[60] [~] zip >> run count            → 2
-@<< ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip >> run count → 6
+@( ^{ k:5 } duration/euclid '[60] [~] zip ) run count                → 5
+@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run count            → 2
+@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run count → 6
 ```
 
 The settings can also come from outside, an `@^{ }` right under the
 recipe, so one recipe runs with different ones:
 
 ```
-@^{ seed:7 k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run   → [C3/8. C3 C3/8]
+@^{ seed:7 k:3 n:8 len:8 } @( euclid pitch/walk zip ) run   → [C3/8. C3 C3/8]
 ```
 
 No music is written inside: music comes from the stack under the recipe.
@@ -343,9 +343,9 @@ What the tree needs below its own stack is taken from there when it runs,
 a line taken apart into what the slot wants:
 
 ```
-[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> run
+[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) run
     → [C4/4\volume:44.0 D4\volume:76.0 E4\volume:44.0]
-[c8 d e f g a b c] @<< dup duration/emi zip >> run      the line, its rhythm varied
+[c8 d e f g a b c] @( dup duration/emi zip ) run      the line, its rhythm varied
 ```
 
 `dup` (and `swap` `over` `rot`) arrange the stack; a `dup`'d algo is one
@@ -358,9 +358,35 @@ A recipe that takes nothing plays from nothing, one that takes music
 plays on the music under it:
 
 ```
-| @<< '[1/8] [~] scale [~] zip >> :sc >
+| @( '[1/8] [~] scale [~] zip ) :sc >
 :sc @^{ root:62 } set
-[c d e] @<< '[0.1 0.9] [~] numbers->volumes zip >> :vol >
+[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol >
+```
+
+### Keeping a recipe
+
+A recipe is material, as a line is: an id first names it, and `R!`
+stores it under that name -- or under an id you give, or an `:r1` of its
+own -- and `R@` gives it back:
+
+```
+@( arp: k:3 n:8 euclid '[60 64 67] [~] zip ) R!     → :arp
+:arp R@                                              → @( arp: k:3 n:8 euclid '[60 64 67] [~] zip )
+:arp R@ run                                          → [C4/8. E4 G4/8]
+@( k:3 n:8 euclid '[60 64 67] [~] zip ) :arp2 R!    → :arp2
+```
+
+It is stored as its text, so all that is written inside comes along --
+the head, a node's own params, aliases -- and Write and Load in the
+GUI's Persistence window keep it. What `set` gives a playing voice stays
+with the voice. A named recipe plays as the voice of its name, and a
+voice playing a stored recipe follows it: store a new one under that id
+and the voice plays it from its next note, with the new recipe's
+settings:
+
+```
+| :arp R@ >                                          the voice :arp
+@( arp: k:3 n:8 euclid '[67 71 74] [~] zip ) R!      :arp plays the new one
 ```
 
 ## 9. The GUI

@@ -916,14 +916,14 @@ that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 ### Recipes: `musics.recipe`
 
 A tree recipe is an algo tree written concatenatively, as mu is, between
-`@<<` and a closing `>>` that stands alone -- a value of mu's
-(`musics.mu.value/Recipe`, read by `mu.ebnf`'s `TreeRecipe`, built by
-`musics.recipe/build` from mu's evaluator):
+`@(` and `)` -- the algo twin of `'( )`, as `@^{ }` is of `^{ }` -- a
+value of mu's (`musics.mu.value/Recipe`, read by `mu.ebnf`'s
+`TreeRecipe`, built by `musics.recipe/build` from mu's evaluator):
 
 ```
-@<< ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip >>        a generator
-@^{ k:3 n:8 len:8 } @<< euclid pitch/walk zip >> run          its settings given from outside
-[c8 d e f g a b c] @<< dup duration/emi zip >> run            music from the stack, changed
+@( riff: ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip )  a generator, named
+@^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run          its settings given from outside
+[c8 d e f g a b c] @( dup duration/emi zip ) run            music from the stack, changed
 ```
 
 Inside, the words build the tree on a stack of their own: an algo (its
@@ -953,10 +953,24 @@ is lazy, a `seed` in the settings starting the draws there; mu's `run`
 (`musics.mu.tools`) takes the recipe's inputs from the stack and puts a
 finite result there (a line, a `{ }`), refusing an endless one; `see`
 prints the tree it builds; a play word plays one live -- a generator
-from nothing (`| @<< … >> :riff >`), one with an input on the music
+from nothing (`| @( … ) :riff >`), one with an input on the music
 under it -- the voice pulling the lazy result note by note, its tctx
-the voice's settings (`set`, `settings`, `gui`, the Wall). `'( … )`
-stays the simple recipe, any mu words run as written.
+the voice's settings (`set`, `settings`, `gui`, the Wall), a copy of the
+recipe's, so `set` never reaches the recipe; a named recipe plays as the
+voice of its name. `'( … )` stays the simple recipe, any mu words run as
+written.
+
+A recipe is material of the repo: an id first names it (`@( riff: … )`),
+as a part names itself, and `R!` stores it under that name, an id given
+or an auto one (`:r1`), as its text -- a `:RECIPE` node, `{:type :RECIPE
+:id :riff :text "…"}` (`musics.recipe/node`), not one of `:ROOT`'s
+children -- which `R@` rebuilds (`musics.recipe/stored`, by mu's
+evaluator), so `write`/`load` keep it as they keep any node. Everything
+written inside comes along -- the head, a node's own params, aliases;
+what is given at use (`@^{ }`) or set on a live voice is not. A live
+voice playing a recipe stored under an id follows it: `R!` of a new one
+there (`musics.mu.live/follow!`) plays from the voice's next note, at
+its position, its settings the new recipe's.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -1184,7 +1198,7 @@ unlike `snd-virmidi`.
 ### Algorithm registries: not reachable from music
 
 No line or `^{ }` invokes an algorithm: music text holds music. An
-algo tree is written as a mu value of its own, a tree recipe (`@<< … >>`,
+algo tree is written as a mu value of its own, a tree recipe (`@( … )`,
 `musics.recipe`, see "Recipes" above), and
 played by mu's play words; playback algorithms otherwise live on the
 `play`/`musics.wall` side, a tree bound under its own name
@@ -1526,7 +1540,7 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `@^{ }`    | `Settings`    | an algo's settings, `@^{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }`; a recipe's head |
-| `@<< >>`  | `TreeRecipe`  | (`mu.ebnf`) an algo tree in RPN: `@<< ^{ … }? words … >>` |
+| `@( )`   | `TreeRecipe`  | (`mu.ebnf`) an algo tree in RPN: `@( name:? ^{ … }? words … )`, stored by `R!` as a `:RECIPE` |
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
@@ -1544,7 +1558,7 @@ use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
 
 No algorithm is invoked inside music (the old `AtomicAlgo`/`ElementAlgo`
-are gone); a tree recipe, `@<< … >>`, is a mu value of its own, read
+are gone); a tree recipe, `@( … )`, is a mu value of its own, read
 by `mu.ebnf` -- see the "Algorithm registries" note above. `(par ...)` is likewise not this grammar's own spelling for
 anything — that's tier 3's play-arg mini-language (see "The play-arg
 mini-language" below for `musics.compose/par`, a genuinely different,

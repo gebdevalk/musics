@@ -395,19 +395,22 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   again as its parts. It can't sound: the play words, `render`, `par`,
   `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
   default duration.
-- **A recipe as a tree** (`musics.recipe`): `@<< … >>`, an algo tree in
+- **A recipe as a tree** (`musics.recipe`): `@( … )`, an algo tree in
   RPN. Inside, an algo takes its inputs from the top of the recipe's own
   stack and pushes itself, its params (`k:3`) and alias (`'bass`) right
   before it; `zip`/`par` join the top two or all above a `|`; `dup`
   `swap` `over` `rot`; data and numbers; a `^{ }` first, the settings for
   all of it; no music inside -- what the tree needs from below is taken
-  from the stack under the recipe (`[c d e] @<< '[0.1 0.9] [~]
-  numbers->volumes zip >> run`). Built in three phases -- every param
+  from the stack under the recipe (`[c d e] @( '[0.1 0.9] [~]
+  numbers->volumes zip ) run`). Built in three phases -- every param
   collected into one flat tctx and checked, the tree associated with it,
   then run with each param resolved by name (alias, algo, plain,
   default) -- and lazy: `run` gives a finite result (an `@^{ }` under the
   recipe its settings), `see` the tree, a play word plays one live
-  (`| @<< '[1/8] [~] scale [~] zip >> :sc >`).
+  (`| @( '[1/8] [~] scale [~] zip ) :sc >`). It is material: an id first
+  names it (`@( sc: … )`), `R!` stores it as its text (a `:RECIPE` node)
+  and `R@` rebuilds it; a voice playing a stored recipe follows a new one
+  stored under its id, from its next note.
 - **A context from a control**: what changes over time -- volume, tempo,
   pan, the key -- is a context, not a part of each note. `>ctx` takes,
   above a `|` mark, `:duration` and one or more context keys, each a

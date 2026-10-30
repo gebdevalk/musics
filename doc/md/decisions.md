@@ -2164,3 +2164,27 @@ without values runs with whatever it is given.
 `'( … )` stays the simple recipe: mu words run as written. Weighed and
 dropped: a simple `@( )` form beside it, a quoted `@"…"`, and a `( )`
 Forth mode.
+
+## 2026-10-30 — Recipes are material: @( … ), stored as their text
+
+A recipe kept for a piece belongs with the piece, so it is stored in the
+repo, beside the parts, not in mu's own state as a word or a binding
+(both still work, for a tool of one's own). Once it is material it is
+spelled like material: `@( … )`, the algo twin of `'( )` as `@^{ }` is
+of `^{ }`, with an id first naming it as a part names itself
+(`@( riff: … )`). `@<< … >>` read as play words, its closer one more
+`>>`; `@: … @;` read as a definition, which a recipe isn't. `@( )`
+was the bracket recipes' spelling once; it means only this now.
+
+It is stored as its text, a `:RECIPE` node rebuilt when read: the tree
+holds algo constructors, which EDN can't carry, and the text holds
+everything written inside -- head, a node's own params, aliases -- so
+`write`/`load` keep a recipe with nothing of their own to add. The
+settings given at use and what `set` gives a live voice are not the
+recipe's: a voice's settings are a copy, so `set` acts during play only,
+and keeping what was tuned means writing it into the text and storing
+it again. Old values are not changed but replaced, as in Elixir's
+rebinding: `R!` binds the id to a new recipe, and a voice playing the
+one stored there follows it by id, from its next note, with the new
+recipe's settings. Weighed and dropped: `set` reaching the stored
+recipe, and a word writing a voice's settings back into it.

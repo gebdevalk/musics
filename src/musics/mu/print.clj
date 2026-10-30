@@ -132,7 +132,7 @@
 (defn- show*
   [x]
   (cond
-    (v/recipe? x)         (:source x)
+    (v/recipe? x)         (str "@( " (some-> (:id x) name (str ": ")) (:source x) (when (seq (:source x)) " ") ")")
     (:mu/repeat (meta x)) (let [[body n] (:mu/repeat (meta x))]
                             (str (show body) " " (if (= n :infinite) "[~]" (str n " times"))))
     (v/material? x)  (show-node (:repo x) (v/node x))

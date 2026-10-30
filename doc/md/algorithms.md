@@ -100,7 +100,7 @@ is kept as `name*`):
 In mu:
 
 - **A word, or a recipe:** every algo is a word, and a tree is a run of
-  words, or a tree recipe `@<< … >>`. `run` puts a finite result on the
+  words, or a tree recipe `@( … )`. `run` puts a finite result on the
   stack, and a play word plays it: `>`, or live from nothing with
   `| '( … ) :riff >`. `doc/md/algo-tree-tutorial.md` goes through it.
 - **Compose by drag and drop:** `compose` opens a canvas and a pane of
