@@ -370,6 +370,12 @@
 
 (def program->name (into {} (map (fn [[k v]] [(:prog v) k]) gm-sound-set)))
 
+(def gm-groups
+  "General MIDI's groups of eight programs, in order: group i holds
+   programs 8i to 8i+7."
+  ["piano" "chromatic-percussion" "organ" "guitar" "bass" "strings" "ensemble" "brass"
+   "reed" "pipe" "synth-lead" "synth-pad" "synth-effects" "ethnic" "percussive" "sound-effects"])
+
 (defn- camel [k] (let [[a & r] (str/split (name k) #"-")] (apply str a (map str/capitalize r))))
 
 (def ^:private instrument-names

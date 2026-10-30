@@ -7,6 +7,7 @@
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
+            [musics.common.music-data :as data]
             [musics.engine :as engine]
             [musics.mu.eval :as e]
             [musics.midi.gervill :as gervill]
@@ -109,6 +110,21 @@
   "The .sf2 files soundfont takes by number"
   []
   (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
+
+(defn list-soundfonts!
+  "Each soundfont's number (what soundfont takes) and name"
+  []
+  (let [fs (engine/soundfonts)
+        w  (count (str (dec (count fs))))]
+    (doseq [[i f] (map-indexed vector fs)]
+      (println (format (str "%" w "d  %s") i (str/replace (.getName (java.io.File. ^String f)) #"(?i)\.sf2$" ""))))))
+
+(defn list-groups!
+  "General MIDI's groups of eight instruments: number, name, programs"
+  []
+  (let [w (apply max (map count data/gm-groups))]
+    (doseq [[i g] (map-indexed vector data/gm-groups)]
+      (println (format (str "%2d  %-" w "s  %3d-%d") i g (* 8 i) (+ 7 (* 8 i)))))))
 
 (defn soundfont!
   "Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
