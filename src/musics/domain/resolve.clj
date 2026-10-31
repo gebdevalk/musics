@@ -245,6 +245,13 @@
    this change what's heard'; the GUI shows sliders for these only."
   (into #{:articulation :Key :accidentals :kit} (concat (keys common-keys+defaults) (keys leaf-keys+defaults))))
 
+(defn sample-leaf
+  "The context's value for key k (a canonical context key) where leaf
+   sits, from its own baked ancestors, else the key's default: what
+   playback samples before the leaf's own overrides."
+  [leaf k]
+  (get (c/sample-many (chain-links leaf [] 0) {k (get (ck/root-defaults) (name k))} 0) k))
+
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
    shorthand wins outright -- see below) from chain-links at
