@@ -590,15 +590,17 @@
    x8\\38: 38); a line: its context at its start."
   {:mu {:names ["!name"]}}
   [x k]
-  (let [k (ck/canonical-key (keyword k))]
-    (cond
+  (let [k (ck/canonical-key (keyword k))
+        whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N
+    (whole
+     (cond
       (mt/leaf? x) (cond
                      (and (= k :instrument) (= :DRUM (:type x))) (:program x)
                      (= k :articulation) (context-articulation x)
                      (contains? (:overrides x) k) (get (:overrides x) k)
                      :else (r/sample-leaf x k))
       (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) k 0)
-      :else (fail "needs a note or a line, got" (p/show x)))))
+      :else (fail "needs a note or a line, got" (p/show x))))))
 
 (defn- amount
   "d as an exact length in whole notes, from 0 (above 0 when positive?)."

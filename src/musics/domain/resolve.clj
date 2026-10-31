@@ -607,7 +607,7 @@
       (println "Not found:" (pr-str x))
 
       (nil? nodes)
-      (do (println "(not reachable from :ROOT — anonymous/detached; own context only)")
+      (do (println "(not stored under :ROOT -- its own context only)")
           (println (str "  " (or (some-> part :context fmt-context) "(empty)"))))
 
       :else

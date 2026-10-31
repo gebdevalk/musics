@@ -33,7 +33,8 @@
    being scattered) -- this ns requires it and reads/writes
    musics.registries/*repo-registry* exactly where it used to read/write
    its own local atom."
-  (:require [musics.registries :as reg]))
+  (:require [clojure.string :as str]
+            [musics.registries :as reg]))
 
 ;; ---------------------------------------------------------------------
 ;; Reading
@@ -163,3 +164,83 @@
                 (when (and (map? node) (some #{id} (:children node)))
                   candidate-id)))
         @(registry)))
+
+;; ---------------------------------------------------------------------
+;; Housekeeping: references, forget, rename
+;; ---------------------------------------------------------------------
+
+(defn- rename-text
+  "Text that names id -- a reference written :old, an inline context
+   defined ^{ old: …, a recipe @( old: … -- with new instead; else as it
+   is."
+  [text old new]
+  (let [o (name old) n (name new)]
+    (cond
+      (= text (str ":" o))                  (str ":" n)
+      (str/starts-with? text (str "^{ " o ": ")) (str "^{ " n ": " (subs text (+ 4 (count o) 1)))
+      (str/starts-with? text (str "@( " o ": ")) (str "@( " n ": " (subs text (+ 4 (count o) 1)))
+      :else text)))
+
+(defn- rewrite
+  "x with every reference to old made one to new: an id among a
+   container's :children (nested ones too: a repeat's body and endings),
+   an override marker's :ref and :raw, a node's own :id, a recipe's
+   :text. A context's atoms are left as they are."
+  [x old new]
+  (cond
+    (map? x)
+    (reduce-kv (fn [m k v]
+                 (assoc m k (cond
+                              (= k :context)                         v
+                              (and (= k :children) (sequential? v))  (mapv #(if (= % old) new (rewrite % old new)) v)
+                              (and (#{:ref :id} k) (= v old))        new
+                              (and (#{:raw :text} k) (string? v))    (rename-text v old new)
+                              :else                                  (rewrite v old new))))
+               x x)
+    (vector? x) (mapv #(rewrite % old new) x)
+    (seq? x)    (doall (map #(rewrite % old new) x))
+    :else       x))
+
+(defn referrers
+  "Every id but :ROOT whose content refers to id anywhere in it -- a
+   child, a repeat's body, an override marker -- not only directly as one
+   of its children, which is what usages finds."
+  [id]
+  (into #{}
+        (keep (fn [[k node]]
+                (when (and (not= k :ROOT) (not= k id) (map? node)
+                           (not= node (rewrite node id ::none)))
+                  k)))
+        @(registry)))
+
+(defn forget!
+  "Take id out of the store, and out of :ROOT's children. Refused while
+   another stored id refers to it (forget those first, or store them
+   again without it); :ROOT itself can't go. A voice already playing it
+   plays on, from its own snapshot."
+  [id]
+  (when (= id :ROOT) (throw (ex-info ":ROOT is the store's root and stays" {:id id})))
+  (when-not (current id) (throw (ex-info (str id " is not stored") {:id id})))
+  (when-let [used (seq (sort (referrers id)))]
+    (throw (ex-info (str id " is still used by " (str/join " " used)) {:id id :used used})))
+  (swap! reg/*repo-registry*
+         (fn [r] (-> (dissoc r id)
+                     (update :ROOT (fn [root] (update root :children (fn [cs] (vec (remove #{id} cs)))))))))
+  nil)
+
+(defn rename!
+  "Rename old to new everywhere in one swap: the node, :ROOT's children,
+   every container that holds it, every override marker and inline
+   context that names it, a recipe's own text. Refused when old is not
+   stored, new is, or new is no name (a letter, then letters, digits and
+   _). A voice playing it keeps its old name."
+  [old new]
+  (when (= old :ROOT) (throw (ex-info ":ROOT is the store's root and keeps its name" {:id old})))
+  (when-not (current old) (throw (ex-info (str old " is not stored") {:id old})))
+  (when-not (and (keyword? new) (re-matches #"[a-zA-Z][a-zA-Z0-9_]*" (name new)))
+    (throw (ex-info (str "needs a new name of letters, digits and _ starting with a letter, got " (pr-str new)) {:id new})))
+  (when (current new) (throw (ex-info (str new " is stored already") {:id new})))
+  (swap! reg/*repo-registry*
+         (fn [r] (reduce-kv (fn [m k node] (assoc m (if (= k old) new k) (rewrite node old new))) {} r)))
+  nil)
+

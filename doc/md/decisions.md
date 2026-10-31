@@ -2336,3 +2336,32 @@ not it: it moves where the first bar line falls, and the notes still
 start at once. The same pass found that `length` and `at` ran forever on
 a loop (`[c d] [~] length`); they now refuse it.
 
+## 2026-10-31 — Repo housekeeping: forget and rename
+
+`forget` is refused while another stored id refers to the name, and says
+which, rather than deleting what would leave a reference to nothing;
+`referrers` finds them wider than `usages` does (a repeat's body, an
+override marker), and `usages` stays the direct children it was, which
+`R!`'s "also affects" message depends on. `rename` rewrites every place
+the name is held in one `swap!`, so no reader sees half of it: the
+children (nested too), a marker's `:ref` and its `:raw` text, an inline
+context's `^{ name: }`, a recipe's `@( name: ` text, since `R@` rebuilds
+a recipe from it. Only those positions are rewritten, not every keyword
+equal to the name: a part may be called `:type`. The new name must be a
+valid id (`Name` in the grammar) and not stored; renaming over a stored
+name would be `R!`'s silent replacement by another road. A voice keeps
+its name and a live voice following a recipe its id: a performance isn't
+a document.
+
+## 2026-10-31 — Reading a line's context: the readers were enough
+
+Item 6 of the access survey (tempo, meter, volume at a time of a line) is
+`!Tempo`, `!Meter`, `!volume` after `@` or `at` -- no new words. What
+the check turned up: an interpolated value came out a BigInt (`60N`),
+now a plain number; a `Meter` printed as a record, now as it is written
+(`3/4`; it reads back as a ratio, so a session skips a binding of one);
+`ctx` takes a line that is not stored (its own settings, where they
+begin); and a key that is also a mark (`!swing`, `!shuffle`, `!straight`,
+`!laidBack`, `!pushed`) can't be read as `!name`, because the mark wins
+there as it does in a line -- `:swing context-of` is the way.
+

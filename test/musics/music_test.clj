@@ -133,3 +133,10 @@
     (is (thrown-with-msg? Exception #"one delay for each of the 2 parts, got 3" (e/run-text [] "{[c d] [c d]} '[0/1 1/4 1/2] delays")))
     (is (thrown-with-msg? Exception #"needs a parallel" (e/run-text [] "[c d] 1/4 delays")))
     (is (thrown-with-msg? Exception #"from 0" (e/run-text [] "{[c d] [c d]} -1/4 delays")))))
+
+(deftest a-ramp-is-read-as-a-plain-number-and-a-meter-as-itself
+  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ !volume")) "an interpolated 60, not 60N")
+  (is (= "75" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 3 @ !volume")))
+  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at !volume")) "volume at a time: at, then !volume")
+  (is (= "3/4" (run "[!M:3/4 c d] !Meter")) "a meter prints as it is written")
+  (is (= "7/8(2+2+3)" (run "[!Meter:\"7/8(2+2+3)\" c d] !Meter"))))
