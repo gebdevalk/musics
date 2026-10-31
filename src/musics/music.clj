@@ -10,7 +10,7 @@
    extra arguments are taken only when the values in their places pass
    (musics.mu.library registers them, musics.mu.eval runs them).
    An error is an ex-info whose message mu prefixes with the word."
-  (:refer-clojure :exclude [key repeat cycle])
+  (:refer-clojure :exclude [key repeat cycle delay])
   (:require [clojure.string :as str]
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
@@ -275,7 +275,7 @@
   [x]
   (cond (mt/leaf? x)   (:duration x)
         (mt/marker? x) 0
-        (v/material? x) (let [parts (map length-of (mt/elements (mt/finite! "length" x)))]
+        (v/material? x) (let [parts (map length-of (mt/finite! "length" (mt/elements x)))]
                           (if (= :PAR (mt/kind x)) (reduce max 0 parts) (reduce + 0 parts)))
         :else 0))
 
@@ -296,7 +296,7 @@
     (v/material? x)
     (do (when (= :PAR (mt/kind x)) (fail "needs a line, not parallel parts: take one with nth first"))
         (reduce (fn [[_ left] e] (let [[hit left'] (note-at e left)] (if hit (reduced [hit nil]) [nil left'])))
-                [nil t] (mt/elements (mt/finite! "at" x))))
+                [nil t] (mt/finite! "at" (mt/elements x))))
     :else [nil t]))
 
 (defn at
@@ -599,6 +599,52 @@
                      :else (r/sample-leaf x k))
       (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) k 0)
       :else (fail "needs a note or a line, got" (p/show x)))))
+
+(defn- amount
+  "d as an exact length in whole notes, from 0 (above 0 when positive?)."
+  [word d positive?]
+  (when-not (and (number? d) (if positive? (pos? d) (>= d 0)))
+    (fail (str word ":") "needs a length in whole notes" (if positive? "above 0" "from 0") "(as 1/4 or 3/8), got" (p/show d)))
+  (rationalize d))
+
+(defn- delayed
+  "line (or a note) with a rest of length d in front of its first element,
+   its own settings staying first."
+  [line d]
+  (let [line  (if (mt/leaf? line) (mt/line [line]) line)
+        slots (mt/items line)
+        at    (or (first (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots)) (count slots))]
+    (when-not slots (fail "delays one line, got" (p/show line)))
+    (when (= :PAR (mt/kind line)) (fail "delays one line; for the parts of a parallel use delays"))
+    (mt/from-items line (into (subvec slots 0 at) (cons [:el (d/rest* nil nil d)] (subvec slots at))))))
+
+(defn delay
+  "The line starting d late, a rest of d whole notes in front of it (a
+   rational: 1/4, 3/8, 1/3): [a b c] 1/4 delay is [r4 a b c]"
+  [x d]
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
+  (delayed x (amount "delay" d true)))
+
+(defn delays
+  "The parts of a parallel starting late, each by a rest in front: a
+   number d delays part k by k times d (a canon at d), a data list gives
+   each part its own, one for each part:
+   {[a b c] [a b c] [a b c]} 1/4 delays, {[a b c] [a b c]} '[0 1/3] delays"
+  [x d]
+  (when-not (and (v/material? x) (= :PAR (mt/kind x))) (fail "needs a parallel { }, got" (p/show x) "-- for one line use delay"))
+  (let [slots (mt/items x)
+        parts (vec (keep-indexed (fn [i [tag v]] (when (and (= tag :el) (not (mt/marker? v))) i)) slots))
+        by    (if (or (v/material? d) (sequential? d))
+                (let [ds (mapv #(amount "delays" % false) (mt/finite! "delays" (mt/elements d)))]
+                  (when-not (= (count ds) (count parts))
+                    (fail "needs one delay for each of the" (count parts) "parts, got" (count ds)))
+                  ds)
+                (let [step (amount "delays" d false)] (mapv #(* % step) (range (count parts)))))
+        slots' (reduce (fn [sl [i k]]
+                         (let [v (second (nth sl i)) dk (nth by k)]
+                           (if (zero? dk) sl (assoc sl i [:el (delayed v dk)]))))
+                       slots (map vector parts (range)))]
+    (mt/from-items x slots')))
 
 (defn with
   "The settings in front of a line (its own come after, so they win), or

@@ -325,7 +325,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with`; `times` `repeat` `volta` `vary` |
+| **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
 | **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -419,6 +419,17 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   same input reads relative to them, as everywhere). Nothing found gives
   `nil`. An endless stream is refused, as for every word that reads it
   all: `take` first. `x dup '( … ) index-of nth` reads the element back.
+- **Delaying**: `delay` puts a rest of d whole notes in front of a line,
+  d any rational (`[c d] 1/4 delay` is `[r4 C4 D4]`, `1/3 delay` a rest
+  as a tuplet), its own settings staying first; a note becomes a line.
+  `delays` is for the parts of a `{ }`: a number delays part k by k times
+  it (`{[c d] [c d] [c d]} 1/4 delays`, a canon at the quarter), a data
+  list one delay for each part (`'[0/1 1/3] delays`; a data list holds
+  one kind of number, so `0` is written `0/1`), 0 leaves a part alone,
+  and the list must be as long as the parts are many. The delay is a rest
+  in the music, so `length`, `bar` and `at` see it, and the parallel ends
+  with its longest part. `delay` refuses a parallel and `delays` a line,
+  each pointing at the other.
 - **By time and by bar**: `length` is a line's length in whole notes as
   written (jumps not followed; `[!]` first writes them out; a `{ }` is
   its longest part): `[c4 d4 e2] length` is `1`. `at` is the note, rest

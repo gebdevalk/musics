@@ -256,7 +256,7 @@ up to end, put back where it came from; `slice`/`splice` are its
 halves; `put` `!`, `insert`, `delete` `_` and `cut` `[_]` work on one
 element or a range, an index a number or a path `'[1 2]` down through
 nested lines, `@` is `nth`, and a setting written in the middle of a
-line stays in front of its note through every one of them (searching: `find`, `index-of`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`, `max`/`min` also the two-number words; by time: `length` in whole notes, `at` the note sounding t in, `bar`/`bars` by the meter counted from 0 with the settings in effect where they begin): the words
+line stays in front of its note through every one of them (`delay` a rest of any rational length in front of a line, `delays` the parts of a `{ }` by k times a step or by a data list; searching: `find`, `index-of`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`, `max`/`min` also the two-number words; by time: `length` in whole notes, `at` the note sounding t in, `bar`/`bars` by the meter counted from 0 with the settings in effect where they begin): the words
 act on a line's children, instructions in place, `[]` is the empty line,
 mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every

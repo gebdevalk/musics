@@ -124,7 +124,7 @@ it leaves mu running, and `gui` opens it again.
 | `seq`, or `[2]` `[3]` … (`line`) | `( \| … -- line )` or `( a … -- line )` | one after another |
 | `( … )` | `( -- line )` | what runs inside, gathered into one line, as `\| … seq` |
 | `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
-| `[+]` | `( a b -- line )` | two lines joined into one |
+| `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
 | `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
 | `<>` or `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
@@ -174,6 +174,26 @@ and its endings together, under one key.
 Both `seq` results play the same four notes; the first keeps the two
 lines apart, so a word can still treat them as two (`[R]` swaps the
 lines, where on the flat line it reverses the notes).
+
+### Parts that enter late
+
+`delay` puts a rest in front of a line, a length in whole notes, any
+rational. `delays` does it for the parts of a `{ }`: a number delays part
+k by k times it, a canon at that distance, and a data list gives each
+part its own delay, one for each part:
+
+```
+[c d] 1/4 delay                         → [r4 C4 D4]
+[c d] 3/8 delay                         → [r4. C4/4 D4]
+[c d] 1/3 delay                         → [3:1(r1) C4/4 D4]
+{[c d] [c d] [c d]} 1/4 delays          → {[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}
+{[c d] [c d]} '[0/1 1/3] delays         → {[C4/4 D4] [3:1(r1) C4/4 D4]}
+```
+
+The delay is a rest in the music, so `length`, `bar` and `at` see it, and
+a `{ }` still ends with its longest part. A delay of 0 changes nothing. (A
+data list holds one kind of number, so write the whole numbers in it as
+ratios, `0/1`.)
 
 ## 4. Changing pitch
 
@@ -1086,6 +1106,8 @@ c4 '[0 40 73] sounds audition
 | `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
+| `delay` | `( x d -- line )` |
+| `delays` | `( parallel d\|list -- parallel )` |
 | `context-of` (`!volume`, `!instrument` …) | `( note\|line :key -- value )` |
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
