@@ -326,7 +326,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -410,6 +410,15 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`'[3 5 1] max`). A line itself is refused with a pointer to `pitches`
   and `durations`, an endless stream with `take`, an empty one by all but
   `sum` (0).
+- **Searching**: `find` is the first element a quotation accepts and
+  `index-of` its place, counted from 0 as `nth` counts (a bar line is an
+  element, and never matches): `[c e g c'] '( pitch 65 gt ) find` is
+  `G4/4`, `index-of` `2`. `index-of` also takes a value in place of the
+  quotation, the first element equal to it as mu prints it
+  (`[C4 E4 G4] E4 index-of` is `1`; a bare `e` after other notes in the
+  same input reads relative to them, as everywhere). Nothing found gives
+  `nil`. An endless stream is refused, as for every word that reads it
+  all: `take` first. `x dup '( … ) index-of nth` reads the element back.
 - **By time and by bar**: `length` is a line's length in whole notes as
   written (jumps not followed; `[!]` first writes them out; a `{ }` is
   its longest part): `[c4 d4 e2] length` is `1`. `at` is the note, rest
