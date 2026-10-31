@@ -533,6 +533,42 @@ on them and puts the result back:
 `slice` and `splice` are its two halves, for when the change takes
 several steps.
 
+One element at a time: `!` puts a value at an index, `insert` puts it
+before one, `_` drops one, `[_]` drops a range, and `@` reads one:
+
+```
+[c d e] 1 g !                           → [C4/4 G4 E4]
+[c d e] 1 g insert                      → [C4/4 G4 D4 E4]
+[c d e] 1 _                             → [C4/4 E4]
+[c d e f g] 1 3 [_]                     → [C4/4 F4 G4]
+[c d e] 1 @                             → D4/4
+```
+
+An index can be a path, a list that goes down through nested lines:
+`[[c d e] [f g a]] '[1 1] x !` replaces the second note of the second
+line. A setting written in the middle of a line (`[c d !mf e f]`) stays
+in front of its note through all of these: `[c d !mf e f] 1 3 slice` is
+`[D4/4 !mf E4]`.
+
+`concat` joins two lines into one, each keeping its own settings where it
+begins, and `flatten` opens lines inside a line:
+
+```
+[!mf c d] [!pp e f] concat              → [!mf C4/4 D4 !pp E4 F4]
+[c d] [e f] 2 line flatten              → [C4/4 D4 E4 F4]
+```
+
+`[]` is the empty line, the place to start building a line from:
+`[] [c d] concat` is `[c d]`.
+
+To change a value the way you typed it, `,` takes the top of the stack
+back into the prompt as text. `[c d e] ,` leaves `mu0> [C4/4 D4 E4]` to
+edit and run again.
+
+What a note plays with, rather than only what it says itself, is a bare
+`!name` after it: `[!i:40 !mf c d\vol:90] 0 nth !volume` is `60`, from
+the context, and `1 nth !volume` is `90`, its own.
+
 ## 12. Instruments and drums
 
 An instrument is a General MIDI program, by number (`\i:40` is a

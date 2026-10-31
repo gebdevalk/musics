@@ -239,7 +239,7 @@ durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note, writing the moved key, `!K:`, at
 the start of the line), the same symbol in brackets on
-the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
+the whole line (`[*]` n times, `[/]` parts, `[+]` `concat` (the second line's settings written where it begins), `flatten` opens nested lines one level, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
@@ -253,9 +253,14 @@ quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( [R] ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
-halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
+halves; `put` `!`, `insert`, `delete` `_` and `cut` `[_]` work on one
+element or a range, an index a number or a path `'[1 2]` down through
+nested lines, `@` is `nth`, and a setting written in the middle of a
+line stays in front of its note through every one of them: the words
+act on a line's children, instructions in place, `[]` is the empty line,
+mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every
-note's as a stream, a repeat or loop around the line kept around the
+note's as a stream (a bare `!volume`, `!instrument`, `!K` … reads what a note plays with, its own value else the context's, a line's at its start: `musics.music/context-of`), a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note
@@ -292,7 +297,7 @@ music-data/drum-kits`) picks the kit, sent by the engine and `render`
 when it changes. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
-boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Named music
+boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes); `,` (`edit`) takes the top into the next prompt as its printed text (`musics.mu.kernel/edit-text`, read by `mu.clj`'s `readLine`). Named music
 is a voice of that name (`[bass: c d] >`, a loop of it too): playing it
 replaces only that voice (`>` now, `>>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
