@@ -2287,3 +2287,15 @@ the retrograde does, would fill the text with `\vol:` and friends; the
 retrograde keeps its way. `splice` and `within` bring the elements of
 what they put in, not its settings.
 
+## 2026-10-31 — Access by time: length, at, bar, bars
+
+`length` (whole notes, as written -- a jump is not followed, `[!]` writes it
+out first -- a `{ }` its longest part), `at` (the leaf sounding t, a
+number or ratio, a float taken as the ratio it names) and `bar`/`bars`
+(`measures` and `nth` in one). Bars are counted from 0 as `nth` and
+`slice` count, not from 1 as a score numbers them: one rule for every
+index; the engine's own bar signals are the voice's. `at` refuses a `{ }`
+(which of its parts?) and asks for `nth` first. A bar carries every
+setting written before it, since a bar cut out of its line would
+otherwise play at the defaults (`!Meter:3/4` goes with its bar).
+

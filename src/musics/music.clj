@@ -269,6 +269,83 @@
   [x]
   (mt/measures x))
 
+(defn- length-of
+  "x's length in whole notes, as written: a line's parts one after the
+   other, a parallel's longest part."
+  [x]
+  (cond (mt/leaf? x)   (:duration x)
+        (mt/marker? x) 0
+        (v/material? x) (let [parts (map length-of (mt/elements (mt/finite! "length" x)))]
+                          (if (= :PAR (mt/kind x)) (reduce max 0 parts) (reduce + 0 parts)))
+        :else 0))
+
+(defn length
+  "The length in whole notes, as written (jumps not followed, [!] first
+   writes them out): [c4 d4 e2] length gives 1; a { } is its longest part"
+  [x]
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs music, got" (p/show x)))
+  (let [n (length-of x)] (if (integer? n) (long n) n)))
+
+(defn- note-at
+  "[leaf nil] for the note sounding t whole notes into x, else [nil what
+   is left of t after x]."
+  [x t]
+  (cond
+    (mt/leaf? x)   (if (< t (:duration x)) [x nil] [nil (- t (:duration x))])
+    (mt/marker? x) [nil t]
+    (v/material? x)
+    (do (when (= :PAR (mt/kind x)) (fail "needs a line, not parallel parts: take one with nth first"))
+        (reduce (fn [[_ left] e] (let [[hit left'] (note-at e left)] (if hit (reduced [hit nil]) [nil left'])))
+                [nil t] (mt/elements (mt/finite! "at" x))))
+    :else [nil t]))
+
+(defn at
+  "The note, rest or drum sounding t whole notes into the line, counted
+   from its start as written: [c4 d4 e2] 1/4 at gives D4/4, 3/8 at the
+   same (a note sounds until the next starts)"
+  [x t]
+  (when-not (and (number? t) (>= t 0)) (fail "needs a time from 0 in whole notes on top, as 1/4 or 3/8, got" (p/show t)))
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs music, got" (p/show x)))
+  (or (first (note-at x (rationalize t)))
+      (fail t "is past the end of" (p/show x) "-- it is" (length-of x) "long")))
+
+(defn- bars-slots
+  "The children of x's measures start up to end as one line's: every
+   setting written before them first (what is in effect where they
+   begin), then the measures' own children, the settings between them
+   in place."
+  [x start end]
+  (let [outer (mt/measures x)
+        slots (mt/items outer)
+        pos   (vec (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots))
+        n     (count pos)]
+    (when-not (and (integer? start) (integer? end) (<= 0 start end n))
+      (fail "needs bars counted from 0, 0 <= start <= end <=" n "-- got" (p/show start) (p/show end)))
+    (when (= start end) (fail "needs at least one bar: start below end"))
+    (let [from (nth pos start)
+          upto (inc (nth pos (dec end)))]
+      [outer
+       (into (vec (filter (fn [[tag]] (= tag :ins)) (subvec slots 0 from)))
+             (mapcat (fn [[tag v :as slot]] (if (= tag :el) (mt/items v) [slot]))
+                     (subvec slots from upto)))])))
+
+(defn bar
+  "The n-th measure of the line by its meter, counted from 0 as nth
+   counts, a line of its own with the settings in effect where it
+   begins: [c2 d2 e2 f2] 1 bar gives [E4/2 F4]"
+  [x n]
+  (when-not (integer? n) (fail "needs a bar counted from 0, got" (p/show n)))
+  (let [[outer slots] (bars-slots x n (inc n))]
+    (mt/from-items outer slots)))
+
+(defn bars
+  "The measures from start up to (not including) end, one line, with
+   the settings in effect where they begin: [c2 d2 e2 f2 c2 d2] 1 3 bars
+   gives the second and third measure's notes together"
+  [x start end]
+  (let [[outer slots] (bars-slots x start end)]
+    (mt/from-items outer slots)))
+
 (defn barred
   "x barred by its meter: a | every bar, a note across one cut and tied."
   {:mu {:names ["[||]"]}}

@@ -78,3 +78,31 @@
       (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
       (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] 0 nth !nothing")))
       (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 !volume"))))))
+
+(deftest time-gives-access-to-a-line
+  (testing "length, in whole notes as written"
+    (is (= 1 (mu "[c4 d4 e2] length")))
+    (is (= 3/8 (mu "[c8 d e] length")))
+    (is (= 1/2 (mu "{[c4 d4] [e2]} length")) "a parallel is its longest part")
+    (is (= 3/2 (mu "[c4 d4] 3 [*] length")) "a repeat written out")
+    (is (= 1 (mu "[c2 d2 e2 f2] 1 bar length"))))
+  (testing "at: the note sounding t whole notes in"
+    (is (= "C4/4" (run "[c4 d4 e2] 0 at")))
+    (is (= "D4/4" (run "[c4 d4 e2] 1/4 at")))
+    (is (= "D4/4" (run "[c4 d4 e2] 3/8 at")) "a note sounds until the next starts")
+    (is (= "E4/2" (run "[c4 d4 e2] 0.5 at")) "a float is read as the ratio it names")
+    (is (= "E4/2" (run "[[c4 d4] [e2]] 3/4 at")) "into nested lines")
+    (is (= "r4" (run "[c4 r4 e2] 1/4 at")) "a rest too")
+    (is (thrown-with-msg? Exception #"past the end" (e/run-text [] "[c4 d4 e2] 1 at")))
+    (is (thrown-with-msg? Exception #"time from 0" (e/run-text [] "[c4 d4 e2] -1 at")))
+    (is (thrown-with-msg? Exception #"not parallel" (e/run-text [] "{[c4 d4] [e2]} 0 at"))))
+  (testing "bar and bars, counted from 0 as nth counts"
+    (is (= "[C4/2 D4]" (run "[c2 d2 e2 f2] 0 bar")))
+    (is (= "[E4/2 F4]" (run "[c2 d2 e2 f2] 1 bar")))
+    (is (= "[!Meter:3/4 D4/4 E4/2]" (run "[!Meter:3/4 c2 d2 e2 f2] 1 bar")) "by the line's own meter, a note across cut and tied")
+    (is (= "[E4/2 F4 C4 D4]" (run "[c2 d2 e2 f2 c2 d2] 1 3 bars")) "bars 1 and 2, one line")
+    (is (= "[!mf C4/2 D4 !pp E4 F4]" (run "[!mf c2 d2 !pp e2 f2] 0 2 bars")) "settings stay where they begin")
+    (is (= "[!mf !pp E4/2 F4]" (run "[!mf c2 d2 !pp e2 f2] 1 bar")) "and those in effect before it come first")
+    (is (thrown-with-msg? Exception #"0 <= start <= end <= 2" (e/run-text [] "[c2 d2 e2 f2] 2 bar")))
+    (is (thrown-with-msg? Exception #"0 <= start <= end <= 2" (e/run-text [] "[c2 d2 e2 f2] 1 3 bars")))
+    (is (thrown-with-msg? Exception #"at least one bar" (e/run-text [] "[c2 d2 e2 f2] 1 1 bars")))))

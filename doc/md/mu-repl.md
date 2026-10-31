@@ -326,7 +326,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -400,6 +400,18 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
   changes only that half product of the line.
+- **By time and by bar**: `length` is a line's length in whole notes as
+  written (jumps not followed; `[!]` first writes them out; a `{ }` is
+  its longest part): `[c4 d4 e2] length` is `1`. `at` is the note, rest
+  or drum sounding t whole notes in, a note sounding until the next
+  starts: `[c4 d4 e2] 3/8 at` is `D4/4`, `1/2 at` or `0.5 at` `E4/2`; it
+  reads through nested lines, is refused past the end and for a `{ }`
+  (take a part with `nth`). `bar` is the n-th measure by the line's meter,
+  counted from 0 as `nth` counts, a line of its own (`measures` and `nth`
+  in one): `[c2 d2 e2 f2] 1 bar` is `[E4/2 F4]`; `bars` the measures from
+  a start up to an end as one line. Every setting written before them
+  comes first, as it would in the text: `[!mf c2 d2 !pp e2 f2] 1 bar` is
+  `[!mf !pp E4/2 F4]`, `!Meter:3/4` travels with its bar.
 - **What a note plays with**: `volume`, `instrument` and
   `articulation` read only what the note itself says (`c4\vol:90`), nil
   otherwise. A bare `!name` at the top level reads the setting it plays
