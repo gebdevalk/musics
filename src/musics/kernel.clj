@@ -38,8 +38,24 @@
 (defn div      "Divide a by b, exactly: 1 4 div gives 1/4" [a b]
   (numbers a b) (when (zero? b) (fail "division by zero")) (/ a b))
 (defn mod      "The remainder of a divided by b" [a b] (numbers a b) (core/mod a b))
-(defn min      "The smaller of two numbers" [a b] (numbers a b) (core/min a b))
-(defn max      "The larger of two numbers" [a b] (numbers a b) (core/max a b))
+(defn- extreme
+  "f over the numbers of a stream, at least one."
+  [word f xs]
+  (let [ns (mt/numbers-of word xs)]
+    (when (empty? ns) (fail "needs at least one number"))
+    (core/apply f ns)))
+
+(defn min
+  "The smaller of two numbers, or the smallest of a stream's: 3 5 min, '[3 5 1] min"
+  {:mu {:optional {:b number?}}}
+  ([xs] (extreme "min" core/min xs))
+  ([a b] (numbers a b) (core/min a b)))
+
+(defn max
+  "The larger of two numbers, or the largest of a stream's: 3 5 max, '[3 5 1] max"
+  {:mu {:optional {:b number?}}}
+  ([xs] (extreme "max" core/max xs))
+  ([a b] (numbers a b) (core/max a b)))
 (defn neg      "The number negated" [a] (numbers a) (- a))
 (defn abs      "The number without its sign" [a] (numbers a) (core/abs a))
 (defn round    "Rounded to the nearest whole number" [a] (numbers a) (long (Math/round (double a))))
