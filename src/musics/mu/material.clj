@@ -799,6 +799,16 @@
         (from-items x slots'))
       (reshape x f))))
 
+(defn numbers-of
+  "The numbers of x, a data list or a stream, as a vector; anything else
+   among them is refused."
+  [word x]
+  (let [els (vec (finite! word (elements x)))]
+    (when-let [bad (first (remove number? els))]
+      (e/mu-error (str word ":") "needs numbers, got" (p/show bad)
+                  "-- for a line's pitches or durations, read them first with pitches or durations"))
+    els))
+
 (defn music? [x] (or (leaf? x) (and (v/material? x) (not= :DATA (kind x)))))
 
 (defn result

@@ -7,7 +7,7 @@
    full here."
   (:refer-clojure :exclude [first last nth count take drop take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
-                            iterate range concat flatten])
+                            iterate range concat flatten sort])
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [musics.algo.random :as random]
@@ -97,6 +97,30 @@
               (when (= ::none e) (fail i "is past the end of" (p/show c)))
               e))
           x (path-of "nth" n)))
+
+(defn sum
+  "The numbers of a stream added: '[1 2 3] sum gives 6; x durations sum is
+   a line's length"
+  [x]
+  (reduce + 0 (mt/numbers-of "sum" x)))
+
+(defn mean
+  "The mean of a stream's numbers, exact: '[60 62 65] mean gives 187/3"
+  [x]
+  (let [ns (mt/numbers-of "mean" x)]
+    (when (empty? ns) (fail "needs at least one number"))
+    (/ (reduce + ns) (core/count ns))))
+
+(defn sort
+  "A stream's numbers, the smallest first: '[3 1 2] sort gives '[1 2 3]"
+  [x]
+  (each x (fn [_] (core/sort (mt/numbers-of "sort" x)))))
+
+(defn intervals
+  "The steps between a stream's numbers, each minus the one before:
+   '[60 64 67] intervals gives '[4 3]; x pitches intervals for a line"
+  [x]
+  (each x (fn [_] (let [ns (mt/numbers-of "intervals" x)] (core/map - (core/rest ns) ns)))))
 
 (defn count
   "How many elements"

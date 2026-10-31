@@ -2299,3 +2299,14 @@ index; the engine's own bar signals are the voice's. `at` refuses a `{ }`
 setting written before it, since a bar cut out of its line would
 otherwise play at the defaults (`!Meter:3/4` goes with its bar).
 
+## 2026-10-31 — Arithmetic on a stream: sum mean max min sort intervals
+
+They read a data list or a stream of numbers, which `pitches`,
+`durations` and `volumes` give; a line itself is refused with a pointer
+to those, one way in rather than a pitch reading of every line.
+`max`/`min` keep the two-number meaning and take a stream when one is on
+top (the arity with the optional second argument is the two-number one,
+`:mu :optional {:b number?}`), so `3 5 max` and `'[3 5 1] max` are one
+word. `mean` is exact (a ratio; `float` converts). No `reverse`: the
+retrograde `[R]` is it for a stream.
+

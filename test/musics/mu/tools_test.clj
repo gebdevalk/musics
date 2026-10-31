@@ -697,3 +697,27 @@
   (is (= ["[!mf !pp E4/4 F4]" "[!mf C4/4 D4]"] (mapv #(p/show %) (reverse (:ok (do (swap! e/state assoc :stack []) (e/eval-input "[!mf c d !pp e f] 2 split-at"))))))
       "split-at, both halves")
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d !pp e f] '( ) map")) "a map keeps each place's settings"))
+
+(deftest arithmetic-on-a-stream-of-numbers
+  (is (= "6" (top "'[1 2 3] sum")))
+  (is (= "0" (top "'[] sum")) "nothing adds to 0")
+  (is (= "3/8" (top "[c8 d e] durations sum")) "a line's durations: its length")
+  (is (= "191/3" (top "[c e g] pitches mean")) "exact, float converts")
+  (is (= "'[1 2 3]" (top "'[3 1 2] sort")) "smallest first, data stays data")
+  (is (= "'[4 3]" (top "[c e g] pitches intervals")) "each minus the one before")
+  (is (= "'[-3 -5]" (top "[c a e] pitches intervals")))
+  (is (= "'[]" (top "'[1] intervals")))
+  (is (= "'[1 1]" (top "'[3 1 2] sort intervals")))
+  (testing "max and min: two numbers, or the numbers of a stream"
+    (is (= "5" (top "3 5 max")))
+    (is (= "3" (top "3 5 min")))
+    (is (= "5" (top "'[3 5 1] max")))
+    (is (= "1" (top "'[3 5 1] min")))
+    (is (= "7 5" (top "7 '[3 5 1] max")) "only the stream is read, the 7 stays below")
+    (is (= "1/2 2" (top "1/2 '[2 3] min")) "a stream on top is read as a stream"))
+  (testing "only numbers, and enough of them"
+    (is (re-find #"needs numbers, got C4/4.*pitches" (top "[c d] sum")))
+    (is (re-find #"needs numbers" (top "[c d] sort")))
+    (is (re-find #"at least one number" (top "'[] max")))
+    (is (re-find #"at least one number" (top "'[] mean")))
+    (is (re-find #"endless" (top "'[1 2 3] [~] sum")))))

@@ -326,7 +326,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -400,6 +400,16 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `zip` puts durations and pitches back together, so `x durations x
   pitches zip` is `x` again, and changing one stream between the two
   changes only that half product of the line.
+- **Numbers of a stream**: `sum`, `mean` (exact: `'[60 62 65] mean` is
+  `187/3`), `max`, `min`, `sort` (smallest first) and `intervals` (each
+  number minus the one before) read a data list or a stream of numbers,
+  such as a line gives with `pitches`, `durations` or `volumes`:
+  `[c e g] pitches intervals` is `'[4 3]`, `x durations sum` the length
+  of a line. `max` and `min` stay the two-number words when two numbers
+  are on top (`3 5 max`); a stream on top is read as a stream
+  (`'[3 5 1] max`). A line itself is refused with a pointer to `pitches`
+  and `durations`, an endless stream with `take`, an empty one by all but
+  `sum` (0).
 - **By time and by bar**: `length` is a line's length in whole notes as
   written (jumps not followed; `[!]` first writes them out; a `{ }` is
   its longest part): `[c4 d4 e2] length` is `1`. `at` is the note, rest
