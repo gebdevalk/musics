@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `profile`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -423,6 +423,24 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`'[3 5 1] max`). A line itself is refused with a pointer to `pitches`
   and `durations`, an endless stream with `take`, an empty one by all but
   `sum` (0).
+- **Pitch classes**: `classes` gives the places of a line's pitches
+  above C in the octave (C 0 … B 11), each once and the smallest first,
+  as a data list: `[c e g c'] classes` is `'[0 4 7]`, `[g c e d c']
+  classes` `'[0 2 4 7]`. A chord gives all its pitches, a list of pitch
+  numbers is read as it is, rests and drums have none, a loop is refused.
+  It is the set the set-theory words read, and the number words read it
+  (`classes count` is how many classes a line uses). It is absolute,
+  not relative to a key: `degrees` is the key's own scale steps.
+- **A pitch-class profile**: `profile` scores how much each of the twelve
+  classes counts in a line, from 0 to 1, C first and B last: the time
+  each class sounds, a chord's time shared among its pitches, divided by
+  the largest so the strongest scores 1. `[c4 e4 g4 c2] profile` is
+  `'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]` (C sounds 3/4, E and G 1/4);
+  `[<c e g>2 <f a c'>2] profile` gives C 1 and the other four 1/2. Rests and drums add nothing, the octave does not
+  count, nothing sounding is all 0, and a loop is refused. It scores,
+  it has no durations: `length` gives the time, `classes` which
+  classes. The scores are exact ratios, which the number words read (`profile
+  sum`), and the input of a key estimate.
 - **Searching**: `find` is the first element a quotation accepts and
   `index-of` its place, counted from 0 as `nth` counts (a bar line is an
   element, and never matches): `[c e g c'] '( pitch 65 gt ) find` is
@@ -437,8 +455,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   as a tuplet), its own settings staying first; a note becomes a line.
   `delays` is for the parts of a `{ }`: a number delays part k by k times
   it (`{[c d] [c d] [c d]} 1/4 delays`, a canon at the quarter), a data
-  list one delay for each part (`'[0/1 1/3] delays`; a data list holds
-  one kind of number, so `0` is written `0/1`), 0 leaves a part alone,
+  list one delay for each part (`'[0 1/3] delays`; a whole number among ratios is a ratio), 0 leaves a part alone,
   and the list must be as long as the parts are many. The delay is a rest
   in the music, so `length`, `bar` and `at` see it, and the parallel ends
   with its longest part. `delay` refuses a parallel and `delays` a line,

@@ -2368,3 +2368,34 @@ begin); and a key that is also a mark (`!swing`, `!shuffle`, `!straight`,
 `!laidBack`, `!pushed`) can't be read as `!name`, because the mark wins
 there as it does in a line -- `:swing context-of` is the way.
 
+## 2026-10-31 — classes: the pitch classes of a line
+
+A line's pitches reduced to their place above C, every class once and the
+smallest first, as a data list. Not `degrees`, which is the key's scale
+steps (numbers and a key give a line); not `semitones`, which also means
+pitch numbers like 60 and the amount `up` moves by; not `steps`, which
+the `degrees` doc and the rating word `step` already use. `classes` is the
+pitch class of set theory. A sorted set, not the order of appearance,
+because it is the input of the set-theory words (`prime-form`,
+`interval-vector`), which read a set; the order of a tone row would be a
+word of its own. Numbers, not note names, as every number word reads
+them. Absolute, C = 0: reading a line in a key is the inverse of
+`degrees`, not built.
+
+## 2026-10-31 — profile: scores, not durations
+
+How much each pitch class counts in a line, twelve numbers C first.
+Scores from 0 to 1, the largest 1, as `normalize-weights` scales a weight
+vector and for the same reason: two lines of any length can be compared,
+and a key estimate multiplies it against a key's profile. Not durations:
+the time is `length`, and a list of whole notes would be 0..1 only up to
+one whole note. The time a class sounds is what is scored, a chord's time
+shared among its pitches (the alternative, the full time for each, makes a
+chord weigh three times a single note), rests and drums none. Exact
+ratios, not floats: `'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]` reads at a glance
+where `0.3333333333333333` does not. That needed the data check to let a
+whole number stand among ratios (`musics.input.reader.walker/
+check-data-element-type!`: an int and a ratio make a list of ratios, as
+`'[1 0 1/3]` is), without which a ratio list printed readably could not be
+read back; an int with a float, or a pitch with a duration, is still
+refused. It also lets `'[0 1/3] delays` be written without `0/1`.

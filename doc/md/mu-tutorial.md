@@ -187,13 +187,12 @@ part its own delay, one for each part:
 [c d] 3/8 delay                         → [r4. C4/4 D4]
 [c d] 1/3 delay                         → [3:1(r1) C4/4 D4]
 {[c d] [c d] [c d]} 1/4 delays          → {[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}
-{[c d] [c d]} '[0/1 1/3] delays         → {[C4/4 D4] [3:1(r1) C4/4 D4]}
+{[c d] [c d]} '[0 1/3] delays           → {[C4/4 D4] [3:1(r1) C4/4 D4]}
 ```
 
 The delay is a rest in the music, so `length`, `bar` and `at` see it, and
 a `{ }` still ends with its longest part. A delay of 0 changes nothing. (A
-data list holds one kind of number, so write the whole numbers in it as
-ratios, `0/1`.)
+whole number among ratios is a ratio, so `'[0 1/3]` is a list of ratios.)
 
 ## 4. Changing pitch
 
@@ -561,6 +560,31 @@ numbers, and these read it: `sum`, `mean`, `max`, `min`, `sort` and
 `max` and `min` are still the two-number words when two numbers are on
 top (`3 5 max` is `5`). A line itself is refused with a pointer to
 `pitches`, and `mean` is exact, so `float` converts it.
+
+`classes` turns a line into the set of its pitch classes: each pitch's
+place above C in the octave, every one once, the smallest first, a data
+list the words above read:
+
+```
+[c e g c'] classes                      → '[0 4 7]
+[g c e d c'] classes                    → '[0 2 4 7]
+[c e g c'] classes count                → 3
+```
+
+It does not depend on a key (`degrees` counts scale steps in one), and a
+rest or a drum has no class.
+
+`profile` says how much each class counts, as twelve scores from 0 to 1,
+C first: the time each sounds, a chord's time shared among its notes,
+scaled so the strongest is 1, as exact ratios:
+
+```
+[c4 e4 g4 c2] profile        → '[1 0 0 0 1/3 0 0 1/3 0 0 0 0]
+[<c e g>2 <f a c'>2] profile → '[1 0 0 0 1/2 1/2 0 1/2 0 1/2 0 0]
+```
+
+The biggest score is the note the line leans on. Rests count for nothing,
+and the octave does not matter.
 
 ## 10. Taking a line apart
 
@@ -1132,6 +1156,8 @@ c4 '[0 40 73] sounds audition
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
 | `length` | `( x -- n )` |
+| `classes` | `( x -- list )` |
+| `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |

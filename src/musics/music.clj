@@ -269,6 +269,41 @@
   [x]
   (mt/measures x))
 
+(defn classes
+  "The pitch classes of a line, a chord or a list of pitch numbers: each
+   pitch's place above C in the octave (C 0 … B 11), every one once,
+   the smallest first, as a data list: [c e g c'] classes gives '[0 4 7].
+   Rests and drums have none"
+  [x]
+  (let [ps (cond
+             (mt/leaf? x)     (:pitches x)
+             (v/material? x)  (if (= :DATA (mt/kind x))
+                                (mt/numbers-of "classes" x)
+                                (mapcat :pitches (mt/played-leaves (mt/finite! "classes" x))))
+             (sequential? x)  (mt/numbers-of "classes" x)
+             :else            (fail "needs a line, a chord or pitch numbers, got" (p/show x)))]
+    (when-not (every? integer? ps) (fail "needs whole pitch numbers, got" (p/show (first (remove integer? ps)))))
+    (mt/read-text (str "'[" (str/join " " (sort (distinct (map #(mod % 12) ps)))) "]"))))
+
+(defn profile
+  "How much each pitch class counts in a line, as twelve scores from 0 to
+   1 (C first, B last): the time each class sounds, a chord's time shared
+   among its pitches, divided by the largest so the strongest scores 1, as
+   exact ratios: [c4 e4 g4 c2] profile gives '[1 0 0 0 1/3 0 0 1/3 0 0 0 0]"
+  [x]
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line or a chord, got" (p/show x)))
+  (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data -- for pitch numbers use classes"))
+  (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "profile" x)))
+        w      (reduce (fn [w leaf]
+                         (let [ps (seq (:pitches leaf))]
+                           (if (and ps (:duration leaf))
+                             (reduce (fn [w p] (update w (mod p 12) + (/ (:duration leaf) (count ps)))) w ps)
+                             w)))
+                       (vec (clojure.core/repeat 12 0)) leaves)
+        top    (reduce max w)
+        scores (map #(if (pos? top) (/ % top) 0) w)]
+    (mt/read-text (str "'[" (str/join " " scores) "]"))))
+
 (defn- length-of
   "x's length in whole notes, as written: a line's parts one after the
    other, a parallel's longest part."

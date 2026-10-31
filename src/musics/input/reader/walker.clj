@@ -595,6 +595,9 @@
     (cond
       (nil? current) (update-in state [:stack idx :data-type] (constantly type-kw))
       (= current type-kw) state
+      ;; a whole number is a ratio: '[1 0 1/3] is a list of ratios
+      (and (#{:int :ratio} current) (#{:int :ratio} type-kw))
+      (assoc-in state [:stack idx :data-type] :ratio)
       :else (throw (ex-info
                      (str "Data container mixes " current " and " type-kw
                           " -- a Data container's elements must all share one type")

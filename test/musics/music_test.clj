@@ -140,3 +140,37 @@
   (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at !volume")) "volume at a time: at, then !volume")
   (is (= "3/4" (run "[!M:3/4 c d] !Meter")) "a meter prints as it is written")
   (is (= "7/8(2+2+3)" (run "[!Meter:\"7/8(2+2+3)\" c d] !Meter"))))
+
+(deftest classes-are-the-pitch-classes-of-a-line
+  (is (= "'[0 4 7]" (run "[c e g c'] classes")) "every class once, the octave gone")
+  (is (= "'[0 2 4 7]" (run "[g c e d c'] classes")) "smallest first, not in order of appearance")
+  (is (= "'[0 4 7]" (run "<c e g>4 classes")) "a chord's pitches")
+  (is (= "'[0 4 7]" (run "'[60 64 67 72] classes")) "pitch numbers too")
+  (is (= "'[0 4 7]" (run "[c r e x8\\38 g] classes")) "rests and drums have none")
+  (is (= "'[]" (run "[r r] classes")))
+  (is (= "3" (run "[c e g c'] classes count")) "a list the number words read")
+  (is (thrown-with-msg? Exception #"loop|endless" (e/run-text [] "[c d] [~] classes")))
+  (is (thrown-with-msg? Exception #"needs a line" (e/run-text [] "7 classes"))))
+
+(deftest a-profile-scores-the-pitch-classes-by-the-time-they-sound
+  (testing "twelve scores 0..1, C first, the strongest 1"
+    (is (= "'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]"
+           (run "[c4 e4 g4 c2] profile")) "C sounds 3/4, E and G 1/4: 3/4 is the top"))
+  (testing "a chord's time is shared among its pitches"
+    (is (= "'[1 0 0 0 1/2 1/2 0 1/2 0 1/2 0 0]"
+           (run "[<c e g>2 <f a c'>2] profile")) "C in both chords is 1/3, the others 1/6"))
+  (is (= (run "[c4 e4] profile") (run "[c4 e4 r2] profile")) "a rest is silence, not weight")
+  (is (= "'[1 0 0 0 0 0 0 0 0 0 0 0]" (run "[C4/4 C5 C6] profile")) "the octave does not count")
+  (is (= "'[0 0 0 0 0 0 0 0 0 0 0 0]" (run "[r4 r4] profile")) "nothing sounds: all 0")
+  (is (= "12" (run "[c e g] profile count")) "a list the number words read")
+  (is (= "1" (run "[c e g] profile max")))
+  (is (= "5/3" (run "[c4 e4 g4 c2] profile sum")) "exact: 1 + 1/3 + 1/3")
+  (is (thrown-with-msg? Exception #"not data" (e/run-text [] "'[60 64] profile")))
+  (is (thrown-with-msg? Exception #"loop|endless" (e/run-text [] "[c d] [~] profile"))))
+
+(deftest a-whole-number-among-ratios-is-a-list-of-ratios
+  (is (= "'[0 1/4 1/3]" (run "'[0 1/4 1/3]")) "read, and printed as it reads")
+  (is (= "'[1 0 1/3]" (run "'[1 0 1/3]")))
+  (is (= "{[C4/4 D4] [r C4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d] [c d]} '[0 1/4 1/3] delays")) "delays takes it as it is")
+  (is (= "'[1/3 0 1/4]" (run "'[1/3 0 1/4]")) "whole numbers anywhere in it")
+  (is (thrown-with-msg? Exception #"mixes" (e/run-text [] "'[1 0.5]")) "an int and a float are still two kinds"))
