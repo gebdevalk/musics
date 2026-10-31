@@ -289,11 +289,6 @@
             "-- got" (p/show start) (p/show end)))
     els))
 
-(defn- put-back
-  "x with its elements start..end replaced by y's."
-  [x start end y]
-  (each x (fn [els] (let [els (vec els)] (core/concat (subvec els 0 start) (mt/elements y) (subvec els end))))))
-
 (defn- el-positions
   "Where the elements are among the slots (instructions between)."
   [slots]
@@ -363,6 +358,26 @@
     (if (mt/items x)
       (mt/from-items x slots')
       (each x (fn [_] (core/map second slots'))))))
+
+(defn- put-back
+  "x with its elements start..end replaced by y's. On a line the
+   instructions stay as written, and a line y brings its own: those
+   before the first element replaced stay in front of y, those between
+   the replaced elements wait after it for the next element to stay."
+  [x start end y]
+  (if-let [slots (mt/items x)]
+    (let [pos (el-positions slots)
+          n   (core/count pos)
+          at  (if (< start n) (core/nth pos start) (core/count slots))
+          [between tail] (if (= start end)
+                           [[] (subvec slots at)]
+                           (let [lst (core/nth pos (dec end))]
+                             [(if (> lst at) (filterv (fn [[tag]] (= tag :ins)) (subvec slots (inc at) lst)) [])
+                              (subvec slots (inc lst))]))
+          ys  (or (when (= :SEQ (mt/kind y)) (mt/items y))
+                  (mapv (fn [e] [:el e]) (mt/elements y)))]
+      (mt/from-items x (vec (core/concat (subvec slots 0 at) ys between tail))))
+    (each x (fn [els] (let [els (vec els)] (core/concat (subvec els 0 start) (mt/elements y) (subvec els end)))))))
 
 (defn slice
   "The elements from start up to (not including) end, counted from 0 as

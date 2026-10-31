@@ -733,3 +733,15 @@
   (is (= "1" (top "'[3 5 1] 5 index-of")))
   (is (= "3" (top "[C4 D4 | E4 F4] E4 index-of")) "a bar line is an element, and never matches")
   (is (= "G4/4" (top "[C4 E4 G4 C5] dup '( pitch 65 gt ) index-of nth")) "the place reads back with nth"))
+
+(deftest splice-and-within-bring-the-settings-of-what-they-put-in
+  (is (= "[C4/4 !pp A4 B4 F4]" (top "[c d e f] 1 3 [!pp A4 B4] splice")) "a line brings its own settings")
+  (is (= "[C4/4 !mf A4 B4 F4]" (top "[c !mf d e f] 1 3 [A4 B4] splice")) "the one before the first replaced stays in front")
+  (is (= "[C4/4 A4 B4 !mf F4]" (top "[c d !mf e f] 1 3 [A4 B4] splice")) "one between the replaced waits for the next that stays")
+  (is (= "[C4/4 A4 !mf E4 F4]" (top "[c d !mf e f] 1 2 [A4] splice")) "one element replaced: the next one's stays")
+  (is (= "[C4/4 !pp A4 D4 E4]" (top "[c d e] 1 1 [!pp A4] splice")) "start = end inserts")
+  (is (= "[C4/4 D4 E4 !pp A4]" (top "[c d e] 3 3 [!pp A4] splice")) "at the end appends")
+  (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "no settings: as before")
+  (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( [R] ) within")))
+  (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( pop [!pp A4 B4 C5] ) within")) "a chunk changed into a line with a setting keeps it")
+  (is (= "'[1 9 9 4]" (top "'[1 2 3 4] 1 3 '[9 9] splice")) "data as before"))

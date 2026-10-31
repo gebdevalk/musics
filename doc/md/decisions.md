@@ -2284,8 +2284,11 @@ with elements reordered it travels with its note; a one-for-one change
 element are the line's own and stay at its start (`with` writes them
 there). The alternative, baking the effective settings into every note as
 the retrograde does, would fill the text with `\vol:` and friends; the
-retrograde keeps its way. `splice` and `within` bring the elements of
-what they put in, not its settings.
+retrograde keeps its way. (`splice` and `within` first brought the
+elements of what they put in, not its settings; they now work on the
+line's children as `put` and `cut` do, so a line put in brings its own:
+those before the first element replaced stay in front of it, those
+between the replaced ones wait after it for the next element to stay.)
 
 ## 2026-10-31 — Access by time: length, at, bar, bars
 
