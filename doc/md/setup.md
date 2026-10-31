@@ -20,12 +20,32 @@ fluid-soundfont-gm`), else `default-GM.sf2`.
 ```
 gervill                               Gervill with FluidR3_GM
 soundfonts                            the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf, numbered
+list-soundfonts                       the same, number and name aligned
 3 soundfont                           swap to the 4th of them; what plays goes on
 "~/Music/sf/Crysrhod.sf2" soundfont   or one by its file
+list-groups                           General MIDI's 16 groups of eight instruments
+try-soundfonts                        a phrase through every instrument of every soundfont
+[c e g] try-soundfonts                the chord through them
+41 try-soundfonts                     through soundfont 41's
+'[56 63] try-soundfonts               through programs 56 to 63
+"brass" try-soundfonts                through a group's (the start of its name: "synth" is three)
+"horn" try-soundfonts                 no group: through the instruments named so
+[c e g] 41 "strings" try-soundfonts   music, a soundfont and a pick together
 fluidsynth                            Fluidsynth instead
 ```
 
 `soundfont` connects to Gervill first when playing through Fluidsynth.
+`try-soundfonts` is an audition (`doc/md/feedback.md`): the music plays
+once through each instrument (`!i:` with every program a soundfont
+holds; drum kits and other banks left out), each soundfont loaded when
+its first instrument is reached. A number is always a soundfont, a pair
+always a range of programs, a text a group, or, when it starts no
+group's name, the instruments whose own or General MIDI name
+(`frenchHorn`) holds it, any case. Each is shown with its place in the
+run, its soundfont's number, its program and its name;
+Alt+L moves on, Alt+J goes back, Alt+K plays it again, `stop` (Alt+.)
+stops, and `n soundfont` keeps the one you liked. Playing ends on the
+last soundfont tried.
 
 Gervill's buffer is 30 ms by default (Java's own default is 200 ms,
 heard as a lag). Setting it needs

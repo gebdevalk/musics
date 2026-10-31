@@ -61,6 +61,15 @@ played with `>`/`play` when that is a single note, chord or drum.
 - `step` switches between auto and step mode. In step mode an item
   waits for a rating or `next`.
 - `stop` (Alt+.) stops an audition.
+- `try-soundfonts` ( [x] [n] [pick] -- ), in mu's `soundfont`
+  namespace, is an audition of soundfonts: x, or a phrase of its own,
+  plays through every instrument of each of `soundfonts` in turn
+  (`^{ !i:p }` over it, a program at a time) -- of soundfont n only, and
+  of the programs a pick gives: a pair `'[56 63]`, a group (`"brass"`,
+  `list-groups`) or the instruments a text names when it starts no
+  group's (`"horn"`). Each is shown with the number `soundfont` takes
+  its soundfont by; a soundfont is loaded when its first instrument is
+  reached. A rating records the soundfont with x.
 - `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.

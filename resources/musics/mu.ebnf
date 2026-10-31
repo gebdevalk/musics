@@ -9,7 +9,7 @@
 
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
-<MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Parallels / Lines / QuotedName
+<MuItem> = Definition / Quotation / TopCommand / Group / Retrograde / Measures / EmptyLine / Parallels / Lines / QuotedName
          / TreeRecipe / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / StringLit
          / IdName / VarRef / Local / LooseInstruction / Word
 
@@ -88,6 +88,13 @@ LooseInstruction = Instruction
    with one bar's rest: it comes before the literals, and only exactly
    [R] -- [ R ], [R1], [r1] are still that line. *)
 Retrograde = <'[R]'>
+(* [[]] -- the measures word, before the literals as [R] is: a line
+   holding an empty line is written [ [] ]. *)
+Measures = <'[[]]'>
+(* [] -- a line with nothing in it, a value of mu's only: musics text
+   needs an element or an id in its [ ] (grammar.clj reads it as the
+   Sequence it is). *)
+EmptyLine = <'['> <ws>? <']'>
 (* {2} {3} … {n} -- the top n side by side, a { } of n parts; no musics
    text, since a bare number is no element. *)
 Parallels = <'{'> #'[0-9]+' <'}'>
@@ -96,5 +103,5 @@ Lines = <'['> #'[0-9]+' <']'>
 (* A word: a name or one of the symbol words, either possibly ns/…; a
    name may start with + (+octave, say), ? or > before a letter (>ctx). *)
 Word     = WordName | SymbolWord
-<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\|\]|\[\|\]|\[\\\]|\[:\]|\*\*|\*|\+|-|/|\.s|\.\.|\.|<<|<>|<=|>=|:=|=|<|>|R!|R@)'
+<SymbolWord> = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:>>\+|>>|>\+|\[\[\]\]|\[RI\]|\[R\]|\[I\]|\[\*\]|\[/\]|\[\+\]|\{\+\}|\[%\]|\[\?\]|\[~\]|\[M\]|\[H\]|\[T\]|\[!\]|\[\|\|\]|\[\|\]|\[\\\]|\[:\]|\*\*|\*|\+|-|/|,|\.s|\.\.|\.|<<|<>|<=|>=|:=|=|<|>|R!|R@|!|@|\[_\])'
 WordName = #'(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*/)?(?:[a-zA-Z_][a-zA-Z0-9_\-?>+]*|[+>][a-zA-Z][a-zA-Z0-9_\-?>+]*|\?[a-zA-Z_][a-zA-Z0-9_\-?>+]*+(?![:./]))'

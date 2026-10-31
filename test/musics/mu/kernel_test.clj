@@ -8,7 +8,7 @@
             [musics.input.reader.builder :as builder]
             [musics.conductor :as conductor]
             [musics.mu.eval :as e]
-            [musics.mu.kernel]
+            [musics.mu.kernel :as kernel]
             [musics.mu.library]
             [musics.mu.tools]
             [musics.mu.material :as mt]
@@ -40,7 +40,10 @@
 (deftest printing
   (is (= "C4/4\n" (out "c4 .")))
   (is (= "0> [C4/4 D4]\n1> 7\n----\n" (out "7 [c d] .s")) "top first, numbered as pick counts, ---- under the last")
-  (is (= "" (out ".s")) "an empty stack shows nothing"))
+  (is (= "" (out ".s")) "an empty stack shows nothing")
+  (reset! kernel/edit-text nil)
+  (is (= "0> 7\n----\n" (out "7 [c d] , .s")) ", prints nothing and takes the top off the stack")
+  (is (= "[C4/4 D4]" @kernel/edit-text) ", leaves the top's text for the next prompt"))
 
 (deftest spreading
   (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d e] spread")))) "a line's notes, one an item")
@@ -309,13 +312,6 @@
           (run "stop")
           (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
-
-(deftest soundfont-words
-  (testing "soundfonts numbers the files soundfont takes"
-    (is (= (apply str (map-indexed #(str %1 "> " %2 "\n") (engine/soundfonts))) (out "soundfonts"))))
-  (testing "soundfont refuses what is neither a file nor a number, and a number too high"
-    (is (re-find #"soundfont: needs a file in quotes or a number" (:error (run "c4 soundfont"))))
-    (is (re-find #"soundfont: no number 100000" (:error (run "100000 soundfont"))))))
 
 (deftest echo-prints-each-note-as-it-sounds
   (is (= "x\\38 Acoustic Snare" (musics.mu.material/echo-line {:channel 9 :pitches [38]})))

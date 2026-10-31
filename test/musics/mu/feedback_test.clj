@@ -74,7 +74,7 @@
 
 (deftest rating-the-auditions-item-moves-on
   (let [q (LinkedBlockingQueue.)]
-    (reset! mfb/audition {:items [(value "x8\\36") (value "x8\\36,39")] :i 1 :queue q})
+    (reset! mfb/audition {:items [{:value (value "x8\\36")} {:value (value "x8\\36,39")}] :i 1 :queue q})
     (top "like")
     (is (= ["x8\\36,39" 1 :audition] ((juxt :what :score :where) (last (fb/ratings)))))
     (is (= :next (.poll q)) "a rating moves on")

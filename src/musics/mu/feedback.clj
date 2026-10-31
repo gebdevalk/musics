@@ -36,7 +36,7 @@
 
 ;; -- audition ---------------------------------------------------------------
 
-(defonce ^{:doc "nil, or the audition going on: {:items [sound ...] :i n :queue q}."}
+(defonce ^{:doc "nil, or the audition going on: {:items [{:value x :show text :play f} ...] :i n :queue q}."}
   audition (atom nil))
 
 (defonce ^{:doc "true: an audition moves on after each item by itself; false: it waits."}
@@ -72,14 +72,15 @@
     (loop [i 0]
       (if (>= i (count items))
         (say "audition: done")
-        (do (swap! audition assoc :i i)
-            (say (str (inc i) "/" (count items) "  " (describe (p/show (items i)))))
-            (mt/play! (items i) nil)
-            (case (await-command q)
-              :next  (recur (inc i))
-              :back  (recur (max 0 (dec i)))
-              :again (recur i)
-              :stop  nil))))
+        (let [{:keys [show play]} (items i)]
+          (swap! audition assoc :i i)
+          (say show)
+          (play)
+          (case (await-command q)
+            :next  (recur (inc i))
+            :back  (recur (max 0 (dec i)))
+            :again (recur i)
+            :stop  nil))))
     (catch Throwable t (say (str "audition stopped: " (.getMessage t))))
     (finally (reset! audition nil))))
 
@@ -87,15 +88,54 @@
 
 (swap! mt/stoppers assoc ::audition stop-audition!)
 
-(defn start-audition!
-  "Audition items (sounds) one by one, in the background."
-  [items]
+(defn- start! [items]
   (stop-audition!)
   (let [q (LinkedBlockingQueue.)]
-    (reset! audition {:items (vec items) :i 0 :queue q})
-    (doto (Thread. ^Runnable #(run-audition (vec items) q) "mu-audition")
+    (reset! audition {:items items :i 0 :queue q})
+    (doto (Thread. ^Runnable #(run-audition items q) "mu-audition")
       (.setDaemon true)
       (.start))))
+
+(defn start-audition!
+  "Audition sounds one by one, in the background."
+  [sounds]
+  (let [n (count sounds)]
+    (start! (vec (map-indexed (fn [i x] {:value x :show (str (inc i) "/" n "  " (describe (p/show x))) :play #(mt/play! x nil)})
+                              sounds)))))
+
+(defn- presets
+  "[[program name] ...]: the instruments of the .sf2 at path a program
+   change reaches -- bank 0, the drum kits left out."
+  [path]
+  (->> (gervill/instruments path)
+       (remove :percussion?)
+       (filter #(zero? (:bank %)))
+       (map (juxt :program (comp str/trim :name)))
+       (into (sorted-map))))
+
+(defn start-soundfont-trial!
+  "Play x through Gervill with every instrument of each soundfont of
+   fonts, [[n path] ...], that pick? takes ((pick? program name)), in
+   turn, in the background, as an audition: ^{ !i:p } over x, a soundfont loaded when
+   its first instrument is reached, each shown by n, the number soundfont
+   takes it by. nil when no instrument is left to play."
+  [x fonts pick?]
+  (let [loaded (atom nil)
+        load!  (fn [path] (when (not= path @loaded) (engine/soundfont! path) (reset! loaded path)))
+        found  (vec (for [[n path] fonts
+                          [program name] (presets path)
+                          :when (pick? program name)]
+                      [n path program name]))
+        total  (count found)]
+    (when (seq found)
+      (start! (vec (map-indexed
+                    (fn [i [n path program name]]
+                      {:value x
+                       :show  (str (inc i) "/" total "  " n "> " (.getName (java.io.File. ^String path))
+                                   "  !i:" program " " name)
+                       :play  #(do (load! path) (mt/play! x (mt/read-text (str "^{ !i:" program " }"))))})
+                    found)))
+      total)))
 
 ;; -- rating -----------------------------------------------------------------
 
@@ -104,7 +144,7 @@
    played when it is a sound -- {:value x :where :audition|:repl}, or nil."
   []
   (if-let [{:keys [items i]} @audition]
-    {:value (items i) :where :audition}
+    {:value (:value (items i)) :where :audition}
     (let [x @mt/last-played]
       (when (sound? x) {:value x :where :repl}))))
 

@@ -1,11 +1,15 @@
 (ns ^:repl musics.music-test
   "musics.music's functions are mu's words: the proof that a word can be
    a plain Clojure function."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.music :as music]
             [musics.mu.eval :as e]
             [musics.mu.library]
-            [musics.mu.print :as p]))
+            [musics.mu.print :as p]
+            [musics.test-support :refer [with-fresh-session]]))
+
+;; transposing reads :ROOT's key, so each test starts from a fresh session
+(use-fixtures :each (fn [t] (with-fresh-session (t))))
 
 (defn- mu
   "Run mu text on a fresh stack: the one value it leaves, nil for none."
@@ -49,3 +53,28 @@
       (alter-var-root #'music/retrograde (constantly (fn [x] x)))
       (is (= "[C4/4 D4 E4]" (run "[c d e] [R]")) "mu runs the var as it is now")
       (finally (alter-var-root #'music/retrograde (constantly original))))))
+
+(deftest a-bang-name-reads-what-a-note-plays-with
+  (let [line "[!i:40 !mf !K:D.major c d\\vol:90\\i:73 r x8\\38]"]
+    (testing "a note: its own value wins, else the context's where it sits"
+      (is (= 60 (mu (str line " 0 nth !volume"))))
+      (is (= 90 (mu (str line " 1 nth !volume"))))
+      (is (= 40 (mu (str line " 0 nth !instrument"))))
+      (is (= 73 (mu (str line " 1 nth !instrument"))))
+      (is (= 60 (mu (str line " 2 nth !volume"))) "a rest too")
+      (is (= 38 (mu (str line " 3 nth !instrument"))) "a drum's is its key of the kit"))
+    (testing "the key's aliases read the same key"
+      (is (= (mu (str line " 0 nth !volume")) (mu (str line " 0 nth !vol")) (mu (str line " 0 nth !v"))))
+      (is (= "D.major" (run (str line " 0 nth !K")))))
+    (testing "a line: its context at its start"
+      (is (= 60 (mu (str line " !volume"))))
+      (is (= "D.major" (run (str line " !K")))))
+    (testing "articulation: the note's name, else the context's factor"
+      (is (= :staccato (mu "[c4-. d] 0 nth !articulation")))
+      (is (= 0.9 (mu "[c d] 0 nth !articulation"))))
+    (testing "the word it stands for"
+      (is (= 60 (mu (str line " :volume context-of")))))
+    (testing "a mark or an unknown name is still refused, a number has no context"
+      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
+      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] 0 nth !nothing")))
+      (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 !volume"))))))

@@ -33,6 +33,7 @@
             [musics.domain.context :as c]
             [musics.domain.resolve :as resolve]
             [musics.common.music-data :as data]
+            [musics.midi.channels :as channels]
             [musics.midi.gervill :as gervill]
             [musics.midi.live :as live]
             [musics.registries :as reg])
@@ -72,11 +73,10 @@
     :voices         (atom {})           ; path -> {:path :root-path :algo :t :beat}
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
-    :channel-claims (atom {})           ; channel -> {:key [program cc] :refcount}
+    :channels       (atom channels/empty-pool) ; musics.midi.channels: who holds which channel
     :drum-kit       (atom nil)          ; the kit last sent on the drum channel
     :hushed         (atom #{})          ; top paths sounding nothing, keeping their place
-    :solo           (atom nil)          ; nil, or the one top path that sounds
-    :voice-channels (atom {})}))        ; [path layer] -> [channel key]
+    :solo           (atom nil)}))       ; nil, or the one top path that sounds
 
 (defn set-engine!
   "Set the global engine instance -- (set-engine! (engine rcv (musics.repo/registry) :ROOT))."
@@ -91,69 +91,40 @@
   (if (vector? path-or-id) path-or-id [path-or-id]))
 
 ;; ============================================================
-;; MIDI and the channel pool -- a channel carries one [program cc] at
-;; a time, shared by every voice playing exactly that; 9 is percussion.
+;; MIDI and the channel pool (musics.midi.channels) -- a channel carries
+;; one [program cc] at a time, shared by every voice playing exactly
+;; that; 9 is percussion.
 ;; ============================================================
 
 (defn- send-midi-on!
-  "Program and CC first when the channel was just claimed (fresh?)."
-  [fs {:keys [channel program cc pitches velocity]} fresh?]
+  "What the channel still needs (sends: {:program :cc}), then the note."
+  [fs {:keys [channel pitches velocity]} sends]
   (when (and fs channel)
-    (when fresh?
-      (live/program-change fs channel program)
-      (doseq [[n v] cc] (live/control-change fs channel n v)))
+    (when-let [p (:program sends)] (live/program-change fs channel p))
+    (doseq [[n v] (:cc sends)] (live/control-change fs channel n v))
     (doseq [p pitches] (live/note-on fs channel p velocity))))
 
 (defn- send-midi-off! [fs {:keys [channel pitches tied]}]
   (when (and fs channel (not tied))
     (doseq [p pitches] (live/note-off fs channel p))))
 
-(def ^:private channel-pool (vec (remove #{9} (range 16))))
-
-(defn- claim-channel!
-  "[channel fresh?] -- a channel already playing key, else a free one
-   (fresh? true: its program/CC still has to be sent); nil when all 15
-   carry other timbres."
-  [claims key]
-  (let [cs @claims]
-    (if-let [shared (some (fn [[ch {k :key}]] (when (= k key) ch)) cs)]
-      (do (swap! claims update-in [shared :refcount] inc) [shared false])
-      (when-let [free (some #(when-not (contains? cs %) %) channel-pool)]
-        (swap! claims assoc free {:key key :refcount 1})
-        [free true]))))
-
-(defn- release-channel! [claims ch]
-  (when ch
-    (swap! claims (fn [cs]
-                    (if-let [{:keys [refcount]} (get cs ch)]
-                      (if (<= refcount 1) (dissoc cs ch) (update-in cs [ch :refcount] dec))
-                      cs)))))
-
 (defn- channel-for!
-  "[channel fresh?] for the voice at path playing [program cc] -- its
-   channel as long as that stays the same, else claimed anew. A full
-   pool drops the note (channel nil) rather than take another voice's.
-   path is [voice-path layer]: each instrument of a !i: list is a layer
-   with a channel of its own."
+  "[channel sends] for the voice layer at path ([voice-path layer]: each
+   instrument of a !i: list has a channel of its own) playing [program
+   cc] (musics.midi.channels/take-channel). A full pool drops the note
+   (channel nil) rather than take another voice's."
   [eng path program cc]
-  (let [key    [program cc]
-        [ch k] (get @(:voice-channels eng) path)]
-    (if (and ch (= k key))
-      [ch false]
-      (let [claimed (claim-channel! (:channel-claims eng) key)]
-        (release-channel! (:channel-claims eng) ch)
-        (if claimed
-          (do (swap! (:voice-channels eng) assoc path [(first claimed) key]) claimed)
-          (do (swap! (:voice-channels eng) dissoc path)
-              (println "musics.engine: MIDI channel pool exhausted (15 timbres at once) -- dropping a note")
-              [nil false]))))))
+  (let [r (volatile! nil)]
+    (swap! (:channels eng) (fn [pool] (let [[pool ch sends] (channels/take-channel pool path [program cc])]
+                                        (vreset! r [ch sends]) pool)))
+    (when-not (first @r)
+      (println "musics.engine: MIDI channel pool exhausted (15 timbres at once) -- dropping a note"))
+    @r))
 
 (defn- release-voice-channel!
   "Release every channel (one per layer) the voice at path holds."
   [eng path]
-  (doseq [[[p :as k] [ch]] @(:voice-channels eng) :when (= p path)]
-    (release-channel! (:channel-claims eng) ch)
-    (swap! (:voice-channels eng) dissoc k)))
+  (swap! (:channels eng) channels/release-voice path))
 
 ;; ============================================================
 ;; Actions -- what the sender does, and when
@@ -214,14 +185,14 @@
   (let [progs (:program e)
         layers (if (= :drum (:kind e))
                  (let [kit (:program e)]
-                   [[e [(:channel e) (when (not= kit @(:drum-kit eng)) (reset! (:drum-kit eng) kit) true)]]])
+                   [[e [(:channel e) (when (not= kit @(:drum-kit eng)) (reset! (:drum-kit eng) kit) {:program kit})]]])
                  (if (vector? progs)
                    (map-indexed (fn [i p] [(assoc e :program p) (channel-for! eng [(:path e) i] p (:cc e))]) progs)
                    [[e (channel-for! eng [(:path e) 0] progs (:cc e))]]))
-        midis (vec (for [[m [ch fresh?]] layers]
+        midis (vec (for [[m [ch sends]] layers]
                      (let [midi (assoc m :channel ch)]
                        (when ch
-                         (send-midi-on! (:fs eng) midi fresh?)
+                         (send-midi-on! (:fs eng) midi sends)
                          (when-let [f @echo] (f midi))
                          (doseq [p (:pitches m)]
                            (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))

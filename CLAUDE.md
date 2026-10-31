@@ -239,7 +239,7 @@ durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note, writing the moved key, `!K:`, at
 the start of the line), the same symbol in brackets on
-the whole line (`[*]` n times, `[/]` parts, `[+]` join, `[2]` `[3]` … the top n
+the whole line (`[*]` n times, `[/]` parts, `[+]` `concat` (the second line's settings written where it begins), `flatten` opens nested lines one level, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
@@ -253,9 +253,14 @@ quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( [R] ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
-halves), and the leaf readers read one note (`pitch`, `duration`, `volume`,
+halves; `put` `!`, `insert`, `delete` `_` and `cut` `[_]` work on one
+element or a range, an index a number or a path `'[1 2]` down through
+nested lines, `@` is `nth`, and a setting written in the middle of a
+line stays in front of its note through every one of them: the words
+act on a line's children, instructions in place, `[]` is the empty line,
+mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every
-note's as a stream, a repeat or loop around the line kept around the
+note's as a stream (a bare `!volume`, `!instrument`, `!K` … reads what a note plays with, its own value else the context's, a line's at its start: `musics.music/context-of`), a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note
@@ -292,7 +297,7 @@ music-data/drum-kits`) picks the kit, sent by the engine and `render`
 when it changes. Playback: `>`
 now, stopping what plays; `>>` in its place at the next boundary
 (`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
-boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes). Named music
+boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes); `,` (`edit`) takes the top into the next prompt as its printed text (`musics.mu.kernel/edit-text`, read by `mu.clj`'s `readLine`). Named music
 is a voice of that name (`[bass: c d] >`, a loop of it too): playing it
 replaces only that voice (`>` now, `>>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
@@ -311,7 +316,7 @@ namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 gathered into a line, `| … seq`). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
-`musics.play` and `musics.rate` (and any namespace mu's `require`
+`musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
 loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
 too) -- `musics.mu.library` registers each
 public function under its name, a trailing `!` left off, and its
@@ -1110,9 +1115,17 @@ start/end — and performs each as it comes due, parking until the next
 one. At one moment a note-off goes before signals, and signals before a
 note-on, so a repeated pitch is released before it sounds again.
 
-- Channels: a pool keyed by `[program cc]`, claimed when a voice's note
-  first needs one and released when the voice ends; 15 timbres at once,
+- Channels: `musics.midi.channels`, a pool shared with
+  `musics.midi.file` -- a channel carries one timbre, `[program cc]`
+  (`cc` `{10 pan}`), voices playing exactly that sharing it, taken when a
+  voice's note first needs one and released when the voice ends. A voice
+  whose program or pan changes stays on its channel while it is alone
+  there, sending only what changed (a program change, a CC 10) before
+  the note -- so a pan ramp is one channel and its CCs, and a note still
+  sounding there follows the pan -- and one sharing it moves to a
+  channel carrying the new timbre, else a free one. 15 timbres at once,
   a 16th drops its notes rather than take a channel (`channel-for!`).
+  A drum sounds on channel 9 and takes no pan.
   Under `!i:40,73,0` (or a note's own `\i:40,73`) its `:program` is a vector: the note sounds
   once per program at the same moment, each a layer of the voice with
   its own channel (`[path layer]`); `musics.midi.file` renders it the
@@ -1994,7 +2007,15 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   :gervill)` plays through it instead of Fluidsynth/VirMIDI, its
   `Receiver` going to the engine as VirMIDI's does;
   `musics.engine/soundfont!`/`soundfonts` load any `.sf2` (mu: `gervill`
-  `fluidsynth` `soundfont` `soundfonts`).
+  `fluidsynth`, and `musics.soundfont`, mu's `soundfont` namespace:
+  `soundfont` `soundfonts` `list-soundfonts` `list-groups` -- General
+  MIDI's groups of eight, `musics.common.music-data/gm-groups` -- and
+  `try-soundfonts` ( [x] [n] [pick] -- ), x or a phrase through every
+  instrument of every soundfont as an audition, `musics.mu.feedback/
+  start-soundfont-trial!`: n a soundfont, a pick a pair of programs, a
+  group by the start of its name, else the instruments a text names;
+  the presets are read from the files, `gervill/instruments`, the
+  samples only when a soundfont is loaded).
   Its 30 ms latency needs `:jvm-opts`' `--add-exports
   java.desktop/com.sun.media.sound`. An output that doesn't open
   within 5 s (a Bluetooth speaker asleep) is an error, not a wait
@@ -2006,8 +2027,8 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `note-off`/`program-change`/`control-change`) is what `musics.engine`
   uses for real sound; `midi_file.clj` writes `.mid` files —
   `events->sequence`/`write-events` render `musics.events` output (one
-  track per voice, 1000 ticks a second, channels pooled by
-  `[program cc]` like the live engine's), behind `musics.midi.file/render`. `midi_live.clj`'s own device discovery
+  track per voice, 1000 ticks a second, channels from the live engine's
+  pool, `musics.midi.channels`), behind `musics.midi.file/render`. `midi_live.clj`'s own device discovery
   (`find-writable-device`) is backed by `overtone.midi` now, not a
   hand-rolled `MidiSystem` walk — see "MIDI input" above, which uses that
   same library directly for the opposite direction (`musics/input/midi.clj`/

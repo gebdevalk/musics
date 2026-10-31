@@ -272,63 +272,6 @@
      (is (= [[40 [60]] [73 [60]] [0 [62]]] @sent)))))
 
 ;; ============================================================
-;; MIDI channel pool -- exhaustion behavior (16+ simultaneous distinct
-;; timbres, only 15 non-percussion channels available). Exercised
-;; directly against the private helpers (#'engine/...), same technique
-;; form-tag+items uses above, since driving a real 16-voice playback
-;; session just to hit this deterministically would be slow and timing-
-;; dependent for no extra coverage.
-;; ============================================================
-
-(deftest claim-channel-returns-nil-rather-than-stealing-when-the-pool-is-full
-  ;; Regression test: claim-channel! used to fall back to forcing channel
-  ;; 0 when the pool was exhausted, silently stealing whatever
-  ;; still-active voice already held it (and never even recording the
-  ;; theft in claims-atom -- see that fn's own docstring). It must
-  ;; instead report "no channel available" and leave every existing
-  ;; claim completely untouched.
-  (let [claims (atom {})
-        keys   (map (fn [i] [i {}]) (range 15))     ;; 15 distinct chan-keys
-        claimed (mapv (fn [k] (#'engine/claim-channel! claims k)) keys)]
-    (is (every? (fn [[ch fresh?]] (and (some? ch) (true? fresh?))) claimed)
-        "all 15 non-percussion channels (0-15 excluding 9) are claimable")
-    (is (= 15 (count (distinct (map first claimed))))
-        "each of the 15 claims landed on a genuinely distinct channel")
-    (let [claims-before @claims
-          sixteenth     (#'engine/claim-channel! claims [:a-16th-distinct-timbre {}])]
-      (is (nil? sixteenth) "the 16th distinct chan-key gets no channel at all")
-      (is (= claims-before @claims)
-          "a failed claim must not mutate claims-atom -- no channel silently stolen"))))
-
-(deftest channel-for-goes-silent-not-corrupting-when-pool-exhausted
-  (let [eng    (engine/engine nil (atom {}) :ROOT)
-        claims (:channel-claims eng)
-        _      (dotimes [i 15] (#'engine/claim-channel! claims [i {}]))
-        claims-before @claims
-        [channel fresh?] (#'engine/channel-for! eng [:TA] :a-16th-distinct-timbre {})]
-    (is (nil? channel) "no MIDI channel assigned -- send-midi-on!/off! already treat nil as silent")
-    (is (false? fresh?))
-    (is (= claims-before @claims)
-        "an exhausted voice's own claim attempt must not disturb the 15 real claims")
-    (is (nil? (get @(:voice-channels eng) [:TA]))
-        "nothing recorded for the voice, so its next note tries to claim again")))
-
-(deftest channel-for-self-heals-once-a-channel-frees-up
-  (let [eng       (engine/engine nil (atom {}) :ROOT)
-        claims    (:channel-claims eng)
-        used-keys (mapv (fn [i] [i {}]) (range 15))
-        _         (doseq [k used-keys] (#'engine/claim-channel! claims k))
-        exhausted (#'engine/channel-for! eng [:TA] :still-locked-out {})]
-    (is (nil? (first exhausted)) "pool is genuinely full, first attempt goes silent")
-    ;; free up one of the 15 real claims (as if that voice finished/moved on)
-    (#'engine/release-channel! claims (ffirst used-keys))
-    (let [[channel fresh?] (#'engine/channel-for! eng [:TA] :still-locked-out {})]
-      (is (some? channel)
-          "the exhausted voice's very next note retries claiming and succeeds now that a channel is free")
-      (is (true? fresh?))
-      (is (= [channel [:still-locked-out {}]] (get @(:voice-channels eng) [:TA]))))))
-
-;; ============================================================
 ;; display -- greedy, synchronous realization (no core.async, no engine)
 ;; ============================================================
 

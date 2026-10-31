@@ -4,6 +4,7 @@
   (:require [clojure.java.shell :as shell]
             [clojure.java.io :as io]
             [musics.domain.resolve :as resolve]
+            [musics.midi.channels :as channels]
             [musics.events :as ev]
             [musics.registries :as reg]
             [musics.repo :as repo])
@@ -100,11 +101,12 @@
 
 (defn events->sequence
   "A Sequence from timed events (musics.events/events), one track per
-   voice (:path), at 1000 ticks a second. A :note's channel comes from a
-   pool keyed on [program cc], like the live engine's, its program and
-   CC sent when the channel is first taken (past 15 such timbres,
-   channels are shared); a :drum keeps channel 9. A :program vector
-   (!i:40,73) plays the note once per program, each on its channel.
+   voice (:path), at 1000 ticks a second. A :note's channel comes from
+   musics.midi.channels' pool, as the live engine's does: a voice keeps
+   its channel while it is alone there, its program and CC sent only as
+   they change, and gives it back when it ends; with all 15 carrying
+   other timbres a note is left out. A :drum keeps channel 9. A :program
+   vector (!i:40,73) plays the note once per program, each on its channel.
    A note starts at :t + :micro -- early is fine here -- moved and its
    velocity varied by :humanization (musics.domain.resolve/humanize,
    seeded by seed), and stops :dur-played later, unless :tied."
@@ -113,36 +115,43 @@
         rng    (java.util.Random. seed)
         tempo  (doto (MetaMessage.) (.setMessage 0x51 (byte-array [0x0F 0x42 0x40]) 3)) ; 60 bpm
         tracks (atom {})
-        claims (atom {})
+        pool   (atom channels/empty-pool)
+        dropped (atom 0)
         kit    (atom nil)
-        pool   (vec (remove #{9} (range 16)))
         tick   #(long (Math/round (* (double %) ticks-per-sec)))]
     (.add (.createTrack s) (MidiEvent. tempo 0))
-    (doseq [{:keys [kind path pitches program cc channel t dur-played tied] :as e}
-            events
-            :when (and (#{:note :drum} kind) (seq pitches))]
-      (let [^Track tr (or (@tracks path) ((swap! tracks assoc path (.createTrack s)) path))
-            [offset velocity] (resolve/humanize e #(.nextDouble rng))
-            onset    (max 0.0 (+ t offset))
-            on       (tick onset)
-            channel-of (fn [program]
-                         (or (@claims [program cc])
-                             (let [ch (pool (mod (count @claims) (count pool)))]
-                               (swap! claims assoc [program cc] ch)
-                               (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE ch program 0) on))
-                               (doseq [[n v] cc]
-                                 (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on)))
-                               ch)))]
-        (when (and (= kind :drum) (not= program @kit))
-          (reset! kit program)
-          (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE channel program 0) on)))
-        (doseq [ch (cond (= kind :drum)     [channel]
-                         (vector? program)  (map channel-of program)
-                         :else              [(channel-of program)])
-                p pitches]
-          (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_ON ch p velocity) on))
-          (when-not tied
-            (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) (tick (+ onset dur-played))))))))
+    (doseq [{:keys [kind phase path pitches program cc channel t dur-played tied] :as e} events]
+      (cond
+        (and (= kind :voice) (= phase :end))
+        (swap! pool channels/release-voice path)
+
+        (and (#{:note :drum} kind) (seq pitches))
+        (let [^Track tr (or (@tracks path) ((swap! tracks assoc path (.createTrack s)) path))
+              [offset velocity] (resolve/humanize e #(.nextDouble rng))
+              onset    (max 0.0 (+ t offset))
+              on       (tick onset)
+              channel-of (fn [layer program]
+                           (let [[p ch sends] (channels/take-channel @pool [path layer] [program cc])]
+                             (reset! pool p)
+                             (if ch
+                               (do (when-let [prg (:program sends)]
+                                     (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE ch prg 0) on)))
+                                   (doseq [[n v] (:cc sends)]
+                                     (.add tr (MidiEvent. (short-msg ShortMessage/CONTROL_CHANGE ch n v) on))))
+                               (swap! dropped inc))
+                             ch))]
+          (when (and (= kind :drum) (not= program @kit))
+            (reset! kit program)
+            (.add tr (MidiEvent. (short-msg ShortMessage/PROGRAM_CHANGE channel program 0) on)))
+          (doseq [ch (cond (= kind :drum)     [channel]
+                           (vector? program)  (keep-indexed channel-of program)
+                           :else              (keep identity [(channel-of 0 program)]))
+                  p pitches]
+            (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_ON ch p velocity) on))
+            (when-not tied
+              (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) (tick (+ onset dur-played)))))))))
+    (when (pos? @dropped)
+      (println "musics.midi.file:" @dropped "notes left out -- 15 timbres sounded at once"))
     s))
 
 ;; ============================================================

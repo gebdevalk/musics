@@ -16,9 +16,11 @@
             [musics.algo.harmonic.walking-bass :as walking-bass]
             [musics.algo.tree.lib :as lib]
             [musics.common.music-data :as data]
+            [musics.common.context-keys :as ck]
             [musics.common.music-elements :as el]
             [musics.domain :as d]
             [musics.domain.context :as c]
+            [musics.domain.resolve :as r]
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.material :as mt]
@@ -242,6 +244,7 @@
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
+  (when (and (mt/music? x) (empty? (mt/elements x))) (fail "an empty line loops without end"))
   (if (mt/music? x)
     (mt/repetition x :infinite [])
     (mt/repeated (mt/finite! "[~]" x) :infinite)))
@@ -492,6 +495,33 @@
     (mt/leaf? x) (or (:key x) (fail "this note has no written key (written under !acc:explicit, or not written at all)"))
     (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :Key 0)
     :else (fail "needs a note or a line, got" (p/show x))))
+
+(defn- context-articulation
+  "The articulation a note plays with: its own, else the context's
+   factor under the name of the staccato, tenuto … it equals, else the
+   factor itself."
+  [x]
+  (or (articulation-name x)
+      (let [f (r/sample-leaf x :articulation)]
+        (or (some (fn [[k v]] (when (and (= f (:duration v)) (= 0 (:dynamic v))) k)) data/articulations)
+            f))))
+
+(defn context-of
+  "The setting x plays with: !volume, !instrument, !Key … (any context key,
+   as !key: writes it). A note, rest or drum: its own value, else the
+   context's where it sits (a drum's instrument is its key of the kit,
+   x8\\38: 38); a line: its context at its start."
+  {:mu {:names ["!name"]}}
+  [x k]
+  (let [k (ck/canonical-key (keyword k))]
+    (cond
+      (mt/leaf? x) (cond
+                     (and (= k :instrument) (= :DRUM (:type x))) (:program x)
+                     (= k :articulation) (context-articulation x)
+                     (contains? (:overrides x) k) (get (:overrides x) k)
+                     :else (r/sample-leaf x k))
+      (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) k 0)
+      :else (fail "needs a note or a line, got" (p/show x)))))
 
 (defn with
   "The settings in front of a line (its own come after, so they win), or

@@ -25,7 +25,7 @@
 (word! "tool" "split-at" "( x n -- a b )  the first n elements and the rest, as two values"
        (fn [s]
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
-           (conj (pop s) (mt/reshape x (partial take n)) (mt/reshape x (partial drop n))))))
+           (conj (pop s) (mt/reshape-keeping x (partial take n)) (mt/reshape-keeping x (partial drop n))))))
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 

@@ -8,7 +8,7 @@
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.grammar :as g]
-            [musics.mu.kernel]
+            [musics.mu.kernel :as kernel]
             [musics.mu.material :as mt]
             [musics.mu.tools]
             [musics.mu.algos]
@@ -163,7 +163,8 @@
     (try
       (run-loop (fn [p]
                   (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))
-                  (try (.readLine reader ^String p)
+                  (try (let [^Character no-mask nil] ; what , left, if anything, starts the line
+                         (.readLine ^LineReader reader ^String p nil no-mask ^String (first (reset-vals! kernel/edit-text nil))))
                        (catch UserInterruptException _ ::abandon)
                        (catch EndOfFileException _ nil))))
       (finally (reset! e/print-above println))))

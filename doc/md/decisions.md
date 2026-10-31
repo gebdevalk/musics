@@ -2217,3 +2217,73 @@ restarted. A session is what is stored plus mu's words and bindings; a
 performance isn't a document, and with recipes stored by id a piece's
 live parts are kept as what they are. `assign-algo!` stays, for
 preparing a track by hand.
+
+## 2026-10-30 — A voice keeps its MIDI channel through a change of program or pan
+
+A channel's pan (CC 10) and program apply to the whole channel, so
+voices share one only when they play the same `[program pan]`. But a
+voice alone on its channel has no one to disturb: it now stays there
+when its program or pan changes, the program change or CC sent before
+its next note. A pan ramp is one channel and a CC per step, as MIDI pan
+automation is, a note still sounding there following the pan; before,
+each step claimed a new channel, which the file writer, never giving
+one back, wrapped round after 15, panning other voices' notes. The pool
+is one pure namespace, `musics.midi.channels`, used by the engine and
+`render` alike, so the two can't go apart again. Drums stay unpanned:
+channel 9 is the whole kit's.
+
+## 2026-10-31 — Edit a line by index; settings stay with their notes; concat, not then
+
+`,` (`edit`) puts the top of the stack back into the prompt as its printed
+text, because mu is edited through the history and history holds what was
+typed, not what is on the stack; printing is isomorphic to reading, so
+the text reads back. It was first `.` without the drop, which `.s` and
+`.` already cover.
+
+A bare `!name` at mu's top level reads what a note plays with (its own
+value, else the context's where it sits; a line's at its start). The
+existing readers (`volume`, `instrument`) stay the note's own value:
+`x volumes x zip` must give `x` again, and writing context values onto
+every note would break that. The spelling is mu's alone (`LooseInstruction`
+in `mu.ebnf` already parsed it, only to refuse it); `musics.ebnf` is not
+touched, and inside a line `!volume` is still no instruction. Rejected: a
+word per key (`played-volume`, …) and one word with the key as an
+argument -- the context-key registry and `!` completion already name every
+key. A drum's `!instrument` is its key of the kit (38 for `x8\38`), not
+the kit's program, which is `!kit`.
+
+Replacing a whole note is enough as a setter, so there is no per-part
+setter: `!` put, `insert`, `_` delete and `[_]` cut (a range), `@` for
+`nth` -- Forth's store and fetch for the elements of a line, as `R!`/`R@`
+are for the repo. `put` keeps its value as one element and `splice`
+spreads; an index may be a path (a data list) down through nested lines.
+`[]`, the empty line, is read in mu only (`grammar.clj` turns it into the
+Sequence with nothing in it): it is the start value of a joining and what
+a one-note `delete` leaves, and it gives `cut` and `splice` a way to
+replace a range by nothing; musics text still needs an element in its
+`[ ]`. `[[]]` is the measures word, ahead of the literals as `[R]` is,
+so `[ [] ]` has no spelling. `[] [~]` is refused (a loop of nothing would
+spin the sender thread).
+
+`then` is `concat`: "a then b" read as control flow, `append` says the
+same as `concat` without Clojure's name, `join` and `chain` already mean
+something else in mu (`>+` joins what plays, `chain` is an algo). It is
+binary: `a b c 3 concat` is `a b concat c concat`, and a count or a `|`
+mark would only shorten that. `flatten` (one level) is the inverse of
+`line`. Nesting (`[2]`) stays the way to keep each line's settings
+apart; `concat` is the text operation, so a line with no settings of its
+own takes on those that came before it.
+
+Reshaping by elements dropped every instruction in the middle of a line
+(`[c d !mf e f] 0 g !` lost the `!mf`). The words now act on a line's
+children (`musics.mu.material/items`, `reshape-keeping`): an instruction
+stays in front of the element it was written before; with that element
+gone it waits for the next that stays, and none follows, it is dropped;
+with elements reordered it travels with its note; a one-for-one change
+(`map`, `mute`) gives each place its settings; those before the first
+element are the line's own and stay at its start (`with` writes them
+there). The alternative, baking the effective settings into every note as
+the retrograde does, would fill the text with `\vol:` and friends; the
+retrograde keeps its way. `splice` and `within` bring the elements of
+what they put in, not its settings.
+

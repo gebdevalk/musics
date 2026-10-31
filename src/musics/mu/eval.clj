@@ -9,6 +9,8 @@
    (ns/word). An error clears the stack."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
+            [musics.common.context-keys :as ck]
+            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
@@ -22,7 +24,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "rate" "mine"] :in "mine" :bindings {}})
+  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "rate" "soundfont" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 
@@ -189,6 +191,16 @@
   (let [x (second node)]
     (if (vector? x) (second x) x)))
 
+(defn- read-key
+  "The context key a bare !name reads (!volume, !i, !K), else nil: a
+   dynamic or tempo mark (!mf) is a setting, not a key."
+  [node]
+  (let [[_ [tag [_ n] & more]] node
+        kw (some-> n keyword)]
+    (when (and (= :BangConst tag) (nil? more) kw (not (data/instruction-context kw)))
+      (try (ck/context-key kw) (ck/canonical-key kw)
+           (catch clojure.lang.ExceptionInfo _ nil)))))
+
 (defn- run-item
   "Run one parse node on stack, in env ({:locals :values}): values maps a
    literal node to the value it was read as."
@@ -210,8 +222,10 @@
     (mu-error "a command needs a line: write" (str "[" (:source (meta node)) "]")
               "-- or the word after the music: x c d transpose, x [R]")
     :LooseInstruction
-    (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
-              "or give a context, ^{" (str (:source (meta node))) "}")
+    (if-let [k (read-key node)]
+      (run-word (conj stack k) "music/context-of")
+      (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
+                "or give a context, ^{" (str (:source (meta node))) "}"))
     :QuotedName (conj stack (symbol (node-name node)))
     :VarRef    (let [n (node-name node) b (:bindings @state)]
                  (if (contains? b n)
@@ -235,6 +249,7 @@
              (conj stack (peek (run-word (into [v/mark] xs) "music/seq"))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
+    :Measures   (run-word stack "[[]]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
     ;; an algo tree, built by musics.recipe (which builds on what eval runs)

@@ -120,6 +120,14 @@
          (when (seq s) (println "----"))
          s))
 
+(def edit-text
+  "The text the next prompt starts with, or nil: what , left there."
+  (atom nil))
+
+(doseq [w ["," "edit"]]
+  (word! "kernel" w "( a -- )  take the top off the stack into the next prompt as text, to change and run again"
+         (fn [s] (need s 1 w) (reset! edit-text (p/show (peek s))) (pop s))))
+
 (word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
        (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
 

@@ -1,6 +1,6 @@
 (ns musics.play
   "mu's play words as Clojure functions, done for their effect: stopping,
-   the voices, hushing, pausing, echoing, the synthesizer and the GUI --
+   the voices, hushing, pausing, echoing, the synthesizer (its soundfonts are musics.soundfont's) and the GUI --
    registered into mu's play namespace by musics.mu.library. Starting
    music (play, >, play-next, >>, …) reads the stack's shape -- a
    context under the music, a mark, a voice on top -- and stays a stack
@@ -101,18 +101,6 @@
   []
   (mt/cancel-staged!)
   (engine/connect! :gervill))
-
-(defn soundfonts!
-  "The .sf2 files soundfont takes by number"
-  []
-  (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
-
-(defn soundfont!
-  "Gervill with that soundfont, or the n-th of soundfonts; what plays goes on"
-  [file-or-n]
-  (when-not (or (string? file-or-n) (integer? file-or-n))
-    (fail "needs a file in quotes or a number from soundfonts, got" (p/show file-or-n)))
-  (println (engine/soundfont! file-or-n)))
 
 (defn- keep-javafx!
   "JavaFX ends when its last window closes, unless told not to: then a
