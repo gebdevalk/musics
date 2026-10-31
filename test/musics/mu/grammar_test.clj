@@ -39,8 +39,14 @@
         "or with + and a letter")
     (is (= [[:SignedInt "+5"]] (items "+5")) "+ and a digit stays a number")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
-    (doseq [w [">" ">+" ">>" ">>+" "[[]]" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "," "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@"]]
+    (doseq [w [">" ">+" ">>" ">>+" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "," "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@" "[_]"]]
       (is (= [[:Word w]] (items w)) w))))
+
+(deftest an-empty-line-and-the-measures-word
+  (is (= [:Sequence] (tags "[]")) "an empty line is the Sequence with nothing in it")
+  (is (= [:Sequence] (tags "[ ]")))
+  (is (= [:Measures] (tags "[[]]")) "[[]] is the measures word, before the literals")
+  (is (g/failure? (g/parse "[c [] d]")) "musics text still needs an element: the empty line is mu's"))
 
 (deftest key-literals
   (is (= [[:KeyValue "D.major"] [:KeyValue "B&.minor"] [:KeyValue "f#.harmonic-minor"]] (items "D.major B&.minor f#.harmonic-minor")))

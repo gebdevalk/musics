@@ -50,6 +50,13 @@
 
 (declare repetition? repeat-parts endings-of repeated)
 
+(defn- child-value
+  "A child of material x as the value it stands for."
+  [x data? k]
+  (cond (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value (:repo x) (:base x) k)
+        (= :LOOP (:type k)) (repeated (apply list (:items k)) :infinite) ; '[60 62] [~]
+        :else k))
+
 (defn elements
   "The elements of a value: a container's children without its
    instructions (leaves as they are, nested containers and repeats as
@@ -65,12 +72,8 @@
                         (let [ends (endings-of alt) k (count ends)]
                           (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
                                        (range n))))))
-    (v/material? x) (let [{:keys [repo base]} x
-                          data? (= :DATA (:type (v/node x)))]
-                      (mapv (fn [k] (cond (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value repo base k)
-                                          (= :LOOP (:type k)) (repeated (apply list (:items k)) :infinite) ; '[60 62] [~]
-                                          :else k))
-                            (remove instruction? (:children (v/node x)))))
+    (v/material? x) (let [data? (= :DATA (:type (v/node x)))]
+                      (mapv #(child-value x data? %) (remove instruction? (:children (v/node x)))))
     (leaf? x)       [x]
     (sequential? x) x
     :else (e/mu-error "has no elements:" (p/show x))))
@@ -81,6 +84,22 @@
   [x]
   (when (v/material? x)
     (map :raw (take-while instruction? (:children (v/node x))))))
+
+(defn items
+  "A line's or parallel's children in order, as slots: [:ins text] for an
+   instruction written there, [:el value] for an element. nil for
+   anything else (a leaf, data, a stream, a repeat)."
+  [x]
+  (when (and (v/material? x) (not (repetition? x)) (contains? #{:SEQ :PAR} (kind x)))
+    (mapv (fn [k] (if (instruction? k) [:ins (:raw k)] [:el (child-value x false k)]))
+          (:children (v/node x)))))
+
+(defn from-items
+  "A value of like's form (a line or a parallel) holding slots, as items
+   gives them: every instruction stays where it is written."
+  [like slots]
+  (let [shown (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))]
+    (read-text (if (= :PAR (kind like)) (str "{" shown "}") (str "[" shown "]")))))
 
 (defn rebuild
   "A value of the same form as like (a line, a parallel, data), holding
@@ -738,6 +757,47 @@
       (or (v/material? x) (leaf? x)) (rebuild (if (leaf? x) (line [x]) x) els)
       (endless? x) (endless els)
       :else els)))
+
+(defn- tagged
+  "e remembering it was element k of the line it came from."
+  [e k]
+  (if (instance? clojure.lang.IObj e) (vary-meta e assoc ::slot k) e))
+
+(defn reshape-keeping
+  "reshape for a line or a parallel, its instructions kept: each one
+   stays in front of the element it was written before, wherever that
+   goes (those before the first element, the line's own, stay at its
+   start) -- or, when that element is gone, in front of the next of its
+   elements to stay (one that none of them follows is dropped, unless
+   all stay). When f gives as many new elements as it was given, each
+   takes its place's instructions (a map). Anything else as reshape."
+  [x f]
+  (let [x (streamed x)]
+    (if-let [slots (items x)]
+      (let [els      (mapv second (filter (fn [[tag]] (= tag :el)) slots))
+            n        (count els)
+            out      (vec (f (map-indexed (fn [k e] (tagged e k)) els)))
+            ks0      (mapv #(::slot (meta %)) out)
+            by-place? (and (every? nil? ks0) (= (count out) n))
+            ks       (if by-place? (vec (range n)) ks0)
+            stays    (into (sorted-set) (remove nil?) ks)
+            ;; [element index the instruction waits for, its text]
+            waiting  (loop [ss slots k 0 acc []]
+                       (if-let [[tag v] (first ss)]
+                         (if (= tag :el) (recur (rest ss) (inc k) acc) (recur (rest ss) k (conj acc [k v])))
+                         acc))
+            lead     (for [[k v] waiting :when (zero? k)] [:ins v])
+            anchored (group-by first (for [[k v] waiting :when (pos? k)]
+                                       [(first (subseq stays >= k)) v]))
+            all-stay? (= n (count stays))
+            slots'   (loop [i 0 done #{} acc (vec lead)]
+                       (if (= i (count out))
+                         (cond-> acc all-stay? (into (map (fn [[_ v]] [:ins v]) (get anchored nil))))
+                         (let [k (nth ks i)
+                               ins (when (and k (not (done k))) (map (fn [[_ v]] [:ins v]) (get anchored k)))]
+                           (recur (inc i) (cond-> done k (conj k)) (-> acc (into ins) (conj [:el (nth out i)]))))))]
+        (from-items x slots'))
+      (reshape x f))))
 
 (defn music? [x] (or (leaf? x) (and (v/material? x) (not= :DATA (kind x)))))
 

@@ -7,7 +7,7 @@
    full here."
   (:refer-clojure :exclude [first last nth count take drop take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
-                            iterate range])
+                            iterate range concat flatten])
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [musics.algo.random :as random]
@@ -32,7 +32,7 @@
 (defn- each
   "f (a fn of the elements) on x's elements, in x's form."
   [x f]
-  (mt/reshape x f))
+  (mt/reshape-keeping x f))
 
 ;; -- make -------------------------------------------------------------------
 
@@ -76,12 +76,27 @@
     (when (empty? els) (fail "nothing in" (p/show x)))
     (core/last els)))
 
+(defn- path-of
+  "An index as a vector of whole numbers: n, or a data list '[1 2], the
+   part counted 1, then the element counted 2 inside it."
+  [word idx]
+  (let [path (cond (integer? idx) [idx]
+                   (or (v/material? idx) (sequential? idx)) (vec (mt/elements idx))
+                   :else nil)]
+    (when-not (and (seq path) (every? #(and (integer? %) (>= % 0)) path))
+      (fail (str word ":") "needs a whole number from 0 or a path '[1 2] of them, got" (p/show idx)))
+    path))
+
 (defn nth
-  "The element counted n from 0"
+  "The element counted n from 0; a path '[1 2] goes down: element 1, then
+   its element 2"
+  {:mu {:names ["@"]}}
   [x n]
-  (let [e (core/nth (mt/elements x) (count! n) ::none)]
-    (when (= ::none e) (fail n "is past the end of" (p/show x)))
-    e))
+  (reduce (fn [c i]
+            (let [e (core/nth (mt/elements c) i ::none)]
+              (when (= ::none e) (fail i "is past the end of" (p/show c)))
+              e))
+          x (path-of "nth" n)))
 
 (defn count
   "How many elements"
@@ -130,7 +145,7 @@
   {:mu {:names ["[%]" "ROT"]}}
   [x n]
   (each x (fn [xs] (let [v (vec (mt/finite! "rotate" xs)) k (if (seq v) (mod (count! n) (core/count v)) 0)]
-                     (concat (core/drop k v) (core/take k v))))))
+                     (core/concat (core/drop k v) (core/take k v))))))
 
 (defn rotating
   "rotate n [ x ]: rotated n places further each time it plays, as
@@ -182,11 +197,32 @@
   [x]
   (each x (comp random/sputter vec #(mt/finite! "sputter" %))))
 
-(defn then
-  "a followed by b"
+(defn- joined
+  "a and b as lines of one: every instruction of both stays where it is
+   written, so b's settings begin where b does (and carry on after it, as
+   they would in text); anything else by elements."
+  [a b]
+  (let [sa (mt/items a) sb (mt/items b)]
+    (if (and sa sb (= :SEQ (mt/kind a) (mt/kind b)))
+      (mt/from-items a (into sa sb))
+      (each a #(core/concat % (mt/elements b))))))
+
+(defn concat
+  "a followed by b, one line, as the text of both written together:
+   [!mf c d] [!pp e f] concat gives [!mf c d !pp e f]"
   {:mu {:names ["[+]"]}}
   [a b]
-  (each a #(concat % (mt/elements b))))
+  (joined a b))
+
+(defn flatten
+  "The lines inside x opened into it, one level: a b 2 line flatten is a
+   b concat"
+  [x]
+  (if-let [slots (mt/items x)]
+    (mt/from-items x (vec (mapcat (fn [[tag v :as slot]]
+                                    (or (and (= tag :el) (= :SEQ (mt/kind v)) (mt/items v)) [slot]))
+                                  slots)))
+    (each x #(core/mapcat (fn [e] (if (and (v/material? e) (= :SEQ (mt/kind e))) (mt/elements e) [e])) %))))
 
 (defn interleave
   "The elements of a and b, alternating"
@@ -209,32 +245,103 @@
 
 (defn- put-back
   "x with its elements start..end replaced by y's."
-  [x els start end y]
-  (each x (fn [_] (concat (subvec els 0 start) (mt/elements y) (subvec els end)))))
+  [x start end y]
+  (each x (fn [els] (let [els (vec els)] (core/concat (subvec els 0 start) (mt/elements y) (subvec els end))))))
+
+(defn- el-positions
+  "Where the elements are among the slots (instructions between)."
+  [slots]
+  (vec (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots)))
+
+(defn- edit
+  "x with f applied to its slots at the end of path (f: slots, element
+   positions, index -> slots), the instructions staying where written; a
+   path goes down through the nested lines."
+  [word x idx f]
+  (let [path (path-of word idx)
+        slots (or (mt/items x) (mapv (fn [e] [:el e]) (mt/finite! word (mt/elements x))))
+        pos   (el-positions slots)
+        i     (core/first path)
+        back  (fn [slots'] (if (mt/items x)
+                             (mt/from-items x slots')
+                             (each x (fn [_] (core/map second slots')))))]
+    (if (next path)
+      (do (when-not (< i (core/count pos)) (fail i "is past the end of" (p/show x)))
+          (back (assoc slots (core/nth pos i) [:el (edit word (second (core/nth slots (core/nth pos i))) (vec (core/rest path)) f)])))
+      (back (f slots pos i)))))
+
+(defn- present!
+  "The slot position of element i, else refused as span refuses."
+  [pos i]
+  (when-not (< i (core/count pos))
+    (fail "needs an index with 0 <= n <" (core/count pos) "-- got" i))
+  (core/nth pos i))
+
+(defn put
+  "x with the element at n replaced by y, one element; n a number or a
+   path '[1 2]: [c d e] 1 g ! gives [c g e]"
+  {:mu {:names ["!"]}}
+  [x n y]
+  (edit "put" x n (fn [slots pos i] (assoc slots (present! pos i) [:el y]))))
+
+(defn insert
+  "x with y, one element, put in before the element at n (n = the count
+   appends); n a number or a path: [c d e] 1 g insert gives [c g d e]"
+  [x n y]
+  (edit "insert" x n
+        (fn [slots pos i]
+          (when-not (<= i (core/count pos)) (fail "needs an index with 0 <= n <=" (core/count pos) "-- got" i))
+          (let [at (if (< i (core/count pos)) (core/nth pos i) (core/count slots))]
+            (vec (core/concat (subvec slots 0 at) [[:el y]] (subvec slots at)))))))
+
+(defn delete
+  "x without the element at n; n a number or a path: [c d e] 1 _ gives
+   [c e]"
+  {:mu {:names ["_"]}}
+  [x n]
+  (edit "delete" x n
+        (fn [slots pos i]
+          (let [at (present! pos i)]
+            (vec (core/concat (subvec slots 0 at) (subvec slots (inc at))))))))
+
+(defn cut
+  "x without the elements from start up to end, its instructions staying:
+   [c d e f g] 1 3 [_] gives [c f g]"
+  {:mu {:names ["[_]"]}}
+  [x start end]
+  (let [els (span "cut" x start end true)
+        slots (or (mt/items x) (mapv (fn [e] [:el e]) els))
+        pos   (el-positions slots)
+        gone  (set (core/subvec pos start end))
+        slots' (vec (keep-indexed (fn [i s] (when-not (gone i) s)) slots))]
+    (if (mt/items x)
+      (mt/from-items x slots')
+      (each x (fn [_] (core/map second slots'))))))
 
 (defn slice
   "The elements from start up to (not including) end, counted from 0 as
    nth counts: [c d e f g] 1 3 slice gives [d e]"
   [x start end]
-  (let [els (span "slice" x start end true)]
-    (each x (fn [_] (subvec els start end)))))
+  (span "slice" x start end true)
+  (each x (fn [els] (subvec (vec els) start end))))
 
 (defn splice
   "x with the elements from start up to end replaced by y's:
    [c d e f g] 1 3 [a b c] splice; start = end inserts"
   [x start end y]
-  (put-back x (span "splice" x start end false) start end y))
+  (span "splice" x start end false)
+  (put-back x start end y))
 
 (defn within
   "The chunk from start up to end through q, put back where it came from:
    [c d e f g] 1 4 '( reverse ) within"
   [x start end q]
   (quotation! q)
-  (let [els   (span "within" x start end true)
-        out   (e/call [(each x (fn [_] (subvec els start end)))] q)]
+  (span "within" x start end true)
+  (let [out (e/call [(each x (fn [els] (subvec (vec els) start end)))] q)]
     (when-not (= 1 (core/count out))
       (fail "the quotation must leave one value, the chunk changed, left" (core/count out)))
-    (put-back x els start end (peek out))))
+    (put-back x start end (peek out))))
 
 ;; -- selection and map ------------------------------------------------------
 
@@ -305,5 +412,5 @@
     (cond
       (mt/endless? x) (mt/endless ys)
       (and (or (v/material? x) (mt/leaf? x)) (every? #(or (mt/leaf? %) (v/material? %) (mt/marker? %)) ys))
-      (mt/rebuild (if (mt/leaf? x) (mt/line [x]) x) ys)
+      (mt/reshape-keeping (if (mt/leaf? x) (mt/line [x]) x) (constantly ys))
       :else (core/remove mt/marker? ys))))

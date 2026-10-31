@@ -244,6 +244,7 @@
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
+  (when (and (mt/music? x) (empty? (mt/elements x))) (fail "an empty line loops without end"))
   (if (mt/music? x)
     (mt/repetition x :infinite [])
     (mt/repeated (mt/finite! "[~]" x) :infinite)))

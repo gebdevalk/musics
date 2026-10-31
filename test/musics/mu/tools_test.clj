@@ -110,7 +110,7 @@
   (is (= "[C4/4 D4 C4 D4]" (top "[c d] 2 [*] 4 take")) "a repeat's elements are what it plays")
   (is (= "'[1 2] 2 times" (top "'[1 2] 2 [*]")) "data prints as its repeat")
   (is (= "'[1 2 1 2]" (top "'[1 2] 2 [*] 4 take")) "and is written out")
-  (is (= "[C4/4 D4 E4]" (top "[c d] [e] then")) "succession")
+  (is (= "[C4/4 D4 E4]" (top "[c d] [e] concat")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
   (is (= "[C4/4] [D4/4 E4]" (top "[c d e] 1 split-at")))
@@ -169,7 +169,7 @@
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[||]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
-                             ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "then" "[c] [d]"]
+                             ["<>" "chord" "c e g"] ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "concat" "[c] [d]"]
                              ["+" "up" "[c d] 7"] ["-" "down" "[c d] 12"] ["*" "stretch" "[c d] 2"] ["/" "shrink" "[c d e] 3"]
                              ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
@@ -468,6 +468,31 @@
   (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
   (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
 
+(deftest an-element-put-inserted-or-deleted
+  (is (= "[C4/4 G4 E4]" (top "[c d e] 1 g !")) "put replaces the element at n")
+  (is (= "[C4/4 G4 E4]" (top "[c d e] 1 g put")) "by its name")
+  (is (= "D4/4" (top "[c d e] 1 @")) "@ is nth")
+  (is (= "[C4/4 [E4 F4]]" (top "[c d] 1 [e f] !")) "the value stays one element, nested")
+  (is (= "'[1 9 3]" (top "'[1 2 3] 1 9 !")) "data too")
+  (is (= "[C4/4 G4 D4 E4]" (top "[c d e] 1 g insert")) "insert puts it before n")
+  (is (= "[C4/4 D4 E4 G4]" (top "[c d e] 3 g insert")) "n = the count appends")
+  (is (= "[C4/4 E4]" (top "[c d e] 1 _")) "_ deletes the element at n")
+  (is (= "[C4/4 E4]" (top "[c d e] 1 delete")))
+  (is (= "[C4/4 F4 G4]" (top "[c d e f g] 1 3 [_]")) "[_] cuts a range")
+  (is (= (top "[c d e f g] 1 3 [_]") (top "[c d e f g] 1 3 [] splice")) "= splicing in nothing")
+  (is (re-find #"0 <= n < 3" (top "[c d e] 3 _")) "nothing at the count to delete")
+  (is (re-find #"0 <= n <= 3" (top "[c d e] 4 g insert")))
+  (is (= "[]" (top "[c d e] 0 _ 0 _ 0 _")) "all gone leaves the empty line"))
+
+(deftest the-empty-line
+  (is (= "[]" (top "[]")))
+  (is (= "[]" (top "[ ]")) "spaces inside")
+  (is (= "0" (top "[] count")))
+  (is (= "[C4/4 D4]" (top "[] [c d] concat")) "the start of a joining")
+  (is (= "[C4/4 D4]" (top "[c d] [] concat")))
+  (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")) "[[]] is still the measures")
+  (is (re-find #"empty line loops" (top "[] [~]")) "an endless loop of nothing is refused"))
+
 (deftest measures-split-a-line-by-its-meter
   (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")))
   (is (= "[!Meter:3/4 [C4/2 D4/4~] [D4 E4/2]]" (top "[!Meter:3/4 c2 d2 e2] [[]]")) "a note across a bar line cut and tied")
@@ -639,3 +664,36 @@
     (is (apply < (vel "[c4 d e f g] ^{ !vol:30< !vol:90@1 } with")) "a ramp mark glides to it")
     (is (= [38 38 76 76] (vel "[c4 d e f] ^{ !pp !mf@1/2 } with")) "a dynamic mark too"))
   (is (= "^{ !vol:50< !vol:mf@3/8 !vol:90@2 !K:D.major@4 }" (top "^{ !vol:50< !vol:mf@3/8 !vol:90@2 !K:D.major@4 }")) "reads back as written"))
+
+(deftest paths-go-down-through-nested-lines
+  (let [x "[[c d e] [f g a]]"]
+    (is (= "E4/4" (top (str x " '[0 2] @"))) "part 0, element 2")
+    (is (= "G4/4" (top (str x " '[1 1] nth"))))
+    (is (= "[[C4/4 D4 E4] [F4 x A4]]" (top (str x " '[1 1] x !"))) "put down a path")
+    (is (= "[[C4/4 D4 E4] [F4 x G4 A4]]" (top (str x " '[1 1] x insert"))))
+    (is (= "[[C4/4 E4] [F4 G4 A4]]" (top (str x " '[0 1] _"))))
+    (is (= "[C4/4 D4 E4]" (top (str x " '[0] @"))) "a path of one is the part itself")
+    (is (re-find #"past the end" (top (str x " '[2 0] @"))))
+    (is (re-find #"path" (top (str x " '[] @"))) "an empty path names nothing")))
+
+(deftest settings-stay-where-they-are-written
+  (is (= "[C4/4 G4 !mf E4 F4]" (top "[c d !mf e f] 1 g !")) "put keeps the !mf")
+  (is (= "[C4/4 !mf E4 F4]" (top "[c d !mf e f] 1 _")))
+  (is (= "[C4/4 D4 !mf G4 E4 F4]" (top "[c d !mf e f] 2 g insert")) "inserted after the instruction before it, as typed")
+  (is (= "[C4/4 !mf F4]" (top "[c d !mf e f] 1 3 [_]")))
+  (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] concat")) "concat writes the second's settings where it begins")
+  (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] 2 line flatten")) "flatten is what concat does")
+  (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] 2 line [f] 2 line flatten")) "one level only")
+  (is (= "'[1 '[2] 3]" (top "'[1 '[2] 3] flatten")) "data is left as it is: only lines are opened"))
+
+(deftest the-element-words-keep-the-settings-of-a-line
+  (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")
+  (is (= "[!mf F4/4]" (top "[c d !mf e f] 3 drop")) "its note gone, it waits for the next that stays")
+  (is (= "[C4/4 D4]" (top "[c d !mf e f] 2 take")) "none follows: dropped")
+  (is (= "[C4/4 x !mf E4 F4]" (top "[c d !mf e f] 1 2 [x] splice")))
+  (is (= "[!mf !pp E4/4 F4]" (top "[!mf c d !pp e f] '( pitch 63 lt ) remove")) "both wait for e")
+  (is (= "[!mf !pp E4/4 F4 C4 D4]" (top "[!mf c d !pp e f] 2 rotate")) "the line's own stay at its start")
+  (is (= "[E4/4 !pp F4 C4 !mf D4]" (top "[c !mf d e !pp f] 2 rotate")) "the others travel with their notes")
+  (is (= ["[!mf !pp E4/4 F4]" "[!mf C4/4 D4]"] (mapv #(p/show %) (reverse (:ok (do (swap! e/state assoc :stack []) (e/eval-input "[!mf c d !pp e f] 2 split-at"))))))
+      "split-at, both halves")
+  (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d !pp e f] '( ) map")) "a map keeps each place's settings"))

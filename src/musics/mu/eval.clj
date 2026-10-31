@@ -249,6 +249,7 @@
              (conj stack (peek (run-word (into [v/mark] xs) "music/seq"))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
+    :Measures   (run-word stack "[[]]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
     ;; an algo tree, built by musics.recipe (which builds on what eval runs)
