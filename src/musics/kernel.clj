@@ -123,7 +123,24 @@
 
 (defn ids!    "Every stored id" [] (prn (repo/ids)))
 (defn usages! "The ids whose content uses it directly" [id] (prn (repo/usages (stored-id id))))
-(defn ctx!    "A part's context chain: each ancestor's own settings, nearest first" [id] (r/ctx (stored-id id)))
+(defn forget!
+  "Take a stored name out of the repo, and out of :ROOT: :motif forget.
+   Refused while something stored uses it; what plays keeps playing"
+  [id]
+  (repo/forget! (stored-id id)))
+
+(defn rename!
+  "Give a stored name another, everywhere it is used: :motif :theme
+   rename. Refused when the new name is stored already or is no name"
+  [old new]
+  (when-not (keyword? new) (fail "needs the new name on top, like :theme, got" (p/show new)))
+  (repo/rename! (stored-id old) new))
+
+(defn ctx!
+  "A part's context chain: each ancestor's own settings, nearest first; a
+   line not stored: its own settings, where they begin"
+  [x]
+  (r/ctx (if (and (v/material? x) (not (repo/current (:id x)))) (v/node x) (stored-id x))))
 
 ;; -- the defaults -----------------------------------------------------------
 

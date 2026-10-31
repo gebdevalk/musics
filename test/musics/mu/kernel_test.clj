@@ -477,3 +477,43 @@
   (is (re-find #"reduce: an endless stream" (:error (run "'[1 2] [~] 0 '( add ) reduce"))))
   (is (re-find #"overflowed" (:error (run ": loop ( -- ) loop ; loop"))) "a word calling itself ends in an error, not a crash"))
 
+
+(deftest forgetting-and-renaming-a-stored-name
+  (testing "rename: the node, :ROOT's children and every place that holds it"
+    (run "[a: c d] R!")
+    (run "clear [b: :a e :a] R!")
+    (run "clear [r: repeat 2 [:a e]] R!")
+    (run "clear ^{ lo: !mf } R!")
+    (run "clear [d: :lo c] R!")
+    (run "clear [u: ^{ q: !ff } c] R!")
+    (run "clear :a :motif rename")
+    (is (nil? (repo/current :a)) "the old name is gone")
+    (is (= :motif (:id (repo/current :motif))) "the node carries its new name")
+    (is (some #{:motif} (:children (repo/current :ROOT))) "and :ROOT lists it")
+    (is (= "[b: :motif E4/4 :motif]" (str/join " " (map p/show (:ok (run ":b R@"))))) "a container's children")
+    (is (= "[r: repeat 2 [:motif E4/4]]" (str/join " " (map p/show (:ok (run ":r R@"))))) "a repeat's body")
+    (run "clear :lo :hi rename")
+    (is (= "[d: :hi C4/4]" (str/join " " (map p/show (:ok (run ":d R@"))))) "an override marker's reference and text")
+    (run "clear :q :w rename")
+    (is (re-find #"\^\{ w: " (str/join " " (map p/show (:ok (run ":u R@"))))) "an inline context definition's name"))
+  (testing "rename is refused where it would break something"
+    (is (re-find #"is stored already" (:error (run ":motif :b rename"))))
+    (is (re-find #"something stored" (:error (run ":nothing :x rename"))))
+    (is (re-find #"keeps its name" (:error (run ":ROOT :x rename"))))
+    (is (re-find #"new name on top" (:error (run ":motif 5 rename")))))
+  (testing "forget"
+    (is (re-find #"still used by :b :r" (:error (run ":motif forget"))) "refused while something uses it")
+    (run "clear :r forget")
+    (run "clear :b forget")
+    (run "clear :motif forget")
+    (is (nil? (repo/current :motif)))
+    (is (not (some #{:motif} (:children (repo/current :ROOT)))) "out of :ROOT too")
+    (is (re-find #"something stored" (:error (run ":motif forget"))) "gone is gone")
+    (is (re-find #"root" (:error (run ":ROOT forget"))))))
+
+(deftest ctx-takes-a-line-not-stored
+  (is (= "(not stored under :ROOT -- its own context only)\n  Tempo=90@0\n" (out "[!T:90 c d] ctx")) "its own settings, where they begin")
+  (run "[a: !T:90 c d] R! pop")
+  (is (= ":a: Tempo=90@0\n" (out ":a ctx")) "a stored name, its chain")
+  (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the line fetched with R@")
+  (is (re-find #"something stored" (:error (run "7 ctx"))) "anything else is refused"))

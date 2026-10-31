@@ -389,6 +389,8 @@ different way:
   after the boundary — typically the next pass of a loop or the next
   item of a `[...]` play arg.
 
+mu's `forget` and `rename` (`musics.repo/forget!`/`rename!`) tidy the store: `rename` rewrites a name in one swap, wherever it is held (`:children`, nested ones, an override marker's `:ref` and `:raw`, an inline context's definition, a recipe's `:text`); `forget` refuses a name another id still refers to (`referrers`, wider than `usages`, which is direct children only).
+
 `musics.persist`'s `write`/`load` (the GUI's Persistence window)
 persist/replace whatever's currently committed (via `musics.repo/seed!`),
 not the performance layered on top of it (a voice's `:algo` assignment

@@ -197,7 +197,21 @@ followed by nothing, a duration or `*n`.
   `(usages :inner)` and `(ctx :inner)` give in Clojure: every stored id,
   the ids whose content uses `:inner` directly (what a new `R!` of
   `:inner` changes too), and its context chain, nearest first. `usages`
-  and `ctx` also take material fetched with `R@`.
+  and `ctx` also take material fetched with `R@`, and `ctx` a line that is
+  not stored: `[!T:90 c d] ctx` prints its own settings, where they begin.
+
+- **Tidying the repo**: `:motif forget` takes a stored name out of the
+  repo and out of `:ROOT`; it is refused while another stored id uses it
+  anywhere (a child, a repeat's body, an override marker -- the message
+  names them: `:motif is still used by :b :r`), and `:ROOT` stays.
+  `:motif :theme rename` gives a stored name another in one step, in the
+  node, in `:ROOT`'s children, in every container that holds it, in the
+  `:name` of an override marker and the `^{ name: … }` of an inline
+  context, and in the `@( name: … )` of a recipe's text; refused when
+  the new name is stored already or is no name (a letter, then letters,
+  digits and `_`), and `:ROOT` keeps its name. What plays keeps its
+  snapshot and its voice name, as after any `R!`; a live voice following
+  a recipe by id keeps the old id.
 
 ## 7. The REPL
 
@@ -284,7 +298,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
-| **repo** | `ids` `usages` `ctx` `defaults` |
+| **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
 | **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 
 Stack effects:
@@ -456,7 +470,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   starts in). A dynamic or tempo mark (`!mf`) is a setting, not a key,
   and a bare one is still refused; `!p` is pianissimo, so panning is
   `!pan`. The named twin is `context-of`: `x :volume context-of`. Only
-  at mu's top level -- inside a line `!volume` is not an instruction.
+  at mu's top level -- inside a line `!volume` is not an instruction. A ramp is followed along the line: in `[!vol:30< c4 d4 e4 f4 !vol:90]`
+  `2 @ !volume` is `60` and `3 @ !volume` `75`, and the volume at a time is
+  `at` first: `1/2 at !volume`. `!Tempo` and `!Meter` read as written (`100`,
+  `3/4`). A key that is also a mark (`swing`, `shuffle`, `straight`,
+  `laidBack`, `pushed`) is read as the mark's refusal, not the key: write
+  `:swing context-of`.
 - **`zip` builds leaves from their parts**: the top two, or everything
   above a `|` mark, each part a stream in the order a leaf holds them --
   durations, pitches (or drums), articulations, dynamics, ornaments,

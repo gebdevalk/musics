@@ -497,7 +497,19 @@ sits. Any context key works, by its aliases (`!vol`, `!i`, `!K`, `!pan`):
 [!i:40 !K:D.major c d] !K               → D.major
 ```
 
-A line gives its context at its start. A drum's `!instrument` is its key
+A line gives its context at its start, and a note the value where it
+sits, a ramp followed along the line:
+
+```
+[!T:90 !M:3/4 c d e] !Tempo             → 90
+[!T:90 !M:3/4 c d e] !Meter             → 3/4
+[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ !volume   → 60
+[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at !volume → 60
+[!T:90 c d] ctx                         → (not stored under :ROOT -- its own context only)
+                                          Tempo=90@0
+```
+
+(`ctx` prints a line's own settings; a stored name's chain too.) A drum's `!instrument` is its key
 of the kit (`x8\38` gives 38), and `!articulation` is the note's name, or
 the context's factor under the name it equals, else the number (`0.9` by
 default). `!mf` and other marks are settings, not keys, and a bare one is
@@ -768,6 +780,9 @@ and play it, or rate them (section 17).
 | `'name value :=` | bind a name for this session; `\name` is the value |
 | `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
 | `R@` or `fetch` | fetch from the repo: `:mel R@` |
+| `ids`, `:mel usages` | every stored id; the ids that hold `:mel` |
+| `forget` | take a name out of the repo: `:mel forget` (refused while something uses it) |
+| `rename` | give a name another everywhere it is used: `:mel :tune rename` |
 | `: name ( a -- b ) … ;` | define a word of your own |
 | `"x.edn" save-session` | save what is stored, your words and your bindings to a file (not the stack) |
 | `"x.edn" restore-session` | put them back, in place of what is stored and of your words and bindings |
@@ -778,6 +793,11 @@ and play it, or rate them (section 17).
 [c d e] :mel R!         → :mel
 :mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
 ```
+
+`rename` follows the name wherever it is written, so a part that used
+`:mel` now uses `:tune`; `forget` refuses a name that is still used, and
+says by whom (`:mel is still used by :song`), so nothing is left pointing
+at nothing.
 
 ## 14. One tree: the color-talea
 
