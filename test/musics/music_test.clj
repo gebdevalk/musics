@@ -106,3 +106,30 @@
     (is (thrown-with-msg? Exception #"0 <= start <= end <= 2" (e/run-text [] "[c2 d2 e2 f2] 2 bar")))
     (is (thrown-with-msg? Exception #"0 <= start <= end <= 2" (e/run-text [] "[c2 d2 e2 f2] 1 3 bars")))
     (is (thrown-with-msg? Exception #"at least one bar" (e/run-text [] "[c2 d2 e2 f2] 1 1 bars")))))
+
+(deftest time-words-refuse-an-endless-loop
+  (is (thrown-with-msg? Exception #"endless" (e/run-text [] "[c d] [~] length")) "a loop has no length -- it must not run forever")
+  (is (thrown-with-msg? Exception #"endless" (e/run-text [] "[c d] [~] 1 at"))))
+
+(deftest delaying-a-line-and-the-parts-of-a-parallel
+  (testing "delay: a rest of any rational length in front"
+    (is (= "[r4 C4 D4]" (run "[c d] 1/4 delay")) "a duration is written where it changes")
+    (is (= "[r4. C4/4 D4]" (run "[c d] 3/8 delay")) "a dotted value")
+    (is (= "[3:1(r1) C4/4 D4]" (run "[c d] 1/3 delay")) "a length that is no note value, as a tuplet")
+    (is (= "[!mf r4 C4 D4]" (run "[!mf c d] 1/4 delay")) "the line's own settings stay first")
+    (is (= "[r4 C4]" (run "c 1/4 delay")) "a note becomes a line")
+    (is (= 3/4 (mu "[c d] 1/4 delay length")))
+    (is (= 5/6 (mu "[c d] 1/3 delay length")) "a third of a whole note, exactly")
+    (is (= "C4/4" (run "{[c d] [c d]} 1/4 delays 1 @ 1/4 at")) "the second part sounds from 1/4")
+    (is (= "[r4 C4 D4]" (run "[c d] 0.25 delay")) "a float is read as the ratio it names")
+    (is (thrown-with-msg? Exception #"above 0" (e/run-text [] "[c d] 0 delay")))
+    (is (thrown-with-msg? Exception #"use delays" (e/run-text [] "{[c d] [e f]} 1/4 delay")))
+    (is (thrown-with-msg? Exception #"needs a line" (e/run-text [] "7 1/4 delay"))))
+  (testing "delays: the parts of a { }"
+    (is (= "{[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}" (run "{[c d] [c d] [c d]} 1/4 delays")) "part k by k times the step")
+    (is (= "{[C4/4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d]} '[0/1 1/3] delays")) "a list: each its own, 0 leaves one alone")
+    (is (= "{[C4/4 D4] [C4 D4]}" (run "{[c d] [c d]} 0 delays")) "a step of 0 changes nothing")
+    (is (= 1 (mu "{[c d] [c d] [c d]} 1/4 delays length")) "a parallel ends with its longest part: 1/2 + 2 * 1/4")
+    (is (thrown-with-msg? Exception #"one delay for each of the 2 parts, got 3" (e/run-text [] "{[c d] [c d]} '[0/1 1/4 1/2] delays")))
+    (is (thrown-with-msg? Exception #"needs a parallel" (e/run-text [] "[c d] 1/4 delays")))
+    (is (thrown-with-msg? Exception #"from 0" (e/run-text [] "{[c d] [c d]} -1/4 delays")))))

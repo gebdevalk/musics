@@ -721,3 +721,15 @@
     (is (re-find #"at least one number" (top "'[] max")))
     (is (re-find #"at least one number" (top "'[] mean")))
     (is (re-find #"endless" (top "'[1 2 3] [~] sum")))))
+
+(deftest searching-a-stream-by-a-test-or-a-value
+  (is (= "G4/4" (top "[c e g c'] '( pitch 65 gt ) find")) "the first element the test accepts")
+  (is (= "nil" (top "[c e g c'] '( pitch 99 gt ) find")) "none: nil")
+  (is (= "5" (top "'[3 5 1] '( 4 gt ) find")) "numbers too")
+  (is (= "2" (top "[c e g c'] '( pitch 65 gt ) index-of")) "its place, counted from 0 as nth counts")
+  (is (= "1" (top "[C4 E4 G4 C5] E4 index-of")) "a value: the first equal, as mu prints it")
+  (is (= "3" (top "[C4 E4 G4 C5] C5 index-of")))
+  (is (= "nil" (top "[C4 E4 G4] D4 index-of")))
+  (is (= "1" (top "'[3 5 1] 5 index-of")))
+  (is (= "3" (top "[C4 D4 | E4 F4] E4 index-of")) "a bar line is an element, and never matches")
+  (is (= "G4/4" (top "[C4 E4 G4 C5] dup '( pitch 65 gt ) index-of nth")) "the place reads back with nth"))

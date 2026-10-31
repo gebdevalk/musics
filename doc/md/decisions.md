@@ -2310,3 +2310,29 @@ top (the arity with the optional second argument is the two-number one,
 word. `mean` is exact (a ratio; `float` converts). No `reverse`: the
 retrograde `[R]` is it for a stream.
 
+## 2026-10-31 — Searching: find and index-of
+
+`find` (the element) and `index-of` (its place, counted as `nth` counts,
+bar lines included) take a quotation as `filter` does; `index-of` also a
+value, compared as mu prints it (as `distinct`). Not found is `nil`, a
+value mu already has (a rest's pitch), not an error and not -1. An
+endless stream is refused like for `count` and `sort`, because a search
+that finds nothing would never return and Ctrl+C reaches only the prompt;
+`take-while` and `take` come first. `indexes` (every place) is left
+until it is wanted.
+
+## 2026-10-31 — Offsets between voices: delay and delays
+
+A voice offset against the others is a rest in front of it, written by
+`delay` (a line, one rational) and `delays` (a `{ }`: k times a step, or
+a data list with one delay for each part). The singular and plural follow
+`pitch`/`pitches`. A rest keeps the offset in the music, so `length`,
+`bar`, `at`, `render` and the printers see it, where a time shift beside
+the notes (`:micro` is seconds, not musical time) would be invisible to
+all of them. One word for both with a number would be ambiguous (all parts
+late is no offset between them), hence two. A shorter list than the
+parts, or longer, is an error, not a cycle. `partial` (the pickup) was
+not it: it moves where the first bar line falls, and the notes still
+start at once. The same pass found that `length` and `at` ran forever on
+a loop (`[c d] [~] length`); they now refuse it.
+

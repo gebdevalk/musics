@@ -7,7 +7,7 @@
    full here."
   (:refer-clojure :exclude [first last nth count take drop take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
-                            iterate range concat flatten sort])
+                            iterate range concat flatten sort find])
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [musics.algo.random :as random]
@@ -97,6 +97,28 @@
               (when (= ::none e) (fail i "is past the end of" (p/show c)))
               e))
           x (path-of "nth" n)))
+
+(defn- matching
+  "A test of one element: the quotation q, or the value q is, compared as
+   mu prints it; a bar line or a jump mark never matches."
+  [word q]
+  (if (v/quotation? q)
+    #(and (not (mt/marker? %)) (mt/result word q %))
+    (let [shown (p/show q)] #(and (not (mt/marker? %)) (= shown (p/show %))))))
+
+(defn find
+  "The first element a quotation accepts, else nil:
+   [c e g c'] '( pitch 65 gt ) find gives G4/4"
+  [x q]
+  (core/first (core/filter (matching "find" q) (mt/finite! "find" (mt/elements x)))))
+
+(defn index-of
+  "Where the first element is that a quotation accepts, or that equals a
+   value as mu prints it, counted from 0 as nth counts (a bar line is an
+   element too), else nil: [c e g] e index-of gives 1"
+  [x q]
+  (let [t (matching "index-of" q)]
+    (core/first (keep-indexed (fn [i e] (when (t e) i)) (mt/finite! "index-of" (mt/elements x))))))
 
 (defn sum
   "The numbers of a stream added: '[1 2 3] sum gives 6; x durations sum is
