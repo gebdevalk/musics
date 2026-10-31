@@ -17,7 +17,9 @@ around on it, and you'll need them throughout:
 
 | Word | Stack | Does |
 |---|---|---|
+| `.` | `( a -- )` | print the top and drop it |
 | `.s` | `( -- )` | show the stack, top first |
+| `,` | `( a -- )` | take the top back into the prompt as text, to change and run again |
 | `dup` | `( a -- a a )` | copy the top |
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `rot` | `( a b c -- b c a )` | the third comes on top |
@@ -461,6 +463,73 @@ The singular on a line is an error that names the plural:
 [c d] pitch              → pitch: reads one note; for every note of a line, use pitches
 ```
 
+### What a note plays with
+
+`volume`, `instrument` and `articulation` read only what the note says
+itself, so most notes give nil. A bare `!name` after a note reads what it
+plays with: its own value if it has one, else the context's where it
+sits. Any context key works, by its aliases (`!vol`, `!i`, `!K`, `!pan`):
+
+```
+[!i:40 !mf c d\vol:90] 0 @ !volume      → 60
+[!i:40 !mf c d\vol:90] 1 @ !volume      → 90
+[!i:40 !mf c d\vol:90] 0 @ !instrument  → 40
+[!i:40 !K:D.major c d] !K               → D.major
+```
+
+A line gives its context at its start. A drum's `!instrument` is its key
+of the kit (`x8\38` gives 38), and `!articulation` is the note's name, or
+the context's factor under the name it equals, else the number (`0.9` by
+default). `!mf` and other marks are settings, not keys, and a bare one is
+still refused. (`!p` is pianissimo, so panning is `!pan`.) `@` is `nth`,
+the element counted from 0.
+
+### By time and by bar
+
+`length` is a line's length in whole notes, as written. `at` is the note
+sounding that long into it, a note sounding until the next starts, and
+`bar` the n-th measure by the line's meter, counted from 0 as `nth`
+counts:
+
+```
+[c4 d4 e2] length                       → 1
+[c8 d e] length                         → 3/8
+{[c4 d4] [e2]} length                   → 1/2
+[c4 d4 e2] 3/8 at                       → D4/4
+[c4 r4 e2] 1/4 at                       → r4
+[c2 d2 e2 f2] 1 bar                     → [E4/2 F4]
+[c2 d2 e2 f2 c2 d2] 1 3 bars            → [E4/2 F4 C4 D4]
+```
+
+`bars` gives several measures as one line. A bar carries the settings in
+effect where it begins, so it plays as it did in its line, with its
+meter too:
+
+```
+[!mf c2 d2 !pp e2 f2] 1 bar             → [!mf !pp E4/2 F4]
+[!Meter:3/4 c2 d2 e2 f2] 1 bar          → [!Meter:3/4 D4/4 E4/2]
+```
+
+### Numbers of a stream
+
+What a line gives with `pitches`, `durations` or `volumes` is a list of
+numbers, and these read it: `sum`, `mean`, `max`, `min`, `sort` and
+`intervals` (each number minus the one before):
+
+```
+[c e g] pitches sum                     → 191
+[c e g] pitches mean                    → 191/3
+[c e g] pitches mean float              → 63.66666666666667
+[g c e] pitches sort                    → '[55 60 64]
+[c e g] pitches max                     → 67
+[c e g] pitches intervals               → '[4 3]
+[c8 d e] durations sum                  → 3/8
+```
+
+`max` and `min` are still the two-number words when two numbers are on
+top (`3 5 max` is `5`). A line itself is refused with a pointer to
+`pitches`, and `mean` is exact, so `float` converts it.
+
 ## 10. Taking a line apart
 
 The plurals take a line apart into its half products, and `zip` puts
@@ -520,9 +589,27 @@ G4] eq` is true, however each was written).
 [c8 d4 e8 f2] '( duration 1/4 lt ) mute  → [r8 D4/4 r8 F4/2]
 ```
 
-To change just a part of a line, `within` takes the elements from a
-start up to (not including) an end, counted from 0, runs a quotation
-on them and puts the result back:
+### Searching
+
+`find` is the first note a test accepts and `index-of` its place,
+counted from 0 as `@` counts (a bar line is an element too). `index-of`
+takes a value in place of the test. Nothing found is `nil`:
+
+```
+[c e g c'] '( pitch 65 gt ) find                → G4/4
+[c e g c'] '( pitch 65 gt ) index-of            → 2
+[C4 E4 G4 C5] E4 index-of                       → 1
+[C4 E4 G4] D4 index-of                          → nil
+[C4 E4 G4 C5] dup '( pitch 65 gt ) index-of @   → G4/4
+```
+
+(A bare `e` or `c` as the value reads relative to the notes before it in
+the same input, as everywhere; capital letters say which.)
+
+### Changing part of a line
+
+`within` takes the elements from a start up to (not including) an end,
+counted from 0, runs a quotation on them and puts the result back:
 
 ```
 [c d e f g] 1 4 '( [R] ) within          → [C4/4 F4 E4 D4 G4]
@@ -533,8 +620,10 @@ on them and puts the result back:
 `slice` and `splice` are its two halves, for when the change takes
 several steps.
 
-One element at a time: `!` puts a value at an index, `insert` puts it
-before one, `_` drops one, `[_]` drops a range, and `@` reads one:
+### One element at a time
+
+`!` puts a value at an index, `insert` puts it before one, `_` drops one,
+`[_]` drops a range, and `@` reads one:
 
 ```
 [c d e] 1 g !                           → [C4/4 G4 E4]
@@ -544,30 +633,49 @@ before one, `_` drops one, `[_]` drops a range, and `@` reads one:
 [c d e] 1 @                             → D4/4
 ```
 
-An index can be a path, a list that goes down through nested lines:
-`[[c d e] [f g a]] '[1 1] x !` replaces the second note of the second
-line. A setting written in the middle of a line (`[c d !mf e f]`) stays
-in front of its note through all of these: `[c d !mf e f] 1 3 slice` is
-`[D4/4 !mf E4]`.
+The value stays one element: `[c d] 1 [e f] !` is a line of a note and a
+line. An index can be a path, a list that goes down through nested lines:
+
+```
+[[c d e] [f g a]] '[1 1] @              → G4/4
+[[c d e] [f g a]] '[1 1] x !            → [[C4/4 D4 E4] [F4 x A4]]
+```
+
+To change a value the way you typed it, `,` takes it back into the prompt
+as text: `[c d e] ,` leaves `mu0> [C4/4 D4 E4]` to edit and run again.
+
+### Joining lines
 
 `concat` joins two lines into one, each keeping its own settings where it
-begins, and `flatten` opens lines inside a line:
+begins. `flatten` opens the lines inside a line, one level, and `2 line`
+(`[2]`) is the other way, a line of two lines. `[]` is the empty line,
+the place to start building from:
 
 ```
 [!mf c d] [!pp e f] concat              → [!mf C4/4 D4 !pp E4 F4]
+[!mf c d] [!pp e f] 2 line              → [[!mf C4/4 D4] [!pp E4 F4]]
 [c d] [e f] 2 line flatten              → [C4/4 D4 E4 F4]
+[] [c d] concat                         → [C4/4 D4]
+[c d e] 1 _ 1 _ 0 _                     → []
 ```
 
-`[]` is the empty line, the place to start building a line from:
-`[] [c d] concat` is `[c d]`.
+`concat` is the text of both written together, so a line with no settings
+of its own takes on what came before it; `2 line` keeps each line's own
+apart. (`[]` is mu's alone: inside a line, `[c [] d]` is not read.)
 
-To change a value the way you typed it, `,` takes the top of the stack
-back into the prompt as text. `[c d e] ,` leaves `mu0> [C4/4 D4 E4]` to
-edit and run again.
+### Settings stay with their notes
 
-What a note plays with, rather than only what it says itself, is a bare
-`!name` after it: `[!i:40 !mf c d\vol:90] 0 nth !volume` is `60`, from
-the context, and `1 nth !volume` is `90`, its own.
+An instruction in the middle of a line stays in front of the note it was
+written before, whatever these words do to the notes around it. When its
+note is gone it waits for the next one that stays, and when notes are
+reordered it travels with its note. Settings before the first note are
+the line's own and stay at its start:
+
+```
+[c d !mf e f] 1 3 slice                 → [D4/4 !mf E4]
+[c d !mf e f] 3 drop                    → [!mf F4/4]
+[c !mf d e !pp f] 2 rotate              → [E4/4 !pp F4 C4 !mf D4]
+```
 
 ## 12. Instruments and drums
 
@@ -978,8 +1086,12 @@ c4 '[0 40 73] sounds audition
 | `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
+| `context-of` (`!volume`, `!instrument` …) | `( note\|line :key -- value )` |
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
+| `length` | `( x -- n )` |
+| `at` | `( line t -- note )` |
+| `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
 | `repeat` | `( x n -- repeat )` (n plays, as `times`) |
