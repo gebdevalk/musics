@@ -601,6 +601,21 @@ every tonic. It gives a key, so the key words read it:
 It is a guess: a short phrase can fit a major key and its relative minor
 nearly alike. `key` still reads the key a line was written in.
 
+`chord-name` names a chord the way chord symbols are written, as a string:
+the root, a colon, a quality word and, when the lowest note is not the root,
+a slash and that note:
+
+```
+<c e g>1 chord-name            → "C:M"
+<c e& g b&>1 chord-name        → "C:m7"
+<e g c'>1 chord-name           → "C:M/E"      the first inversion
+<c e g a>1 chord-name          → "C:6"        the lowest note is the root
+$[0479] chord-name             → "A:m7"       a set has no lowest note
+[c e g c'] chord-name          → "C:M"        a line is read as an arpeggio
+```
+
+The name reads back: `[C:M7]` is the chord it names.
+
 Writing one yourself is checked: `$[740]` is `$[047]`, `$(047)` is refused
 because it is no prime form (it shows `$(037)`), and a vector needs six
 counts. What changes the numbers (`sort`, `intervals`) gives a plain list.
@@ -1190,6 +1205,7 @@ c4 '[0 40 73] sounds audition
 | `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
 | `>list` | `( set -- list )` |
 | `key-of` | `( x -- key )` |
+| `chord-name` | `( x -- string )` |
 | `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |

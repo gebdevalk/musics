@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -451,6 +451,21 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
     `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
     What changes the numbers (`sort`, `take`, `intervals`) gives a plain
     list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
+- **Naming a chord**: `chord-name` gives the name of a chord as a chord
+  symbol is written, as a string: the root, a colon and a quality word
+  (`M` the major triad, `m`, `d`, `A`, `5`, `s2`, `s4`, `7`, `M7`, `m7`,
+  `d7`, `m7.5-` the half-diminished, `6`, `m6`, the ninths, elevenths and
+  thirteenths -- the words the reader's table has), and a slash and the
+  lowest note when that is not the root. `<c e g>1 chord-name` is
+  `"C:M"`, `<c e& g b&>1` `"C:m7"`, `<e g c'>1` `"C:M/E"`, the first
+  inversion. It takes a chord, a line (an arpeggio: the chord its notes
+  make together), a set of classes or a list of pitch numbers. The root is
+  the lowest note when a quality fits there (`<c e g a>` is `C:6`, not
+  `A:m7/C`); with no lowest note (a set) the simplest quality wins, then
+  the lowest root: `$[0479]` is `A:m7`. Roots are spelled with flats for a
+  major or dominant chord (`E&:M`, `B&:7`) and sharps for a minor or
+  diminished one (`F#:m`). What reads back is the name: `[C:M7]` is the
+  chord. No fit (a cluster) is refused, and so is a single class.
 - **Guessing the key**: `key-of` gives the major or minor key a line, a
   chord, a set of classes or a list of pitch numbers most likely is in,
   Krumhansl and Schmuckler's way: the class weights (the time each sounds

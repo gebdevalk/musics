@@ -393,6 +393,52 @@
       (when (empty? candidates) (fail "the classes in" (p/show x) "have no emphasis to tell a key by"))
       (el/parse-key (second (reduce #(if (> (first %2) (first %1)) %2 %1) candidates))))))
 
+(def ^:private chord-name-order
+  "The quality words chord-name tries, the simplest first: the same
+   words a chord symbol is written with (musics.common.music-data/
+   chord-qualities), m7.5- being m7 with its fifth lowered."
+  ["M" "m" "d" "A" "5" "s2" "s4" "7" "M7" "m7" "d7" "m7.5-" "6" "m6"
+   "9" "M9" "m9" "11" "M11" "m11" "13" "M13" "m13"])
+
+(defn- quality-classes
+  "The classes above the root a quality word makes (0 the root)."
+  [word]
+  (if (= word "m7.5-")
+    #{0 3 6 10}
+    (set (map #(mod % 12) (vals (get data/chord-qualities (keyword word)))))))
+
+(def ^:private chord-qualities-by-name
+  (mapv (fn [w] [w (quality-classes w)]) chord-name-order))
+
+(defn- chord-root-spelling [flat? pc]
+  (nth (get key-tonics (if flat? :minor :major)) pc))
+
+(defn chord-name
+  "The name of a chord as a chord symbol is written, root, a colon and a
+   quality word, a slash and the lowest note when it is not the root:
+   <c e g>1 chord-name gives \"C:M\", <e g c'> \"C:M/E\", <c e& g b&> \"C:m7\".
+   Of a line, a set of classes or a list of pitch numbers, the chord
+   they make together. The root is the lowest note when it fits (C6, not
+   Am7/C); without a lowest note the simplest quality, lowest root first
+   (Am7 before C6). Refused when no chord symbol quality fits"
+  [x]
+  (let [pitches (cond (mt/leaf? x)    (:pitches x)
+                      (v/pcset? x)    nil
+                      :else           (pitch-numbers "chord-name" x))
+        classes (if (v/pcset? x) (:items (pcset/make :classes (pitch-numbers "chord-name" x))) (distinct (map #(mod % 12) pitches)))
+        bass    (when (seq pitches) (mod (reduce min pitches) 12))
+        cs      (set classes)
+        fits    (for [[word qs] chord-qualities-by-name root (sort classes)
+                      :when (= qs (set (map #(mod (- % root) 12) cs)))]
+                  [root word])
+        [root word] (or (when bass (first (filter #(= bass (first %)) fits))) (first fits))]
+    (when (< (count cs) 2) (fail "needs at least two different classes to name a chord, got" (p/show x)))
+    (when-not root
+      (fail "no chord symbol fits" (p/show (pcset/make :classes (vec cs))) "-- m, M, d, A, the sevenths, sixths, suspensions, ninths …"))
+    (let [flat? (boolean (re-find #"^(m|d)" word))]
+      (str (chord-root-spelling flat? root) ":" word
+           (when (and bass (not= bass root)) (str "/" (chord-root-spelling flat? bass)))))))
+
 (defn- length-of
   "x's length in whole notes, as written: a line's parts one after the
    other, a parallel's longest part."
