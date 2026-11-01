@@ -718,7 +718,12 @@ takes a value in place of the test. Nothing found is `nil`:
 [C4 E4 G4 C5] E4 index-of                       → 1
 [C4 E4 G4] D4 index-of                          → nil
 [C4 E4 G4 C5] dup '( pitch 65 gt ) index-of @   → G4/4
+[C4 E4 C4 E4] C4 indexes                        → '[0 2]
+[C4 E4 G4 C5] '( pitch 65 gt ) indexes          → '[2 3]
 ```
+
+`indexes` gives every place instead of the first, as a list; `indexes
+count` is how many notes match.
 
 (A bare `e` or `c` as the value reads relative to the notes before it in
 the same input, as everywhere; capital letters say which.)

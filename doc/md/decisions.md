@@ -2473,3 +2473,12 @@ no one rhythm), not data (it has no durations), not a loop. The list is
 plain numbers: the onsets are `pulses sum`, the length in pulses
 `pulses count`; no meter is involved, so a grid does not know its bars.
 
+## 2026-11-01 — indexes: every place a search matches
+
+`index-of` gave the first place and `find` the element; `indexes` gives all
+the places, as a list (`'[0 2]`, empty `'[]` when none matches, not `nil`:
+a list has no first), counted as `nth` counts and with a quotation or a
+value as `index-of` takes. The first is `indexes 0 @`, and the places feed
+`@`, `put` and `delete` (one at a time, since a delete moves the later
+ones). An endless stream is refused as for the others.
+
