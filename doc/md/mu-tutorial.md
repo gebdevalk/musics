@@ -485,35 +485,50 @@ The singular on a line is an error that names the plural:
 ### What a note plays with
 
 `volume`, `instrument` and `articulation` read only what the note says
-itself, so most notes give nil. A bare `!name` after a note reads what it
-plays with: its own value if it has one, else the context's where it
-sits. Any context key works, by its aliases (`!vol`, `!i`, `!K`, `!pan`):
+itself, so most notes give nil. `setting` reads what it plays with: put a
+key after the note or the line, and it leaves the note's own value if it
+has one, else the context's where it sits. Any context key works, by its
+aliases (`:vol`, `:i`, `:K`, `:pan`):
 
 ```
-[!i:40 !mf c d\vol:90] 0 @ !volume      → 60
-[!i:40 !mf c d\vol:90] 1 @ !volume      → 90
-[!i:40 !mf c d\vol:90] 0 @ !instrument  → 40
-[!i:40 !K:D.major c d] !K               → D.major
+[!i:40 !mf c d\vol:90] 0 @ :volume setting      → 60
+[!i:40 !mf c d\vol:90] 1 @ :volume setting      → 90
+[!i:40 !mf c d\vol:90] 0 @ :instrument setting  → 40
+[!i:40 !K:D.major c d] :K setting               → D.major
 ```
 
 A line gives its context at its start, and a note the value where it
 sits, a ramp followed along the line:
 
 ```
-[!T:90 !M:3/4 c d e] !Tempo             → 90
-[!T:90 !M:3/4 c d e] !Meter             → 3/4
-[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ !volume   → 60
-[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at !volume → 60
+[!T:90 !M:3/4 c d e] :Tempo setting             → 90
+[!T:90 !M:3/4 c d e] :Meter setting             → 3/4
+[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ :volume setting    → 60
+[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at :volume setting → 60
 [!T:90 c d] ctx                         → (not stored under :ROOT -- its own context only)
                                           Tempo=90@0
 ```
 
-(`ctx` prints a line's own settings; a stored name's chain too.) A drum's `!instrument` is its key
-of the kit (`x8\38` gives 38), and `!articulation` is the note's name, or
-the context's factor under the name it equals, else the number (`0.9` by
-default). `!mf` and other marks are settings, not keys, and a bare one is
-still refused. (`!p` is pianissimo, so panning is `!pan`.) `@` is `nth`,
-the element counted from 0.
+(`ctx` prints a line's own settings; a stored name's chain too.) A drum's
+`:instrument` is its key of the kit (`x8\38` gives 38), and `:articulation`
+is the note's name, or the context's factor under the name it equals, else
+the number (`0.9` by default). `@` is `nth`, the element counted from 0.
+
+`with` writes one the same way, a key and its value before the word:
+
+```
+[c d] :volume 70 with           → [!volume:70 C4/4 D4]
+[c d] :Tempo 3/2 with           → [!Tempo:3/2 C4/4 D4]
+[c d] :Key D.major with         → [!Key:D.major C#4/4 D4]
+[c d] :volume 70 with :volume setting   → 70
+```
+
+A note becomes a line, the line's own settings still come after so they
+win, and a number key refuses a name (only `:instrument` and `:kit` take
+one). `with` still takes a whole context, `^{ !mf } with`, or a key,
+`D.major with`. Inside a line a bare `!name` must be a mark: `[!mff c]` is
+refused ("did you mean !ff or !mf?"), and so is `[!volume c]`, which needs
+its value, `!volume:70`.
 
 ### By time and by bar
 
@@ -1218,7 +1233,7 @@ c4 '[0 40 73] sounds audition
 | `combos` | `( note numbers k -- line )` |
 | `delay` | `( x d -- line )` |
 | `delays` | `( parallel d\|list -- parallel )` |
-| `context-of` (`!volume`, `!instrument` …) | `( note\|line :key -- value )` |
+| `setting`, `context-of` | `( note\|line :key -- value )` |
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
 | `length` | `( x -- n )` |
@@ -1239,7 +1254,7 @@ c4 '[0 40 73] sounds audition
 | `transpose` | `( x from to -- x )` |
 | `vary` | `( repeat q … -- line )` |
 | `volta` | `( repeat ending … -- repeat )` |
-| `with` | `( x ^{ }\|key -- x )` |
+| `with` | `( x ^{ }\|key -- x )` or `( x :key value -- x )` |
 | `zip` | `( durations pitches -- line )`, `( line stream -- line )`, `( \| parts … -- line\|bundle )` |
 
 `"word" see` shows any of them with what it does; `words` lists them

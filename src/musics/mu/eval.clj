@@ -129,8 +129,10 @@
   [v stack]
   (let [lists    (sort-by count (:arglists (meta v)))
         base     (count (first lists))
-        optional (:optional (:mu (meta v)))]
-    (or (last (filter (fn [al]
+        optional (:optional (:mu (meta v)))
+        choose   (:arity (:mu (meta v)))]
+    (or (when choose (let [n (choose stack)] (first (filter #(= n (count %)) lists))))
+        (last (filter (fn [al]
                         (let [extra (drop base al)]
                           (and (<= (count al) (count stack))
                                (every? true? (map (fn [p x] (boolean (when-let [t (get optional (keyword p))] (t x))))
@@ -191,15 +193,16 @@
   (let [x (second node)]
     (if (vector? x) (second x) x)))
 
-(defn- read-key
-  "The context key a bare !name reads (!volume, !i, !K), else nil: a
-   dynamic or tempo mark (!mf) is a setting, not a key."
+(defn- key-hint
+  "For a bare !name that names a context key (!volume, !i, !K) and is no
+   mark: the way to read it, since a bare instruction reads nothing at
+   the top level; else nil."
   [node]
   (let [[_ [tag [_ n] & more]] node
         kw (some-> n keyword)]
-    (when (and (= :BangConst tag) (nil? more) kw (not (data/instruction-context kw)))
-      (try (ck/context-key kw) (ck/canonical-key kw)
-           (catch clojure.lang.ExceptionInfo _ nil)))))
+    (when (and (= :BangConst tag) (nil? more) kw (not (data/instruction-context kw))
+               (try (ck/context-key kw) true (catch clojure.lang.ExceptionInfo _ false)))
+      (str "-- the key is read after the music with :" n " setting"))))
 
 (defn- run-item
   "Run one parse node on stack, in env ({:locals :values}): values maps a
@@ -223,10 +226,8 @@
     (mu-error "a command needs a line: write" (str "[" (:source (meta node)) "]")
               "-- or the word after the music: x c d transpose, x [R]")
     :LooseInstruction
-    (if-let [k (read-key node)]
-      (run-word (conj stack k) "music/context-of")
-      (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
-                "or give a context, ^{" (str (:source (meta node))) "}"))
+    (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
+              "or give a context, ^{" (str (:source (meta node))) "}" (key-hint node))
     :QuotedName (conj stack (symbol (node-name node)))
     :VarRef    (let [n (node-name node) b (:bindings @state)]
                  (if (contains? b n)

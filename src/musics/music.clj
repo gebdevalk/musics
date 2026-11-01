@@ -793,12 +793,12 @@
         (or (some (fn [[k v]] (when (and (= f (:duration v)) (= 0 (:dynamic v))) k)) data/articulations)
             f))))
 
-(defn context-of
-  "The setting x plays with: !volume, !instrument, !Key … (any context key,
+(defn setting
+  "The setting x plays with: :volume, :instrument, :Key … (any context key,
    as !key: writes it). A note, rest or drum: its own value, else the
    context's where it sits (a drum's instrument is its key of the kit,
    x8\\38: 38); a line: its context at its start."
-  {:mu {:names ["!name"]}}
+  {:mu {:names ["context-of"]}}
   [x k]
   (let [k (ck/canonical-key (keyword k))
         whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N
@@ -858,10 +858,32 @@
                        slots (map vector parts (range)))]
     (mt/from-items x slots')))
 
+(defn- setting-text
+  "!key:value as the text reads it, for a key keyword and a value on the
+   stack: a number, a ratio, a key, a meter or a name as it is written, a
+   string bare when it is a name, else quoted."
+  [k v]
+  (let [n (name k)
+        ck (try (ck/context-key k) (catch clojure.lang.ExceptionInfo _ nil))]
+    (when (and ck (#{:float :int} (:type ck)) (not (number? v)) (not (#{"instrument" "kit"} (:name ck))))
+      (fail (str ":" n) "is a number, got" (p/show v)))
+    (str "!" n ":"
+         (cond (number? v)           (if (ratio? v) (str (numerator v) "/" (denominator v)) (pr-str v))
+               (mt/key? v)           (el/key->str v)
+               (instance? musics.common.music_elements.Meter v) (el/meter->str v)
+               (keyword? v)          (name v)
+               (and (string? v) (re-matches #"[a-zA-Z][a-zA-Z0-9_]*" v)) v
+               (string? v)           (pr-str v)
+               :else (fail "can't set" (str ":" n) "to" (p/show v) "-- a number, a ratio, a key, a meter or a name")))))
+
 (defn with
-  "The settings in front of a line (its own come after, so they win), or
-   played in that key; a { } or a repeat is wrapped"
-  [x settings]
+  "The settings in front of a line (its own come after, so they win): a
+   context ^{ !mf }, a key D.major, or one key and its value, :volume 70
+   with; a note becomes a line; a { } or a repeat is wrapped"
+  {:mu {:arity (fn [stack] (if (and (>= (count stack) 3) (keyword? (peek (pop stack)))) 3 2))}}
+  ([x k value]
+   (with x (mt/read-text (str "^{ " (setting-text k value) " }"))))
+  ([x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx)) (fail "needs a context ^{ … } on top"))
     (let [settings (str/join " " (map :raw (:children (v/node ctx))))
@@ -872,7 +894,7 @@
        (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
                                  (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
          (str "[" id settings " " body "]")
-         (str "[" settings " " shown "]"))))))
+         (str "[" settings " " shown "]")))))))
 
 (defn transpose
   "Moved by n semitones, or by the interval from one note to the other,

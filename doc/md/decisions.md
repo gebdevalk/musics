@@ -2364,9 +2364,11 @@ the check turned up: an interpolated value came out a BigInt (`60N`),
 now a plain number; a `Meter` printed as a record, now as it is written
 (`3/4`; it reads back as a ratio, so a session skips a binding of one);
 `ctx` takes a line that is not stored (its own settings, where they
-begin); and a key that is also a mark (`!swing`, `!shuffle`, `!straight`,
-`!laidBack`, `!pushed`) can't be read as `!name`, because the mark wins
-there as it does in a line -- `:swing context-of` is the way.
+begin); and a name that is both a key and a mark (`!swing`, and `!p` whose key
+is panning) can't be read as `!name`, because the mark wins there as it
+does in a line -- `:swing context-of` is the way. (`!shuffle`, `!straight`,
+`!laidBack` and `!pushed` are marks only: they set the keys `swing` and
+`groove`, which `!swing` and `!groove` would read.)
 
 ## 2026-10-31 — classes: the pitch classes of a line
 
@@ -2495,4 +2497,26 @@ which is how algo settings and extra keys travel. The corpus scores and
 the whole suite read as before, so nothing relied on the silence. Top
 level is not involved: a bare `!volume` there reads the key, and `!mff`
 is refused as an instruction that needs a container.
+
+## 2026-11-01 — setting and with replace the !name readers
+
+The top level has no `!name` words. A bare `!volume` there had read the
+setting a note plays with, and it clashed with the marks (`!swing` the mark
+and the key, `!p` pianissimo and panning's alias) and put an instruction's
+sign to a use it has nowhere else: `!` is an instruction, inside a line.
+The reader is `setting` (a note or line, a key keyword: `x :volume
+setting`), `context-of` its other name; the writer is `with` extended to a
+key and its value (`x :volume 70 with`), since `with` already put a
+context's settings in front of a line. A bare `!volume` at the top level
+is the refusal it was before the readers, with the way in its message.
+Rejected: plain words (`volume`, `instrument`, `articulation` and `key`
+already read the note's own value, and their plurals zip back, so the
+singular cannot change); a `setting/volume` namespace; `set`, which
+changes a live voice's algo settings, a different kind of setting kept
+apart on purpose; `settings`, which prints a voice's, one letter from
+`setting`. `with` is told from its older forms by the stack, not by a test
+on one argument: a word's `:mu` metadata may hold an `:arity` fn that picks
+the arglist (`x D.major with` and `x :Key D.major with` end in the same
+value). The value is written as `!name:value` reads it, a number only for a
+number key (a name for `:instrument` and `:kit`).
 
