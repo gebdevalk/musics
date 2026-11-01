@@ -8,6 +8,14 @@ mu, the musical REPL, and a GUI beside it.
 - **mu** — a stack-based musical REPL (`lein mu`) in which that text is
   a literal: `[c4 d e] 2 + [R] >` transposes, reverses and plays. A
   `.mus` file is mu input too.
+- **Edit and analyse** — a line is a list you can address:
+  `[c d e] 1 g !` puts a note at an index (or down a path `'[1 2]`),
+  `insert`, `_` and `[_]` delete, `concat` joins, `x 1/4 delay` starts
+  it late, settings written in the middle of a line stay with their
+  notes. Ask it things: `length`, `at`, `bar`, `find`, `indexes`, `pulses`
+  (its rhythm as a grid), `classes` and `prime-form` (`$[047]` `$(037)`,
+  pitch-class sets), `key-of`, `chord-name` (`<c e g>1` is `"C:M"`),
+  and `x :volume setting` for what a note plays with.
 - **Algorithms** — Euclidean rhythms, Barlow indispensability, Markov
   and L-system melodies, tala and bell patterns, chaotic maps and more,
   as mu words named by what they deliver: `duration/euclid`,
@@ -78,12 +86,12 @@ To understand how it works: [walk-through.md](doc/md/walk-through.md),
 | Document | What it covers |
 |---|---|
 | [doc/md/setup.md](doc/md/setup.md) | Audio setup: once, and every boot |
-| [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step |
+| [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step: writing, editing, reading a line and analysing it |
 | [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms in code: writing and registering an algo, trees in Clojure |
 | [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 53 worked recipes, each run for real (on GitHub, open it locally) |
-| [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: its words and design |
+| [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: every word (editing, searching, time, analysis, algos, playback) and its design |
 | [doc/md/parsing.md](doc/md/parsing.md) | The text notation and its parser |
 | [doc/md/lilypond.md](doc/md/lilypond.md) | Coming from LilyPond: construct by construct |
 | [doc/md/domain.md](doc/md/domain.md) | The domain model: parts, contexts, envelopes |
