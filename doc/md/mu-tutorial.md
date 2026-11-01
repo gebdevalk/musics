@@ -587,6 +587,20 @@ counts the six interval classes between them:
 [c e g] interval-vector      → $<001110>   one third, one minor third, one fifth
 ```
 
+`key-of` guesses the key a line is in, from how long each class sounds,
+by correlating them with the usual shape of a major and a minor key from
+every tonic. It gives a key, so the key words read it:
+
+```
+[c d e f g a b c'] key-of               → C.major
+[a4 c e a2 e4 c a] key-of               → A.minor
+[g a b c' d' e' f#' g'] key-of          → G.major
+[d e f# g a b c#' d'] key-of tonic pitch → 62
+```
+
+It is a guess: a short phrase can fit a major key and its relative minor
+nearly alike. `key` still reads the key a line was written in.
+
 Writing one yourself is checked: `$[740]` is `$[047]`, `$(047)` is refused
 because it is no prime form (it shows `$(037)`), and a vector needs six
 counts. What changes the numbers (`sort`, `intervals`) gives a plain list.
@@ -1175,6 +1189,7 @@ c4 '[0 40 73] sounds audition
 | `length` | `( x -- n )` |
 | `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
 | `>list` | `( set -- list )` |
+| `key-of` | `( x -- key )` |
 | `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |

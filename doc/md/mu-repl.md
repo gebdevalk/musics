@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `profile`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -451,6 +451,19 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
     `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
     What changes the numbers (`sort`, `take`, `intervals`) gives a plain
     list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
+- **Guessing the key**: `key-of` gives the major or minor key a line, a
+  chord, a set of classes or a list of pitch numbers most likely is in,
+  Krumhansl and Schmuckler's way: the class weights (the time each sounds
+  for music, once each for a set, how often for numbers) are correlated
+  with Krumhansl and Kessler's major and minor profile from each of the
+  twelve tonics, and the best of the 24 wins. `[c d e f g a b c'] key-of`
+  is `C.major`, `[a4 c e a2 e4 c a] key-of` `A.minor`, `[f1 g4 a b& c']
+  key-of` `F.major` (the long note counts). The result is a key, so the
+  words of keys read it: `key-of tonic`. Flat keys are spelled with `&`
+  (`E&.major`), sharp minor keys with `#`. It is a guess: a short phrase
+  can fit two keys almost as well (a major key and its relative minor),
+  and a line whose classes are all alike has none, which it says. It is
+  not `key`, the key a line was written in.
 - **A pitch-class profile**: `profile` scores how much each of the twelve
   classes counts in a line, from 0 to 1, C first and B last: the time
   each class sounds, a chord's time shared among its pitches, divided by
