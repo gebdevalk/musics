@@ -2441,3 +2441,21 @@ correlation and is refused, as is silence. Tonics are spelled `E&`, `A&`,
 usual spelling in each mode. Major and minor only: the modes of the 23
 scales need a different method.
 
+## 2026-11-01 — chord-name: the inverse of the chord symbol
+
+A chord's classes are matched, for each possible root, against the quality
+words the reader already has (`musics.common.music-data/chord-qualities`:
+`M m d A 5 s2 s4 7 M7 m7 d7 6 m6` and the extended ones, plus `m7.5-` for
+the half-diminished, which the reader writes as `m7` with the fifth
+lowered), so a name always reads back as the same chord. A string is the
+result because a chord symbol written on its own is not a value (it needs
+a place in a line); `[C:M7]` is how it goes back into music. Ambiguity is
+settled by the lowest note: when a quality fits with the lowest note as the
+root it wins (`C:6`, not `A:m7/C`), because that is how the chord is heard;
+a set has no lowest note and the simplest quality wins, then the lowest
+root (`A:m7`). An inversion is the chord over its lowest note, with a slash.
+Spelling follows the key words: flats for major and dominant roots,
+sharps for minor and diminished, the commonest spelling of each. Only exact
+fits are named; clusters and anything the table has no word for are
+refused, and an altered chord beyond `m7.5-` is left for later.
+

@@ -238,3 +238,41 @@
     (is (thrown-with-msg? Exception #"no emphasis" (e/run-text [] "$[0123456789TE] key-of")) "every class alike")
     (is (thrown-with-msg? Exception #"not an interval vector|classes, not" (e/run-text [] "$<001110> key-of")))
     (is (thrown-with-msg? Exception #"endless|loop" (e/run-text [] "[c d] [~] key-of")))))
+
+(deftest a-chord-is-named-as-a-chord-symbol-is-written
+  (testing "root, quality, and the lowest note when it is not the root"
+    (is (= "\"C:M\"" (run "<c e g>1 chord-name")))
+    (is (= "\"C:m\"" (run "<c e& g>1 chord-name")))
+    (is (= "\"C:M7\"" (run "<c e g b>1 chord-name")))
+    (is (= "\"C:7\"" (run "<c e g b&>1 chord-name")))
+    (is (= "\"C:m7\"" (run "<c e& g b&>1 chord-name")))
+    (is (= "\"C:d\"" (run "<c e& g&>1 chord-name")))
+    (is (= "\"C:d7\"" (run "<c e& g& a>1 chord-name")))
+    (is (= "\"C:m7.5-\"" (run "<c e& g& b&>1 chord-name")) "half-diminished: m7 with its fifth lowered")
+    (is (= "\"C:A\"" (run "<c e g#>1 chord-name")))
+    (is (= "\"C:s4\"" (run "<c f g>1 chord-name")))
+    (is (= "\"C:6\"" (run "<c e g a>1 chord-name")) "the lowest note is the root: C6, not Am7/C")
+    (is (= "\"C:9\"" (run "<c e g b& d'>1 chord-name")))
+    (is (= "\"C:5\"" (run "<c g'>1 chord-name")) "a power chord")
+    (is (= "\"C:5/G\"" (run "<c g>1 chord-name")) "g after c is a fourth below it: the same two notes over G"))
+  (testing "an inversion is the same chord over its lowest note"
+    (is (= "\"C:M/E\"" (run "<e g c'>1 chord-name")) "first inversion")
+    (is (= "\"C:M/G\"" (run "<g c' e'>1 chord-name"))))
+  (testing "spelling: flats for major roots, sharps for minor"
+    (is (= "\"E&:M\"" (run "<e& g b&>1 chord-name")))
+    (is (= "\"F#:m\"" (run "<f# a c#'>1 chord-name")))
+    (is (= "\"B&:7\"" (run "<b& d f a&>1 chord-name"))))
+  (testing "a line, a set, pitch numbers: the chord they make together"
+    (is (= "\"C:M\"" (run "[c e g c'] chord-name")) "an arpeggio")
+    (is (= "\"A:m7\"" (run "$[0479] chord-name")) "classes, no lowest note: the simplest reading, Am7 before C6")
+    (is (= "\"C:M\"" (run "'[48 64 67] chord-name")) "numbers: the lowest is the bass"))
+  (testing "refused"
+    (is (thrown-with-msg? Exception #"at least two" (e/run-text [] "c chord-name")))
+    (is (thrown-with-msg? Exception #"no chord symbol fits" (e/run-text [] "<c c# d>1 chord-name")))))
+
+(deftest a-chord-name-reads-back-as-the-chord
+  (doseq [chord ["<c e g>1" "<c e& g>1" "<c e g b>1" "<c e g b&>1" "<c e& g b&>1" "<c e& g&>1" "<c e& g& a>1"
+                 "<c e& g& b&>1" "<c e g#>1" "<c f g>1" "<c e g a>1" "<c e g b& d'>1" "<e g c'>1" "<e& g b&>1" "<f# a c#'>1"]]
+    (let [name (mu (str chord " chord-name"))
+          again (mu (str "[" name "] classes"))]
+      (is (= (run (str chord " classes")) (p/show again)) (str chord " -> " name)))))
