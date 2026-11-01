@@ -1,5 +1,7 @@
 # musics
 
+[![CI](https://github.com/gebdevalk/musics/actions/workflows/ci.yml/badge.svg)](https://github.com/gebdevalk/musics/actions/workflows/ci.yml)
+
 Write music as text, compose it with algorithms, and play it live -- in
 mu, the musical REPL, and a GUI beside it.
 
@@ -122,8 +124,13 @@ To understand how it works: [walk-through.md](doc/md/walk-through.md),
 ## Tests
 
 ```bash
-lein test
+lein test       # the suite
+lein verify     # lint, then the suite -- what CI runs
 ```
+
+CI (`.github/workflows/ci.yml`) runs `lein verify` on every push to `main`
+and `develop` and every pull request, then builds the jar and starts it
+once; the jar is kept as a download of that run for 14 days.
 
 ## License
 

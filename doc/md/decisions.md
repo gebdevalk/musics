@@ -2558,3 +2558,21 @@ so it belongs in a release download. mu searches that folder first
 (`bin/mu` names it with `-Dmu.soundfonts`, or `soundfonts/` in the folder
 mu runs from), each folder once.
 
+## 2026-11-01 — CI on GitHub Actions
+
+`.github/workflows/ci.yml`: on a push to `main` or `develop` and on every
+pull request, `lein verify` (the lint, then the tests), and after it a job
+that runs `scripts/build.sh`, starts the jar (`--version`, `--help` and a
+short session that must print `$[047]`) and keeps `mu.jar` and `bin/mu` as
+the run's artifact for 14 days. Java 25 from Temurin, Leiningen from its
+own `stable` script (no third-party action to trust), the Maven repository
+cached by `project.clj`'s hash. Two things in the checkout are for the
+version, which counts commits (`musics.version`): the full history, and
+local `main` and `develop` branches, made from `origin/` only when they do
+not exist, so the branch being tested is never touched. The one test that renders audio through Gervill
+(`gervill-renders-notes-and-drums`) skips itself without a soundfont, so
+the test job installs the small `timgm6mb-soundfont` package for it. Not in CI yet: a
+release on a tag (the jar, `bin/mu` and the soundfont), other platforms, and
+a run that plays sound; the tests mock soundfonts and need no display or
+audio device.
+
