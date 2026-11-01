@@ -56,7 +56,7 @@ gui                               the GUI beside mu
 (about 70 MB, with JavaFX for the GUI), and `bin/mu` runs it:
 
 ```bash
-scripts/build.sh          # about half a minute
+scripts/build.sh          # about half a minute; a tagged commit's jar carries the tag as its version
 bin/mu                    # or bin/mu --version, bin/mu --help
 ```
 
