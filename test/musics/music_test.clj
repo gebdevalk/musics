@@ -276,3 +276,30 @@
     (let [name (mu (str chord " chord-name"))
           again (mu (str "[" name "] classes"))]
       (is (= (run (str chord " classes")) (p/show again)) (str chord " -> " name)))))
+
+(deftest a-rhythm-is-a-grid-of-pulses
+  (testing "a 1 where a note starts, a 0 while it holds or is silent"
+    (is (= "'[1 1 1 1]" (run "[c4 d4 e4 f4] pulses")))
+    (is (= "'[1 0 1 1 1 0 0 0]" (run "[c4 d8 e8 f2] pulses")) "the pulse is an eighth: the largest every length is whole in")
+    (is (= "'[1 0 1 1]" (run "[c2 d4 e4] pulses")) "a quarter is the pulse: the half note holds one more")
+    (is (= "'[1 0 0 1 1 0 1 0 0]" (run "[c4. d8 e4 f4.] pulses")) "dotted values: still eighths")
+    (is (= "'[1]" (run "[c1] pulses")) "one note, one pulse of a whole note")
+    (is (= "'[1 0 1 0]" (run "[c4 r4 d2] pulses")) "rests do not start")
+    (is (= "'[0 1]" (run "[r2 c2] pulses")) "a rest first"))
+  (testing "a chord is one onset, a tie's second note a hold"
+    (is (= "'[1 1]" (run "[<c e g>4 d4] pulses")))
+    (is (= "'[1 0 1]" (run "[c4~ c4 d4] pulses")) "tied: the second note only holds"))
+  (testing "a triplet needs a twelfth"
+    (is (= "'[1 1 1]" (run "3:2( c8 d e ) pulses"))))
+  (testing "a pulse on top is the grid, rounding to whole pulses"
+    (is (= "'[1 0 0 0 1 0]" (run "[c4 d8] 1/16 pulses")))
+    (is (= "'[1 0 1 0]" (run "[c4 d4] 1/8 pulses")))
+    (is (= "'[1 1]" (run "[c4 d4] 1/2 pulses")) "a length under a pulse is still one"))
+  (testing "a number the number words read"
+    (is (= "8" (run "[c4 d8 e8 f2] pulses count")))
+    (is (= "4" (run "[c4 d8 e8 f2] pulses sum")) "four notes: the onsets"))
+  (testing "refused"
+    (is (thrown-with-msg? Exception #"not parallel" (e/run-text [] "{[c d] [e f]} pulses")))
+    (is (thrown-with-msg? Exception #"not data" (e/run-text [] "'[60 62] pulses")))
+    (is (thrown-with-msg? Exception #"above 0" (e/run-text [] "[c d] 0 pulses")))
+    (is (thrown-with-msg? Exception #"endless|loop" (e/run-text [] "[c d] [~] pulses")))))

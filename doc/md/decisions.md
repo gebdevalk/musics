@@ -2459,3 +2459,17 @@ sharps for minor and diminished, the commonest spelling of each. Only exact
 fits are named; clusters and anything the table has no word for are
 refused, and an altered chord beyond `m7.5-` is left for later.
 
+## 2026-11-01 — pulses: a rhythm as a grid
+
+A line's rhythm as the algos hold it, a list of 1 and 0 (an onset, a hold
+or a rest), so a rhythm taken from music can go back into `pulses->durations`
+and the pulse algos. The pulse is the largest note value every length is a
+whole number of (their gcd, so the grid is exact and a triplet gets a
+twelfth); a given pulse is a grid to quantise to, rounding as
+`durations->pulses` does (each length at least one pulse), and so is the
+way to read a loosely played line. A chord is one onset, a tie's second
+note a hold, a rest all 0, a drum a note. Not a parallel (its parts have
+no one rhythm), not data (it has no durations), not a loop. The list is
+plain numbers: the onsets are `pulses sum`, the length in pulses
+`pulses count`; no meter is involved, so a grid does not know its bars.
+

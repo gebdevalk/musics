@@ -601,6 +601,21 @@ every tonic. It gives a key, so the key words read it:
 It is a guess: a short phrase can fit a major key and its relative minor
 nearly alike. `key` still reads the key a line was written in.
 
+`pulses` writes a line's rhythm as a grid of pulses, a 1 where a note
+starts and a 0 while it holds or a rest is silent. The pulse is the largest
+note value every length is a whole number of, or the one you give:
+
+```
+[c4 d4 e4 f4] pulses           → '[1 1 1 1]
+[c4 d8 e8 f2] pulses           → '[1 0 1 1 1 0 0 0]
+[c4 r4 d2] pulses              → '[1 0 1 0]
+[c4~ c4 d4] pulses             → '[1 0 1]       a tie's second note only holds
+[c4 d8] 1/16 pulses            → '[1 0 0 0 1 0]
+```
+
+`pulses sum` is the number of notes and `pulses count` the number of
+pulses. The algos read the same grid back (`pulses->durations`).
+
 `chord-name` names a chord the way chord symbols are written, as a string:
 the root, a colon, a quality word and, when the lowest note is not the root,
 a slash and that note:
@@ -1206,6 +1221,7 @@ c4 '[0 40 73] sounds audition
 | `>list` | `( set -- list )` |
 | `key-of` | `( x -- key )` |
 | `chord-name` | `( x -- string )` |
+| `pulses` | `( x [pulse] -- list )` |
 | `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
