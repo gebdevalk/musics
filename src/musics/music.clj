@@ -321,24 +321,77 @@
     (sequential? x) (mt/read-text (str "'[" (str/join " " (map p/show (mt/finite! ">list" x))) "]"))
     :else (fail "needs a set or a list, got" (p/show x))))
 
+(defn- class-weights
+  "The time each pitch class sounds in a line or a chord, a vector of
+   twelve ratios, C first: a chord's time shared among its pitches."
+  [word x]
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line or a chord, got" (p/show x)))
+  (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data -- for pitch numbers use classes"))
+  (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! word x)))]
+    (reduce (fn [w leaf]
+              (let [ps (seq (:pitches leaf))]
+                (if (and ps (:duration leaf))
+                  (reduce (fn [w p] (update w (mod p 12) + (/ (:duration leaf) (count ps)))) w ps)
+                  w)))
+            (vec (clojure.core/repeat 12 0)) leaves)))
+
 (defn profile
   "How much each pitch class counts in a line, as twelve scores from 0 to
    1 (C first, B last): the time each class sounds, a chord's time shared
    among its pitches, divided by the largest so the strongest scores 1, as
    exact ratios: [c4 e4 g4 c2] profile gives '[1 0 0 0 1/3 0 0 1/3 0 0 0 0]"
   [x]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line or a chord, got" (p/show x)))
-  (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data -- for pitch numbers use classes"))
-  (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "profile" x)))
-        w      (reduce (fn [w leaf]
-                         (let [ps (seq (:pitches leaf))]
-                           (if (and ps (:duration leaf))
-                             (reduce (fn [w p] (update w (mod p 12) + (/ (:duration leaf) (count ps)))) w ps)
-                             w)))
-                       (vec (clojure.core/repeat 12 0)) leaves)
+  (let [w      (class-weights "profile" x)
         top    (reduce max w)
         scores (map #(if (pos? top) (/ % top) 0) w)]
     (mt/read-text (str "'[" (str/join " " scores) "]"))))
+
+(def ^:private key-profile-major
+  "Krumhansl and Kessler's probe-tone ratings (1982): how well each degree
+   of a major key, from its tonic up, fits it."
+  [6.35 2.23 3.48 2.33 4.38 4.09 2.52 5.19 2.39 3.66 2.29 2.88])
+
+(def ^:private key-profile-minor
+  [6.33 2.68 3.52 5.38 2.60 3.53 2.54 4.75 3.98 2.69 3.34 3.17])
+
+(def ^:private key-tonics
+  {:major ["C" "D&" "D" "E&" "E" "F" "F#" "G" "A&" "A" "B&" "B"]
+   :minor ["C" "C#" "D" "E&" "E" "F" "F#" "G" "G#" "A" "B&" "B"]})
+
+(defn- correlation
+  "Pearson's r of two equal-length number vectors, nil when either is flat."
+  [xs ys]
+  (let [n   (double (count xs))
+        mx  (/ (reduce + xs) n) my (/ (reduce + ys) n)
+        dx  (map #(- % mx) xs) dy (map #(- % my) ys)
+        sxy (reduce + (map * dx dy))
+        sxx (reduce + (map * dx dx)) syy (reduce + (map * dy dy))]
+    (when (and (pos? sxx) (pos? syy)) (/ sxy (Math/sqrt (* sxx syy))))))
+
+(defn key-of
+  "The key a line, a chord, a set of classes or a list of pitch numbers
+   most likely is in, major or minor, Krumhansl and Schmuckler's way: the
+   class weights (time for music, once each for a set, how often for
+   numbers) correlated with Krumhansl and Kessler's major and minor
+   profile from each of the twelve tonics, the best of the 24:
+   [c d e f g a b c'] key-of gives C.major. A guess, and a short phrase can
+   fit two keys nearly as well; key is the key a line was written in"
+  [x]
+  (let [w (cond
+            (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
+                                 (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (:items x)))
+            (or (sequential? x) (and (v/material? x) (= :DATA (mt/kind x))))
+            (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (pitch-numbers "key-of" x))
+            :else            (class-weights "key-of" x))
+        w (mapv double w)]
+    (when-not (some pos? w) (fail "nothing sounds in" (p/show x) "-- it has no key"))
+    (let [candidates (for [mode [:major :minor] t (range 12)
+                           :let [prof (if (= mode :major) key-profile-major key-profile-minor)
+                                 r    (correlation w (mapv #(nth prof (mod (- % t) 12)) (range 12)))]
+                           :when r]
+                       [r (str (get-in key-tonics [mode t]) "." (name mode))])]
+      (when (empty? candidates) (fail "the classes in" (p/show x) "have no emphasis to tell a key by"))
+      (el/parse-key (second (reduce #(if (> (first %2) (first %1)) %2 %1) candidates))))))
 
 (defn- length-of
   "x's length in whole notes, as written: a line's parts one after the

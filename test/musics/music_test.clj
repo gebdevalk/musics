@@ -215,3 +215,26 @@
   (is (= "{[C4/4 D4] [r C4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d] [c d]} '[0 1/4 1/3] delays")) "delays takes it as it is")
   (is (= "'[1/3 0 1/4]" (run "'[1/3 0 1/4]")) "whole numbers anywhere in it")
   (is (thrown-with-msg? Exception #"mixes" (e/run-text [] "'[1 0.5]")) "an int and a float are still two kinds"))
+
+(deftest a-key-is-guessed-from-the-pitch-classes
+  (testing "music: the time each class sounds, correlated with the key profiles"
+    (is (= "C.major" (run "[c d e f g a b c'] key-of")) "a scale")
+    (is (= "C.major" (run "[c4 e g c2 g4 e c] key-of")) "arpeggios of the tonic")
+    (is (= "G.major" (run "[g a b c' d' e' f#' g'] key-of")) "with its leading note")
+    (is (= "A.minor" (run "[a4 c e a2 e4 c a] key-of")) "the minor tonic chord")
+    (is (= "D.minor" (run "[d4 e f g a b& a g f e d2] key-of")) "a minor tune")
+    (is (= "E&.major" (run "[e&4 g b& e&2 b&4 g e&] key-of")) "a flat key, spelled with &"))
+  (testing "time counts: the long note is the tonic"
+    (is (= "F.major" (run "[f1 g4 a b& c'] key-of"))))
+  (testing "a set, a chord, pitch numbers"
+    (is (= "C.major" (run "$[024579E] key-of")) "the major scale's classes")
+    (is (= "C.major" (run "<c e g>1 key-of")))
+    (is (= "C.major" (run "'[60 62 64 65 67 69 71 60 60 67 64] key-of")) "numbers, counted"))
+  (testing "it is a key: the words of keys read it"
+    (is (= "D.major" (run "[d e f# g a b c#' d'] key-of")))
+    (is (= "62" (run "[d e f# g a b c#' d'] key-of tonic pitch")) "the tonic of the key it found"))
+  (testing "refused"
+    (is (thrown-with-msg? Exception #"nothing sounds" (e/run-text [] "[r r] key-of")))
+    (is (thrown-with-msg? Exception #"no emphasis" (e/run-text [] "$[0123456789TE] key-of")) "every class alike")
+    (is (thrown-with-msg? Exception #"not an interval vector|classes, not" (e/run-text [] "$<001110> key-of")))
+    (is (thrown-with-msg? Exception #"endless|loop" (e/run-text [] "[c d] [~] key-of")))))

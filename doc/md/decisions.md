@@ -2425,3 +2425,19 @@ conversion to a plain list is `>list`, in the family of `>ctx`, not
 Printing is isomorphic to reading, so a session keeps them. `profile` stays
 a plain list: it is scores, not a set.
 
+## 2026-11-01 — key-of: Krumhansl and Kessler's profiles
+
+A key is guessed from how long each pitch class sounds (the weights
+`profile` is made from), by Krumhansl and Schmuckler's method: Pearson's
+correlation with the probe-tone ratings of Krumhansl and Kessler (1982),
+major and minor, rotated to each of the twelve tonics, and the best of the
+24 wins. Rejected for now: Temperley's profiles, which fit some corpora
+better, and a list of the best few with their scores; the answer is one
+key, as `key` is, and a close second shows only by asking about a phrase
+in another way. A set of classes counts each once, a list of numbers how
+often; a weight vector with no emphasis (every class alike) has no
+correlation and is refused, as is silence. Tonics are spelled `E&`, `A&`,
+`B&`, `D&` for the major keys and `C#`, `G#`, `E&`, `B&` for the minor, the
+usual spelling in each mode. Major and minor only: the modes of the 23
+scales need a different method.
+
