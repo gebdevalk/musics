@@ -423,14 +423,34 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`'[3 5 1] max`). A line itself is refused with a pointer to `pitches`
   and `durations`, an endless stream with `take`, an empty one by all but
   `sum` (0).
-- **Pitch classes**: `classes` gives the places of a line's pitches
-  above C in the octave (C 0 … B 11), each once and the smallest first,
-  as a data list: `[c e g c'] classes` is `'[0 4 7]`, `[g c e d c']
-  classes` `'[0 2 4 7]`. A chord gives all its pitches, a list of pitch
-  numbers is read as it is, rests and drums have none, a loop is refused.
-  It is the set the set-theory words read, and the number words read it
-  (`classes count` is how many classes a line uses). It is absolute,
-  not relative to a key: `degrees` is the key's own scale steps.
+- **Pitch-class sets**: three kinds of value, each written with a `$`
+  and its own bracket, the numbers glued together (`T` is 10, `E` 11).
+  `$[047]` is a set of classes, the places of pitches above C in the
+  octave (C 0 … B 11), each once and the smallest first; `$(037)` is a
+  prime form; `$<001110>` is an interval vector, one count for each
+  interval class 1-6 (a number above 11 goes apart, `$<12 12 12 12 12 6>`).
+  They print as they are written, so a session keeps them, and they are
+  mu's alone: a line holds no set. Reading them is checked: classes are
+  sorted, once each and taken mod 12 (`$[740]` is `$[047]`), a prime form
+  must be one (`$(047)` is refused and the real `$(037)` shown), a vector
+  has six counts.
+  - `classes` makes the first from a line, a chord, a data list of pitch
+    numbers or a stream: `[c e g c'] classes` is `$[047]`, `[g c e d c']
+    classes` `$[0247]`. A chord gives all its pitches, rests and drums
+    have none, a loop is refused. It is absolute, not relative to a key:
+    `degrees` is the key's own scale steps.
+  - `prime-form` is the most packed of the classes' rotations and of
+    their inversion's, from 0 (Forte): `[c e g] prime-form` is `$(037)`,
+    and so is the minor triad's, `[c e& g]`; the diminished seventh is
+    `$(0369)`. It tells whether two phrases are one set class: `x
+    prime-form y prime-form eq`.
+  - `interval-vector` counts the interval classes between them:
+    `[c e g] interval-vector` is `$<001110>`, one major third (ic 4), one
+    fifth (ic 5), one minor third (ic 3).
+  - What reads a list reads their numbers (`count`, `sum`, `max`, `@`,
+    `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
+    What changes the numbers (`sort`, `take`, `intervals`) gives a plain
+    list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
 - **A pitch-class profile**: `profile` scores how much each of the twelve
   classes counts in a line, from 0 to 1, C first and B last: the time
   each class sounds, a chord's time shared among its pitches, divided by

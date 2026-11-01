@@ -562,17 +562,34 @@ top (`3 5 max` is `5`). A line itself is refused with a pointer to
 `pitches`, and `mean` is exact, so `float` converts it.
 
 `classes` turns a line into the set of its pitch classes: each pitch's
-place above C in the octave, every one once, the smallest first, a data
-list the words above read:
+place above C in the octave, every one once, the smallest first. It is a
+value of its own, written `$[047]` (the numbers glued together, `T` for 10
+and `E` for 11), and the words above read it as the list it holds:
 
 ```
-[c e g c'] classes                      → '[0 4 7]
-[g c e d c'] classes                    → '[0 2 4 7]
+[c e g c'] classes                      → $[047]
+[g c e d c'] classes                    → $[0247]
 [c e g c'] classes count                → 3
+$[047] 1 @                              → 4
+$[047] >list                            → '[0 4 7]
 ```
 
 It does not depend on a key (`degrees` counts scale steps in one), and a
-rest or a drum has no class.
+rest or a drum has no class. Two more sets have a bracket of their own.
+`prime-form` is the set class: the most packed form of the classes,
+from 0, the same for a chord and its mirror image, and `interval-vector`
+counts the six interval classes between them:
+
+```
+[c e g] prime-form           → $(037)
+[c e& g] prime-form          → $(037)      the minor triad is the same set class
+[c e& g& a] prime-form       → $(0369)     the diminished seventh
+[c e g] interval-vector      → $<001110>   one third, one minor third, one fifth
+```
+
+Writing one yourself is checked: `$[740]` is `$[047]`, `$(047)` is refused
+because it is no prime form (it shows `$(037)`), and a vector needs six
+counts. What changes the numbers (`sort`, `intervals`) gives a plain list.
 
 `profile` says how much each class counts, as twelve scores from 0 to 1,
 C first: the time each sounds, a chord's time shared among its notes,
@@ -1156,7 +1173,8 @@ c4 '[0 40 73] sounds audition
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
 | `length` | `( x -- n )` |
-| `classes` | `( x -- list )` |
+| `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
+| `>list` | `( set -- list )` |
 | `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |

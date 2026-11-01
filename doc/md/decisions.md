@@ -2399,3 +2399,29 @@ check-data-element-type!`: an int and a ratio make a list of ratios, as
 `'[1 0 1/3]` is), without which a ratio list printed readably could not be
 read back; an int with a float, or a pitch with a duration, is still
 refused. It also lets `'[0 1/3] delays` be written without `0/1`.
+
+## 2026-11-01 — Pitch-class sets are values: $[047] $(037) $<001110>
+
+`classes`, `prime-form` and `interval-vector` give values of their own,
+`musics.mu.value/PcSet` (a kind and the numbers), and each is written as
+the books write it, with a `$` in front: `$[047]` the classes, `$(037)` a
+prime form, `$<001110>` an interval vector. The `$` is what keeps them
+clear of mu's own bracket forms: bare `[047]` is the word `[n]` (a line of
+the top 47), `(037)` is a group and `<001110>` looks like a chord, while
+`$` + `[`, `(` or `<` has no other reading (`$a` is a local, a segno is
+inside a line). Ten and eleven are `T` and `E`, a number above 11 puts the
+numbers apart; the Forte names (`3-11`) wait.
+
+The set is not a data list with a kind key and not a symbol (a symbol is a
+word's name to `execute` and `:=`): a record is read by one function,
+`musics.mu.material/elements`, so everything that reads a list (the number
+words, `@`, `find`, `eq`) reads a set with no change, and what changes the
+numbers (`sort`, `take`, `intervals`) gives a plain list back, so a kind
+lasts only while the numbers are as they were made. `eq` ignores the kind.
+Reading is checked: classes sorted, once each, mod 12; a prime form must be
+one (the message shows the real one); a vector has six counts. The
+conversion to a plain list is `>list`, in the family of `>ctx`, not
+`$list`, which would be read as the local `list`; `**` stays `spread`.
+Printing is isomorphic to reading, so a session keeps them. `profile` stays
+a plain list: it is scores, not a set.
+

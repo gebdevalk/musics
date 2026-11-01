@@ -142,16 +142,57 @@
   (is (= "7/8(2+2+3)" (run "[!Meter:\"7/8(2+2+3)\" c d] !Meter"))))
 
 (deftest classes-are-the-pitch-classes-of-a-line
-  (is (= "'[0 4 7]" (run "[c e g c'] classes")) "every class once, the octave gone")
-  (is (= "'[0 2 4 7]" (run "[g c e d c'] classes")) "smallest first, not in order of appearance")
-  (is (= "'[0 4 7]" (run "<c e g>4 classes")) "a chord's pitches")
-  (is (= "'[0 4 7]" (run "'[60 64 67 72] classes")) "pitch numbers too")
-  (is (= "'[0 4 7]" (run "[c r e x8\\38 g] classes")) "rests and drums have none")
-  (is (= "'[]" (run "[r r] classes")))
-  (is (= "3" (run "[c e g c'] classes count")) "a list the number words read")
+  (is (= "$[047]" (run "[c e g c'] classes")) "every class once, the octave gone")
+  (is (= "$[0247]" (run "[g c e d c'] classes")) "smallest first, not in order of appearance")
+  (is (= "$[047]" (run "<c e g>4 classes")) "a chord's pitches")
+  (is (= "$[047]" (run "'[60 64 67 72] classes")) "pitch numbers too")
+  (is (= "$[047]" (run "[c r e x8\\38 g] classes")) "rests and drums have none")
+  (is (= "$[]" (run "[r r] classes")))
+  (is (= "3" (run "[c e g c'] classes count")) "a set the number words read")
+  (is (= "7" (run "[c e g c'] classes max")))
+  (is (= "'[0 4 7]" (run "[c e g c'] classes >list")) ">list: a plain list, the kind gone")
   (is (thrown-with-msg? Exception #"loop|endless" (e/run-text [] "[c d] [~] classes")))
   (is (thrown-with-msg? Exception #"needs a line" (e/run-text [] "7 classes"))))
 
+(deftest a-pitch-class-set-is-written-as-it-is-read
+  (testing "the three literals"
+    (is (= "$[047]" (run "$[047]")))
+    (is (= "$(037)" (run "$(037)")))
+    (is (= "$<001110>" (run "$<001110>"))))
+  (testing "T and E are ten and eleven, a number above 11 goes apart"
+    (is (= "$[047TE]" (run "$[047TE]")))
+    (is (= "$<12 12 12 12 12 6>" (run "$<12 12 12 12 12 6>")) "the whole chromatic set's vector")
+    (is (= "$[047]" (run "$[ 0 4 7 ]")) "spaces inside"))
+  (testing "classes are sorted, once each, mod 12; the others are checked"
+    (is (= "$[047]" (run "$[740407]")))
+    (is (= "$[]" (run "$[]")))
+    (is (thrown-with-msg? Exception #"is no prime form.*\$\(037\)" (e/run-text [] "$(047)")) "names the prime form")
+    (is (= "$()" (run "$()")))
+    (is (thrown-with-msg? Exception #"six counts" (e/run-text [] "$<0011>"))))
+  (testing "the numbers are what a list reader reads"
+    (is (= "3" (run "$[047] count")))
+    (is (= "4" (run "$[047] 1 @")))
+    (is (= "7" (run "$(037) 2 @")))
+    (is (= "2" (run "$<001110> 3 @ 1 add")) "a count, then arithmetic")
+    (is (= "'[0 4 7]" (run "$[047] >list")))
+    (is (= "'[4 3]" (run "$[047] intervals")) "a changed set is a plain list")
+    (is (= "true" (run "$[037] '[0 3 7] eq")) "equal numbers are equal, the kind is no part of it")
+    (is (= "true" (run "$[047] $[740] eq")))))
+
+(deftest the-set-class-of-a-line
+  (is (= "$(037)" (run "[c e g] prime-form")) "the major triad")
+  (is (= "$(037)" (run "[c e& g] prime-form")) "and the minor triad, its mirror")
+  (is (= "$(0369)" (run "[c e& g& a] prime-form")) "the diminished seventh")
+  (is (= "$(012)" (run "[f f# g] prime-form")) "three neighbours, wherever they start")
+  (is (= "$(037)" (run "$[48E] prime-form")) "a set of classes too: E major")
+  (is (= "$(025)" (run "$[479] prime-form")) "another set class")
+  (is (= "$(037)" (run "'[60 64 67] prime-form")) "pitch numbers too")
+  (is (= "$()" (run "[r r] prime-form")))
+  (is (= "$<001110>" (run "[c e g] interval-vector")))
+  (is (= "$<001110>" (run "[c e& g] interval-vector")) "the triads share their vector")
+  (is (= "$<12 12 12 12 12 6>" (run "[c c# d d# e f f# g g# a a# b] interval-vector")) "all twelve")
+  (is (= "$<221100>" (run "$[0124] interval-vector")))
+  (is (thrown-with-msg? Exception #"not an interval vector|classes, not" (e/run-text [] "$<001110> prime-form"))))
 (deftest a-profile-scores-the-pitch-classes-by-the-time-they-sound
   (testing "twelve scores 0..1, C first, the strongest 1"
     (is (= "'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]"

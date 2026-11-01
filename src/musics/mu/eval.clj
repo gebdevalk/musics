@@ -212,6 +212,7 @@
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
     :IdName    (conj stack (keyword (second node)))
+    :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
                    (conj stack (get (:locals env) n))

@@ -79,7 +79,7 @@
   (let [data?    #(and (v/material? %) (= :DATA (mt/kind %)))
         music?   #(and (or (v/material? %) (v/leaf? %)) (core/not (data? %)))
         endless? #(and (sequential? %) (:mu/endless (meta %)))
-        items?   #(or (data? %) (and (sequential? %) (core/not (string? %))))]
+        items?   #(or (data? %) (v/pcset? %) (and (sequential? %) (core/not (string? %))))]
     (cond
       (and (music? a) (music? b)) (binding [p/*names* false] (= (p/show a) (p/show b)))
       (and (mt/loop? a) (mt/loop? b)) (same? (first (mt/repeat-of a)) (first (mt/repeat-of b)))

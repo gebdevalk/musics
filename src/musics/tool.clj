@@ -81,7 +81,7 @@
    part counted 1, then the element counted 2 inside it."
   [word idx]
   (let [path (cond (integer? idx) [idx]
-                   (or (v/material? idx) (sequential? idx)) (vec (mt/elements idx))
+                   (or (v/material? idx) (v/pcset? idx) (sequential? idx)) (vec (mt/elements idx))
                    :else nil)]
     (when-not (and (seq path) (every? #(and (integer? %) (>= % 0)) path))
       (fail (str word ":") "needs a whole number from 0 or a path '[1 2] of them, got" (p/show idx)))

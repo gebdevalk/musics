@@ -14,6 +14,7 @@
   (:require [clojure.string :as str]
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
+            [musics.algo.melodic.serial :as serial]
             [musics.algo.tree.lib :as lib]
             [musics.common.music-data :as data]
             [musics.common.context-keys :as ck]
@@ -24,6 +25,7 @@
             [musics.mu.eval :as e]
             [musics.mu.feedback :as fb]
             [musics.mu.material :as mt]
+            [musics.mu.pcset :as pcset]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
             [musics.repo :as repo]))
@@ -269,21 +271,55 @@
   [x]
   (mt/measures x))
 
-(defn classes
-  "The pitch classes of a line, a chord or a list of pitch numbers: each
-   pitch's place above C in the octave (C 0 … B 11), every one once,
-   the smallest first, as a data list: [c e g c'] classes gives '[0 4 7].
-   Rests and drums have none"
-  [x]
+(defn- pitch-numbers
+  "The pitch numbers of x: a note, a chord, a line (rests and drums have
+   none), a data list or stream of numbers, or a set of classes."
+  [word x]
   (let [ps (cond
+             (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
+                                  (:items x))
              (mt/leaf? x)     (:pitches x)
              (v/material? x)  (if (= :DATA (mt/kind x))
-                                (mt/numbers-of "classes" x)
-                                (mapcat :pitches (mt/played-leaves (mt/finite! "classes" x))))
-             (sequential? x)  (mt/numbers-of "classes" x)
+                                (mt/numbers-of word x)
+                                (mapcat :pitches (mt/played-leaves (mt/finite! word x))))
+             (sequential? x)  (mt/numbers-of word x)
              :else            (fail "needs a line, a chord or pitch numbers, got" (p/show x)))]
     (when-not (every? integer? ps) (fail "needs whole pitch numbers, got" (p/show (first (remove integer? ps)))))
-    (mt/read-text (str "'[" (str/join " " (sort (distinct (map #(mod % 12) ps)))) "]"))))
+    (vec ps)))
+
+(defn classes
+  "The pitch classes of a line, a chord or a list of pitch numbers: each
+   pitch's place above C in the octave (C 0 … B 11), every one once, the
+   smallest first, as a set $[047]: [c e g c'] classes gives $[047].
+   Rests and drums have none"
+  [x]
+  (pcset/make :classes (pitch-numbers "classes" x)))
+
+(defn prime-form
+  "The prime form of the classes of x, a line, a chord, pitch numbers or
+   a set: the most packed of their rotations and of their inversion's,
+   from 0 (Forte): [c e g] prime-form gives $(037), the major and the
+   minor triad alike"
+  [x]
+  (pcset/make :prime (serial/prime-form (:items (pcset/make :classes (pitch-numbers "prime-form" x))))))
+
+(defn interval-vector
+  "How many times each interval class 1-6 occurs between the classes of
+   x (a line, a chord, pitch numbers or a set): [c e g] interval-vector
+   gives $<001110>"
+  [x]
+  (let [cs (:items (pcset/make :classes (pitch-numbers "interval-vector" x)))]
+    (pcset/make :vector (serial/interval-vector cs))))
+
+(defn >list
+  "A set or any list of numbers as a plain list '[0 4 7], its kind gone:
+   $[047] >list"
+  [x]
+  (cond
+    (v/pcset? x) (mt/read-text (str "'[" (str/join " " (:items x)) "]"))
+    (and (v/material? x) (= :DATA (mt/kind x))) x
+    (sequential? x) (mt/read-text (str "'[" (str/join " " (map p/show (mt/finite! ">list" x))) "]"))
+    :else (fail "needs a set or a list, got" (p/show x))))
 
 (defn profile
   "How much each pitch class counts in a line, as twelve scores from 0 to

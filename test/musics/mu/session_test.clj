@@ -81,3 +81,13 @@
       (with-out-str ((requiring-resolve 'musics.persist/write) f))
       (with-out-str ((requiring-resolve 'musics.persist/restore-session) f))
       (is (= "3" (top "\\n")) "write's file holds no words or bindings"))))
+
+(deftest a-pitch-class-set-is-written-and-read-back
+  (top "'chord $[047] :=" "'form $(037) :=" "'vec $<001110> :=" ": triad ( -- s ) $[047] ;")
+  (let [[text skipped] (session/text)]
+    (is (empty? skipped))
+    (is (str/includes? text "'chord $[047] :="))
+    (is (str/includes? text "'form $(037) :="))
+    (is (str/includes? text "'vec $<001110> :="))
+    (is (str/includes? text ": triad ( -- s ) $[047] ;") "a word keeps the literal as written"))
+  (is (= "$[047]" (top "triad")) "and it runs"))
