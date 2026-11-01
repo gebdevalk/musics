@@ -48,6 +48,22 @@ x "x.mid" render                  write a MIDI file
 gui                               the GUI beside mu
 ```
 
+### As a single file
+
+`scripts/build.sh` builds `target/mu.jar`, the whole of mu in one file
+(about 70 MB, with JavaFX for the GUI), and `bin/mu` runs it:
+
+```bash
+scripts/build.sh          # about half a minute
+bin/mu                    # or bin/mu --version, bin/mu --help
+```
+
+Copy `bin/mu` and `target/mu.jar` anywhere together. It needs Java 25
+(the launcher checks and says so) but not Leiningen or the source, and
+sound needs a General MIDI soundfont (`/usr/share/sounds/sf2` or
+`~/Music/sf`, see [doc/md/setup.md](doc/md/setup.md)). The jar is built
+for the platform it is built on (JavaFX brings native libraries).
+
 ## Documentation
 
 The documents are Markdown in `doc/md/`. `scripts/docs.sh` renders

@@ -1,9 +1,17 @@
 (ns musics.version
   "mu's version, 0.3.<merges>.<commits>: the merges of develop into main
    (main's first-parent merges) and the commits on develop, counted by git
-   in the repo mu runs from."
-  (:require [clojure.java.shell :as sh]
+   in the repo mu runs from -- or, in the jar scripts/build.sh makes,
+   counted when it was built (musics/version.txt), since a jar runs where
+   there is no repo."
+  (:require [clojure.java.io :as io]
+            [clojure.java.shell :as sh]
             [clojure.string :as str]))
+
+(defn- baked
+  "The version the build wrote into the jar, or nil."
+  []
+  (some-> (io/resource "musics/version.txt") slurp str/trim not-empty))
 
 (defn- git-count
   "git rev-list --count with args, or nil when git can't tell."
@@ -14,5 +22,6 @@
 
 (def version
   "0.3.65.807, say; a ? for a count git can't give (no repo, no branch)."
-  (delay (str "0.3." (or (git-count "--first-parent" "--merges" "main") "?")
-              "." (or (git-count "develop") "?"))))
+  (delay (or (baked)
+             (str "0.3." (or (git-count "--first-parent" "--merges" "main") "?")
+                  "." (or (git-count "develop") "?")))))

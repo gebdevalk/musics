@@ -652,13 +652,17 @@
              (throw (ex-info (str "musics.algo.tree: " s " has no :algo metadata") {:sym s}))))))
 
 (defmacro expose-ns
-  "expose every var carrying :algo metadata in each namespace."
+  "expose every var carrying :algo metadata in each namespace. The
+   namespaces are loaded when the macro expands (to read them) and again
+   in what it expands to, since a compiled (AOT) namespace is expanded once,
+   at build time, and would otherwise find them unloaded when it runs."
   [& nss]
-  `(expose ~@(for [n nss
-                   :let [_ (require n)]
-                   [s v] (sort-by key (ns-publics n))
-                   :when (-> v meta :algo)]
-               (symbol (name n) (name s)))))
+  `(do (require ~@(map #(list 'quote %) nss))
+       (expose ~@(for [n nss
+                       :let [_ (require n)]
+                       [s v] (sort-by key (ns-publics n))
+                       :when (-> v meta :algo)]
+                   (symbol (name n) (name s))))))
 
 ;; ---------------------------------------------------------------------------
 ;; The registry and live playback, from here

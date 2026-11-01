@@ -40,3 +40,6 @@ __pycache__/
 /.clj-kondo/.cache/
 /.calva/
 /emails/
+
+# written by scripts/build.sh into the jar
+/resources/musics/version.txt

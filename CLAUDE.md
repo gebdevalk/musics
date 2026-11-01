@@ -147,6 +147,10 @@ hosted REPL language (musics.lang) lives on the `concat` branch / the
 
 ```bash
 lein mu                 # mu, the musical REPL -- with the GUI (gui), the interface
+scripts/build.sh        # target/mu.jar (lein uberjar with the version baked in:
+                        # musics/version.txt, git-ignored) and bin/mu, its launcher:
+                        # java 25 + the JVM options, -jar; AOT classes go to
+                        # target/uberjar-classes, off the dev classpath
 lein mu --version       # mu 0.3.<merges>.<commits>: develop's merges into main
                         # (first parent) and its commits, counted by git
                         # (musics.version); the banner shows it too
