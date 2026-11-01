@@ -187,13 +187,12 @@ part its own delay, one for each part:
 [c d] 3/8 delay                         → [r4. C4/4 D4]
 [c d] 1/3 delay                         → [3:1(r1) C4/4 D4]
 {[c d] [c d] [c d]} 1/4 delays          → {[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}
-{[c d] [c d]} '[0/1 1/3] delays         → {[C4/4 D4] [3:1(r1) C4/4 D4]}
+{[c d] [c d]} '[0 1/3] delays           → {[C4/4 D4] [3:1(r1) C4/4 D4]}
 ```
 
 The delay is a rest in the music, so `length`, `bar` and `at` see it, and
 a `{ }` still ends with its longest part. A delay of 0 changes nothing. (A
-data list holds one kind of number, so write the whole numbers in it as
-ratios, `0/1`.)
+whole number among ratios is a ratio, so `'[0 1/3]` is a list of ratios.)
 
 ## 4. Changing pitch
 
@@ -561,6 +560,48 @@ numbers, and these read it: `sum`, `mean`, `max`, `min`, `sort` and
 `max` and `min` are still the two-number words when two numbers are on
 top (`3 5 max` is `5`). A line itself is refused with a pointer to
 `pitches`, and `mean` is exact, so `float` converts it.
+
+`classes` turns a line into the set of its pitch classes: each pitch's
+place above C in the octave, every one once, the smallest first. It is a
+value of its own, written `$[047]` (the numbers glued together, `T` for 10
+and `E` for 11), and the words above read it as the list it holds:
+
+```
+[c e g c'] classes                      → $[047]
+[g c e d c'] classes                    → $[0247]
+[c e g c'] classes count                → 3
+$[047] 1 @                              → 4
+$[047] >list                            → '[0 4 7]
+```
+
+It does not depend on a key (`degrees` counts scale steps in one), and a
+rest or a drum has no class. Two more sets have a bracket of their own.
+`prime-form` is the set class: the most packed form of the classes,
+from 0, the same for a chord and its mirror image, and `interval-vector`
+counts the six interval classes between them:
+
+```
+[c e g] prime-form           → $(037)
+[c e& g] prime-form          → $(037)      the minor triad is the same set class
+[c e& g& a] prime-form       → $(0369)     the diminished seventh
+[c e g] interval-vector      → $<001110>   one third, one minor third, one fifth
+```
+
+Writing one yourself is checked: `$[740]` is `$[047]`, `$(047)` is refused
+because it is no prime form (it shows `$(037)`), and a vector needs six
+counts. What changes the numbers (`sort`, `intervals`) gives a plain list.
+
+`profile` says how much each class counts, as twelve scores from 0 to 1,
+C first: the time each sounds, a chord's time shared among its notes,
+scaled so the strongest is 1, as exact ratios:
+
+```
+[c4 e4 g4 c2] profile        → '[1 0 0 0 1/3 0 0 1/3 0 0 0 0]
+[<c e g>2 <f a c'>2] profile → '[1 0 0 0 1/2 1/2 0 1/2 0 1/2 0 0]
+```
+
+The biggest score is the note the line leans on. Rests count for nothing,
+and the octave does not matter.
 
 ## 10. Taking a line apart
 
@@ -1132,6 +1173,9 @@ c4 '[0 40 73] sounds audition
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
 | `length` | `( x -- n )` |
+| `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
+| `>list` | `( set -- list )` |
+| `profile` | `( x -- list )` |
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |

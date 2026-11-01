@@ -2284,8 +2284,11 @@ with elements reordered it travels with its note; a one-for-one change
 element are the line's own and stay at its start (`with` writes them
 there). The alternative, baking the effective settings into every note as
 the retrograde does, would fill the text with `\vol:` and friends; the
-retrograde keeps its way. `splice` and `within` bring the elements of
-what they put in, not its settings.
+retrograde keeps its way. (`splice` and `within` first brought the
+elements of what they put in, not its settings; they now work on the
+line's children as `put` and `cut` do, so a line put in brings its own:
+those before the first element replaced stay in front of it, those
+between the replaced ones wait after it for the next element to stay.)
 
 ## 2026-10-31 — Access by time: length, at, bar, bars
 
@@ -2364,4 +2367,61 @@ now a plain number; a `Meter` printed as a record, now as it is written
 begin); and a key that is also a mark (`!swing`, `!shuffle`, `!straight`,
 `!laidBack`, `!pushed`) can't be read as `!name`, because the mark wins
 there as it does in a line -- `:swing context-of` is the way.
+
+## 2026-10-31 — classes: the pitch classes of a line
+
+A line's pitches reduced to their place above C, every class once and the
+smallest first, as a data list. Not `degrees`, which is the key's scale
+steps (numbers and a key give a line); not `semitones`, which also means
+pitch numbers like 60 and the amount `up` moves by; not `steps`, which
+the `degrees` doc and the rating word `step` already use. `classes` is the
+pitch class of set theory. A sorted set, not the order of appearance,
+because it is the input of the set-theory words (`prime-form`,
+`interval-vector`), which read a set; the order of a tone row would be a
+word of its own. Numbers, not note names, as every number word reads
+them. Absolute, C = 0: reading a line in a key is the inverse of
+`degrees`, not built.
+
+## 2026-10-31 — profile: scores, not durations
+
+How much each pitch class counts in a line, twelve numbers C first.
+Scores from 0 to 1, the largest 1, as `normalize-weights` scales a weight
+vector and for the same reason: two lines of any length can be compared,
+and a key estimate multiplies it against a key's profile. Not durations:
+the time is `length`, and a list of whole notes would be 0..1 only up to
+one whole note. The time a class sounds is what is scored, a chord's time
+shared among its pitches (the alternative, the full time for each, makes a
+chord weigh three times a single note), rests and drums none. Exact
+ratios, not floats: `'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]` reads at a glance
+where `0.3333333333333333` does not. That needed the data check to let a
+whole number stand among ratios (`musics.input.reader.walker/
+check-data-element-type!`: an int and a ratio make a list of ratios, as
+`'[1 0 1/3]` is), without which a ratio list printed readably could not be
+read back; an int with a float, or a pitch with a duration, is still
+refused. It also lets `'[0 1/3] delays` be written without `0/1`.
+
+## 2026-11-01 — Pitch-class sets are values: $[047] $(037) $<001110>
+
+`classes`, `prime-form` and `interval-vector` give values of their own,
+`musics.mu.value/PcSet` (a kind and the numbers), and each is written as
+the books write it, with a `$` in front: `$[047]` the classes, `$(037)` a
+prime form, `$<001110>` an interval vector. The `$` is what keeps them
+clear of mu's own bracket forms: bare `[047]` is the word `[n]` (a line of
+the top 47), `(037)` is a group and `<001110>` looks like a chord, while
+`$` + `[`, `(` or `<` has no other reading (`$a` is a local, a segno is
+inside a line). Ten and eleven are `T` and `E`, a number above 11 puts the
+numbers apart; the Forte names (`3-11`) wait.
+
+The set is not a data list with a kind key and not a symbol (a symbol is a
+word's name to `execute` and `:=`): a record is read by one function,
+`musics.mu.material/elements`, so everything that reads a list (the number
+words, `@`, `find`, `eq`) reads a set with no change, and what changes the
+numbers (`sort`, `take`, `intervals`) gives a plain list back, so a kind
+lasts only while the numbers are as they were made. `eq` ignores the kind.
+Reading is checked: classes sorted, once each, mod 12; a prime form must be
+one (the message shows the real one); a vector has six counts. The
+conversion to a plain list is `>list`, in the family of `>ctx`, not
+`$list`, which would be read as the local `list`; `**` stays `spread`.
+Printing is isomorphic to reading, so a session keeps them. `profile` stays
+a plain list: it is scores, not a set.
 

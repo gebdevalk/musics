@@ -75,6 +75,7 @@
     (v/material? x) (let [data? (= :DATA (:type (v/node x)))]
                       (mapv #(child-value x data? %) (remove instruction? (:children (v/node x)))))
     (leaf? x)       [x]
+    (v/pcset? x)    (:items x)
     (sequential? x) x
     :else (e/mu-error "has no elements:" (p/show x))))
 

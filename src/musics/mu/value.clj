@@ -9,7 +9,8 @@
    leaf itself; any other literal a Material: its id and a repo holding
    it with everything it refers to. Nothing reaches musics.repo here --
    storing is R! (doc/md/mu-repl.md)."
-  (:require [musics.domain.context :as c]
+  (:require [clojure.string :as str]
+            [musics.domain.context :as c]
             [musics.input.reader.walker :as walker]
             [musics.mu.grammar :as g]))
 
@@ -21,6 +22,24 @@
 
 (defrecord Quotation [body source])
 
+
+(defrecord PcSet [kind items])  ; $[047] classes, $(037) prime form, $<001110> interval vector
+
+(defn pcset? [x] (instance? PcSet x))
+
+(def ^:private pcset-brackets {:classes ["$[" "]"] :prime ["$(" ")"] :vector ["$<" ">"]})
+
+(defn pcset-text
+  "A pitch-class set as mu reads it back: its numbers glued together
+   with T for 10 and E for 11 ($[047TE]), or apart when one is above 11
+   ($<12 12 12 12 12 6>)."
+  [{:keys [kind items]}]
+  (let [[open close] (pcset-brackets kind)
+        glyph (fn [n] (case (long n) 10 "T" 11 "E" (str n)))]
+    (str open (if (every? #(<= 0 % 11) items)
+                (apply str (map glyph items))
+                (str/join " " items))
+         close)))
 
 (defrecord Mark [count])  ; | … ||||: a gathering mark, and >>'s boundary
 (def mark (->Mark 1))

@@ -63,6 +63,21 @@
   (is (= :Dynamic (-> (items "[c4\\f d]") first second last first))
       "a glued dynamic inside a literal"))
 
+(deftest a-set-of-pitch-classes
+  (is (= [[:PcSet [:PcClasses [:PcNums "047"]]]] (items "$[047]")))
+  (is (= [[:PcSet [:PcPrime [:PcNums "037"]]]] (items "$(037)")))
+  (is (= [[:PcSet [:PcVector [:PcNums "001110"]]]] (items "$<001110>")))
+  (is (= [[:PcSet [:PcVector [:PcNums "12 12 12 12 12 6"]]]] (items "$<12 12 12 12 12 6>")) "apart, above 11")
+  (is (= [[:PcSet [:PcClasses [:PcNums "047TE"]]]] (items "$[047TE]")) "T is 10, E is 11")
+  (is (= [[:PcSet [:PcClasses]]] (items "$[]")) "none")
+  (is (= [[:PcSet [:PcClasses [:PcNums "047"]]]] (items "$[ 047 ]")) "spaces inside")
+  (testing "nothing else changes"
+    (is (= [[:Local "a"]] (items "$a")) "$ and a name is a local")
+    (is (= [[:Lines "47"]] (items "[47]")) "[n] is still the word that makes a line of the top n")
+    (is (= [:Sequence] (tags "[c e g]")))
+    (is (= [[:Quotation [:PcSet [:PcClasses [:PcNums "047"]]] [:Word [:WordName "count"]]]] (items "'( $[047] count )")) "inside a quotation too"))
+  (is (g/failure? (g/parse "[$[047] c]")) "mu's, not musics text's: a line holds no set"))
+
 (deftest mu-items
   (is (= [[:SignedInt "7"] [:SignedRatio "1/4"] [:SignedFloat "0.5"] [:SignedInt "-12"] [:StringLit "t"]]
          (items "7 1/4 0.5 -12 \"t\"")))

@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `profile`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -385,8 +385,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   elements as it was given (`map`, `mute`) gives each place its
   settings. Those before the first element are the line's own and stay
   at its start. `[c d !mf e f] 1 3 slice` is `[D4/4 !mf E4]` and
-  `3 drop` is `[!mf F4/4]`. A `[!pp a b]` put in by `splice` or `within`
-  brings its elements only.
+  `3 drop` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
 - **`[]` is the empty line**, mu's own (musics text needs an element
   in its `[ ]`, so `[c [] d]` is not read). It is where a line is built
   up from (`[] x concat`), what `delete` leaves of a one-note line, and
@@ -424,6 +423,44 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`'[3 5 1] max`). A line itself is refused with a pointer to `pitches`
   and `durations`, an endless stream with `take`, an empty one by all but
   `sum` (0).
+- **Pitch-class sets**: three kinds of value, each written with a `$`
+  and its own bracket, the numbers glued together (`T` is 10, `E` 11).
+  `$[047]` is a set of classes, the places of pitches above C in the
+  octave (C 0 … B 11), each once and the smallest first; `$(037)` is a
+  prime form; `$<001110>` is an interval vector, one count for each
+  interval class 1-6 (a number above 11 goes apart, `$<12 12 12 12 12 6>`).
+  They print as they are written, so a session keeps them, and they are
+  mu's alone: a line holds no set. Reading them is checked: classes are
+  sorted, once each and taken mod 12 (`$[740]` is `$[047]`), a prime form
+  must be one (`$(047)` is refused and the real `$(037)` shown), a vector
+  has six counts.
+  - `classes` makes the first from a line, a chord, a data list of pitch
+    numbers or a stream: `[c e g c'] classes` is `$[047]`, `[g c e d c']
+    classes` `$[0247]`. A chord gives all its pitches, rests and drums
+    have none, a loop is refused. It is absolute, not relative to a key:
+    `degrees` is the key's own scale steps.
+  - `prime-form` is the most packed of the classes' rotations and of
+    their inversion's, from 0 (Forte): `[c e g] prime-form` is `$(037)`,
+    and so is the minor triad's, `[c e& g]`; the diminished seventh is
+    `$(0369)`. It tells whether two phrases are one set class: `x
+    prime-form y prime-form eq`.
+  - `interval-vector` counts the interval classes between them:
+    `[c e g] interval-vector` is `$<001110>`, one major third (ic 4), one
+    fifth (ic 5), one minor third (ic 3).
+  - What reads a list reads their numbers (`count`, `sum`, `max`, `@`,
+    `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
+    What changes the numbers (`sort`, `take`, `intervals`) gives a plain
+    list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
+- **A pitch-class profile**: `profile` scores how much each of the twelve
+  classes counts in a line, from 0 to 1, C first and B last: the time
+  each class sounds, a chord's time shared among its pitches, divided by
+  the largest so the strongest scores 1. `[c4 e4 g4 c2] profile` is
+  `'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]` (C sounds 3/4, E and G 1/4);
+  `[<c e g>2 <f a c'>2] profile` gives C 1 and the other four 1/2. Rests and drums add nothing, the octave does not
+  count, nothing sounding is all 0, and a loop is refused. It scores,
+  it has no durations: `length` gives the time, `classes` which
+  classes. The scores are exact ratios, which the number words read (`profile
+  sum`), and the input of a key estimate.
 - **Searching**: `find` is the first element a quotation accepts and
   `index-of` its place, counted from 0 as `nth` counts (a bar line is an
   element, and never matches): `[c e g c'] '( pitch 65 gt ) find` is
@@ -438,8 +475,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   as a tuplet), its own settings staying first; a note becomes a line.
   `delays` is for the parts of a `{ }`: a number delays part k by k times
   it (`{[c d] [c d] [c d]} 1/4 delays`, a canon at the quarter), a data
-  list one delay for each part (`'[0/1 1/3] delays`; a data list holds
-  one kind of number, so `0` is written `0/1`), 0 leaves a part alone,
+  list one delay for each part (`'[0 1/3] delays`; a whole number among ratios is a ratio), 0 leaves a part alone,
   and the list must be as long as the parts are many. The delay is a rest
   in the music, so `length`, `bar` and `at` see it, and the parallel ends
   with its longest part. `delay` refuses a parallel and `delays` a line,
