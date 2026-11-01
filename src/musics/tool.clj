@@ -120,6 +120,15 @@
   (let [t (matching "index-of" q)]
     (core/first (keep-indexed (fn [i e] (when (t e) i)) (mt/finite! "index-of" (mt/elements x))))))
 
+(defn indexes
+  "Every place a quotation accepts, or that equals a value as mu prints
+   it, counted from 0 as nth counts (a bar line is an element too), as a
+   list: [C4 E4 C4 E4] C4 indexes gives '[0 2]; none gives '[]"
+  [x q]
+  (let [t  (matching "indexes" q)
+        ns (core/keep-indexed (fn [i e] (when (t e) i)) (mt/finite! "indexes" (mt/elements x)))]
+    (mt/read-text (str "'[" (str/join " " ns) "]"))))
+
 (defn sum
   "The numbers of a stream added: '[1 2 3] sum gives 6; x durations sum is
    a line's length"

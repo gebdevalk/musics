@@ -745,3 +745,13 @@
   (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( [R] ) within")))
   (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( pop [!pp A4 B4 C5] ) within")) "a chunk changed into a line with a setting keeps it")
   (is (= "'[1 9 9 4]" (top "'[1 2 3 4] 1 3 '[9 9] splice")) "data as before"))
+
+(deftest every-place-a-test-or-a-value-matches
+  (is (= "'[2 3 4]" (top "[C4 E4 G4 C5 E5] '( pitch 65 gt ) indexes")) "every element the test accepts")
+  (is (= "'[0 2]" (top "[C4 E4 C4 E4] C4 indexes")) "a value: each equal, as mu prints it")
+  (is (= "'[3 4]" (top "[C4 D4 | E4 F4] '( pitch 63 gt ) indexes")) "a bar line counts as an element, and never matches")
+  (is (= "'[1 3]" (top "'[3 5 1 5] 5 indexes")) "data too")
+  (is (= "'[]" (top "[C4 E4] D4 indexes")) "none: an empty list")
+  (is (= "2" (top "[C4 E4 C4 E4] C4 indexes count")) "a list the number words read")
+  (is (= (top "[C4 E4 G4 C5] '( pitch 65 gt ) index-of") (top "[C4 E4 G4 C5] '( pitch 65 gt ) indexes 0 @")) "the first is index-of")
+  (is (re-find #"endless" (top "1 '( 1 add ) iterate '( 5 gt ) indexes")) "an endless stream is refused"))
