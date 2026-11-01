@@ -260,7 +260,7 @@ line stays in front of its note through every one of them (`delay` a rest of any
 act on a line's children, instructions in place, `[]` is the empty line,
 mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every
-note's as a stream (a bare `!volume`, `!instrument`, `!K` … reads what a note plays with, its own value else the context's, a line's at its start: `musics.music/context-of`), a repeat or loop around the line kept around the
+note's as a stream (`x :volume setting` reads what a note plays with, its own value else the context's, a line's at its start, `musics.music/setting`, also `context-of`; `x :volume 70 with` writes one, `with`'s `:arity` chooser in its `:mu` metadata telling that from `x ^{ } with`; a bare `!name` at the top level reads nothing and the refusal says `:name setting`), a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note

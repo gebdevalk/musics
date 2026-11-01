@@ -54,30 +54,53 @@
       (is (= "[C4/4 D4 E4]" (run "[c d e] [R]")) "mu runs the var as it is now")
       (finally (alter-var-root #'music/retrograde (constantly original))))))
 
-(deftest a-bang-name-reads-what-a-note-plays-with
+(deftest setting-reads-what-a-note-plays-with
   (let [line "[!i:40 !mf !K:D.major c d\\vol:90\\i:73 r x8\\38]"]
     (testing "a note: its own value wins, else the context's where it sits"
-      (is (= 60 (mu (str line " 0 nth !volume"))))
-      (is (= 90 (mu (str line " 1 nth !volume"))))
-      (is (= 40 (mu (str line " 0 nth !instrument"))))
-      (is (= 73 (mu (str line " 1 nth !instrument"))))
-      (is (= 60 (mu (str line " 2 nth !volume"))) "a rest too")
-      (is (= 38 (mu (str line " 3 nth !instrument"))) "a drum's is its key of the kit"))
+      (is (= 60 (mu (str line " 0 nth :volume setting"))))
+      (is (= 90 (mu (str line " 1 nth :volume setting"))))
+      (is (= 40 (mu (str line " 0 nth :instrument setting"))))
+      (is (= 73 (mu (str line " 1 nth :instrument setting"))))
+      (is (= 60 (mu (str line " 2 nth :volume setting"))) "a rest too")
+      (is (= 38 (mu (str line " 3 nth :instrument setting"))) "a drum's is its key of the kit"))
     (testing "the key's aliases read the same key"
-      (is (= (mu (str line " 0 nth !volume")) (mu (str line " 0 nth !vol")) (mu (str line " 0 nth !v"))))
-      (is (= "D.major" (run (str line " 0 nth !K")))))
+      (is (= (mu (str line " 0 nth :volume setting")) (mu (str line " 0 nth :vol setting")) (mu (str line " 0 nth :v setting"))))
+      (is (= "D.major" (run (str line " 0 nth :K setting")))))
     (testing "a line: its context at its start"
-      (is (= 60 (mu (str line " !volume"))))
-      (is (= "D.major" (run (str line " !K")))))
+      (is (= 60 (mu (str line " :volume setting"))))
+      (is (= "D.major" (run (str line " :Key setting")))))
     (testing "articulation: the note's name, else the context's factor"
-      (is (= :staccato (mu "[c4-. d] 0 nth !articulation")))
-      (is (= 0.9 (mu "[c d] 0 nth !articulation"))))
-    (testing "the word it stands for"
+      (is (= :staccato (mu "[c4-. d] 0 nth :articulation setting")))
+      (is (= 0.9 (mu "[c d] 0 nth :articulation setting"))))
+    (testing "its other name"
       (is (= 60 (mu (str line " :volume context-of")))))
-    (testing "a mark or an unknown name is still refused, a number has no context"
+    (testing "a number has no context; a bare !name at the top level reads nothing and says how"
+      (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
       (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
-      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] 0 nth !nothing")))
-      (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 !volume"))))))
+      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] !nothing")))
+      (is (thrown-with-msg? Exception #"the key is read after the music with :volume setting" (e/run-text [] "[c d] !volume")))
+      (is (not (re-find #"setting" (try (e/run-text [] "!mf") "" (catch Exception ex (.getMessage ex))))) "a mark is no key: no hint"))))
+
+(deftest with-sets-one-key-or-a-context
+  (testing "a key and its value in front of a line"
+    (is (= "[!volume:70 C4/4 D4]" (run "[c d] :volume 70 with")))
+    (is (= "[!Tempo:3/2 C4/4 D4]" (run "[c d] :Tempo 3/2 with")) "a ratio as written")
+    (is (= "[!instrument:violin C4/4 D4]" (run "[c d] :instrument \"violin\" with")) "a name")
+    (is (= "[!accidentals:explicit C4/4 D4]" (run "[c d] :accidentals :explicit with")) "a keyword value")
+    (is (= "[!Key:D.major C#4/4 D4]" (run "[c d] :Key D.major with")))
+    (is (= "[!Meter:\"3/4\" C4/4 D4]" (run "[c d] :Meter \"3/4\" with")))
+    (is (= "[!volume:90 C4/4]" (run "c :volume 90 with")) "a note becomes a line"))
+  (testing "it reads back"
+    (is (= 70 (mu "[c d] :volume 70 with :volume setting")))
+    (is (= 90 (mu "[c d] :Tempo 90 with :Tempo setting"))))
+  (testing "the two older forms are as before"
+    (is (= "[!mf C4/4 D4]" (run "[c d] ^{ !mf } with")) "a context")
+    (is (= "[!K:D.major C#4/4 D4]" (run "[c d] D.major with")) "a key"))
+  (testing "the line's own settings still win"
+    (is (= 60 (mu "[!mf c d] :volume 30 with 0 nth :volume setting")) "its own, after"))
+  (testing "refused"
+    (is (thrown-with-msg? Exception #":volume is a number" (e/run-text [] "[c d] :volume \"loud\" with")))
+    (is (thrown-with-msg? Exception #"can't set :Key" (e/run-text [] "[c d] :Key [e] with")))))
 
 (deftest time-gives-access-to-a-line
   (testing "length, in whole notes as written"
@@ -135,11 +158,11 @@
     (is (thrown-with-msg? Exception #"from 0" (e/run-text [] "{[c d] [c d]} -1/4 delays")))))
 
 (deftest a-ramp-is-read-as-a-plain-number-and-a-meter-as-itself
-  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ !volume")) "an interpolated 60, not 60N")
-  (is (= "75" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 3 @ !volume")))
-  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at !volume")) "volume at a time: at, then !volume")
-  (is (= "3/4" (run "[!M:3/4 c d] !Meter")) "a meter prints as it is written")
-  (is (= "7/8(2+2+3)" (run "[!Meter:\"7/8(2+2+3)\" c d] !Meter"))))
+  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 2 @ :volume setting")) "an interpolated 60, not 60N")
+  (is (= "75" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 3 @ :volume setting")))
+  (is (= "60" (run "[!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at :volume setting")) "volume at a time: at, then setting")
+  (is (= "3/4" (run "[!M:3/4 c d] :Meter setting")) "a meter prints as it is written")
+  (is (= "7/8(2+2+3)" (run "[!Meter:\"7/8(2+2+3)\" c d] :Meter setting"))))
 
 (deftest classes-are-the-pitch-classes-of-a-line
   (is (= "$[047]" (run "[c e g c'] classes")) "every class once, the octave gone")

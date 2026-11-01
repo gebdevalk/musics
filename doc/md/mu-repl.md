@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`, `context-of`); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -535,27 +535,32 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `[!mf !pp E4/2 F4]`, `!Meter:3/4` travels with its bar.
 - **What a note plays with**: `volume`, `instrument` and
   `articulation` read only what the note itself says (`c4\vol:90`), nil
-  otherwise. A bare `!name` at the top level reads the setting it plays
-  with -- its own, else the context's where it sits: `!volume`,
-  `!instrument`, `!articulation`, `!K`, `!pan` … any context key, by its
-  aliases as `!key:` writes it (`!vol`, `!i`). `[!i:40 !mf c d\vol:90]
-  0 nth !volume` is `60` (mf), `1 nth !volume` `90`. A rest too; a
-  drum's `!instrument` is its key of the kit (`x8\38` gives `38`);
-  `!articulation` is the note's name, else the context's factor as the
-  staccato or tenuto it equals, else the number (`0.9` is the default);
-  a line gives its context at its start (`!K` of a line is the key it
-  starts in). A dynamic or tempo mark (`!mf`) is a setting, not a key,
-  and a bare one is still refused; `!p` is pianissimo, so panning is
-  `!pan`. The named twin is `context-of`: `x :volume context-of`. Only
-  at mu's top level -- inside a line `!volume` is not an instruction. A ramp is followed along the line: in `[!vol:30< c4 d4 e4 f4 !vol:90]`
-  `2 @ !volume` is `60` and `3 @ !volume` `75`, and the volume at a time is
-  `at` first: `1/2 at !volume`. `!Tempo` and `!Meter` read as written (`100`,
-  `3/4`). A key that is also a mark (`swing`, `shuffle`, `straight`,
-  `laidBack`, `pushed`) is read as the mark's refusal, not the key: write
-  `:swing context-of`. Inside a line a bare `!name` must be a mark: a
-  typo is refused with what it is close to (`[!mff c]`: "!mff is no mark
-  -- did you mean !ff or !mf?"), and a context key without its value says
-  so (`[!volume c]`: write `!volume:value`); `!name:value` still takes any
+  otherwise. `setting` reads what it plays with, a note or a line and a
+  key on top (`:volume`, `:instrument`, `:articulation`, `:Key`,
+  `:panning` … any context key, by its aliases as `!key:` writes it:
+  `:vol`, `:i`): its own value, else the context's where it sits.
+  `[!i:40 !mf c d\vol:90] 0 nth :volume setting` is `60` (mf), `1 nth
+  :volume setting` `90`. A rest too; a drum's `:instrument` is its key of
+  the kit (`x8\38` gives `38`); `:articulation` is the note's name, else
+  the context's factor as the staccato or tenuto it equals, else the
+  number (`0.9` is the default); a line gives its context at its start
+  (`:Key setting` of a line is the key it starts in). `context-of` is its
+  other name. A ramp is followed along the line: in `[!vol:30< c4 d4 e4
+  f4 !vol:90]` `2 @ :volume setting` is `60` and `3 @ :volume setting`
+  `75`, and the volume at a time is `at` first: `1/2 at :volume setting`.
+  `:Tempo` and `:Meter` read as written (`100`, `3/4`).
+  `with` writes one: `[c d] :volume 70 with` is `[!volume:70 C4/4 D4]`,
+  a number, a ratio, a key, a meter, a name or a keyword value (`:accidentals
+  :explicit`), the line's own settings still after it so they win; a note
+  becomes a line, and a number key takes a number (a name only for
+  `:instrument` and `:kit`). `with` also still takes a context
+  (`^{ !mf } with`) or a key (`D.major with`). A bare `!name` at the top
+  level reads nothing: it is an instruction, refused, and for a context key
+  the message says how (`!volume`: "the key is read after the music with
+  :volume setting"). Inside a line a bare `!name` must be a mark: a typo is
+  refused with what it is close to (`[!mff c]`: "!mff is no mark -- did you
+  mean !ff or !mf?"), and a context key without its value says so
+  (`[!volume c]`: write `!volume:value`); `!name:value` still takes any
   key, a custom one too.
 - **`zip` builds leaves from their parts**: the top two, or everything
   above a `|` mark, each part a stream in the order a leaf holds them --
