@@ -1,0 +1,64 @@
+ACCESS TO MUSICAL STRUCTURES IN MU -- survey of ~240 words (2026-10-31)
+
+STATUS (2026-10-31, later): built and documented (doc/md/mu-repl.md,
+decisions.md 2026-10-31): 1 edit (the word , ), 2 put ! / insert / delete _ /
+cut [_] / @ with path indices, 6 setting readers (:key setting, context-of; with writes), [] the empty
+line, concat (was then), flatten, settings kept in mid-line, 3 time (length, at, bar, bars), 4 sum mean max min sort intervals (ambitus and contour are max/min/intervals of pitches). Searching built too (find, index-of). Repo housekeeping built (forget, rename). 6 reading a line's context is setting (plus ctx of a line). splice/within bring the settings of what they put in. classes, prime-form, interval-vector ($[ ] $( ) $< > values, >list) and profile built. Unknown bare marks are refused. Still open:
+9 analysis: all built (key-of, chord-name, pulses)
+words. The list below is the original survey.
+
+
+WHAT YOU CAN DO NOW
+
+Get
+- By position: nth first last head tail take drop take-last drop-last slice
+  split-at count; spread / ** put the elements on the stack.
+  { } is indexable too: {[a b] [c d]} 1 nth gives [C4/4 D4].
+- By part of a note: pitch duration volume articulation instrument drum key
+  for one note. The plurals (pitches durations ...) give every note's value as
+  a stream. Predicates: note? chord? rest? drum?.
+- Repo: R@ ids usages ctx defaults.
+- Selection: filter remove take-while drop-while distinct dedupe.
+
+Set
+- splice and within replace a range by index.
+  [c d e f] 1 2 [g] splice gives [C4 G4 E4 F4].
+- zip writes a whole stream of volumes, articulations, instruments or drums
+  onto a line. map and mute change notes by a test.
+- with puts settings (a context) in front of a line.
+- Whole-line operations: + - * /, the row forms, rotate shuffle then.
+- Storing: R!.
+
+WHAT IS MISSING
+
+1. Putting a value back into the prompt for editing. Editing goes through
+   history, but history holds what was typed, not what is on the stack. A word
+   like "edit" that fills the JLine buffer with the top item's printed text
+   would fit (printing is isomorphic to reading, so it parses back).
+   Probably the biggest gap.
+2. Setting a single note's part. pitch, volume etc. only read. Changing one
+   note takes slice/splice plus zip. Also missing: put (replace the nth),
+   insert, delete at an index.
+3. Time-based access. No "the element at beat 3/4", "bar 5", "the notes
+   between two bars"; nth and slice count elements only.
+   [c d e f] duration is an error, so a line's total length has no word.
+4. Stream arithmetic and analysis: sort, reverse for streams, sum, mean,
+   max/min over a stream (max takes two numbers only), intervals (successive
+   differences), ambitus (lowest to highest pitch), contour. + also works on
+   notes, not on streams of numbers.
+5. Searching: find, index-of, positions where q holds.
+6. Reading a line's context: key exists, but no tempo, meter, volume-at.
+   ctx works only on a stored id.
+7. Repo housekeeping: no forget/delete for an id, no rename, no setting of one
+   context key on a stored part (R@, with, R! is the way round).
+8. Deep paths: no get-in / put-in ("voice 2, bar 3, note 4"); nth is one
+   level at a time.
+9. Analysis of the music itself: interval-vector, prime-form and matrix exist
+   (musics.algo.melodic.serial) but no mu words run them on a line. Key
+   detection, chord detection and the rhythm's pulse grid likewise.
+
+SUGGESTED ORDER
+1. edit
+2. put, insert, delete
+3. stream words (sum mean max min sort intervals)
+4. at / bar (time access) with length for a line's total duration
