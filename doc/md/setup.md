@@ -17,7 +17,11 @@ thin *Emergency GM sound set*, so musics loads `FluidR3_GM.sf2` from the
 first of: the `soundfonts/` folder that comes with mu
 ([soundfonts/README.md](../../soundfonts/README.md): MIT license, 148 MB,
 not in git), `/usr/share/sounds/sf2` (`apt install fluid-soundfont-gm`),
-else `default-GM.sf2`.
+else `default-GM.sf2`. With none of them mu says so, once when it connects
+and again on `soundfonts` and `list-soundfonts`, naming the folders it looked
+in and the one to use; until a SoundFont is there Gervill plays its own thin
+built-in sounds. If Java knows no audio output, or the output will not open,
+the error says that (and that `render` still writes a MIDI file).
 
 ```
 gervill                               Gervill with FluidR3_GM

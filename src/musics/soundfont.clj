@@ -17,7 +17,9 @@
 (defn soundfonts!
   "The .sf2 files soundfont takes by number"
   []
-  (doseq [[i f] (map-indexed vector (engine/soundfonts))] (println (str i "> " f))))
+  (if-let [fs (seq (engine/soundfonts))]
+    (doseq [[i f] (map-indexed vector fs)] (println (str i "> " f)))
+    (println (gervill/missing-soundfont-message))))
 
 (defn- font-name [path]
   (str/replace (.getName (java.io.File. ^String path)) #"(?i)\.sf2$" ""))
@@ -27,8 +29,10 @@
   []
   (let [fs (engine/soundfonts)
         w  (count (str (dec (count fs))))]
-    (doseq [[i f] (map-indexed vector fs)]
-      (println (format (str "%" w "d  %s") i (font-name f))))))
+    (if (empty? fs)
+      (println (gervill/missing-soundfont-message))
+      (doseq [[i f] (map-indexed vector fs)]
+        (println (format (str "%" w "d  %s") i (font-name f)))))))
 
 (defn list-groups!
   "General MIDI's groups of eight instruments: number, name, programs"

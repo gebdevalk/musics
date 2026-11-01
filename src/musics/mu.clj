@@ -171,6 +171,17 @@
       (finally (reset! e/print-above println))))
   (println "bye"))
 
+(def ^:private prefs-logger
+  ;; held, since java.util.logging keeps loggers weakly and would forget the level
+  (java.util.logging.Logger/getLogger "java.util.prefs"))
+
+(defn quiet-java-logging!
+  "Java says \"Created user preferences directory\" at INFO the first time
+   the sound system reads its preferences in a new home folder: not news
+   to anyone."
+  []
+  (.setLevel ^java.util.logging.Logger prefs-logger java.util.logging.Level/WARNING))
+
 (def usage
   "What --help prints."
   (str/join "\n"
@@ -192,6 +203,7 @@
    Leaving exits the JVM, whose MIDI and engine threads would otherwise
    keep it running."
   [& args]
+  (quiet-java-logging!)
   (cond
     (some #{"--version"} args) (println "mu" @version)
     (some #{"--help" "-h"} args) (println usage)

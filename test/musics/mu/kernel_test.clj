@@ -517,3 +517,10 @@
   (is (= ":a: Tempo=90@0\n" (out ":a ctx")) "a stored name, its chain")
   (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the line fetched with R@")
   (is (re-find #"something stored" (:error (run "7 ctx"))) "anything else is refused"))
+
+(deftest java-s-first-run-preferences-line-is-quiet
+  (let [mu (requiring-resolve 'musics.mu/quiet-java-logging!)]
+    (mu)
+    (is (= java.util.logging.Level/WARNING
+           (.getLevel (java.util.logging.Logger/getLogger "java.util.prefs"))))))
+

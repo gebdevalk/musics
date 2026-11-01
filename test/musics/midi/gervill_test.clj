@@ -2,6 +2,7 @@
   "Gervill rendering into a stream, no sound device: a note and a drum
    sound, silence before them, a soundfont swap keeps channels playing."
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [musics.midi.gervill :as gv]
             [musics.midi.live :as live])
@@ -63,3 +64,34 @@
     (is (thrown-with-msg? IllegalStateException #"boom"
                           (within 1000 "late" #(throw (IllegalStateException. "boom")) (fn [])))
         "its own error as it is")))
+
+(deftest what-to-say-when-there-is-no-soundfont
+  (testing "none to load: where mu looked and where to put one"
+    (with-redefs [gv/default-soundfonts ["/nowhere/FluidR3_GM.sf2"]]
+      (let [m (gv/no-soundfont-message nil)]
+        (is (string? m))
+        (is (re-find #"no SoundFont" m))
+        (is (str/includes? m (first gv/soundfont-dirs)) "names the folder to use")
+        (is (re-find #"thin built-in" m) "and what plays meanwhile")
+        (is (re-find #"soundfonts/README.md" m)))))
+  (testing "one that will load: nothing to say"
+    (let [f (java.io.File/createTempFile "mu-gm" ".sf2")]
+      (try
+        (with-redefs [gv/default-soundfonts [(.getPath f)]]
+          (is (nil? (gv/no-soundfont-message nil)) "a default is found")
+          (is (nil? (gv/no-soundfont-message "/any/given.sf2")) "one is given: loading it will say if it fails"))
+        (finally (.delete f))))))
+
+(deftest what-to-say-when-the-output-wont-open
+  (is (boolean? (gv/output-available?)))
+  (testing "no audio output at all"
+    (with-redefs [gv/output-available? (constantly false)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no audio output found.*render still writes a MIDI file"
+                            (gv/open)))))
+  (testing "whatever Java throws is put readably"
+    (let [m (gv/open-error-message (javax.sound.sampled.LineUnavailableException. "line busy"))]
+      (is (re-find #"could not open the sound output \(line busy\)" m))
+      (is (re-find #"held by another program" m))
+      (is (re-find #"render" m)))
+    (is (re-find #"IllegalStateException" (gv/open-error-message (IllegalStateException.))) "no message: its kind")))
+

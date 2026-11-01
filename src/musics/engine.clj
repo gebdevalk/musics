@@ -718,6 +718,7 @@
    (reset! synth nil)
    (if (= output :gervill)
      (let [s (gervill/open :soundfont soundfont :latency-ms latency-ms)]
+       (when-let [m (gervill/no-soundfont-message soundfont)] (println "[musics]" m))
        (reset! synth s)
        (reset! receiver (.getReceiver ^javax.sound.midi.Synthesizer s)))
      (reset! receiver (live/open-receiver)))

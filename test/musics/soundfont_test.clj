@@ -111,3 +111,11 @@
       (is (re-find #"no soundfont 7 -- list-soundfonts numbers them 0 to 1" (:error (run "7 try-soundfonts"))))
       (is (re-find #"no instrument named \"zzz\" in a soundfont" (:error (run "\"zzz\" try-soundfonts"))))
       (is (re-find #"no instrument in '\[100 110\] in soundfont 1" (:error (run "1 '[100 110] try-soundfonts")))))))
+
+(deftest an-empty-list-says-where-to-put-a-soundfont
+  (with-redefs [engine/soundfonts (constantly [])]
+    (doseq [word ["soundfonts" "list-soundfonts"]]
+      (let [out (with-out-str (e/eval-input word))]
+        (is (re-find #"no SoundFont" out) word)
+        (is (str/includes? out (first gervill/soundfont-dirs)) (str word " names the folder"))))))
+
