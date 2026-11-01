@@ -2587,3 +2587,20 @@ sound needs a soundfont the jar does not carry, and only Linux with Gervill
 has been tried. The tag message is the release notes: what works, what does
 not, what is next.
 
+## 2026-11-01 — A bare machine says what is missing
+
+The clean-room test (a sandbox with no system soundfont, an empty home and no
+audio device, running the release folder) found mu starting without one
+error and playing into nothing: `gervill` said "Connected", `soundfonts` and
+`list-soundfonts` printed nothing, `>` played silently. Now, without a
+SoundFont, `gervill` (and the first `>`) prints where mu looked and where to
+put one and that Gervill plays its thin built-in set meanwhile, and the two
+listings say the same instead of nothing. An output Java does not know at
+all, or that will not open, is an error that says so, not a Java stack
+(`output-available?`, `open-error-message`). Not detectable: an audio device
+that is not there while Java still lists a default one (the ALSA default
+device accepts lines with no hardware behind it, as in the sandbox), so a
+machine with no sound hardware can still be silent without a word. Java's
+own first-run line, "Created user preferences directory", is turned down to
+warnings (`musics.mu/quiet-java-logging!`).
+

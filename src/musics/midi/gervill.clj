@@ -11,7 +11,7 @@
             [clojure.string :as str])
   (:import (com.sun.media.sound AudioSynthesizer ModelPatch)
            (javax.sound.midi Instrument MidiChannel MidiSystem Synthesizer)
-           (javax.sound.sampled AudioFormat AudioInputStream)))
+           (javax.sound.sampled AudioFormat AudioInputStream AudioSystem DataLine$Info SourceDataLine)))
 
 (def bundled-dirs
   "The soundfonts folder that comes with mu (soundfonts/README.md): the
@@ -80,11 +80,44 @@
   (when-let [^Instrument i (first (.getLoadedInstruments synth))]
     (.getName (.getSoundbank i))))
 
-(defn- info [latency-ms soundfont]
-  {"latency" (long (* 1000 latency-ms)) "load default soundbank" (nil? soundfont)})
+(defn missing-soundfont-message
+  "What to tell when there is no SoundFont to play with: where mu looked
+   and where to put one."
+  []
+  (str "no SoundFont (.sf2) found in " (str/join ", " soundfont-dirs)
+       " -- put a General MIDI one in " (first soundfont-dirs)
+       " (soundfonts/README.md says which; on Debian: apt install fluid-soundfont-gm)"))
 
 (defn- initial-soundfont [soundfont]
   (or soundfont (some #(when (.isFile (io/file %)) %) default-soundfonts)))
+
+(defn no-soundfont-message
+  "The warning for opening Gervill with soundfont (nil: the default), or
+   nil when one will load: without any it plays its own thin built-in
+   sound set."
+  [soundfont]
+  (when-not (initial-soundfont soundfont)
+    (str (missing-soundfont-message) "; until then Gervill plays its thin built-in sounds")))
+
+(defn output-available?
+  "Does Java know any audio output that can play 16-bit stereo? (A default
+   device that accepts lines with no hardware behind it still counts; only
+   opening tells.)"
+  []
+  (let [info (DataLine$Info. SourceDataLine (AudioFormat. 44100 16 2 true false))]
+    (boolean (some #(.isLineSupported (AudioSystem/getMixer %) info) (AudioSystem/getMixerInfo)))))
+
+(defn no-output-message []
+  "no audio output found: nothing will be heard (is a speaker or headset connected, and not held by another program?); render still writes a MIDI file")
+
+(defn open-error-message
+  "A readable reason for e, whatever Java threw when the output would not open."
+  [^Throwable e]
+  (str "Gervill could not open the sound output (" (or (ex-message e) (.getSimpleName (class e)))
+       ") -- is a speaker or headset connected, and not held by another program? render still writes a MIDI file"))
+
+(defn- info [latency-ms soundfont]
+  {"latency" (long (* 1000 latency-ms)) "load default soundbank" (nil? soundfont)})
 
 (defn- within
   "(f) on another thread, its result if it ends within ms, else the
@@ -108,8 +141,12 @@
   [& {:keys [soundfont latency-ms] :or {latency-ms 30}}]
   (let [sf    (initial-soundfont soundfont)
         synth ^AudioSynthesizer (MidiSystem/getSynthesizer)]
-    (within 5000 "the sound output didn't open within 5 s: is it asleep or gone (a Bluetooth speaker)? wpctl status lists the outputs"
-            #(.open synth nil (info latency-ms sf)) #(.close synth))
+    (when-not (output-available?) (throw (ex-info (no-output-message) {})))
+    (try
+      (within 5000 "the sound output didn't open within 5 s: is it asleep or gone (a Bluetooth speaker)? wpctl status lists the outputs"
+              #(.open synth nil (info latency-ms sf)) #(.close synth))
+      (catch clojure.lang.ExceptionInfo e (throw e))
+      (catch Exception e (throw (ex-info (open-error-message e) {} e))))
     (when sf (load-soundfont! synth sf))
     synth))
 
