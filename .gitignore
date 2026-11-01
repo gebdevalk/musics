@@ -43,3 +43,7 @@ __pycache__/
 
 # written by scripts/build.sh into the jar
 /resources/musics/version.txt
+
+# the soundfont files themselves (soundfonts/README.md says where to get them)
+/soundfonts/*.sf2
+/soundfonts/*.sf3

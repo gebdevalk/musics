@@ -2012,7 +2012,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   synthesizer, as the other live output: `(musics.engine/connect!
   :gervill)` plays through it instead of Fluidsynth/VirMIDI, its
   `Receiver` going to the engine as VirMIDI's does;
-  `musics.engine/soundfont!`/`soundfonts` load any `.sf2` (mu: `gervill`
+  `musics.engine/soundfont!`/`soundfonts` load any `.sf2`, searched in `soundfonts/` (or the folder `bin/mu` names in `-Dmu.soundfonts`: FluidR3_GM, MIT, `soundfonts/README.md`), `/usr/share/sounds/sf2` and `~/Music/sf` (mu: `gervill`
   `fluidsynth`, and `musics.soundfont`, mu's `soundfont` namespace:
   `soundfont` `soundfonts` `list-soundfonts` `list-groups` -- General
   MIDI's groups of eight, `musics.common.music-data/gm-groups` -- and

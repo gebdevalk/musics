@@ -34,9 +34,16 @@ if [ -z "$major" ] || [ "$major" -lt 25 ]; then
   exit 1
 fi
 
+# the soundfonts folder that comes with mu: next to this script (a
+# distribution) or in the checkout above it
+sf=""
+for c in "$here/soundfonts" "$here/../soundfonts"; do
+  [ -d "$c" ] && sf="$(cd "$c" && pwd)" && break
+done
+
 # ZGC: no collection pause holds up the sender thread; compact object
 # headers: less heap for many small objects (both as in project.clj)
 exec "$java_cmd" -XX:+UseZGC -XX:+UseCompactObjectHeaders \
   --enable-native-access=ALL-UNNAMED \
   --add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED \
-  ${MU_JAVA_OPTS:-} -jar "$jar" "$@"
+  ${sf:+-Dmu.soundfonts="$sf"} ${MU_JAVA_OPTS:-} -jar "$jar" "$@"

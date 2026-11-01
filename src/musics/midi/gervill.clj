@@ -13,14 +13,28 @@
            (javax.sound.midi Instrument MidiChannel MidiSystem Synthesizer)
            (javax.sound.sampled AudioFormat AudioInputStream)))
 
+(def bundled-dirs
+  "The soundfonts folder that comes with mu (soundfonts/README.md): the
+   one bin/mu names in -Dmu.soundfonts, and soundfonts/ in the folder mu
+   runs from, as in a checkout."
+  (vec (remove nil? [(System/getProperty "mu.soundfonts") "soundfonts"])))
+
 (def soundfont-dirs
-  "Where soundfonts searches, in order."
-  ["/usr/share/sounds/sf2" (str (System/getProperty "user.home") "/Music/sf")])
+  "Where soundfonts searches, in order, each folder once (the bundled one
+   is named twice when mu runs from a checkout)."
+  (->> (into bundled-dirs ["/usr/share/sounds/sf2" (str (System/getProperty "user.home") "/Music/sf")])
+       (reduce (fn [[seen out] dir]
+                 (let [real (.getCanonicalPath (io/file dir))]
+                   (if (seen real) [seen out] [(conj seen real) (conj out dir)])))
+               [#{} []])
+       second))
 
 (def default-soundfonts
-  "Loaded by open when none is given: the first that exists. Without any,
-   Gervill plays its own thin Emergency GM sound set."
-  ["/usr/share/sounds/sf2/FluidR3_GM.sf2" "/usr/share/sounds/sf2/default-GM.sf2"])
+  "Loaded by open when none is given: the first that exists, the one that
+   comes with mu before the system's. Without any, Gervill plays its own
+   thin Emergency GM sound set."
+  (into (mapv #(str % "/FluidR3_GM.sf2") bundled-dirs)
+        ["/usr/share/sounds/sf2/FluidR3_GM.sf2" "/usr/share/sounds/sf2/default-GM.sf2"]))
 
 (defn expand
   "path with a leading ~ as the home directory."

@@ -2542,3 +2542,19 @@ jar's `musics.algo.tree.lib` found them unloaded and their vars empty. The
 macro now expands to a `require` too. Not done: a bundled runtime and
 soundfont (`jpackage`, a licensed GM bank), other platforms, a config file.
 
+## 2026-11-01 — The soundfont that comes with mu: FluidR3_GM
+
+Gervill needs a General MIDI `.sf2` and the JDK ships none, so a download
+that does not carry one is silent. The chosen bank is FluidR3_GM: MIT, a
+known author (Frank Wen), distributed by Debian as free software, and
+already the file mu looked for. MuseScore_General is MIT too but built on
+it and larger (208 MB; its 36 MB `.sf3` cannot be loaded by Gervill);
+GeneralUser GS is smaller (about 30 MB) and good, but its own license v2.0,
+which says the bank may be used in software projects, also says its author
+cannot be sure of every sample's origin, and it is no standard license;
+TimGM6mb is GPL-2. `soundfonts/` holds the license text and a checksum,
+and the `.sf2` is git-ignored: 148 MB in history would weigh on every clone,
+so it belongs in a release download. mu searches that folder first
+(`bin/mu` names it with `-Dmu.soundfonts`, or `soundfonts/` in the folder
+mu runs from), each folder once.
+
