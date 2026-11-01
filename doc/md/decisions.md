@@ -2576,3 +2576,14 @@ release on a tag (the jar, `bin/mu` and the soundfont), other platforms, and
 a run that plays sound; the tests mock soundfonts and need no display or
 audio device.
 
+## 2026-11-01 — Tagged releases: v0.4.0-alpha.1
+
+A release is an annotated tag `vX.Y.Z[-pre]` on `main` after CI is green
+on it, and the jar built from the tagged commit carries the tag as its
+version (`scripts/build.sh` reads `git describe --exact-match`); any other
+commit keeps `0.3.<merges>.<commits>`, which counts work and is not a
+release. The first tag is `-alpha.1`: the words are new and still changing,
+sound needs a soundfont the jar does not carry, and only Linux with Gervill
+has been tried. The tag message is the release notes: what works, what does
+not, what is next.
+
