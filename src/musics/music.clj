@@ -439,6 +439,46 @@
       (str (chord-root-spelling flat? root) ":" word
            (when (and bass (not= bass root)) (str "/" (chord-root-spelling flat? bass)))))))
 
+(declare amount)
+
+(defn- par-inside?
+  "Does x hold a parallel anywhere? Its parts sound together, so they
+   have no one rhythm."
+  [x]
+  (and (v/material? x)
+       (or (= :PAR (mt/kind x)) (some par-inside? (mt/finite! "pulses" (mt/elements x))))))
+
+(defn- ratio-gcd [a b] (if (zero? b) a (recur b (mod a b))))
+
+(defn pulses
+  "A line's rhythm as a grid of pulses: a 1 where a note starts, a 0
+   while it holds or a rest is silent, a chord one onset, a tie's second
+   note a hold. The pulse is the largest note value every length is a
+   whole number of; a pulse on top (1/8) is the grid instead, each length
+   rounded to a whole number of them, at least one -- what the algos'
+   pulses->durations reads back: [c4 d8 e8 f2] pulses gives
+   '[1 0 1 1 1 0 0 0]"
+  {:mu {:optional {:pulse number?}}}
+  ([x] (pulses x nil))
+  ([x pulse]
+   (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
+   (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data"))
+   (when (par-inside? x) (fail "needs one line, not parallel parts: take a part with nth first"))
+   (let [leaves (filterv #(pos? (or (:duration %) 0))
+                         (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "pulses" x))))
+         unit   (if pulse (amount "pulses" pulse true) (reduce ratio-gcd (map :duration leaves)))
+         steps  (loop [ls leaves prev nil acc []]
+                  (if-let [leaf (first ls)]
+                    (let [n    (max 1 (Math/round (double (/ (:duration leaf) unit))))
+                          rest? (= :REST (:type leaf))
+                          hold? (and prev (:tied prev) (not rest?) (not= :REST (:type prev)))]
+                      (recur (rest ls) leaf
+                             (into acc (if (or rest? hold?)
+                                         (clojure.core/repeat n 0)
+                                         (cons 1 (clojure.core/repeat (dec n) 0))))))
+                    acc))]
+     (mt/read-text (str "'[" (str/join " " steps) "]")))))
+
 (defn- length-of
   "x's length in whole notes, as written: a line's parts one after the
    other, a parallel's longest part."

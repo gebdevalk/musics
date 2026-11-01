@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `!volume` `!instrument` … (`context-of`) |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -451,6 +451,16 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
     `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
     What changes the numbers (`sort`, `take`, `intervals`) gives a plain
     list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
+- **A rhythm as pulses**: `pulses` writes a line's rhythm as a grid, a 1
+  where a note starts and a 0 while it holds or a rest is silent:
+  `[c4 d8 e8 f2] pulses` is `'[1 0 1 1 1 0 0 0]`. The pulse is the largest
+  note value every length is a whole number of (an eighth there, a twelfth
+  for a triplet); a pulse on top is the grid instead, each length rounded
+  to a whole number of them and at least one: `[c4 d8] 1/16 pulses` is
+  `'[1 0 0 0 1 0]`. A chord is one onset, a tie's second note a hold, a
+  drum a note. It is what the algos' `pulses->durations` reads back, as a
+  list of numbers the number words read (`pulses sum` is how many notes,
+  `pulses count` how many pulses). A parallel, data and a loop are refused.
 - **Naming a chord**: `chord-name` gives the name of a chord as a chord
   symbol is written, as a string: the root, a colon and a quality word
   (`M` the major triad, `m`, `d`, `A`, `5`, `s2`, `s4`, `7`, `M7`, `m7`,
