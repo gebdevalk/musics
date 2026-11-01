@@ -1,7 +1,7 @@
 (ns ^:engine musics.domain.micro-timing-test
   "Live proof that the :micro/:humanization context keys -- registered
-   in musics.common.context-keys for a long time already (per emails/messages/
-   algorithm/Micro timing's own design, which already imported
+   in musics.common.context-keys for a long time already (per the Micro timing
+   design discussion, which already imported
    musics.domain.context/Envelope and sampled these as context values,
    not raw arguments) but never actually applied anywhere -- now
    genuinely delay a note's real wall-clock onset, not just its
