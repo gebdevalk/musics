@@ -1,0 +1,109 @@
+# On every push to main or develop and every pull request: lint and test
+# (lein verify), then build the jar and start it once. The same steps run
+# by hand: lein verify; scripts/build.sh; bin/mu --version
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # the version counts commits (musics.version)
+
+      # the version counts main's merges and develop's commits, so both
+      # branches must exist here; a branch already checked out is left alone
+      - name: Local main and develop
+        run: |
+          for b in main develop; do
+            git rev-parse --verify -q "refs/heads/$b" >/dev/null || git branch "$b" "origin/$b"
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('project.clj') }}
+          restore-keys: m2-
+
+      - name: Leiningen
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein -o "$HOME/bin/lein"
+          chmod +x "$HOME/bin/lein"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      # gervill-renders-notes-and-drums plays real audio into a stream and
+      # skips itself without this small soundfont (5.7 MB, in /usr/share/sounds/sf2)
+      - name: A small soundfont for the audio test
+        run: sudo apt-get update && sudo apt-get install -y timgm6mb-soundfont
+
+      - name: Lint and test
+        run: lein verify
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Local main and develop
+        run: |
+          for b in main develop; do
+            git rev-parse --verify -q "refs/heads/$b" >/dev/null || git branch "$b" "origin/$b"
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ hashFiles('project.clj') }}
+          restore-keys: m2-
+
+      - name: Leiningen
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein -o "$HOME/bin/lein"
+          chmod +x "$HOME/bin/lein"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Build the jar
+        run: scripts/build.sh
+
+      - name: Start it
+        run: |
+          bin/mu --version
+          bin/mu --help
+          out=$(printf '[c e g] classes .\nbye\n' | bin/mu 2>&1)
+          echo "$out"
+          echo "$out" | grep -F '$[047]'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mu
+          path: |
+            target/mu.jar
+            bin/mu
+          retention-days: 14

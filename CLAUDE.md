@@ -162,7 +162,7 @@ scripts/nrepl.py -n musics.assist '…' # -n for a namespace, code on stdin work
 lein test               # run the full test suite (test/ dir)
 lein lint               # clj-kondo over src/, test/ and dev/ (no cache written;
                         # the editors' on-save linting is off for this project)
-lein verify             # lint, then the full test suite
+lein verify             # lint, then the full test suite (CI runs it: .github/workflows/ci.yml)
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
