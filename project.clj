@@ -18,6 +18,14 @@
                  [org.openjfx/javafx-media "25.0.4"]
                  [org.openjfx/javafx-web "25.0.4"]]
   :source-paths ["src"]
+  ;; lein uberjar -> target/mu.jar, run by bin/mu (scripts/build.sh builds it
+  ;; with its version). The manifest carries the two JVM options a jar can:
+  ;; Gervill's package export and native access for JavaFX; the others
+  ;; (ZGC, compact headers) are options of the launcher.
+  :main musics.mu
+  :uberjar-name "mu.jar"
+  :manifest {"Add-Exports" "java.desktop/com.sun.media.sound"
+             "Enable-Native-Access" "ALL-UNNAMED"}
   ;; ZGC (generational, the only kind from JDK 24): sub-millisecond GC
   ;; pauses, so a collection doesn't hold up the engine's sender thread and
   ;; make notes late. Compact object headers (JDK 25): 8-byte headers, less
@@ -29,7 +37,11 @@
              ;; Gervill's latency (musics.midi.gervill)
              "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED"]
   ;; dev/ holds standalone tools (musics.midi-probe), not part of a test run
-  :profiles {:dev  {:source-paths ["dev"]}
+  :profiles {;; the compiled classes go to their own folder: in target/classes
+             ;; (the default) they would sit on every run's classpath and
+             ;; could hide an edited source file
+             :uberjar {:aot [musics.mu] :compile-path "target/uberjar-classes"}
+             :dev  {:source-paths ["dev"]}
              :test {:source-paths ^:replace ["src"]}
              ;; clj-kondo as a library, for `lein lint` -- the editor's
              ;; on-save linting is off (.lsp/config.edn)

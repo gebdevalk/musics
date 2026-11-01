@@ -3,6 +3,7 @@
    read until mu's grammar says it is complete, evaluated on the stack,
    and the prompt shows the stack's depth, mu<n>. bye or Ctrl+D leaves;
    the stack lasts the session. Ctrl+C abandons an unfinished input."
+  (:gen-class)
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [musics.mu.eval :as e]
@@ -170,14 +171,30 @@
       (finally (reset! e/print-above println))))
   (println "bye"))
 
+(def usage
+  "What --help prints."
+  (str/join "\n"
+            ["mu -- the musical REPL"
+             ""
+             "  mu              start the REPL (from a checkout: lein mu)"
+             "  mu --version    print the version and leave"
+             "  mu --help       print this and leave"
+             ""
+             "Needs Java 25. Sound plays through Gervill with a General MIDI"
+             "soundfont in /usr/share/sounds/sf2 or ~/Music/sf (or fluidsynth,"
+             "see doc/md/setup.md). Inside: words lists the words, \"dup\" see"
+             "explains one, Tab completes, bye or Ctrl+D leaves."]))
+
 (defn -main
   "Run mu on its own: lein mu (an alias for lein trampoline run -m
-   musics.mu, so JLine gets the real terminal); lein mu --version prints
-   the version only. Leaving exits the JVM, whose MIDI and engine threads
-   would otherwise keep it running."
+   musics.mu, so JLine gets the real terminal) or mu, the launcher over
+   the jar (bin/mu); --version prints the version only, --help the usage.
+   Leaving exits the JVM, whose MIDI and engine threads would otherwise
+   keep it running."
   [& args]
-  (if (some #{"--version"} args)
-    (println "mu" @version)
-    (repl))
+  (cond
+    (some #{"--version"} args) (println "mu" @version)
+    (some #{"--help" "-h"} args) (println usage)
+    :else (repl))
   (System/exit 0))
 

@@ -2520,3 +2520,25 @@ the arglist (`x D.major with` and `x :Key D.major with` end in the same
 value). The value is written as `!name:value` reads it, a number only for a
 number key (a name for `:instrument` and `:kit`).
 
+## 2026-11-01 — A runnable jar and a launcher
+
+`scripts/build.sh` writes the version into the jar (`musics/version.txt`,
+read before git, since a jar runs where there is no repo) and runs `lein
+uberjar`: `:main musics.mu` with `(:gen-class)`, `:aot [musics.mu]` in the
+`:uberjar` profile only, so nothing about `lein mu`, `lein test` or the
+nREPL changes. The compiled classes go to `target/uberjar-classes`: in
+Leiningen's default `target/classes` they sit on every run's classpath
+and a stale one can hide an edited source file. `bin/mu` is the
+launcher: it finds `mu.jar` next to it or in `target/`, checks for Java
+25 and starts it with the options of `:jvm-opts` (ZGC, compact object
+headers); the two a jar's manifest can carry (`Add-Exports` for Gervill,
+`Enable-Native-Access` for JavaFX) are in the manifest too, so `java -jar
+target/mu.jar` also works, without ZGC. The JVM options are therefore in
+two places, `project.clj` and `bin/mu`, with a comment in each.
+
+Compiling found one real bug: `expose-ns` loaded the algo namespaces when
+the macro expanded, which for a compiled namespace is at build time, so the
+jar's `musics.algo.tree.lib` found them unloaded and their vars empty. The
+macro now expands to a `require` too. Not done: a bundled runtime and
+soundfont (`jpackage`, a licensed GM bank), other platforms, a config file.
+

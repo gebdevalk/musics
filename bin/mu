@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# mu, the musical REPL, from the jar scripts/build.sh makes.
+#
+#   bin/mu              start
+#   bin/mu --version    print the version
+#   bin/mu --help       usage
+#
+# The jar is found at $MU_JAR, else next to this script (mu.jar), else in
+# ../target (a checkout after scripts/build.sh). Needs Java 25: the JVM
+# options below use its compact object headers (JDK 21 refuses to start
+# with them). Extra JVM options can go in $MU_JAVA_OPTS.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+jar="${MU_JAR:-}"
+if [ -z "$jar" ]; then
+  for c in "$here/mu.jar" "$here/../target/mu.jar"; do
+    [ -f "$c" ] && jar="$c" && break
+  done
+fi
+if [ -z "$jar" ] || [ ! -f "$jar" ]; then
+  echo "mu: no mu.jar found next to $0 or in ../target -- run scripts/build.sh, or set MU_JAR" >&2
+  exit 1
+fi
+
+java_cmd="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+if ! command -v "$java_cmd" >/dev/null 2>&1; then
+  echo "mu: no java found -- mu needs Java 25 (on Debian: apt install openjdk-25-jdk)" >&2
+  exit 1
+fi
+major="$("$java_cmd" -version 2>&1 | sed -n '1s/.*version "\([0-9]*\).*/\1/p')"
+if [ -z "$major" ] || [ "$major" -lt 25 ]; then
+  echo "mu: needs Java 25 or newer, found ${major:-an unknown version} ($java_cmd)" >&2
+  exit 1
+fi
+
+# ZGC: no collection pause holds up the sender thread; compact object
+# headers: less heap for many small objects (both as in project.clj)
+exec "$java_cmd" -XX:+UseZGC -XX:+UseCompactObjectHeaders \
+  --enable-native-access=ALL-UNNAMED \
+  --add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED \
+  ${MU_JAVA_OPTS:-} -jar "$jar" "$@"
