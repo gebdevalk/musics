@@ -13,13 +13,15 @@ Parsing, composing and the tests need neither.
 
 Gervill runs inside the JVM and plays straight to the speakers. It
 loads any `.sf2` SoundFont (not `.sf3`); without one it plays its own
-thin *Emergency GM sound set*, so musics loads
-`/usr/share/sounds/sf2/FluidR3_GM.sf2` (`apt install
-fluid-soundfont-gm`), else `default-GM.sf2`.
+thin *Emergency GM sound set*, so musics loads `FluidR3_GM.sf2` from the
+first of: the `soundfonts/` folder that comes with mu
+([soundfonts/README.md](../../soundfonts/README.md): MIT license, 148 MB,
+not in git), `/usr/share/sounds/sf2` (`apt install fluid-soundfont-gm`),
+else `default-GM.sf2`.
 
 ```
 gervill                               Gervill with FluidR3_GM
-soundfonts                            the .sf2 files in /usr/share/sounds/sf2 and ~/Music/sf, numbered
+soundfonts                            the .sf2 files in soundfonts/, /usr/share/sounds/sf2 and ~/Music/sf, numbered
 list-soundfonts                       the same, number and name aligned
 3 soundfont                           swap to the 4th of them; what plays goes on
 "~/Music/sf/Crysrhod.sf2" soundfont   or one by its file
