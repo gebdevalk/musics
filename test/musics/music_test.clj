@@ -303,3 +303,19 @@
     (is (thrown-with-msg? Exception #"not data" (e/run-text [] "'[60 62] pulses")))
     (is (thrown-with-msg? Exception #"above 0" (e/run-text [] "[c d] 0 pulses")))
     (is (thrown-with-msg? Exception #"endless|loop" (e/run-text [] "[c d] [~] pulses")))))
+
+(deftest a-bare-mark-that-is-no-mark-is-refused
+  (testing "a typo says what it is close to"
+    (let [msg (fn [text] (try (e/run-text [] text) nil (catch Exception ex (.getMessage ex))))]
+      (is (re-find #"!mff is no mark.*did you mean !(ff|mf)" (msg "[!mff c d]")))
+      (is (re-find #"!mf" (msg "[!mff c d]")) "!mf among them")
+      (is (re-find #"!allegro" (msg "[c !alegro d]")) "a tempo word with a letter missing")
+      (is (re-find #"!nonsense is no mark.*a dynamic .*a tempo" (msg "[!nonsense c]")) "nothing near: what a mark is")))
+  (testing "a context key needs its value in a line"
+    (is (thrown-with-msg? Exception #"!volume is no mark.*context key.*!volume:value" (e/run-text [] "[!volume c d]"))))
+  (testing "everything that was a mark still is"
+    (is (= "[!mf C4/4 !allegro D4 !swing E4]" (run "[!mf c !allegro d !swing e]")) "a dynamic, a tempo, a feel")
+    (is (= "[!ff C4/4 !p D4]" (run "[!ff c !p d]")))
+    (is (= "[!vol:50 C4/4]" (run "[!vol:50 c]")) "a setting with a value")
+    (is (= "[!nonsense:5 C4/4]" (run "[!nonsense:5 c]")) "a custom key with a value passes, as before")
+    (is (= "[!mf C4/4 !/mf D4]" (run "[!mf c !/mf d]")) "invalidate")))

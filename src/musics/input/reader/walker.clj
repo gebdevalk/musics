@@ -892,10 +892,42 @@
         (update-in s [:stack i :children] (fn [cs] (conj (pop cs) (update (peek cs) :raw str "@" t)))))
       s)))
 
+(defn- edit-distance
+  "The number of single-letter changes from a to b (Levenshtein)."
+  [a b]
+  (let [row (reduce (fn [prev ca]
+                      (reduce (fn [cur [j cb]]
+                                (conj cur (min (inc (peek cur)) (inc (nth prev (inc j)))
+                                               (+ (nth prev j) (if (= ca cb) 0 1)))))
+                              [(inc (first prev))]
+                              (map-indexed vector b)))
+                    (vec (range (inc (count b)))) a)]
+    (peek row)))
+
+(defn- unknown-mark!
+  "A bare !name that is no mark: refused, pointing at the marks it is
+   close to or at the key it names, since doing nothing silently hides a
+   typo (!mff for !mf)."
+  [name-val]
+  (let [kw     (keyword name-val)
+        key?   (try (ck/context-key kw) true (catch clojure.lang.ExceptionInfo _ false))
+        near   (->> (keys data/instruction-context)
+                    (map name)
+                    (map (juxt identity #(edit-distance (str/lower-case name-val) (str/lower-case %))))
+                    (filter #(<= (second %) 2))
+                    (sort-by (juxt second first))
+                    (map first) (take 4))]
+    (throw (ex-info (str "!" name-val " is no mark"
+                         (cond key? (str " -- it names a context key, which needs a value here: !" name-val ":value")
+                               (seq near) (str " -- did you mean " (str/join " or " (map #(str "!" %) near)) "?")
+                               :else " -- a dynamic (!mf), a tempo (!allegro) or a feel (!swing); a setting with a value is !name:value"))
+                    {:mark name-val}))))
+
 (defn- walk-bang-const [state children]
   (let [name-node (find-child children :Name)
         name-val  (when name-node (second name-node))
         kw        (keyword name-val)]
+    (when (and name-val (not (data/instruction-context kw))) (unknown-mark! name-val))
     (if name-val
       (let [obj    {:type :instruction :const kw :raw (str "!" name-val)}
             ctx    (flat/current-context state)

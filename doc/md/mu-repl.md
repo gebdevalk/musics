@@ -552,7 +552,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `at` first: `1/2 at !volume`. `!Tempo` and `!Meter` read as written (`100`,
   `3/4`). A key that is also a mark (`swing`, `shuffle`, `straight`,
   `laidBack`, `pushed`) is read as the mark's refusal, not the key: write
-  `:swing context-of`.
+  `:swing context-of`. Inside a line a bare `!name` must be a mark: a
+  typo is refused with what it is close to (`[!mff c]`: "!mff is no mark
+  -- did you mean !ff or !mf?"), and a context key without its value says
+  so (`[!volume c]`: write `!volume:value`); `!name:value` still takes any
+  key, a custom one too.
 - **`zip` builds leaves from their parts**: the top two, or everything
   above a `|` mark, each part a stream in the order a leaf holds them --
   durations, pitches (or drums), articulations, dynamics, ornaments,

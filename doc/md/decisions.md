@@ -2482,3 +2482,17 @@ value as `index-of` takes. The first is `indexes 0 @`, and the places feed
 `@`, `put` and `delete` (one at a time, since a delete moves the later
 ones). An endless stream is refused as for the others.
 
+## 2026-11-01 — A bare !name that is no mark is refused
+
+`[!mff c d]` was read and printed back and did nothing, because a bare
+`!name` is looked up in the table of dynamics, tempo words and feels
+(`instruction-context`) and, found nowhere, simply appended with no effect;
+a typo in a dynamic changed no volume and said nothing. It is now an error
+at reading, naming the marks within two letters of it (`!mff`: `!ff` or
+`!mf`), or, when the name is a context key, saying it needs a value there
+(`!volume:value`). `!name:value` is untouched: any key, a custom one too,
+which is how algo settings and extra keys travel. The corpus scores and
+the whole suite read as before, so nothing relied on the silence. Top
+level is not involved: a bare `!volume` there reads the key, and `!mff`
+is refused as an instruction that needs a container.
+
