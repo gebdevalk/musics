@@ -214,6 +214,7 @@
   [stack node env]
   (case (first node)
     (:SignedInt :SignedFloat :SignedRatio) (conj stack (number-value (first node) (second node)))
+    :BareDuration (conj stack ((requiring-resolve 'musics.input.reader.walker/duration-value) node))
     :StringLit (conj stack (second node))
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))

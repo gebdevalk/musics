@@ -65,6 +65,14 @@
       (/ (Integer/parseInt (first parts))
          (Integer/parseInt (second parts))))))
 
+(defn duration-value
+  "The ratio of a :BareDuration node (/4, /8., /4*2/3): a note value as a
+   plain number of whole notes, a tuplet factor applied."
+  [[_ [_ s & more]]]
+  (let [base (parse-duration s)
+        [_ [_ r]] (first more)]
+    (if r (* base (parse-ratio-str r)) base)))
+
 ;; ============================================================
 ;; Initial state
 ;; ============================================================
