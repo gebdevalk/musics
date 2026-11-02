@@ -34,6 +34,7 @@ what is still open.
 | `^{ !ff !tempo:120 }` | a context literal | pushed as a value |
 | `c4` `C5/8` `<C4 E4 G4>4` `r4` `x8\36` | a loose leaf | pushed as one value |
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
+| `/4` `/8.` `/4*2/3` `\breve` | a duration alone, as a note writes it (`/` marks it, as in a `'[ ]`) | pushed as its ratio of a whole note: `/4` is 1/4, `/8.` 3/16; `( /4 /8 )` is `'[1/4 1/8]`. Not inside a line |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
 | `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 add 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
