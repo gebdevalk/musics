@@ -21,8 +21,9 @@
   (:import (org.jline.keymap KeyMap)
            (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)
-           (org.jline.reader.impl DefaultParser)
-           (org.jline.terminal TerminalBuilder)))
+           (org.jline.reader.impl DefaultParser LineReaderImpl)
+           (org.jline.terminal TerminalBuilder)
+           (org.jline.utils InfoCmp$Capability)))
 
 (defn prompt [] (str "mu<" (count (:stack @e/state)) "> "))
 
@@ -163,8 +164,10 @@
   "Run mu until bye or Ctrl+D."
   []
   (println (header))
-  (let [reader (line-reader (-> (TerminalBuilder/builder) (.system true) (.build))
-                            (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
+  (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
+        reader (line-reader terminal (.toPath (io/file (System/getProperty "user.home") ".mu-history")))]
+    (reset! e/clear-screen (fn [] (.puts terminal InfoCmp$Capability/clear_screen (object-array 0)) (.flush terminal)
+                                  (.redrawLine ^LineReaderImpl reader)))
     (reset! e/print-above (fn [^String line] (.printAbove ^LineReader reader line)))
     (bind-prompt-keys! reader)
     (try
@@ -174,7 +177,8 @@
                          (.readLine ^LineReader reader ^String p nil no-mask ^String (first (reset-vals! kernel/edit-text nil))))
                        (catch UserInterruptException _ ::abandon)
                        (catch EndOfFileException _ nil))))
-      (finally (reset! e/print-above println))))
+      (finally (reset! e/print-above println)
+               (reset! e/clear-screen (fn [] (print "\u001b[H\u001b[2J") (flush))))))
   (println "bye"))
 
 (def ^:private prefs-logger

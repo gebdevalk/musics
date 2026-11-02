@@ -32,6 +32,10 @@
    println, or the line reader's printAbove (above the prompt)."}
   print-above (atom println))
 
+(defonce ^{:doc "How cls clears the screen: the escape codes, or the line reader's
+   terminal clearing it, so the prompt that follows is drawn on the clean screen."}
+  clear-screen (atom (fn [] (print "\u001b[H\u001b[2J") (flush))))
+
 (defn mu-error
   "Throw a mu error: its message is what the user sees."
   [& parts]
