@@ -218,6 +218,7 @@ any more parts written on them:
 | `degrees->pitches` | scale steps of `:key` (as `!key:` writes it) from the tonic in `:octave` | value by value |
 | `numbers->pitches`, `points->pitches` | each value's place in `:from-lo..:from-hi` onto `:lo..:hi`, or onto a key's steps | value by value |
 | `weights->pulses` | the strongest `:density` of the pulses on | whole stream |
+| `counts->pulses` | one bar of weights thinned to the n strongest, n from a stream (a window: `tendency`) | whole stream |
 | `numbers->volumes`, `points->volumes` | each value's place in `:from-lo..:from-hi` as a volume in `:lo..:hi` (0–100) | value by value |
 | `weights->volumes`, `weights->articulations` | a meter's weights as volumes (0–100) or articulation names | whole stream |
 

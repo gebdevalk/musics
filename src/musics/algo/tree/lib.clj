@@ -41,7 +41,7 @@
    Stream bridges, raw material -> half product (musics.algo.bridge, category bridge):
      pulses->durations strokes->durations onsets->durations numbers->durations points->durations
      degrees->pitches numbers->pitches points->pitches
-     numbers->volumes points->volumes weights->volumes weights->articulations weights->pulses
+     numbers->volumes points->volumes weights->volumes weights->articulations weights->pulses counts->pulses
    Specialised: every source of raw material, as each half product a
    bridge makes of it (musics.algo.tree.half-products) -- pitch/lorenz,
    duration/euclid, volume/walk, ... -- registered by that name, mu's

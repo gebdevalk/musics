@@ -12,6 +12,15 @@
 (defn- rest-of [x] (when (d/rest? x) [:rest (:duration x)]))
 (defn- durs [xs] (map #(or (rest-of %) %) xs))
 
+;; a window of counts, one for each bar of weights
+(deftest counts-thin-each-bar-to-its-count
+  (let [w [11 0 4 8 2 6 10 1]]
+    (is (= [1 0 0 0 0 0 0 0, 1 0 0 1 0 0 1 0, 1 1 1 1 1 1 1 1]
+           (b/counts->pulses w [1 3 8])) "the n strongest, 8 keeps every pulse")
+    (is (= [0 0 0 0 0 0 0 0, 1 0 0 0 0 0 0 0] (b/counts->pulses w [0 1.4])) "rounded")
+    (is (= (repeat 8 1) (b/counts->pulses w [12])) "held to the bar")
+    (is (= [] (b/counts->pulses w [])))))
+
 (deftest pulses-and-strokes-become-durations
   (is (= [[:rest 1/4] 1/4 1/8 1/8] (durs (b/pulses->durations [0 0 1 0 1 1] 1/8))) "0s lengthen; leading 0s one rest")
   (is (= [3/16 1/8] (durs (b/pulses->durations [2 0 0 1 0] 1/16))) "any nonzero is an onset")
