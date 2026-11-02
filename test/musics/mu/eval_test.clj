@@ -46,6 +46,8 @@
   (is (= [1/4 3/16 1/6] (:ok (run "/4 /8. /4*2/3"))) "a duration alone is its ratio")
   (is (= "'[1/4 1/8 3/16]" (p/show (first (:ok (run "( /4 /8 /8. )"))))))
   (is (re-find #"no note value" (:error (run "/3"))))
+  (is (= ["^{ !M:3/4 }" "^{ !T:8=200 }" "^{ !K:D.major }" "^{ !vol:mf }"]
+         (map (comp p/show first :ok run) ["M:3/4" "T:8=200" "K:D.major" "vol:mf"])) "a setting alone is a context")
   (is (= [10 20 30] (:ok (run "10 20 30 0 roll"))) "0 roll leaves the stack")
   (is (= [10 30 20] (:ok (run "10 20 30 1 roll"))) "1 roll is swap")
   (is (= [20 30 10] (:ok (run "10 20 30 2 roll"))) "2 roll is rot")
