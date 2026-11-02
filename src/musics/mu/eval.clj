@@ -244,11 +244,14 @@
                             :at (first (insta/span node))})
                   stack)
     :Group (let [xs (run-items [] (vec (rest node)) env)]
-             (when (empty? xs) (mu-error "( … ): leaves nothing to gather into a line"))
-             (when-let [x (first (remove #(or (v/material? %) (v/leaf? %)) xs))]
-               (mu-error "( … ): gathers music into a line, and left" (p/show x)))
-             ;; gathered as | … seq gathers
-             (conj stack (peek (run-word (into [v/mark] xs) "music/seq"))))
+             (if (empty? xs)
+               ;; () alone takes its values from the stack: those above the nearest |, else all
+               (let [s (if (some v/mark? stack) stack (into [v/mark] stack))
+                     [below xs] (to-mark s "()")]
+                 (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
+                 (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
+               ;; what it makes follows its first value: music a line, plain values a '[ ]
+               (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")

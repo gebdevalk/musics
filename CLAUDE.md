@@ -317,7 +317,7 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
-gathered into a line, `| … seq`). Most words are plain Clojure
+gathered by its first value: music into a line, `| … seq`, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
 `musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
