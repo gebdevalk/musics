@@ -49,10 +49,17 @@
 
 (defn- label [entry] (subs (str (:short entry)) 1))
 
+(defn- long-name
+  "A short name bound to a long one in mu ('sds 'subdivisions :=) as the
+   long one, as an @^{ } reads it; any other name as it is."
+  [nm]
+  (let [x (get (:bindings @e/state) nm)]
+    (if (symbol? x) (str x) nm)))
+
 (defn- setting
-  "[name value] of a name:value."
+  "[name value] of a name:value, a short name read as the long one."
   [[_ & kids]]
-  [(second (first kids)) (walker/algo-value (second kids))])
+  [(long-name (second (first kids))) (walker/algo-value (second kids))])
 
 ;; -- building: an RPN stack of nodes ---------------------------------------
 ;; The stack holds tree nodes and literal leaves, ::param and ::alias

@@ -1742,7 +1742,9 @@ refused, "an algo's settings are @^{ k:… } -- music holds ! keys only".
 A name bound to another name in mu (`'dp 'duration-pulse :=`) is a
 short name: `musics.mu.value` hands such bindings to the walker as
 `:param-aliases`, and `@^{ dp:1/8 }` is kept and written back as
-`@^{ duration-pulse:1/8 }`. Trees read them as their settings (`t/run
+`@^{ duration-pulse:1/8 }`. A recipe reads them too, in its head and
+before an algo (`musics.recipe/long-name`, from mu's bindings when it
+is built). Trees read them as their settings (`t/run
 tree [local tctx head] chain`; see "Simple composition" below).
 
 A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,
