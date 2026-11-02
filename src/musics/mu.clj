@@ -44,6 +44,12 @@
     (catch clojure.lang.ExceptionInfo ex
       (if (:mu/bye (ex-data ex)) false (throw ex)))))
 
+(defn strip-prompts
+  "text without the prompts of a session copied along with it: each
+   line's leading mu<n> or continuation ... (not part of any input)."
+  [text]
+  (str/replace text #"(?m)^[ \t]*(?:mu<\d+>|\.\.\.)[ \t]?" ""))
+
 (defn run-loop
   "The REPL loop over read-input, a fn of a prompt returning one line, a
    complete input, or nil at the end. Continues an unfinished input
@@ -51,7 +57,7 @@
   [read-input]
   (loop [pending nil]
     (let [p    (if pending (continuation (prompt)) (prompt))
-          line (read-input p)]
+          line (some-> (read-input p) (as-> l (if (string? l) (strip-prompts l) l)))]
       (cond
         (nil? line) nil
         (= ::abandon line) (recur nil)

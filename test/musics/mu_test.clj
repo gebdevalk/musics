@@ -41,6 +41,13 @@
   (let [[out _] (session ": twice" "  dup ;" "3 twice .s")]
     (is (str/includes? out "0> 3\n1> 3\n2> [C4/4 D4 E4 F4]\n"))))
 
+(deftest a-copied-prompt-is-dropped
+  (let [[_ prompts] (session "mu<0> [c4 d" "  ... e f]" "mu<1> .s")]
+    (is (= ["mu<0> " "  ... " "mu<1> " "mu<1> "] prompts))
+    (is (= [1] (map count [(:stack @e/state)]))))
+  (let [[out _] (session "mu<0> 1\nmu<1> 2\nmu<2> .s")]
+    (is (str/includes? out "0> 2\n1> 1\n") "a pasted block, one line per prompt")))
+
 (deftest errors-are-reported
   (let [[out prompts] (session "1 2 pop pop pop" "7")]
     (is (str/includes? out "error: pop: needs 1 item"))
