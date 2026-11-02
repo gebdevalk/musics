@@ -57,7 +57,7 @@
            (let [i (- (count s) 1 n)]
              (conj (into (subvec s 0 i) (subvec s (inc i))) (s i))))))
 
-(word! "kernel" "depth" "( -- n )  how many items the stack holds (the prompt shows one less, the top item's index)"
+(word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
 (word! "kernel" "spread" "( x -- a b … )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"

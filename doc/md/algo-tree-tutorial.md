@@ -11,8 +11,8 @@ plays.
 
 This tutorial starts with one word and ends with a recipe playing live,
 changed from the prompt and from the GUI's sliders. Start mu with
-`lein mu`; `bye` leaves. Lines are typed at the `mu<n>` prompt (n is the index of
-the top value, `mu<>` for an empty stack); `→` shows what a line leaves on top, and
+`lein mu`; `bye` leaves. Lines are typed at the `mu<n>` prompt (n is how
+many values the stack holds); `→` shows what a line leaves on top, and
 `clear` empties the stack between examples. The full word list is in
 `doc/md/mu-tutorial.md`; this one is about putting algos together.
 

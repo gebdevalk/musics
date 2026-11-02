@@ -20,7 +20,7 @@ lein mu
 ```
 
 mu shows its version and the words that drive it, then a prompt:
-`mu<>`, empty; after a value it is `mu<0>`, then `mu<1>`: the number is the index of the top value. `bye` or
+`mu<0>`, where the number is how many values are on the stack. `bye` or
 Ctrl+D leaves.
 
 To hear anything, connect a synthesizer once:

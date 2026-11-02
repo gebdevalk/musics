@@ -215,15 +215,14 @@ followed by nothing, a duration or `*n`.
 
 ## 7. The REPL
 
-- **Prompt**: `mu<n>`, n the index of the top item as `pick` counts (`mu<>` for an empty
-  stack, `mu<0>` one item, `mu<1>` two). A
+- **Prompt**: `mu<n>`, n the number of items on the stack. A
   continuation is `...`, right-aligned under it:
 
   ```
-  mu<0> : canon ( a s -- p )
+  mu<1> : canon ( a s -- p )
     ...   | $a  $a $s +
     ...   par ;
-  mu<0>
+  mu<1>
   ```
 
 - **`,` (`edit`) takes the top of the stack back into the prompt** as
@@ -315,7 +314,7 @@ Stack effects:
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
 | `roll` | `( xn xn-1 … x0 n -- xn-1 … x0 xn )` | move the n-th item to the top, the top being 0: `1 roll` is `swap`, `2 roll` is `rot` |
-| `depth` | `( -- n )` | the number of items (the prompt shows one less, the top item's index) |
+| `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
 | `spread` or `**` | `( x -- a b … )` | x's elements on the stack: a line's notes (no bar lines or jump marks), a parallel's parts, data's values (`[c d e] 2 [/] spread`) |
 | `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |

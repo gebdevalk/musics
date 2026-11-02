@@ -12,7 +12,7 @@ leaves; the stack stays for the session.
 
 ## 0. The stack
 
-The prompt shows the top of the stack: `mu<>` when it is empty, `mu<0>` for one value, `mu<1>` for two. These words move things
+The prompt `mu<0>` counts what is on the stack. These words move things
 around on it, and you'll need them throughout:
 
 | Word | Stack | Does |

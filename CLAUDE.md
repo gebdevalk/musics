@@ -336,7 +336,7 @@ words with their optional context, mark and voice (`>`, `>>`, …) in
 `<>` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
 generated from the registry (`musics.mu.algos`). `musics.mu.material`
 holds what they all share. The prompt is `mu<n>` (the
-top item's index, `mu<>` when empty); an unfinished input continues (JLine, decided by the
+stack's depth); an unfinished input continues (JLine, decided by the
 grammar); `bye` or Ctrl+D leaves. An input's literals are read up to
 each `:=`, just before that part runs, so `'m [c d] := [\m e]` works in
 one input or file. At the top level a text command (`transpose c d ( … )`,
