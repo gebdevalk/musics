@@ -48,6 +48,15 @@
              (e/mu-error "pick: needs an index 0 to" (dec (count s)) "under it, got" n))
            (conj s (s (- (count s) 1 n))))))
 
+(word! "kernel" "roll" "( xn xn-1 … x0 n -- xn-1 … x0 xn )  move the n-th item to the top, the top being 0: 0 roll does nothing, 1 roll is swap, 2 roll is rot"
+       (fn [s]
+         (need s 1 "roll")
+         (let [n (peek s) s (pop s)]
+           (when-not (and (integer? n) (< -1 n (count s)))
+             (e/mu-error "roll: needs an index 0 to" (dec (count s)) "under it, got" n))
+           (let [i (- (count s) 1 n)]
+             (conj (into (subvec s 0 i) (subvec s (inc i))) (s i))))))
+
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 

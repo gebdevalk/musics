@@ -196,7 +196,7 @@
   ([x n] (drop x n)))
 
 (defn rotate
-  "Rotated by n, wrapping around, now"
+  "x rotated by n, wrapping around, now"
   {:mu {:names ["[%]" "ROT"]}}
   [x n]
   (each x (fn [xs] (let [v (vec (mt/finite! "rotate" xs)) k (if (seq v) (mod (count! n) (core/count v)) 0)]
@@ -232,7 +232,7 @@
       (grouped x (core/map (fn [from size] (subvec xs from (+ from size))) (reductions + 0 sizes) sizes)))))
 
 (defn shuffle
-  "In a random order, now ([?] orders music anew as it plays)"
+  "x in a random order, now ([?] orders music anew as it plays)"
   {:mu {:names ["SFL"]}}
   [x]
   (each x (comp random/shuffle #(mt/finite! "shuffle" %))))
@@ -270,7 +270,7 @@
   (joined a b))
 
 (defn flatten
-  "The lines inside x opened into it, one level: a b 2 line flatten is a
+  "x with the lines inside it opened into it, one level: a b 2 line flatten is a
    b concat"
   [x]
   (if-let [slots (mt/items x)]
@@ -403,7 +403,7 @@
   (put-back x start end y))
 
 (defn within
-  "The chunk from start up to end through q, put back where it came from:
+  "x with the chunk from start up to end run through q and put back where it came from:
    [c d e f g] 1 4 '( reverse ) within"
   [x start end q]
   (quotation! q)
@@ -423,11 +423,11 @@
   (each x (partial f #(or (mt/marker? %) (mt/result word q %)))))
 
 (defn filter
-  "The elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
+  "x with only the elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
   [x q] (by-test "filter" core/filter x q))
 
 (defn remove
-  "The elements q drops; on a line the later notes move earlier"
+  "x without the elements q drops; on a line the later notes move earlier"
   [x q] (by-test "remove" (fn [t xs] (core/remove #(and (not (mt/marker? %)) (t %)) xs)) x q))
 
 (defn take-while
@@ -444,13 +444,13 @@
   (core/map second (f (core/map (fn [x] [(p/show x) x]) xs))))
 
 (defn distinct
-  "Each element once, the first time it comes (as printed)"
+  "x with each element once, the first time it comes (as printed)"
   [x]
   (each x (partial by-print (fn [shown] (let [seen (volatile! #{})]
                                           (core/filter (fn [[k]] (when-not (@seen k) (vswap! seen conj k))) shown))))))
 
 (defn dedupe
-  "An element repeated at once kept once (as printed)"
+  "x with an element repeated at once kept once (as printed)"
   [x]
   (each x (partial by-print #(core/map core/first (partition-by core/first %)))))
 

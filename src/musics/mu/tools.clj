@@ -37,6 +37,35 @@
       (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
       (conj below (f xs)))))
 
+;; -- ( … ): what a group makes --------------------------------------------
+
+(defn- plain?
+  "A value a '[ ] holds: a number, a keyword, a data list or a stream."
+  [x]
+  (or (number? x) (keyword? x) (sequential? x)
+      (and (v/material? x) (= :DATA (mt/kind x)))))
+
+(defmulti gathered
+  "What the values of a ( … ) group make, decided by the first: music a
+   line [ ], a number, keyword or data list a data list '[ ] (of lists, when
+   they are lists). The rest must be of the same kind."
+  (fn [xs] (cond (mt/music? (first xs)) :music (plain? (first xs)) :data :else :other)))
+
+(defn- all-of [pred what into xs]
+  (when-let [x (first (remove pred xs))]
+    (e/mu-error "( … ):" "gathers" what "into" (str into ", and left") (p/show x))))
+
+(defmethod gathered :music [xs]
+  (all-of mt/music? "music" "a line" xs)
+  (mt/line xs))
+
+(defmethod gathered :data [xs]
+  (all-of plain? "plain values" "a '[ ]" xs)
+  (mt/data xs))
+
+(defmethod gathered :other [xs]
+  (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
+
 (word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" #(mt/line (map (partial mt/sounding! "seq") %))))
 
 (word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" mt/par-of))

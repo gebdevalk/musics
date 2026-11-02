@@ -344,6 +344,17 @@
   [weights density]
   (mapv (fn [on w] (if (pos? w) on 0)) (indisp/density-grid weights density) weights))
 
+(defn counts->pulses
+  "One bar of weights thinned to a count of notes for each bar: a number
+   n of the stream keeps the n strongest pulses (rounded, held to 0..the
+   bar), the bars one after another. A window of counts -- tendency's
+   mask, 1 up to a rising hi -- gives a bar that fills up. A weight of 0
+   counts: n = the bar's length keeps every pulse."
+  {:algo {:category "bridge" :works :whole :in [:weight :number] :out :pulse}}
+  [weights counts]
+  (let [n (count weights)]
+    (into [] (mapcat #(indisp/density-grid weights (/ (-> (Math/round (double %)) (max 0) (min n)) (double n)))) counts)))
+
 (defn weights->volumes
   "The weights' own range onto volumes :lo..:hi (the !vol: 0-100
    scale): strong pulses louder."

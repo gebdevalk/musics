@@ -317,7 +317,7 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
-gathered into a line, `| … seq`). Most words are plain Clojure
+gathered by its first value: music into a line, `| … seq`, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 comparison, the repo, help, files), `musics.tool`, `musics.music`,
 `musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
@@ -1742,7 +1742,9 @@ refused, "an algo's settings are @^{ k:… } -- music holds ! keys only".
 A name bound to another name in mu (`'dp 'duration-pulse :=`) is a
 short name: `musics.mu.value` hands such bindings to the walker as
 `:param-aliases`, and `@^{ dp:1/8 }` is kept and written back as
-`@^{ duration-pulse:1/8 }`. Trees read them as their settings (`t/run
+`@^{ duration-pulse:1/8 }`. A recipe reads them too, in its head and
+before an algo (`musics.recipe/long-name`, from mu's bindings when it
+is built). Trees read them as their settings (`t/run
 tree [local tctx head] chain`; see "Simple composition" below).
 
 A chord symbol is a note with a `:` quality (`ChordSymbol`: `F3/1:7`,

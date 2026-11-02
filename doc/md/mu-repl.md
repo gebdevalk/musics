@@ -36,7 +36,7 @@ what is still open.
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
-| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered into one line (`\| … seq`) |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 add 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
@@ -288,7 +288,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 
 | Group | Words |
 |---|---|
-| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
+| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `roll` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
@@ -313,6 +313,7 @@ Stack effects:
 | `nip` | `( a b -- b )` | discard the second |
 | `tuck` | `( a b -- b a b )` | copy the top under the second |
 | `pick` | `( xn … x0 n -- xn … x0 xn )` | copy the n-th item to the top |
+| `roll` | `( xn xn-1 … x0 n -- xn-1 … x0 xn )` | move the n-th item to the top, the top being 0: `1 roll` is `swap`, `2 roll` is `rot` |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
 | `spread` or `**` | `( x -- a b … )` | x's elements on the stack: a line's notes (no bar lines or jump marks), a parallel's parts, data's values (`[c d e] 2 [/] spread`) |
 | `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |

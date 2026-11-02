@@ -228,7 +228,7 @@
 (defn cls!
   "Clear the screen; the stack stays"
   []
-  (print "\u001b[H\u001b[2J") (flush))
+  (@e/clear-screen))
 
 (defn words!
   "List the words in use, then the other namespaces"

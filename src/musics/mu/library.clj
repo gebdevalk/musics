@@ -20,6 +20,13 @@
   [v]
   (str/replace (str (:name (meta v))) #"!$" ""))
 
+;; Words that give x back changed: their result is named x' in the stack effect.
+(def ^:private changes-x
+  #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
+    "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "up" "down" "transpose"
+    "retrograde" "inversion" "retrograde-inversion" "mirror" "stretch" "shrink" "delay"
+    "delays" "with" "cresc" "dim"})
+
 (defn effect
   "v's stack effect and description, as a word written in Clojure shows
    them: ( x [n] -- word )  its docstring. An optional argument (one with
@@ -29,7 +36,9 @@
   (let [{:keys [arglists doc]} (meta v)
         optional (set (map name (keys (:optional (:mu (meta v))))))
         args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
-        out      (if (str/ends-with? (str (:name (meta v))) "!") "" (word-name v))]
+        out      (cond (str/ends-with? (str (:name (meta v))) "!") ""
+                       (changes-x (word-name v)) "x'"
+                       :else (word-name v))]
     (str "( " (str/join " " (concat args ["--"] (when (seq out) [out]))) " )  " (str/replace (str doc) #"\s+" " "))))
 
 (defn register!

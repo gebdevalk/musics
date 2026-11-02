@@ -1,6 +1,6 @@
 (ns musics.algo.common.zfilter
   "Symbolic recurrence filters for algorithmic composition -- ported from
-   a real design email (emails/messages/algorithm/Z filters, 2026-03-11)
+   a design discussion (Z filters, 2026-03-11)
    that had already worked out the general shape: a generic IIR-style
    recurrence engine (z-filter, named for the z-transform this mirrors)
    plus a handful of named convenience instances built on it.

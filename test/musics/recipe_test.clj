@@ -67,6 +67,13 @@
   (is (= "2" (top "@^{ k:5 } @( k:2 duration/euclid '[60] [~] zip ) run count")) "a node's own value still wins")
   (is (re-find #"kk is not a param" (top "@^{ kk:3 } @( euclid ) run")) "checked like the head"))
 
+(deftest a-short-name-is-read-as-the-long-one
+  (top "'sds 'subdivisions :=")
+  (is (= "'[1 0 0 0 1 0 0 0]" (top "@( ^{ sds:2,2,2 density:2/8 } indisp weights->pulses ) run"))
+      "in the head, as in an @^{ }")
+  (is (= "'[1 0 0 0 1 0 0 0]" (top "@( sds:2,2,2 indisp density:2/8 weights->pulses ) run"))
+      "before an algo"))
+
 (deftest collecting-checks-every-setting
   (is (re-find #"kk is not a param" (top "@( ^{ kk:3 } euclid )")) "a typo in the head")
   (is (re-find #"zz is not a param" (top "@( zz:3 euclid )")) "a typo before an algo")

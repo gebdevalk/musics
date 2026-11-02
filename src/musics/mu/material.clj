@@ -118,6 +118,11 @@
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
 
+(defn data
+  "elements as a data list '[ ], read as a literal is, so it is checked as one."
+  [elements]
+  (read-text (str "'[" (str/join " " (map p/show elements)) "]")))
+
 (defn hairpin
   "x with a crescendo (dir \"<\") or decrescendo (\">\") across it, from its
    volume at the start (its own, else the defaults') to target (0-100):
