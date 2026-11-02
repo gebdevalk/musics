@@ -43,6 +43,10 @@
   (is (= [2] (:ok (run "1 2 nip"))))
   (is (= [2 1 2] (:ok (run "1 2 tuck"))))
   (is (= [10 20 30 10] (:ok (run "10 20 30 2 pick"))))
+  (is (= [10 20 30] (:ok (run "10 20 30 0 roll"))) "0 roll leaves the stack")
+  (is (= [10 30 20] (:ok (run "10 20 30 1 roll"))) "1 roll is swap")
+  (is (= [20 30 10] (:ok (run "10 20 30 2 roll"))) "2 roll is rot")
+  (is (re-find #"roll: needs an index" (:error (run "10 20 3 roll"))))
   (is (= [1 1 2] (:ok (run "1 1 depth")))))
 
 (deftest literals-are-pushed-with-the-input

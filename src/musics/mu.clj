@@ -1,7 +1,7 @@
 (ns musics.mu
   "mu: the musical REPL (doc/md/mu-repl.md). (repl) runs it: an input is
    read until mu's grammar says it is complete, evaluated on the stack,
-   and the prompt shows the stack's depth, mu<n>. bye or Ctrl+D leaves;
+   and the prompt shows the top item's index, mu<n> (mu<> when the stack is empty). bye or Ctrl+D leaves;
    the stack lasts the session. Ctrl+C abandons an unfinished input."
   (:gen-class)
   (:require [clojure.java.io :as io]
@@ -25,7 +25,10 @@
            (org.jline.terminal TerminalBuilder)
            (org.jline.utils InfoCmp$Capability)))
 
-(defn prompt [] (str "mu<" (count (:stack @e/state)) "> "))
+(defn prompt
+  "mu<n>: n the index of the top item, as pick counts (0 the top); mu<> for an empty stack."
+  []
+  (let [n (count (:stack @e/state))] (str "mu<" (when (pos? n) (dec n)) "> ")))
 
 (defn continuation
   "The prompt for a continued input: ... right-aligned under prompt."
@@ -47,9 +50,9 @@
 
 (defn strip-prompts
   "text without the prompts of a session copied along with it: each
-   line's leading mu<n> or continuation ... (not part of any input)."
+   line's leading mu<n>, mu<> or continuation ... (not part of any input)."
   [text]
-  (str/replace text #"(?m)^[ \t]*(?:mu<\d+>|\.\.\.)[ \t]?" ""))
+  (str/replace text #"(?m)^[ \t]*(?:mu<\d*>|\.\.\.)[ \t]?" ""))
 
 (defn run-loop
   "The REPL loop over read-input, a fn of a prompt returning one line, a
