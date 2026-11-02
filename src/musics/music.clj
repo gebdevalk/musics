@@ -95,7 +95,7 @@
              x)))))
 
 (defn retrograde
-  "The retrograde (the crab): x backwards, at any depth -- its elements
+  "x as its retrograde (the crab), backwards, at any depth -- its elements
    retrograde (nested lines, parallels' parts and repeats' bodies too),
    ties turned round, what its own instructions change written into the
    notes; a line with jumps ($ DS DC Fine Coda ./.) is refused -- write
@@ -221,20 +221,20 @@
 ;; -- the row forms ----------------------------------------------------------
 
 (defn inversion
-  "The inversion around the first note (a chord's first written pitch),
+  "x inverted around the first note (a chord's first written pitch),
    which stays; I5 is [I] 5 +."
   {:mu {:names ["[I]"]}}
   [x]
   (invert-around first x))
 
 (defn retrograde-inversion
-  "The retrograde inversion: inverted around the first note, then backwards."
+  "x inverted around the first note, then backwards (the retrograde inversion)."
   {:mu {:names ["[RI]"]}}
   [x]
   (retrograde (inversion x)))
 
 (defn mirror
-  "The inversion around the mean pitch, keeping the register: M for mirror."
+  "x inverted around the mean pitch, keeping the register: M for mirror."
   {:mu {:names ["[M]"]}}
   [x]
   (invert-around on-mean x))
@@ -588,7 +588,7 @@
       (mt/par-of (cons a bs)))))
 
 (defn mute
-  "Each note or drum q keeps becomes a rest of its length: the rhythm
+  "x with each note or drum q keeps made a rest of its length: the rhythm
    stays -- [c e g c'] '( pitch 65 gt ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
@@ -612,7 +612,7 @@
 (defn- positive! [n] (when-not (pos? n) (fail "needs a positive factor, got" n)))
 
 (defn up
-  "Every pitch up n semitones, its key with it (!K: at the start of its
+  "x with every pitch up n semitones, its key with it (!K: at the start of its
    line): [c e g] 7 +; a key moves up too"
   {:mu {:names ["+"]}}
   [x n]
@@ -621,7 +621,7 @@
     (by-number "+" x n (fn [n x] (mt/transposed x n)) whole!)))
 
 (defn down
-  "Every pitch down n semitones, its key with it: [c e g] 12 -"
+  "x with every pitch down n semitones, its key with it: [c e g] 12 -"
   {:mu {:names ["-"]}}
   [x n]
   (if (and (mt/key? x) (integer? n))
@@ -635,13 +635,13 @@
   (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
 
 (defn stretch
-  "Every duration times f: [c d] 2 * gives halves"
+  "x with every duration times f: [c d] 2 * gives halves"
   {:mu {:names ["*"]}}
   [x f]
   (by-number "*" x f (fn [f x] (mt/map-leaves #(scale-duration % f) x)) positive!))
 
 (defn shrink
-  "Every duration divided by f: [c d e] 3 / gives a triplet"
+  "x with every duration divided by f: [c d e] 3 / gives a triplet"
   {:mu {:names ["/"]}}
   [x f]
   (by-number "/" x f (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) positive!))
@@ -652,12 +652,12 @@
   (mt/hairpin (mt/->material x) dir target))
 
 (defn cresc
-  "A crescendo over the material, up to a volume 0-100."
+  "x with a crescendo over its material, up to a volume 0-100."
   [x target]
   (hairpin x target "<"))
 
 (defn dim
-  "A diminuendo over the material, down to a volume 0-100."
+  "x with a diminuendo over its material, down to a volume 0-100."
   [x target]
   (hairpin x target ">"))
 
@@ -831,14 +831,14 @@
     (mt/from-items line (into (subvec slots 0 at) (cons [:el (d/rest* nil nil d)] (subvec slots at))))))
 
 (defn delay
-  "The line starting d late, a rest of d whole notes in front of it (a
+  "x starting d late, a rest of d whole notes in front of it (a
    rational: 1/4, 3/8, 1/3): [a b c] 1/4 delay is [r4 a b c]"
   [x d]
   (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
   (delayed x (amount "delay" d true)))
 
 (defn delays
-  "The parts of a parallel starting late, each by a rest in front: a
+  "x with the parts of a parallel starting late, each by a rest in front: a
    number d delays part k by k times d (a canon at d), a data list gives
    each part its own, one for each part:
    {[a b c] [a b c] [a b c]} 1/4 delays, {[a b c] [a b c]} '[0 1/3] delays"
@@ -877,7 +877,7 @@
                :else (fail "can't set" (str ":" n) "to" (p/show v) "-- a number, a ratio, a key, a meter or a name")))))
 
 (defn with
-  "The settings in front of a line (its own come after, so they win): a
+  "x with the settings in front of it (its own come after, so they win): a
    context ^{ !mf }, a key D.major, or one key and its value, :volume 70
    with; a note becomes a line; a { } or a repeat is wrapped"
   {:mu {:arity (fn [stack] (if (and (>= (count stack) 3) (keyword? (peek (pop stack)))) 3 2))}}
@@ -897,7 +897,7 @@
          (str "[" settings " " shown "]")))))))
 
 (defn transpose
-  "Moved by n semitones, or by the interval from one note to the other,
+  "x moved by n semitones, or by the interval from one note to the other,
    as the text's transpose: [c e g] 5 transpose, [c e g] c d transpose"
   {:mu {:names ["TRP"] :optional {:to mt/leaf?}}}
   ([x n]
