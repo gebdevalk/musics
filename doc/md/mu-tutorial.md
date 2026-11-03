@@ -129,7 +129,7 @@ it leaves mu running, and `gui` opens it again.
 | `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
 | `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
-| `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
+| `chord` | `( \| notes -- chord )` | the notes above the nearest `\|` mark, else the whole stack, as a chord |
 | `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a line's notes or a parallel's parts |
 
 The pairs differ in what they take and what they make of it:
@@ -1210,7 +1210,7 @@ c4 '[0 40 73] sounds audition
 
 | Word | Stack |
 |---|---|
-| `chord` | `( notes -- chord )` |
+| `chord` | `( \| notes -- chord )` |
 | `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
 | `{2}` `{3}` … `{n}` | `( a … -- parallel )` |
 | `**` `spread` | `( x -- a b … )` |

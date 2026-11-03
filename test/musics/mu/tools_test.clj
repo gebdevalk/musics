@@ -143,8 +143,10 @@
 
 (deftest a-mark-prints-as-a-bar
   (is (= "1 | 2" (top "1 | 2")))
-  (is (= "<A3 C4 E4>4" (top "a c e chord")) "a chord from the leaves on top")
-  (is (= "[G3/4] <C4 E4>4" (top "[g] c e chord")) "stopping at the first non-leaf")
+  (is (= "<A3 C4 E4>4" (top "a c e chord")) "a chord from the whole stack")
+  (is (= "[G3/4] <C4 E4>4" (top "[g] | c e chord")) "or from what lies above the mark")
+  (is (re-find #"^chord: takes notes .* got \[G3/4\]" (top "[g] c e chord")) "the whole stack must be notes")
+  (is (re-find #"^chord: needs notes to put together" (top "chord")))
   (is (= "[C4/4 D4/8 E4/4]" (top "'[/4 /8 /4] '[60 62 64] zip")))
   (is (= "[!pp C4/4 D4]" (top "[c d] ^{ !pp } with"))))
 
@@ -260,6 +262,18 @@
     (is (re-find #"^insert: has no elements: 1$" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
     (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
     (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
+
+(deftest a-group-is-the-parts-of-a-zip-or-a-control
+  (is (= "[G4/8 A4 B4]" (top "( [c8 d e] durations [g a b] pitches ) zip")))
+  (is (= "[G4/8\\volume:50 A4\\volume:60 B4\\volume:70]"
+         (top "( [c8 d e] durations [g a b] pitches :volume 50 '( 10 + ) iterate ) zip"))
+      "an endless stream, named, stays live in the group")
+  (is (= (top "| [c8 d e] [~] durations [c e g a] pitches zip") (top "( [c8 d e] [~] durations [c e g a] pitches ) zip"))
+      "a loop stays a loop")
+  (is (= "^{ !volume:50 !volume:90@1/4 }" (top "( :duration '[1/4 1/4] :volume '[50 90] ) >ctx")))
+  (is (= (top "| :duration '[1/4 1/4] :volume '[50 90] >ctx") (top "( :duration '[1/4 1/4] :volume '[50 90] ) >ctx")) "the mark still works")
+  (is (= "'[72 62]" (top "( 60 12 + 62 )")) "plain values are still a list that can be stored")
+  (is (= "'['[1/8 1/8 1/8] '[67 69 71]]" (top "( [c8 d e] durations [g a b] pitches )")) "a live list prints as the list it is"))
 
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")

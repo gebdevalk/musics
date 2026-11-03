@@ -268,7 +268,8 @@ note's as a stream (`x :volume setting` reads what a note plays with, its own va
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note
-(`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`),
+(`| d p :volume v :articulation a zip`, or `( d p :volume v :articulation a ) zip`:
+a group keeps a stream, an endless one or a loop as it is, `musics.mu.material/zip-parts`),
 each stepping once per note, a rest's values unused; an unnamed line
 among them is written on, keeping its form, a part given replacing its
 own (`x volume/walk zip`), and without durations and pitches it gives a

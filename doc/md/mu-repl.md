@@ -813,9 +813,10 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
-- `chord` gathers the leaves on top of the stack into a chord, stopping at
-  the first non-leaf: `[c d] a c e chord` leaves `[c d]` and `<A3 C4 E4>`.
-  The literal `<a c e>` is the grammar's chord.
+- `chord` puts the notes above the nearest `|` mark into one chord, else
+  the whole stack: `a c e chord` is `<A3 C4 E4>4`, `[c d] | a c e chord`
+  leaves `[c d]` and the chord. Anything but notes is refused. The literal
+  `<a c e>` is the grammar's chord.
 - `sounds` builds new leaves from one, as `zip` builds them from
   durations and pitches; it is for hearing what a soundfont holds
   (`doc/md/setup.md`, Gervill).

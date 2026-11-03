@@ -2753,3 +2753,15 @@ Typed, each says `it is now written …`. (A twin stays where its sign is awkwar
 to write or to say: `[R]` `retrograde`, `[~]` `cycle`.) `{+}` is now defined
 in `musics.mu.tools` beside the other stack-shape signs, and refuses what is
 not music with a message.
+
+## 2026-11-03 — A group keeps its streams; zip and >ctx take one
+
+The entry above left `zip` and `>ctx` on the `|` mark because a group wrote its
+values to text and read them back. A group of plain values now makes a list of
+the values themselves when one of them is a stream (`(apply list xs)`, so an
+endless stream, a loop and the part a stream knows keep their metadata), and
+the text-backed data list as before when none is (so `( 60 12 + 62 )` is still
+storable). Either is marked as a group's, and `zip` and `>ctx` take such a
+list as their parts: `( d p :volume v ) zip`, `( :duration d :volume v ) >ctx`.
+The `| … zip` form is kept beside it for now. `chord` takes the notes above a
+`|` mark, else the whole stack, instead of the leaves on top.

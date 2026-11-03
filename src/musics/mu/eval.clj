@@ -263,9 +263,9 @@
                (let [s (if (some v/mark? stack) stack (into [v/mark] stack))
                      [below xs] (to-mark s "()")]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
-                 (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
+                 (conj below ((requiring-resolve 'musics.mu.tools/gather-group) xs)))
                ;; what it makes follows its first value: music a line, plain values a '[ ]
-               (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
+               (conj stack ((requiring-resolve 'musics.mu.tools/gather-group) xs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")
