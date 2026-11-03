@@ -163,6 +163,16 @@
   (is (= "[!K:D.major D4/4 E4]" (top "[c d] c d transpose")) "by the interval from C to D")
   (is (= "[C4/2 D4]" (top "[c d] 2 *"))))
 
+(deftest a-word-that-returns-its-input-changed-primes-it-in-its-effect
+  (let [effect #(:effect (e/lookup @e/state %))]
+    (doseq [[w head] [["sort" "( x -- x' )"] ["sputter" "( x -- x' )"] ["rotating" "( x n -- x' )"]
+                      ["shuffling" "( x -- x' )"] ["interleave" "( a b -- a' )"] ["partition" "( x n -- x' )"]
+                      ["times" "( x n -- x' )"] ["cycle" "( x -- x' )"] ["rotate" "( x n -- x' )"]
+                      ["take" "( x n -- x' )"] ["+" "( x n -- x' )"] ["zip" "( durations pitches -- durations' )"]]]
+      (is (str/starts-with? (effect w) head) w))
+    (doseq [w ["count" "first" "concat" "pitches" "dup"]]
+      (is (not (str/includes? (first (str/split (effect w) #"\)\s\s" 2)) "'")) (str w " does not return its input changed")))))
+
 (deftest every-sign-has-a-twin
   (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]

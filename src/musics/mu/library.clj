@@ -22,12 +22,14 @@
   [v]
   (str/replace (str (:name (meta v))) #"!$" ""))
 
-;; Words that give x back changed: their result is named x' in the stack effect.
+;; Words that give their first argument back changed or rebuilt: their result is
+;; named for it with a prime in the stack effect (x' for x, a' for a).
 (def ^:private changes-x
   #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
     "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "transpose"
     "retrograde" "inversion" "retrograde-inversion" "mirror" "delay"
-    "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"})
+    "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"
+    "sort" "sputter" "rotating" "shuffling" "interleave" "partition" "times" "cycle"})
 
 (defn effect
   "v's stack effect and description, as a word written in Clojure shows
@@ -40,7 +42,7 @@
         args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
         out      (cond (str/ends-with? (str (:name (meta v))) "!") ""
                        (:out (:mu (meta v))) (:out (:mu (meta v)))
-                       (changes-x (word-name v)) "x'"
+                       (changes-x (word-name v)) (str (first args) "'")
                        :else (word-name v))]
     (str "( " (str/join " " (concat args ["--"] (when (seq out) [out]))) " )  " (str/replace (str doc) #"\s+" " "))))
 

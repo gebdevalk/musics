@@ -305,7 +305,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
-| **help** | `help` (mu in a few lines; `'dup help` is `see`; other text, `"chord" help`, lists the words whose name or description mention it), `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
+| **help** | `help` (mu in a few lines; `'dup help` is `see`; other text, `"chord" help`, lists the words whose name or description mention it), `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description, and a word that gives its first argument back changed or rebuilt shows it primed: `( x n -- x' )` for `take`, `sort`, `times`, `+`; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 
 Stack effects:
 
