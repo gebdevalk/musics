@@ -40,7 +40,7 @@
   [text]
   (try
     (let [r (e/eval-input text)]
-      (when-let [msg (:error r)] (println "error:" msg "-- the stack is cleared"))
+      (when-let [msg (:error r)] (println "error:" msg))
       true)
     (catch clojure.lang.ExceptionInfo ex
       (if (:mu/bye (ex-data ex)) false (throw ex)))))

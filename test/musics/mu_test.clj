@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu-test
   "The mu REPL loop: the prompt shows the stack's depth, an unfinished
-   input continues, errors are reported and clear the stack, bye and
+   input continues, errors are reported and leave the stack as it was, bye and
    the end of input leave, the stack lasts the session."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
@@ -49,9 +49,10 @@
     (is (str/includes? out "0> 2\n1> 1\n") "a pasted block, one line per prompt")))
 
 (deftest errors-are-reported
-  (let [[out prompts] (session "1 2 drop drop drop" "7")]
+  (let [[out prompts] (session "5 6" "1 2 drop drop drop drop drop" "7")]
     (is (str/includes? out "error: drop: needs 1 item"))
-    (is (= "mu<0> " (second prompts)) "the stack is cleared")))
+    (is (not (str/includes? out "cleared")))
+    (is (= "mu<2> " (nth prompts 2)) "the stack as it was before the failing input")))
 
 (deftest bye-and-the-end-leave
   (let [[_ prompts] (session "1" "bye" "2")]

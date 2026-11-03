@@ -261,9 +261,10 @@ followed by nothing, a duration or `*n`.
 
 - **Late binding**: redefining a word changes every word that uses it,
   from then on.
-- **Errors clear the stack**, with a clear error message saying what
-  failed and where. The input is in the REPL's history, so it can be
-  recalled, corrected and run again.
+- **An error leaves the stack as it was before the input**, with a clear
+  error message saying what failed and where; an input is all or
+  nothing, so none of its words' results are kept. The input is in the
+  REPL's history, so it can be recalled, corrected and run again.
 - **The stack lasts the session**: leaving mu (`bye`, or Ctrl+D) and
   entering it again keeps the stack as it was.
 - **`"song.mus" load`** runs a file as mu input on a stack of its own

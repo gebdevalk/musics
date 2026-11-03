@@ -415,7 +415,7 @@
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
-   {:error message} -- after which the stack is empty. Nothing is
+   {:error message} -- the stack as it was before the input. Nothing is
    printed: as in Forth, only words that print do."
   [text]
   (let [r (try (parse-input text)
@@ -423,7 +423,7 @@
                (catch Exception e {:error (.getMessage e)}))]
     (cond
       (:incomplete r) r
-      (:error r)      (do (swap! state assoc :stack []) r)
+      (:error r)      r
       :else
       (try
         (let [s (run-input (:stack @state) r text)]
@@ -431,11 +431,8 @@
           {:ok s})
         (catch clojure.lang.ExceptionInfo e
           (when (:mu/bye (ex-data e)) (throw e))
-          (swap! state assoc :stack [])
           {:error (.getMessage e)})
         (catch StackOverflowError _
-          (swap! state assoc :stack [])
           {:error "the stack of calls overflowed -- a word calling itself without end?"})
         (catch Exception e
-          (swap! state assoc :stack [])
           {:error (str (.getSimpleName (class e)) ": " (.getMessage e))})))))

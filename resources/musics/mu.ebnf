@@ -19,7 +19,7 @@ Definition  = <':'> <ws> WordName (<ws> StackEffect)? (<ws> MuItem)* <ws>? <';'>
 StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
 EffectIn    = (EffectName <ws>)*
 EffectOut   = (<ws> EffectName)*
-<EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*'
+<EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*\'*'
 
 (* A tree recipe: an algo tree written concatenatively, as mu is --
    @( riff: ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip ) (musics.recipe),

@@ -1,7 +1,7 @@
 (ns ^:repl musics.mu.eval-test
   "mu's evaluator: the stack, literals with the input, words and their
    namespaces (late binding, ambiguity), definitions with locals,
-   quotations, and errors that clear the stack."
+   quotations, and errors that leave the stack as it was."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
@@ -59,10 +59,16 @@
   (testing "the same text twice is two literals, each read in its place"
     (is (= ["C4/4" "E4/4" "G4/4" "C5/4"] (shown (run "c4 e g c"))))))
 
-(deftest errors-clear-the-stack
+(deftest errors-leave-the-stack
   (let [r (run "1 2 drop drop drop")]
     (is (re-find #"drop: needs 1 item" (:error r)))
-    (is (= [] (:stack @e/state)) "cleared"))
+    (is (= [] (:stack @e/state)) "the input's own words consumed nothing it keeps"))
+  (testing "what lay on the stack before the failing input stays"
+    (run "7 8")
+    (is (re-find #"unknown word: frobnicate" (:error (e/eval-input "9 frobnicate"))))
+    (is (= [7 8] (:stack @e/state)) "9 was not kept: the input is all or nothing")
+    (is (re-find #"can't read" (:error (e/eval-input "[c d ]]"))))
+    (is (= [7 8] (:stack @e/state)) "a parse error too"))
   (is (re-find #"unknown word: frobnicate" (:error (run "1 frobnicate"))))
   (is (re-find #"instruction needs a container" (:error (run "!mf"))))
   (is (re-find #"can't read" (:error (run "[c d ]]"))))
@@ -70,6 +76,10 @@
     (is (re-find #"^\.s is a word \(line 1, column 15\).*\n.*\| \[a b\] \[\?\] \[c d\] \[\?\] seq"
                  (:error (run "[[ a b c d e] .s [e f g a b]]"))))
     (is (re-find #"^dup is a word \(line 2, column 3\)" (:error (run "[c d\n  dup e]"))))))
+
+;; a stack effect may name a result x', as mu's own help writes it
+(deftest a-stack-effect-may-prime-a-name
+  (is (= [3 3] (:ok (run ": twice ( x -- x' x' ) $x $x ; 3 twice"))) "x' is a name like any other"))
 
 (deftest unfinished-input
   (is (:incomplete (run "[c d")))
