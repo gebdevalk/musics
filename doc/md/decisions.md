@@ -2807,3 +2807,29 @@ Three closing choices from the REPL audit (M6, M10, M11).
   definition of one silently replaced the rating word. `"rate" use` (or
   `rate/like`) brings them; Alt+j, k, l, J, K, L call the functions directly
   and work either way.
+
+## 2026-11-03 — A stack effect is Forth's comment, with `$` for the inputs that bind
+
+Every input of `: name ( a b -- c ) … ;` used to be taken off the stack and
+bound as a local, so the textbook `: sq ( n -- n' ) dup * ;` failed with
+`dup: needs 1 item, has 0`, and the output side promised what nothing
+checked. Now:
+
+- an input is bound only when written with a `$` (`( $a $b -- c )`); a plain
+  one stays on the stack, so Forth's own comment style works as it reads, and
+  the two mix (`( $m n -- m' )`);
+- the names after `--` are kept: the count must match what the body leaves
+  (`musics.mu.eval/check-effect!`, at the call) and a name without a prime that
+  is also an input must come back equal to it. Names ending in `...` are
+  any number and skip both checks. Types in names (`n m l q t id flag`) and
+  `x'` for a changed one are documentation, not checked: that would need a
+  type system;
+- mu's own words follow the same reading (`musics.mu.library/stack-effects`
+  for the ones better named than their arglists say; the rest are generated:
+  a changed first argument is primed, a transformer algo word primes its
+  input's name). `library-test` ties the table to the functions' arities.
+
+Rejected: Gforth's `{: a b :}` / `{ a b -- }` locals (ugly, and `{ }` is the
+parallel bracket); making the comment pure documentation (it would lose the
+locals, which `[$m $m r4 $m]` needs); `…` in comments (hard to type: `...` is
+written, `…` still read).

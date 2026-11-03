@@ -941,7 +941,7 @@ and play it, or rate them (section 17).
 | `ids`, `:mel usages` | every stored id; the ids that hold `:mel` |
 | `forget` | take a name out of the repo: `:mel forget` (refused while something uses it) |
 | `rename` | give a name another everywhere it is used: `:mel :tune rename` |
-| `: name ( a -- b ) … ;` | define a word of your own |
+| `: name ( $a -- b ) … ;` | define a word of your own, `$a` an input bound as a local |
 | `"x.edn" save-session` | save what is stored, your words and your bindings to a file (not the stack) |
 | `"x.edn" restore-session` | put them back, in place of what is stored and of your words and bindings |
 
@@ -979,10 +979,10 @@ joins them:
   numbers from notes.
 
 It's worth a word of its own. `$talea`, `$color` and `$n` are the
-word's inputs, named in its stack effect:
+word's inputs, taken off the stack by the `$` in its stack effect:
 
 ```
-: isorhythm ( talea color n -- line ) $talea cycle $n take $color cycle $n take zip ;
+: isorhythm ( $talea $color $n -- line ) $talea cycle $n take $color cycle $n take zip ;
 
 '[/4 /8 /8] [c d e f g] pitches 15 isorhythm [||]
 → [C4/4 D4/8 E4 F4/4 G4/8 C4 | D4/4 E4/8 F4 G4/4 C4/8 D4 | E4/4 F4/8 G4]

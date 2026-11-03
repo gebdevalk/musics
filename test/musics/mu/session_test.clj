@@ -36,11 +36,11 @@
 
 (deftest the-state-is-written-as-mu-text
   (top "'motif [c8 e g] :=" "'n 3 :=" "'dp 'duration-pulse :="
-       ": lift ( x -- y ) $x 5 + ;" "\"tool\" in : twice ( x -- y ) $x dup [+] ; \"mine\" in")
+       ": lift ( $x -- y ) $x 5 + ;" "\"tool\" in : twice ( $x -- y ) $x dup [+] ; \"mine\" in")
   (let [[text skipped] (session/text)]
     (is (empty? skipped))
-    (is (= (str/join "\n" ["\"mine\" in" ": lift ( x -- y ) $x 5 + ;"
-                           "\"tool\" in" ": twice ( x -- y ) $x dup [+] ;"
+    (is (= (str/join "\n" ["\"mine\" in" ": lift ( $x -- y ) $x 5 + ;"
+                           "\"tool\" in" ": twice ( $x -- y ) $x dup [+] ;"
                            "\"mine\" in"
                            "'dp 'duration-pulse :=" "'motif [C4/8 E4 G4] :=" "'n 3 :="])
            text))))
@@ -51,7 +51,7 @@
       "e is a quarter only because of [c4 d] before it in its input"))
 
 (deftest a-value-that-cant-be-written-is-skipped
-  (top ": maker ( a -- q ) '( $a + ) ;" "'q 5 maker :=" "'n 3 :=")
+  (top ": maker ( $a -- q ) '( $a + ) ;" "'q 5 maker :=" "'n 3 :=")
   (let [[text skipped] (session/text)]
     (is (= ["q"] skipped) "a quotation holding a word's local")
     (is (str/includes? text "'n 3 :="))))
@@ -59,7 +59,7 @@
 (deftest a-session-file-restores-them-in-place-of-mus-own
   (with-file
     (fn [f]
-      (top "[verse: c4 d e f] R!" "'motif [c8 e g] :=" ": lift ( x -- y ) $x 5 + ;"
+      (top "[verse: c4 d e f] R!" "'motif [c8 e g] :=" ": lift ( $x -- y ) $x 5 + ;"
            "'r @( k:3 euclid '[60] [~] zip ) :=")
       (with-out-str (top (str "\"" f "\" save-session")))
       (top ": junk 1 ;" "'motif [a] :=" "'extra 1 :=")

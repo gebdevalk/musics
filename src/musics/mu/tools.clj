@@ -22,7 +22,7 @@
 
 ;; -- split-at (tool) ------------------------------------------------------
 
-(word! "tool" "split-at" "( x n -- a b )  the first n elements and the rest, as two values"
+(word! "tool" "split-at" "( x n -- x1 x2 )  the first n elements and the rest, as two values"
        (fn [s]
          (let [n (count-arg s "split-at") s (pop s) x (peek s)]
            (conj (pop s) (mt/reshape-keeping x (partial take n)) (mt/reshape-keeping x (partial drop n))))))
@@ -71,7 +71,7 @@
 (defmethod gathered :other [xs]
   (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
 
-(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
+(word! "music" "par" "( | m... -- m )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
        (gather "par" mt/par-of))
 (defn- top-n
   "A word taking the top n (pushed by the grammar, written <open>n<close>)
@@ -87,12 +87,12 @@
                       "-- numbers gather into a list with ( 1 2 )"))
         (conj (subvec s 0 (- (count s) n)) (f items))))))
 
-(word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
+(word! "music" "{n}" "( x... n -- m )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
        (top-n "{" "}" mt/par-of))
-(word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
+(word! "music" "[n]" "( x... n -- m )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
-(word! "music" "{+}" "( a b -- parallel )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
+(word! "music" "{+}" "( m1 m2 -- m3 )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
        (fn [s]
          (need s 2 "{+}")
          (let [b (peek s) a (peek (pop s))]
@@ -105,7 +105,7 @@
                      (mt/reshape a #(concat % bs))
                      (mt/par-of (cons a bs))))))))
 
-(word! "music" "chord" "( | notes -- chord )  the notes above the nearest | mark, else the whole stack, as one chord: c e g chord, [g] | c e chord"
+(word! "music" "chord" "( | note... -- chord )  the notes above the nearest | mark, else the whole stack, as one chord: c e g chord, [g] | c e chord"
        (fn [s]
          (let [[below leaves] (e/to-mark s)]
            (when (empty? leaves) (e/mu-error "chord: needs notes to put together"))
@@ -115,14 +115,14 @@
 
 ;; -- zip: leaves from their parts ------------------------------------------------
 
-(word! "music" "zip" "( durations pitches -- durations' ) or ( | [:part] stream … -- line' )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
+(word! "music" "zip" "( durations pitches -- m ) or ( | [:part] stream... -- m )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
        (fn [s]
          (let [[below xs] (e/to-mark s)]
            (when (and (< (count xs) 2) (not (some mt/bundle-columns xs)))
              (e/mu-error "zip: needs 2 or more values to put together, has" (count xs)))
            (conj below (mt/zip-parts xs)))))
 
-(word! "music" ">ctx" "( | :duration d :key v … -- ^{ } )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
+(word! "music" ">ctx" "( | :duration d :key v ... -- ctx )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
          (let [[below xs] (e/to-mark s)]
            (conj below (mt/control->ctx xs)))))
@@ -141,7 +141,7 @@
           (sequential? x)      (mt/as-part out (apply list (cut x)))
           :else x)))
 
-(word! "music" "run" "( inputs… [@^{ }] recipe -- result )  a tree recipe's result: run on the values it takes from the stack under it (the music it changes), with settings given before it merged into its own: @^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run; [c8 d e f] @( dup duration/emi zip ) run. A line, a { } for parts, a stream otherwise; an endless one is refused -- play it"
+(word! "music" "run" "( inputs... [@^{ }] recipe -- result )  a tree recipe's result: run on the values it takes from the stack under it (the music it changes), with settings given before it merged into its own: @^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run; [c8 d e f] @( dup duration/emi zip ) run. A line, a { } for parts, a stream otherwise; an endless one is refused -- play it"
        (fn [s]
          (need s 1 "run")
          (let [r (peek s) s (pop s)]
@@ -166,12 +166,12 @@
     (when (= i (dec (count s))) (e/mu-error (str word ":") "has nothing above the repeat"))
     [(subvec s 0 i) (s i) (subvec s (inc i))]))
 
-(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as volta … in the text: [a b] 2 times [c] [d] volta"
+(word! "music" "volta" "( repeat ending... -- repeat' )  the endings above a repeat, as volta … in the text: [a b] 2 times [c] [d] volta"
        (fn [s]
          (let [[below rep ends] (above-repeat s "volta")]
            (conj below (mt/with-endings rep (mapv mt/as-line ends))))))
 
-(word! "music" "vary" "( repeat q … -- line )  each pass a quotation applied to the body as written, the endings after it; one quotation every pass, or one a pass: [a b] 3 repeat '( ) '( 12 + ) '( shuffle ) vary"
+(word! "music" "vary" "( repeat q... -- m )  each pass a quotation applied to the body as written, the endings after it; one quotation every pass, or one a pass: [a b] 3 repeat '( ) '( 12 + ) '( shuffle ) vary"
        (fn [s]
          (let [[below rep qs] (above-repeat s "vary")
                n (mt/repeat-count rep) k (count qs)]
@@ -187,7 +187,7 @@
 ;; -- alternatives: choose and alternate --------------------------------------
 
 (defn- alternatives-word
-  "( x q … -- part ) or ( x -- part ): the text's kw [ … ] of the
+  "( x q... -- m ) or ( x -- m ): the text's kw [ … ] of the
    alternatives -- the quotations on top applied to x, or without them
    x's own elements."
   [word kw]
@@ -213,10 +213,10 @@
         (e/mu-error (str word ":") (count ws) "weights for" (count alts) "alternatives -- give one weight each"))
       (conj (pop s) (mt/read-text (str kw (when ws (str " " (str/join "," ws))) " [" (str/join " " (map p/show alts)) "]"))))))
 
-(word! "music" "[|]" "( x q … [weights] -- part ) or ( x [weights] -- part )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [|]), or without them x's own elements ([[c d] [e f]] [|]); data of weights on top, one each, weighs them ([[c d] [e f]] '[3 1] [|])"
+(word! "music" "[|]" "( x q... [weights] -- m ) or ( x [weights] -- m )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [|]), or without them x's own elements ([[c d] [e f]] [|]); data of weights on top, one each, weighs them ([[c d] [e f]] '[3 1] [|])"
        (alternatives-word "[|]" "choose"))
 
-(word! "music" "[\\]" "( x q … -- part ) or ( x -- part )  alternate [ … ]: the alternatives in turn, one each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [\\] [~] plays I, R, I, …), or without them x's own elements"
+(word! "music" "[\\]" "( x q... -- m ) or ( x -- m )  alternate [ … ]: the alternatives in turn, one each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [\\] [~] plays I, R, I, …), or without them x's own elements"
        (alternatives-word "[\\]" "alternate"))
 
 ;; -- twins: a word beside each sign, a name Clojure can carry too ----------

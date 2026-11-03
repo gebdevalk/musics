@@ -315,7 +315,7 @@ and a voice's id or index on top of a play word is the voice to play as
 have a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `.>>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
-namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
+namespaces (late binding), `: name ( $a b -- c ) … ;` (a `$` input a local, the results checked) and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
 gathered by its first value: music into a line, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,

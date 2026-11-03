@@ -38,7 +38,7 @@
   (testing "n is taken only when the top is a whole number"
     (is (= 8 (count (re-seq #"[A-G][&#]?\d" (run "[F3/1:7 | B&3:7] walking-bass")))) "an ostinato: two bars")
     (is (= 13 (count (re-seq #"[A-G][&#]?\d" (run "[F3/1:7 | B&3:7] 2 walking-bass")))) "twice, the end held"))
-  (is (= "( chords [n] -- walking-bass )" (re-find #"^\(.*?\)" (:effect (e/lookup @e/state "walking-bass"))))
+  (is (= "( chords [n] -- m )" (re-find #"^\(.*?\)" (:effect (e/lookup @e/state "walking-bass"))))
       "the effect mu shows, from the arglists"))
 
 (deftest a-function-done-for-its-effect-leaves-nothing

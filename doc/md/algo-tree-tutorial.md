@@ -167,12 +167,13 @@ riff                  → [C4/4. E4 G4/4]
 riff dup 7 + {2}      → {[C4/4. E4 G4/4] [!K:G.major G4/4. B4 D5/4]}
 ```
 
-The stack effect names the inputs: inside the body `$name` is that
-input, so a value can be used twice without `dup` and `swap`. The swell
+An input of the stack effect written with a `$` is taken off the stack
+and bound: inside the body `$name` is that input, so a value can be used
+twice without `dup` and `swap`. The swell
 of section 3, as a word:
 
 ```
-: swell ( durs ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk zip ;
+: swell ( $durs $ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk zip ;
 [c8 c c c c c c c] durations @^{ seed:7 len:8 pitch-lo:60 pitch-hi:72 volume-lo:40 volume-hi:90 } swell
 ```
 
@@ -182,7 +183,7 @@ gives the same. A word can leave its settings open, to be given each
 time:
 
 ```
-: line-of ( ctx -- line ) $ctx duration/euclid [c e g a] pitches [~] zip ;
+: line-of ( $ctx -- line ) $ctx duration/euclid [c e g a] pitches [~] zip ;
 @^{ k:5 n:8 duration-pulse:1/8 } line-of     → [C4/4 E4/8 G4/4 A4/8 C4/4]
 ```
 
@@ -430,7 +431,7 @@ tuned by hand (`set`, a slider), and one voice plays it all the while.
 | `durations` `pitches` | `( line -- stream )` a line taken apart |
 | `zip` | `( durations pitches -- line )` notes of them; `( line stream -- line )` the stream's part written on each note |
 | `dup` `swap` `over` `rot` | arrange the stack |
-| `: name ( a -- b ) … ;` `$a` | a definition, its inputs as locals |
+| `: name ( $a -- b ) … ;` `$a` | a definition, its `$` inputs as locals |
 | `'( … )` `call` | a recipe kept, run |
 | `[~]` `times` `[n]` `{n}` | loop, repeat, one after another, side by side |
 | `x recipe [voice] .>` (`.>>` `.>+` `.>>+`) | play x through the recipe, live; `\|` or nothing under it: from nothing |

@@ -166,6 +166,48 @@
                         :else (mu-error (str name ":") msg)))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
+(defn- binds?
+  "Is this stack-effect input one that binds a local ($name)?"
+  [s] (str/starts-with? s "$"))
+
+(defn- plain [s] (str/replace s #"^\$" ""))
+
+(defn- variadic? [s] (or (str/ends-with? s "...") (str/ends-with? s "…")))
+
+(defn- same-value? [a b]
+  (or (identical? a b) (and (not (seq? a)) (not (seq? b)) (= a b))))
+
+(defn- check-effect!
+  "A word's stack effect is kept: it leaves as many values as it names after
+   --, and a result named like an input without a prime (x for x) is that
+   input. Not checked where a name ends in ... (any number)."
+  [name {:keys [in out]} depth args result]
+  (when-not (some variadic? (concat in out))
+    (let [below (- depth (count in))
+          left  (- (count result) below)]
+      (when (not= left (count out))
+        (mu-error (str name ":") "leaves" left (if (= 1 left) "value" "values")
+                  "-- its stack effect says" (count out)))
+      (let [given (zipmap (map plain in) args)]
+        (doseq [[o v] (map vector out (subvec result below))
+                :when (and (contains? given o) (not (same-value? v (get given o))))]
+          (mu-error (str name ":") (str o) "is the same on both sides of its stack effect, but the word changed it -- write"
+                    (str o "'")))))))
+
+(defn- run-defined
+  "Run a word written with : … ;. The inputs of its stack effect marked $ are
+   taken off the stack and bound as locals; the others stay on it."
+  [stack name entry]
+  (let [{:keys [in] :as effect} (:effect entry)
+        _      (need stack (count in) name)
+        n      (- (count stack) (count in))
+        args   (subvec stack n)
+        locals (into {} (for [[s a] (map vector in args) :when (binds? s)] [(plain s) a]))
+        kept   (vec (for [[s a] (map vector in args) :when (not (binds? s))] a))
+        result (run-items (into (subvec stack 0 n) kept) (:body entry) {:locals locals :values (:values entry)})]
+    (when effect (check-effect! name effect (count stack) args result))
+    result))
+
 (defn run-word
   "Run the word called name on stack."
   [stack name]
@@ -175,11 +217,7 @@
       (:var entry) (run-var stack name (:var entry))
       (:fn entry)  ((:fn entry) stack)
       :else
-      (let [ins    (get-in entry [:effect :in])
-            _      (need stack (count ins) name)
-            n      (- (count stack) (count ins))
-            locals (zipmap ins (subvec stack n))]
-        (run-items (subvec stack 0 n) (:body entry) {:locals locals :values (:values entry)})))))
+      (run-defined stack name entry))))
 
 (def ^:dynamic *head*
   "While a quotation that opens with an @^{ } runs: that @^{ }'s settings,

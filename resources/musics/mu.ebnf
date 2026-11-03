@@ -13,13 +13,16 @@ MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
          / TreeRecipe / Settings / Composite / repeat / RepeatBars / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / BareDuration / StringLit
          / KeyLit / AssignLit / IdName / VarRef / PcSet / Local / LooseInstruction / Word
 
-(* : name ( a b -- c ) body ;  -- the colon needs whitespace after it,
+(* : name ( $a b -- c ) body ;  -- a $name before -- is bound as a local and taken off
+   the stack, a plain one stays on it; after -- a name is a result (x the same, x' changed,
+   a new name a new thing); name... is any number (musics.mu.eval, doc/md/mu-repl.md).
+   The colon needs whitespace after it,
    which tells it from :name (a repo name) and name: (an id). *)
 Definition  = <':'> <ws> WordName (<ws> StackEffect)? (<ws> MuItem)* <ws>? <';'>
 StackEffect = <'('> <ws>? EffectIn <'--'> EffectOut <ws>? <')'>
 EffectIn    = (EffectName <ws>)*
 EffectOut   = (<ws> EffectName)*
-<EffectName> = #'[a-zA-Z_][a-zA-Z0-9_\-]*\'*'
+<EffectName> = #'\$?[a-zA-Z_][a-zA-Z0-9_\-]*\'*(\.\.\.|…)?' / #'\.\.\.|…'
 
 (* A tree recipe: an algo tree written concatenatively, as mu is --
    @( riff: ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip ) (musics.recipe),

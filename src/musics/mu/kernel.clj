@@ -15,19 +15,19 @@
 
 ;; -- stack ------------------------------------------------------------
 
-(word! "kernel" "dup" "( a -- a a )  copy the top"
+(word! "kernel" "dup" "( x -- x x )  copy the top"
        (fn [s] (need s 1 "dup") (conj s (peek s))))
 
-(word! "kernel" "drop" "( a -- )  discard the top"
+(word! "kernel" "drop" "( x -- )  discard the top"
        (fn [s] (need s 1 "drop") (pop s)))
 
-(word! "kernel" "2dup" "( a b -- a b a b )  copy the top two"
+(word! "kernel" "2dup" "( x1 x2 -- x1 x2 x1 x2 )  copy the top two"
        (fn [s] (need s 2 "2dup") (conj s (peek (pop s)) (peek s))))
 
-(word! "kernel" "2drop" "( a b -- )  discard the top two"
+(word! "kernel" "2drop" "( x1 x2 -- )  discard the top two"
        (fn [s] (need s 2 "2drop") (pop (pop s))))
 
-(word! "kernel" "-rot" "( a b c -- c a b )  rotate the top three the other way: the top goes third"
+(word! "kernel" "-rot" "( x1 x2 x3 -- x3 x1 x2 )  rotate the top three the other way: the top goes third"
        (fn [s]
          (need s 3 "-rot")
          (let [n (count s)]
@@ -43,28 +43,28 @@
 (word! "kernel" "true" "( -- flag )  the flag true" (fn [s] (conj s true)))
 (word! "kernel" "false" "( -- flag )  the flag false" (fn [s] (conj s false)))
 
-(word! "kernel" "swap" "( a b -- b a )  exchange the top two"
+(word! "kernel" "swap" "( x1 x2 -- x2 x1 )  exchange the top two"
        (fn [s]
          (need s 2 "swap")
          (let [n (count s)] (assoc s (- n 1) (s (- n 2)) (- n 2) (s (- n 1))))))
 
-(word! "kernel" "over" "( a b -- a b a )  copy the second over the top"
+(word! "kernel" "over" "( x1 x2 -- x1 x2 x1 )  copy the second over the top"
        (fn [s] (need s 2 "over") (conj s (s (- (count s) 2)))))
 
-(word! "kernel" "rot" "( a b c -- b c a )  rotate the top three: the third comes on top"
+(word! "kernel" "rot" "( x1 x2 x3 -- x2 x3 x1 )  rotate the top three: the third comes on top"
        (fn [s]
          (need s 3 "rot")
          (let [n (count s)] (conj (subvec s 0 (- n 3)) (s (- n 2)) (s (- n 1)) (s (- n 3))))))
 
-(word! "kernel" "nip" "( a b -- b )  drop the second"
+(word! "kernel" "nip" "( x1 x2 -- x2 )  drop the second"
        (fn [s] (need s 2 "nip") (conj (pop (pop s)) (peek s))))
 
-(word! "kernel" "tuck" "( a b -- b a b )  copy the top under the second"
+(word! "kernel" "tuck" "( x1 x2 -- x2 x1 x2 )  copy the top under the second"
        (fn [s]
          (need s 2 "tuck")
          (let [b (peek s) a (peek (pop s))] (conj (pop (pop s)) b a b))))
 
-(word! "kernel" "pick" "( xn … x0 n -- xn … x0 xn )  copy the n-th item to the top, the top being 0"
+(word! "kernel" "pick" "( xn ... x0 n -- xn ... x0 xn )  copy the n-th item to the top, the top being 0"
        (fn [s]
          (need s 1 "pick")
          (let [n (peek s) s (pop s)]
@@ -72,7 +72,7 @@
              (e/mu-error "pick: needs an index 0 to" (dec (count s)) "under it, got" n))
            (conj s (s (- (count s) 1 n))))))
 
-(word! "kernel" "roll" "( xn xn-1 … x0 n -- xn-1 … x0 xn )  move the n-th item to the top, the top being 0: 0 roll does nothing, 1 roll is swap, 2 roll is rot"
+(word! "kernel" "roll" "( xn xn-1 ... x0 n -- xn-1 ... x0 xn )  move the n-th item to the top, the top being 0: 0 roll does nothing, 1 roll is swap, 2 roll is rot"
        (fn [s]
          (need s 1 "roll")
          (let [n (peek s) s (pop s)]
@@ -84,21 +84,21 @@
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
-(word! "kernel" "spread" "( x -- a b … )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
+(word! "kernel" "spread" "( x -- elem... )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
        (fn [s]
          (need s 1 "spread")
          (let [xs (try (mt/elements (peek s))
                        (catch clojure.lang.ExceptionInfo ex (e/mu-error "spread:" (ex-message ex))))]
            (into (pop s) (remove mt/marker? (mt/finite! "spread" xs))))))
 
-(word! "kernel" "**" "( x -- a b … )  spread: x's elements on the stack (also spread)" (e/same-as "kernel" "spread"))
+(word! "kernel" "**" "( x -- elem... )  spread: x's elements on the stack (also spread)" (e/same-as "kernel" "spread"))
 
 ;; -- quotations ---------------------------------------------------------
 
-(word! "kernel" "call" "( q -- … )  run the quotation"
+(word! "kernel" "call" "( q -- ... )  run the quotation"
        (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
 
-(word! "kernel" "execute" "( 'word -- … )  run the word a quoted name names (or a quotation, as call)"
+(word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation, as call)"
        (fn [s]
          (need s 1 "execute")
          (let [x (peek s)]
@@ -115,14 +115,14 @@
   (try (cmp/flag! x)
        (catch clojure.lang.ExceptionInfo ex (e/mu-error (str word ":") (ex-message ex)))))
 
-(word! "kernel" "if" "( flag q-then q-else -- … )  run q-then if flag is true, else q-else"
+(word! "kernel" "if" "( flag q1 q2 -- ... )  run q1 if flag is true, else q2"
        (fn [s]
          (need s 3 "if")
          (let [n (count s) [f t el] (subvec s (- n 3))]
            (when-not (and (quote? t) (quote? el)) (e/mu-error "if: needs two quotations '( … ) on top"))
            (e/call (subvec s 0 (- n 3)) (if (flag-of "if" f) t el)))))
 
-(word! "kernel" "when" "( flag q -- … )  run q if flag is true"
+(word! "kernel" "when" "( flag q -- ... )  run q if flag is true"
        (fn [s]
          (need s 2 "when")
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
@@ -134,13 +134,13 @@
   (when (:mu/endless (meta xs)) (e/mu-error (str word ":") "an endless stream never ends -- take some first"))
   xs)
 
-(word! "kernel" "each" "( things q -- … )  run q on each element in turn"
+(word! "kernel" "each" "( l q -- ... )  run q on each element in turn"
        (fn [s]
          (need s 2 "each")
          (let [q (peek s) xs (finite "each" (mt/elements (peek (pop s))))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
-(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( + ) reduce gives 6"
+(word! "kernel" "reduce" "( l x q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( + ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]
@@ -148,10 +148,10 @@
 
 ;; -- printing -------------------------------------------------------------
 
-(word! "kernel" "." "( a -- )  print the top and drop it"
+(word! "kernel" "." "( x -- )  print the top and drop it"
        (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
 
-(word! "kernel" "clear" "( … -- )  clear the stack" (fn [_] []))
+(word! "kernel" "clear" "( ... -- )  clear the stack" (fn [_] []))
 
 (word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts, ---- under the last"
        (fn [s]
@@ -164,12 +164,12 @@
   (atom nil))
 
 (doseq [w ["," "edit"]]
-  (word! "kernel" w "( a -- )  take the top off the stack into the next prompt as text, to change and run again"
+  (word! "kernel" w "( x -- )  take the top off the stack into the next prompt as text, to change and run again"
          (fn [s] (need s 1 w) (reset! edit-text (p/show (peek s))) (pop s))))
 
 ;; -- bindings -------------------------------------------------------------
 
-(word! "kernel" ":=" "( 'name value -- )  bind; \\name is the value"
+(word! "kernel" ":=" "( 'name x -- )  bind; \\name is the value"
        (fn [s]
          (need s 2 ":=")
          (let [x (peek s) n (peek (pop s))]
@@ -238,7 +238,7 @@
 (word! "play" ".>+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
-  "( material [recipe] [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
+  "( material [recipe] [^{ }] [|...||||] [voice] -- ): stage! from the next boundary."
   [word join?]
   (fn [s]
     (let [[target s] (target-of s word)
@@ -251,13 +251,13 @@
           (mt/stage! x ctx n join? target))
         s))))
 
-(word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also .>>)"
+(word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also .>>)"
        (staged-word "play-next" false))
-(word! "play" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also .>>+)"
+(word! "play" "play-next+" "( material [^{ }] [|...||||] -- )  joining what plays, from the next boundary, as play-next finds it (also .>>+)"
        (staged-word "play-next+" true))
-(word! "play" ".>>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
+(word! "play" ".>>" "( material [^{ }] [|...||||] -- )  play-next, in place of what plays from the next boundary"
        (staged-word ".>>" false))
-(word! "play" ".>>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
+(word! "play" ".>>+" "( material [^{ }] [|...||||] -- )  play-next+, joining what plays from the next boundary"
        (staged-word ".>>+" true))
 
 ;; the old signs: not words, and say what replaced them

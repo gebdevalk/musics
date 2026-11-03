@@ -368,7 +368,7 @@
           (finally (reset! engine/echo nil) (engine/stop!)))))))
 
 (deftest see-shows-effect-then-description
-  (is (= "dup ( a -- a a )\n  copy the top\n" (out "\"dup\" see")))
+  (is (= "dup ( x -- x x )\n  copy the top\n" (out "\"dup\" see")))
   (is (= (out "\"dup\" see") (out "'dup see")) "a quoted name too")
   (is (str/starts-with? (out "'play/stop see") "play/stop ( [voice] -- )") "qualified"))
 
@@ -489,7 +489,7 @@
     (is (= "[C4/4 D4 E4]" (show "( c d e )")))
     (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 times [e] [f] volta ) 1 +"))
         "one line, so a word reaches all of it: the key covers the endings too")
-    (is (= "[D4/4 D4]" (show ": twice ( x -- y ) ( $x $x ) ; d4 twice")) "inside a definition, with locals")
+    (is (= "[D4/4 D4]" (show ": twice ( $x -- y ) ( $x $x ) ; d4 twice")) "inside a definition, with locals")
     (is (= "[C4/4 D4 E4]" (show "c d e ()")) "() alone gathers the stack")
     (is (= "'[60 62]" (show "60 62 ()")))
     (is (= ["C4/4" "D4/4" "'[60 62]"] (map p/show (:ok (run "c d | 60 62 ()")))) "only what lies above a |")

@@ -115,21 +115,34 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 **Defining**, Forth style:
 
 ```
-: octaved ( x -- p )  | $x $x 12 + par ;
-: canon ( a s -- p )  | $a  $a $s +  par ;
-: echo  ( m -- l )    [$m $m r4 $m] ;
+: double ( n -- n' )   dup + ;
+: octaved ( $x -- p )  | $x $x 12 + par ;
+: canon ( $a $s -- p ) | $a  $a $s +  par ;
+: echo  ( $m -- l )    [$m $m r4 $m] ;
 ```
 
 - `: name … ;` defines a word. The colon needs a space after it. The
   name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
   (`?empty`). `@^{ name:value }` is an algo's settings, a value of its
   own; `?name:value` is refused (music holds `!` keys only).
-- **Locals are optional**: with a stack effect `( a b -- c )`, its
-  input names are bound as locals; without one, the word is plain stack
-  code. Any name may be a local, leaf letters included.
-- A local is written **`$a`**, in the body and inside literals
-  (`[$m $m r4 $m]` splices it). Locals are **constants**: bound once
-  per call.
+- **The stack effect** `( inputs -- results )` is read as in Forth. An
+  input is taken from the stack and stays there, for the stack words
+  (`( n -- n' ) dup +`), unless it is written with a **`$`**: `( $a $b -- c )`
+  takes `a` and `b` off the stack and binds them as locals, read as `$a`
+  and `$b` in the body and inside literals (`[$m $m r4 $m]` splices it).
+  The two mix, `( $m n -- m' )` binds `m` and leaves `n` on the stack. Locals
+  are **constants**, bound once per call; any name may be one, leaf letters
+  included. A word without a stack effect is plain stack code.
+- **The results are kept**: the word must leave as many values as the
+  names after `--`, or its call is refused (`twin: leaves 2 values -- its
+  stack effect says 1`), and a result named like an input, `x` for `x`, is
+  that input as it came (`( x -- x )` on a word that changes `x` is refused:
+  write `x'`). A name ending in `...` is any number and is not counted
+  (`( x... -- l )`). The names are the same ones mu's own help shows:
+  `x` the same, `x'` changed, any other name a new thing; by type, `n` a
+  number, `x` anything, `m` music, `l` a list or stream, `q` a quotation,
+  `t` a length in whole notes, `id` a stored name, `flag` true or false,
+  numbered when two share one (`n1 n2 -- n3`).
 - **Quotations** are `'( … )`, the quoted counterpart of `'[ … ]` (held
   data): held code, run by `call`, `if`, `each`, `map` …
 
@@ -224,7 +237,7 @@ followed by nothing, a duration or `*n`.
   continuation is `...`, right-aligned under it:
 
   ```
-  mu<1> : canon ( a s -- p )
+  mu<1> : canon ( $a $s -- p )
     ...   | $a  $a $s +
     ...   par ;
   mu<1>

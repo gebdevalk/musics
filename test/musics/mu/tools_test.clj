@@ -174,9 +174,12 @@
 (deftest a-word-that-returns-its-input-changed-primes-it-in-its-effect
   (let [effect #(:effect (e/lookup @e/state %))]
     (doseq [[w head] [["sort" "( x -- x' )"] ["sputter" "( x -- x' )"] ["rotating" "( x n -- x' )"]
-                      ["shuffling" "( x -- x' )"] ["interleave" "( a b -- a' )"] ["partition" "( x n -- x' )"]
+                      ["shuffling" "( x -- x' )"]
                       ["times" "( x n -- x' )"] ["cycle" "( x -- x' )"] ["rotate" "( x n -- x' )"]
-                      ["take" "( x n -- x' )"] ["+" "( x n -- x' )"] ["zip" "( durations pitches -- durations' )"]]]
+                      ["take" "( x n -- x' )"] ["+" "( x n -- x' )"]
+                      ;; a new thing from the inputs gets a name of its own
+                      ["interleave" "( x1 x2 -- x3 )"] ["partition" "( x n -- l )"]
+                      ["zip" "( durations pitches -- m )"]]]
       (is (str/starts-with? (effect w) head) w))
     (doseq [w ["count" "last" "concat" "pitches" "dup"]]
       (is (not (str/includes? (first (str/split (effect w) #"\)\s\s" 2)) "'")) (str w " does not return its input changed")))))

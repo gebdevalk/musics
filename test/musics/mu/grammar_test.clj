@@ -98,13 +98,16 @@
   (is (= [:Settings] (tags "@^{ }")) "empty too"))
 
 (deftest definitions
-  (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]
+  (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "$x"] [:EffectOut "p"]]
            [:Mark "|"] [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"] [:Word [:WordName "par"]]]]
-         (items ": octaved ( x -- p ) | $x $x 12 + par ;")))
-  (is (= [:Definition [:WordName "canon"] [:StackEffect [:EffectIn "a" "s"] [:EffectOut "p"]]
+         (items ": octaved ( $x -- p ) | $x $x 12 + par ;")))
+  (is (= [:Definition [:WordName "canon"] [:StackEffect [:EffectIn "$a" "$s"] [:EffectOut "p"]]
           [:Mark "|"] [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:Word [:WordName "par"]]]
-         (first (items ": canon ( a s -- p ) | $a $a $s + par ;")))
-      "a stack effect names the locals, leaf letters included"))
+         (first (items ": canon ( $a $s -- p ) | $a $a $s + par ;")))
+      "a stack effect marks the locals with $, leaf letters included")
+  (is (= [:StackEffect [:EffectIn "ns..."] [:EffectOut "l" "more..."]]
+         (nth (first (items ": f ( ns... -- l more... ) ;")) 2))
+      "... after a name is any number of them, in ascii or as …"))
 
 (deftest unfinished-or-wrong
   (doseq [t ["[c d" "'( dup" ": x dup" "{[c d]" "^{ !ff" "\"open"]]

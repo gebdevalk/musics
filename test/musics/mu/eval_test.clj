@@ -80,8 +80,25 @@
 ;; a stack effect names what a word takes and gives; x' is x changed, as mu's own
 ;; help writes it, so a word that only copies x says x, and one that changes it x'
 (deftest a-stack-effect-may-prime-a-name
-  (is (= [3 3] (:ok (run ": twice ( x -- x x ) $x $x ; 3 twice"))) "a copy leaves x as it is")
-  (is (= [4] (:ok (run ": bump ( n -- n' ) $n 1+ ; 3 bump"))) "a changed n is n'"))
+  (is (= [3 3] (:ok (run ": twice ( $x -- x x ) $x $x ; 3 twice"))) "a copy leaves x as it is")
+  (is (= [4] (:ok (run ": bump ( $n -- n' ) $n 1+ ; 3 bump"))) "a changed n is n'"))
+
+;; only an input marked $ is bound; the others stay on the stack, so the
+;; stack effect reads as it does in Forth
+(deftest only-marked-inputs-are-locals
+  (is (= [5] (:ok (run ": double ( n -- n' ) 1+ 1+ ; 3 double"))) "no $: the stack as it is")
+  (is (= [5] (:ok (run ": double2 ( $n -- n' ) $n 1+ 1+ ; 3 double2"))) "$n: taken off, read as $n")
+  (is (re-find #"dup: needs 1 item" (:error (run ": double3 ( $n -- n' ) dup 1+ ; 3 double3"))) "a bound input is not on the stack")
+  (is (= [1 2 1] (:ok (run ": over2 ( $aa ys -- aa ys aa ) $aa swap $aa ; 1 2 over2"))) "mixed: aa bound, ys kept in place")
+  (is (= [7 1 2 3] (:ok (run "7 1 2 3 : keep ( ns -- ns ) ; keep"))) "words below are left alone"))
+
+;; the outputs are kept: how many, and a name without a prime is that input
+(deftest a-stack-effect-is-kept
+  (is (re-find #"leaves 2 values -- its stack effect says 1" (:error (run ": twin ( ns -- ns' ) dup 1+ ; 3 twin"))))
+  (is (re-find #"leaves 1 value -- its stack effect says 0" (:error (run ": gives ( -- ) 1 ; gives"))))
+  (is (re-find #"ns is the same on both sides.*write ns'" (:error (run ": swapped ( ns -- ns ) drop 5 ; 3 swapped"))))
+  (is (= [5] (:ok (run ": swapped2 ( ns -- ns' ) drop 5 ; 3 swapped2"))) "a prime may change it")
+  (is (= 1 (count (:ok (run ": gather ( ns... -- l ) ( ) ; 1 2 3 gather")))) "... is any number, not counted"))
 
 (deftest unfinished-input
   (is (:incomplete (run "[c d")))
@@ -101,13 +118,13 @@
   (is (= [1] (:ok (run ": ab 1 ; ab"))) "a name that is no leaf is fine"))
 
 (deftest locals
-  (is (= [1 2 2 1] (:ok (run ": mirror ( a b -- b a ) $a $b $b $a ; 1 2 mirror"))))
+  (is (= [1 2 2 1] (:ok (run ": mirror ( $a $b -- a b b a ) $a $b $b $a ; 1 2 mirror"))))
   (is (re-find #"\$q is not a local" (:error (run ": bad $q ; bad")))))
 
 (deftest quotations
   (is (= [5 5] (:ok (run "5 '( dup ) call"))))
   (testing "a quotation made in a word keeps that word's locals"
-    (is (= [7] (:ok (run ": maker ( x -- q ) '( $x ) ; 7 maker call"))))))
+    (is (= [7] (:ok (run ": maker ( $x -- q ) '( $x ) ; 7 maker call"))))))
 
 (deftest namespaces
   (run "\"song\" in")
