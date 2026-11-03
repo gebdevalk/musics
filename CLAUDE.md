@@ -311,8 +311,8 @@ addresses a voice too, by mean pitch (1 the lowest with pitch .. n, the
 drum voices 0, -1 … by lowest drum key: `musics.mu.material/voice-id`),
 and a voice's id or index on top of a play word is the voice to play as
 (`3 .< 12 + 3 .>>`) (`engine/stop-voice!`,
-`hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Every sign
-has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
+`hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Most bracket signs
+have a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 `[~]` `cycle`, `.>>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and

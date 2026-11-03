@@ -45,6 +45,7 @@ lein mu
 R@ .>                              fetch it and play it
 @^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip .>
 stop
+help                              mu in a few lines ("chord" help searches the words)
 "song.mus" load                   read a file (.mus, .ly, .abc, .gmn)
 x "x.mid" render                  write a MIDI file
 gui                               the GUI beside mu
