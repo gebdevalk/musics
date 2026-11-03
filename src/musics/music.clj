@@ -199,6 +199,7 @@
    an error."
   [word x n]
   (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
+  (when (and (mt/music? x) (empty? (mt/elements x))) (e/mu-error (str word ":") "an empty line has nothing to repeat"))
   (if (mt/music? x)
     (mt/repetition x n [])
     (let [x (mt/finite! word x)]
@@ -255,6 +256,7 @@
   "x in repeat signs, played twice."
   {:mu {:names ["[:]"]}}
   [x]
+  (when (empty? (mt/elements x)) (fail "an empty line has nothing to repeat"))
   (mt/repetition x 2 [] true))
 
 (defn unfold

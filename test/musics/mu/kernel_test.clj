@@ -53,7 +53,7 @@
   (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d | e] spread")))) "bar lines left out")
   (is (= ["C4/4" "D4/4"] (map p/show (:ok (run "[c $ d DS] spread")))) "jump marks left out")
   (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused")
-  (is (re-find #"^spread: has no elements" (:error (run "7 spread"))) "an error named by the word"))
+  (is (re-find #"^spread: needs a line, a list or a stream" (:error (run "7 spread"))) "an error named by the word"))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]

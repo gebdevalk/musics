@@ -146,6 +146,16 @@
                       lists))
         (first lists))))
 
+(defn- named
+  "The error ex, named by word name: left as it is when it is named already,
+   by this word or by another it ran."
+  [name ex]
+  (let [msg (ex-message ex)]
+    (cond
+      (str/starts-with? msg (str name ":")) ex
+      (re-find #"^\S+:\s" msg)            (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true}))
+      :else (ex-info (str name ": " msg) {:mu/error true}))))
+
 (defn- run-var
   "Run the Clojure function v as the word name: its arguments taken from
    stack, music first; its value pushed, unless it is done for its effect.
@@ -157,13 +167,7 @@
                     (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
         n    (- (count stack) (count al))
         r    (try (apply @v (subvec stack n))
-                  (catch clojure.lang.ExceptionInfo ex
-                    (let [msg (ex-message ex)]
-                      (cond
-                        ;; named already, by this word or by another it ran: as it is
-                        (str/starts-with? msg (str name ":")) (throw ex)
-                        (re-find #"^\S+:\s" msg)            (throw (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true})))
-                        :else (mu-error (str name ":") msg)))))]
+                  (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn- binds?
@@ -215,7 +219,9 @@
                   (mu-error (str "unknown word: " name " -- " (suggest/hint @state name))))]
     (cond
       (:var entry) (run-var stack name (:var entry))
-      (:fn entry)  ((:fn entry) stack)
+      (:fn entry)  (try ((:fn entry) stack)
+                        (catch clojure.lang.ExceptionInfo ex
+                          (if (:mu/error (ex-data ex)) (throw (named name ex)) (throw ex))))
       :else
       (run-defined stack name entry))))
 
@@ -400,7 +406,16 @@
       (str w " is a word (line " line ", column " column "), and words don't run"
            " inside a literal: [ … ] is musics text, read before anything runs.\n"
            "Gather on the stack instead: ( [a b] [?] [c d] [?] )  (| … par for { })"))
-    (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
+    (let [{:keys [line column reason]} failure
+          src      (nth (str/split-lines (str text "\n")) (max 0 (dec (or line 1))) "")
+          literals (distinct (for [r reason :when (and (= :string (:tag r)) (string? (:expecting r)))] (:expecting r)))
+          shown    (take 12 literals)]
+      (str "can't read this (line " line ", column " column "):\n" src "\n" (apply str (repeat (dec (or column 1)) \space)) "^"
+           (when (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))
+             "\na { } holds lines, one a voice: {[c] [d]}; <c d> is a chord, [c d] a line")
+           (when (and (seq shown) (not (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))))
+             (str "\nexpected " (str/join " " (map #(str "`" % "`") shown)) (when (> (count literals) 12) " …")
+                  ", or more music or a word"))))))
 
 (defn- parse-input
   "Parse text: {:items [...] :lits [...]} (each literal numbered by its

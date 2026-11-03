@@ -2859,3 +2859,21 @@ A vector was preferred over a seq for the canonical form: `count` and `nth`
 are cheap, `conj` appends (on a list it would prepend, silently reversing a
 result), and a stored vector is evidently finite. Lost metadata costs only the
 type in a print (`'[60 62]` for `'[pitch C4 D4]`), never a sound.
+
+## 2026-11-03 — Errors say what was wanted
+
+- A word given a value that has no elements says what it takes: `sum: needs a
+  line, a list or a stream, got 3`, with the way on for a number (`( 1 2 )`)
+  and for a stored name (`:a R@`). It used to say `has no elements: 3`.
+- Every error is named by its word, those of words written with `word!` too
+  (`musics.mu.eval/named`, used by both kinds), so `reduce` no longer fails
+  nameless.
+- `times` and `[:]` of an empty line say so, instead of the rebuilt text that
+  could not be read back; the generic rebuild failure names the text it could
+  not read as one value.
+- A data list refuses what it can't hold when a word rebuilds it (`'[1 2 3] 1 c
+  !`: "a data list holds numbers, names and lists, not music"), as the reader
+  already did when it was a material.
+- A parse error shows the line with a caret and the literal symbols that could
+  follow, no grammar regexes: `c/4` points at the `/`, `{c d}` at the space
+  after `c`.

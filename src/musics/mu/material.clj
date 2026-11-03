@@ -55,7 +55,7 @@
   ([text] (read-material text false))
   ([text keep?]
    (let [nodes (filterv v/literal? (rest (g/parse text)))]
-     (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
+     (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
      (let [{:keys [values auto-ids]} (v/read-literals nodes text (e/current-repo) (:auto-ids @reg/session))]
        (when keep? (swap! reg/session assoc :auto-ids auto-ids))
        (first values)))))
@@ -103,7 +103,9 @@
     (leaf? x)       [x]
     (v/pcset? x)    (:items x)
     (sequential? x) x
-    :else (e/mu-error "has no elements:" (p/show x))))
+    :else (e/mu-error (str "needs a line, a list or a stream, got " (p/show x)
+                           (cond (keyword? x) (str " -- " (p/show x) " is a stored name: " (p/show x) " R@ reads it")
+                                 (number? x)  " -- numbers gather into a list with ( 1 2 )")))))
 
 (defn- leading-instructions
   "The instructions written before a container's first element: its
@@ -791,7 +793,11 @@
     (cond
       (or (v/material? x) (leaf? x)) (rebuild (if (leaf? x) (line [x]) x) els)
       (endless? x) (endless els)
-      (and (vector? x) (not (endless? els))) (with-meta (vec els) (meta x))
+      (and (vector? x) (not (endless? els)))
+      (do (when (contains? (meta x) :data-type)
+            (when-let [bad (first (filter #(or (leaf? %) (v/material? %)) els))]
+              (e/mu-error "a data list holds numbers, names and lists, not music:" (p/show bad))))
+          (with-meta (vec els) (meta x)))
       :else els)))
 
 (defn- tagged

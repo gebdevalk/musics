@@ -276,7 +276,7 @@
     (is (re-find #"^with: needs a context \^\{ … \} or a key \(D.major\) on top -- or a key and its value, :volume 70 with"
                  (top "[c d e] 70 :volume with"))))
   (testing "an error is named by the word once"
-    (is (re-find #"^insert: has no elements: 1$" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
+    (is (re-find #"^insert: needs a line, a list or a stream, got 1" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
     (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
     (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
 
@@ -764,6 +764,26 @@
   (testing "a deep list opens one level at a time"
     (is (= "'[1 2 '[3]]" (top "'[1 '[2 '[3]]] flatten")))
     (is (= "'[1 2 3]" (top "'[1 '[2 '[3]]] flatten flatten")))))
+
+;; an error says what was wanted and where, not how the machinery failed
+(deftest errors-say-what-was-wanted
+  (is (re-find #"^sum: needs a line, a list or a stream, got 3 -- numbers gather into a list with" (top "1 2 3 sum")))
+  (testing "a stored name is not its content"
+    (top "[a: c d] R!")
+    (is (re-find #"^retrograde: needs a line, a list or a stream, got :a -- :a is a stored name: :a R@ reads it"
+                 (top ":a retrograde"))))
+  (testing "a word written in Clojure with word! is named too"
+    (is (re-find #"^reduce: needs a line, a list or a stream, got 0" (top "0 '[1 2 3] '( + ) reduce"))))
+  (testing "nothing to repeat is said so, not as a failed rebuild"
+    (is (re-find #"^times: an empty line has nothing to repeat" (top "[] 2 [*]")))
+    (is (re-find #"^\[:\]: an empty line has nothing to repeat" (top "[] [:]"))))
+  (testing "data stays data: a note is refused where a list of numbers is"
+    (is (re-find #"^!: a data list holds numbers, names and lists, not music: C4" (top "'[1 2 3] 1 c !")))
+    (is (= "'[1 9 3]" (top "'[1 2 3] 1 9 !"))))
+  (testing "a parse error shows the line and where, and the symbols that could follow"
+    (let [m (top "c/4")]
+      (is (re-find #"^can't read this \(line 1, column 2\):\nc/4\n \^" m))
+      (is (not (re-find #"#\"" m)) "no grammar regexes"))))
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")
