@@ -245,7 +245,7 @@ element (`+` transposes every note, writing the moved key, `!K:`, at
 the start of the line; `+ - * /` also work on numbers, lists of numbers and streams, `musics.arith`), the same symbol in brackets on
 the whole line (`[*]` n times, `[/]` parts, `[+]` `concat` (the second line's settings written where it begins), `flatten` opens nested lines one level, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
-parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
+parts in one, `[%]` rotate as it plays (`rotating`, `rotate n [ ]`; `rotate` does it now), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`; `shuffle` now), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
 the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
 plays, as LilyPond does), `[!]`

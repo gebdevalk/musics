@@ -191,18 +191,20 @@
   ([x n] (each x (partial core/drop (count! n)))))
 
 (defn rotate
-  "x rotated by n, wrapping around, now"
-  {:mu {:names ["[%]"]}}
+  "x rotated by n, wrapping around, now ([%] rotates music anew as it plays)"
   [x n]
   (each x (fn [xs] (let [v (vec (mt/finite! "rotate" xs)) k (if (seq v) (mod (count! n) (core/count v)) 0)]
                      (core/concat (core/drop k v) (core/take k v))))))
 
 (defn rotating
-  "rotate n [ x ]: rotated n places further each time it plays, as
-   written the first time ([c d e] 1 rotating [~] rotates every pass;
-   [%] rotates now)"
+  "Music: rotate n [ x ], rotated n places further each time it plays, as
+   written the first time ([c d e] 1 [%] [~] rotates every pass); data or a
+   stream: rotated now, as rotate"
+  {:mu {:names ["[%]"]}}
   [x n]
-  (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x)))))
+  (if (mt/music? x)
+    (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x))))
+    (rotate x n)))
 
 (defn- grouped
   "The groups of x's elements as x's form gives them: a line of lines

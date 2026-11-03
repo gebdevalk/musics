@@ -170,7 +170,7 @@
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[||]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "concat" "[c] [d]"]
-                             ["[%]" "rotate" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
+                             ["[%]" "rotating" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
   (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
@@ -252,7 +252,9 @@
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 [/]")) "the longer part first")
   (is (re-find #"can't split 2 elements into 3 parts" (top "[c d] 3 [/]")))
   (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two lines")
-  (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 [%]")) "[%] rotates")
+  (is (= "rotate 1 [C4/4 D4 E4 F4]" (top "[c d e f] 1 [%]")) "[%] rotates as it plays, like [?] shuffles")
+  (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 rotate")) "rotate does it now")
+  (is (= "'[2 3 1]" (top "'[1 2 3] 1 [%]")) "data has no playing: rotated now")
   (is (= #{"C4" "D4" "E4" "F4"} (set (re-seq #"[A-G]\d" (top "[c d e f] [?]")))) "[?] reorders, keeping every note"))
 
 (deftest loop-and-together
