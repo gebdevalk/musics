@@ -216,10 +216,10 @@
                    :note (if (= 1 (count pitches))
                            (str (pitch-text (first pitches)) "/" dd)
                            (str "<" (str/join " " (map pitch-text pitches)) ">" dd)))))]
-    (str "[ !tempo:" (long (Math/round (double bpm)))
+    (str "[!tempo:" (long (Math/round (double bpm)))
          (when instrument-prog (str " !instrument:" instrument-prog))
          (when (seq body) (str " " body))
-         " ]\n")))
+         "]\n")))
 
 ;; ============================================================
 ;; Recording

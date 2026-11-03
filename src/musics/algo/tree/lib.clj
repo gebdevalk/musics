@@ -307,6 +307,6 @@
   (doseq [m (mapcat :pitches parts)]
     (when-not (<= 24 m 119)
       (throw (ex-info (str "notes->mus: MIDI " m " is outside musics text's octaves 1-8 (MIDI 24-119)") {}))))
-  (str "[ !acc:explicit " (str/join " " (keep lp/part->mus parts)) " ]"))
+  (str "[!acc:explicit " (str/join " " (keep lp/part->mus parts)) "]"))
 
 (hp/register-all!)

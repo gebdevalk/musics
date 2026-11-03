@@ -2604,3 +2604,206 @@ machine with no sound hardware can still be silent without a word. Java's
 own first-run line, "Created user preferences directory", is turned down to
 warnings (`musics.mu/quiet-java-logging!`).
 
+
+## 2026-11-03 — + - * / work on everything; add sub mul div are gone
+
+`3 5 +` was refused with a hint (`on numbers write add`) and `'[60 62] 12 +`
+succeeded without changing anything (a data list counts as material, and a
+number is no note). The audit (`doc/md/audits/mu-repl-audit.md`, H3/H4) read
+both as one fault: the signs knew what was meant and did not do it. Now
+`musics.arith` holds `+ - * /` as one multimethod over the kinds of the two
+values: numbers (the exact result), a list or stream of numbers with a number
+(each element, either side, lazy for an endless stream), two lists (in step,
+as long as the shorter), music with a number (`up`, `down`, `stretch`,
+`shrink`, which stay as music's own words), a key with a number. The named
+`add sub mul div` are removed rather than kept as a second spelling: the
+plain signs are what a person at the prompt tries first. Comparison keeps its
+names (`lt gt le ge eq ne`), since `<` and `>` are the play words and cannot
+be dispatched by type. Rejected: dispatching inside `up` and the others (they
+would stop being music's); a Clojure `defmulti` var cannot be a word by
+itself (`musics.mu.library` registers `fn?` vars), so each sign is a thin
+`defn` over the multimethod. `up` and its three siblings now refuse numbers
+and lists, pointing to the sign, where they used to do nothing.
+
+## 2026-11-03 — up, down, stretch and shrink are gone too
+
+With `+ - * /` working on music, the four named twins were a second spelling
+of the same thing, the doublure that removing `add sub mul div` was meant to
+end, kept only by the convention that every sign has a named twin. That
+convention suits `[R]` and `[~]`, which are awkward to type or read; `+ - * /`
+are plain. The four operations are private helpers of `musics.arith`; `up`
+etc. are no words any more, and `x 7 up` is `x 7 +`. The tree algos named
+`up` and `stretch>` (`musics.algo.tree.lib`) are a different thing and stay.
+
+## 2026-11-03 — Forth comparisons, flags, and `.>` for play
+
+A Forth programmer's first guesses failed in mu: `<` and `>` played, `<>` made
+a chord, `=` and `<=` were "not a word" stubs, comparison went by `lt gt le ge
+eq ne`, `true false and or xor` did not exist (two conditions could not be
+joined) and `0 not` was `false`. The audit (`doc/md/audits/mu-repl-audit.md`,
+H4 and the Forth list) asked for the Forth set, which needs `< > <>` free.
+
+- **Comparison** is `= <> < > <= >=` (`musics.compare`); `lt gt le ge eq ne`
+  are gone (one spelling, as `add sub mul div` went). `<` `>` `<=` `>=` take
+  numbers, ratios and durations only; ordering notes by pitch is a guess, so
+  it stays explicit (`'( pitch 65 < )`). `=` and `<>` take any two values, two
+  numbers by value (`1 1.0 =` is true; a musician writes both), music by its
+  notes as `eq` did. Broadcasting a comparison over a stream waits for a
+  consumer of a stream of flags (a mask select).
+- **Flags** are `true` and `false` only. `and or xor not if when` refuse any
+  other value, naming it: in mu a note or a line is never a condition, and a
+  silent `false` for `0 not` hides a mistake. Forth's 0-is-false was rejected
+  for that reason.
+- **Play** is `.>` `.>>` `.>+` `.>>+`, what a voice plays `.<`, the voice list
+  `.<<`: today's family with a dot, the dot being Forth's output family (`.`
+  prints, `.s` shows the stack) and `.>` playing the top and dropping it.
+  Rejected: `:>` (reads as an id, `:bass :<`), `.$` (`$` already means sets,
+  locals and the segno), `->` (Clojure's threading macros, and 1241 lines of
+  the sources contain `->`). A lost dot is met with a hint: `[c d] >` says
+  "to play, write .>", and `>>` `>+` `>>+` `<<` are words that only say what
+  replaced them.
+- **The chord sign** `<>` is gone (`chord` stays; the text `<c e g>` is
+  untouched).
+- **Stack words** `2dup 2drop -rot 1+ 1-` and `negate` (for `neg`) are Forth's
+  names; `1+` and `1-` go through `+` and `-`, so they move a list of numbers
+  or music by a semitone too.
+
+## 2026-11-03 — help, and what mu says after an unknown word
+
+`help` was an unknown word, and a misspelt word (`retrogrde`) or a word renamed
+the day before (`add`) got `unknown word: x` and nothing else, while a misspelt
+`!name` had always named the marks within two letters (audit M7).
+`musics.mu.suggest` answers an unknown word with, in this order: the name it
+used to have or another language has (`renamed`: `add` is `+`, `pop` is
+`drop`, `quit` is `bye`), else the words a typo away (an edit distance of 1,
+or 2 for names over three letters; a swap of two neighbours counts one; the
+ones in use before those of a namespace not in use, which are written with
+it), else where to look. Only words that start with a letter are suggested:
+signs would match every short typo. `see` says the same for an unknown word.
+`help` alone is a short way in, with a word it is `see`, with other text it
+lists the words whose name or description mention it (an `apropos`, names
+first, 20 at most): one word instead of a second one for searching, at the
+cost of an argument whose kind decides what it does (a string or a quoted
+name; nothing else on top is taken).
+
+## 2026-11-03 — Fewer second spellings: ROT SFL TRP, [%], repeat, context-of
+
+Three of the audit's doublure findings (M1 to M3), each a name that said a
+thing a second time.
+
+- **`ROT`, `SFL` and `TRP`** are gone altogether, as mu words and as the
+  text's short commands (`[TRP 5 ( c d )]`, grammar included): `ROT` differed
+  from the stack's `rot` only by case, and the short forms saved nothing the
+  long names, which the printers always wrote, did not. A word typed that way
+  says what to write. The text's `ALT` and `CHS` (alternate, choose) went the
+  same way; the row-form letters `R` `I` `RI` `M` are a different matter, being
+  the established notation (and `R` alone is a bar's rest).
+- **`[%]` is `rotating`**, as `[?]` is `shuffling`, `[|]` `choosing` and `[\]`
+  `alternating`: the signs of the family that acts as the music plays. The two
+  words that act now, `rotate` and `shuffle`, have no sign. `rotating` of data
+  or a stream rotates now (there is no playing), as `shuffling` does.
+- **`repeat` is gone as a word**: it was `times` (`[*]`) under the text's name,
+  a separate function listing the other two as its twins while they did not
+  list it. `x 3 times` prints, as before, `repeat 3 [ … ]`; the text's
+  `repeat n [ … ]` literal is untouched. **`context-of`** was a second name of
+  `setting`. Both say `it is now written …` when typed.
+
+## 2026-11-03 — Brackets are printed tight
+
+`repeat 2 [a b c] volta [c b a]`, `[a b c]`, `{[a b] [c d]}`: mu's value printer
+already wrote brackets with no space inside them; the other writers of musics
+text did not (`repeat 2 [ x ] volta [ [ y ] ]`). `display`, `prog/->mus`,
+`walking-bass`, the counterpoint and notes writers and the MIDI recorder now
+write the same tight form, so a text printed anywhere reads like one printed
+by `show`, and stays valid if a space after `[` ever becomes significant (a
+`[` followed by a space as a stack word). The LilyPond, GUIDO and ABC
+importers are left as they were: their pretty printer
+(`lilypond-import/pretty-print-mus`) lays a piece out over many lines with
+each bracket on a line of its own, which is a layout, not a printing
+convention; they would need to change with the grammar if that rule comes.
+`^{ … }` contexts keep their spaces.
+
+## 2026-11-03 — One variadic gather: the group; `seq` is gone, `par` takes a line
+
+Building a line from a number of values had three spellings (`[n]`, `| … seq`,
+`( … )`) and a parallel two (`{n}`, `| … par`) (audit M4). A line is now
+counted (`[n]`) or gathered by the group (`( … )`, which also makes a data
+list of numbers); a parallel is counted (`{n}`) or the group's line of parts
+turned into one: `( [c d] [e f] ) par`. `seq` and the `| … par` form are gone;
+`par` takes a line (`par: takes a line of parts` otherwise). The group also
+takes a bar line or jump mark among the elements, as `seq` did.
+
+`zip` and `>ctx` keep reading a `|` mark. They were to take a group's list
+(`( d p :volume v ) zip`), but a group builds its data list by printing its
+values and reading the text back, so it cannot hold an endless stream
+(`volume/walk`, `1 '( 1 + ) iterate`: "can't build a value from … 16 …]]") and
+it mangles a loop (`[c8 d e] [~] durations` becomes a stray `[~]` element),
+nor a line next to the streams that are written on it. Those are ordinary
+`zip` inputs, so the mark stays for the two words that take a variable number
+of live, named parts; `|` is also still the bar strength of `.>>` and the
+"no music" of a live recipe. Rejected for now: a group that keeps its values
+as they are instead of as text (a bigger change to what a data list is).
+
+## 2026-11-03 — `line`, `together` and `beside` are gone
+
+The named twins of `[n]`, `{n}` and `{+}` were a second spelling of three
+signs that are plain to type; `x 2 line` and `[c d] [e f] 2 line` were the same
+as `[2]`, and `line` without its count ended in a Java `ClassCastException`.
+Typed, each says `it is now written …`. (A twin stays where its sign is awkward
+to write or to say: `[R]` `retrograde`, `[~]` `cycle`.) `{+}` is now defined
+in `musics.mu.tools` beside the other stack-shape signs, and refuses what is
+not music with a message.
+
+## 2026-11-03 — A group keeps its streams; zip and >ctx take one
+
+The entry above left `zip` and `>ctx` on the `|` mark because a group wrote its
+values to text and read them back. A group of plain values now makes a list of
+the values themselves when one of them is a stream (`(apply list xs)`, so an
+endless stream, a loop and the part a stream knows keep their metadata), and
+the text-backed data list as before when none is (so `( 60 12 + 62 )` is still
+storable). Either is marked as a group's, and `zip` and `>ctx` take such a
+list as their parts: `( d p :volume v ) zip`, `( :duration d :volume v ) >ctx`.
+The `| … zip` form is kept beside it for now. `chord` takes the notes above a
+`|` mark, else the whole stack, instead of the leaves on top.
+
+## 2026-11-03 — The mark for the variadic words; the group for what it alone does
+
+The group that kept its streams (`( d p :volume v ) zip`, the entry above) and
+`par` taking a gathered line were two more ways to do what `| … zip` and
+`| … par` already did, and the code to carry them (a marked live list, a
+second path in `zip` and `>ctx`, a check in `par`) bought nothing the mark
+lacks. Both are out again: **the words that take as many values as you like
+gather what lies above a `|` mark** (`zip`, `>ctx`, `par`, `chord`), one
+spelling for all of them. `( … )` stays for what the mark cannot do: run a
+sub-computation on a stack of its own and gather by its first value into a
+line or a list of numbers. `seq` stays gone, a group being the line.
+
+## 2026-11-03 — One rule for every word that takes as many values as you like
+
+`zip` took the top two without a mark, `par` and `>ctx` refused to run without
+one, `chord` and the bare `()` took the whole stack. Now they all gather what
+lies above the nearest `|` mark, or the whole stack when there is none
+(`musics.mu.eval/to-mark`, one function). `durations pitches zip` still works
+on a stack that holds just those two; with something else below, a `|` marks
+where the parts start. `zip` of fewer than two values is refused (a lone
+bundle is allowed); `par` and `>ctx` of nothing say there is nothing to gather.
+
+## 2026-11-03 — head is the first element; the rating words wait for "rate" use; optional arguments stay
+
+Three closing choices from the REPL audit (M6, M10, M11).
+
+- **`head` is Haskell's**: `x head` is the first element, `x n head` the first n
+  elements; `first` is gone (`unknown word: first -- it is now written head`).
+  `tail` is all after the first n, 1 without a count; `last` stays; `count` is
+  the number of elements and `length` the duration in whole notes, as before.
+  The result of `head` depends on its arity (an element, then a list), which
+  was weighed and accepted against a second word.
+- **Optional arguments chosen by the top value's type stay** (M10): `see` shows
+  the optional argument in brackets, and the words where a stray number could
+  pick a voice (`stop`, the play words) already require a keyword or an
+  integer that names a voice.
+- **`rate` is not in use at the start** (M11): `next`, `prev`, `step`, `gap`,
+  `again` and `ask` are names a user wants for their own words, and a
+  definition of one silently replaced the rating word. `"rate" use` (or
+  `rate/like`) brings them; Alt+j, k, l, J, K, L call the functions directly
+  and work either way.

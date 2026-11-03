@@ -49,7 +49,7 @@
 
 (deftest a-line-taken-apart-into-an-algos-input
   (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] durations")))
-  (is (= "1/2" (top "[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip durations 0 '( add ) reduce"))
+  (is (= "1/2" (top "[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip durations 0 '( + ) reduce"))
       "a rotation keeps the length")
   (let [out (top "[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
@@ -68,7 +68,7 @@
 (deftest data-and-repeat-kinds-reach-an-algo
   (is (= 16 (count (re-seq #"\d+" (top "'[60 62 64] pitch/constrained")))) "data as its values")
   (is (str/ends-with? (top "'[60 62 64] [~] pitch/constrained") "] [~]") "a loop of data, as the reader prints it")
-  (is (str/starts-with? (top "[repeat tremolo 4 [c16 d]] first leaf/pocket") "repeat tremolo 4 [") "a tremolo stays one")
+  (is (str/starts-with? (top "[repeat tremolo 4 [c16 d]] head leaf/pocket") "repeat tremolo 4 [") "a tremolo stays one")
   (is (str/starts-with? (top "[: c d :] leaf/pocket") "[: ") "repeat signs stay"))
 
 (deftest a-param-follows-the-music
@@ -103,4 +103,4 @@
   (is (= "'[1/16 1/16 1/16]" (top "'( @^{ k:5 n:5 } @^{ k:3 n:3 } duration/euclid ) call")) "a local @^{ } wins over the head")
   (is (= "2 4" (top "'( @^{ len:4 } pitch/walk @^{ len:2 } volume/walk ) call count swap count")) "the head for one, a local one for the other")
   (is (= (top "@^{ seed:7 len:8 } pitch/walk") (top "'( @^{ seed:7 len:8 } pitch/walk ) call")) "a seed in the head")
-  (is (= "'[3/16 3/16 1/8]" (top "@^{ k:5 } duration/euclid pop duration/euclid")) "outside a recipe, used up by the next word"))
+  (is (= "'[3/16 3/16 1/8]" (top "@^{ k:5 } duration/euclid drop duration/euclid")) "outside a recipe, used up by the next word"))

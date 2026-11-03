@@ -32,16 +32,16 @@
     (is (= (range 13) (map second cs)) "one chord a bar, on the downbeat")))
 
 (deftest the-end-is-a-bar-on-the-tonic
-  (is (re-find #"\| G3:m7 C4:7 \| F3/1:7 \]$" (hp/->mus :jazz {:tonic "F"})))
-  (is (re-find #"\| G3:7 \| C3:m7 \]$" (hp/->mus :minor {:tonic "C"})) "the minor blues ends on Im7")
-  (is (re-find #"\| G3:7 \| C3:maj7 \]$" (hp/->mus "IIm7 V7 | Imaj7 | V7" {})) "the first chord on I, not the first chord")
-  (is (re-find #"\| C3/1:maj7 \]$" (hp/->mus "IIm7 V7 | Imaj7" {})) "a scheme ending on its tonic gets no second one")
-  (is (re-find #"\| G3:7 \| C3:M \]$" (hp/->mus "IIm7 | V7" {})) "no I in the scheme: a plain I")
-  (is (re-find #"\| G3:m7 C4:7 \]$" (hp/->mus :jazz {:tonic "F" :end false}))
+  (is (re-find #"\| G3:m7 C4:7 \| F3/1:7\]$" (hp/->mus :jazz {:tonic "F"})))
+  (is (re-find #"\| G3:7 \| C3:m7\]$" (hp/->mus :minor {:tonic "C"})) "the minor blues ends on Im7")
+  (is (re-find #"\| G3:7 \| C3:maj7\]$" (hp/->mus "IIm7 V7 | Imaj7 | V7" {})) "the first chord on I, not the first chord")
+  (is (re-find #"\| C3/1:maj7\]$" (hp/->mus "IIm7 V7 | Imaj7" {})) "a scheme ending on its tonic gets no second one")
+  (is (re-find #"\| G3:7 \| C3:M\]$" (hp/->mus "IIm7 | V7" {})) "no I in the scheme: a plain I")
+  (is (re-find #"\| G3:m7 C4:7\]$" (hp/->mus :jazz {:tonic "F" :end false}))
       "without an end the form stays open, to loop"))
 
 (deftest the-text-reads-as-chord-symbols
-  (is (= "[blues: !M:4/4 F3/1:7 | B&3:7 | F3:7 | C4/2:m7 F3:7 | B&3/1:7 | B3:d7 | F3:7 | D4:7 | G3:m7 | C4:7 | F3/2:7 D4:7 | G3:m7 C4:7 ]"
+  (is (= "[blues: !M:4/4 F3/1:7 | B&3:7 | F3:7 | C4/2:m7 F3:7 | B&3/1:7 | B3:d7 | F3:7 | D4:7 | G3:m7 | C4:7 | F3/2:7 D4:7 | G3:m7 C4:7]"
          (hp/->mus :jazz {:tonic "F" :name :blues :end false}))
       "the raised IV of F is B, not C&; two chords share a bar as halves; a duration only where it changes"))
 
@@ -74,9 +74,9 @@
   (is (= (range 0 12 1/4) (map second (chords :comp))) "a chord on every quarter"))
 
 (deftest a-scheme-can-be-written-out
-  (is (= "[!M:4/4 D2/2:m7 G2:7 | C2/1:maj7 ]"
+  (is (= "[!M:4/4 D2/2:m7 G2:7 | C2/1:maj7]"
          (hp/->mus "IIm7 V7 | Imaj7" {:octave 2 :end false})))
-  (is (= "[!M:4/4 C3/1:M | G3:7.9- ]" (hp/->mus "I | V7.9-" {:end false}))
+  (is (= "[!M:4/4 C3/1:M | G3:7.9-]" (hp/->mus "I | V7.9-" {:end false}))
       "no quality is a major triad, a quality's additions pass through"))
 
 (deftest what-isnt-a-scheme-says-so
@@ -87,7 +87,7 @@
       "three chords can't share a 4/4 bar as plain note values"))
 
 (deftest choruses-as-a-repeat-with-volta-endings
-  (is (= "[!M:4/4 repeat 2 [ F3/1:7 | B&3:7 | F3:7 | C4/2:m7 F3:7 | B&3/1:7 | B3:d7 | F3:7 | D4:7 | G3:m7 | C4:7 ] volta [ [ F3/2:7 D4:7 | G3:m7 C4:7 ] [ F3/1:7 | F3:7 ] ] ]"
+  (is (= "[!M:4/4 repeat 2 [F3/1:7 | B&3:7 | F3:7 | C4/2:m7 F3:7 | B&3/1:7 | B3:d7 | F3:7 | D4:7 | G3:m7 | C4:7] volta [[F3/2:7 D4:7 | G3:m7 C4:7] [F3/1:7 | F3:7]]]"
          (hp/->mus :jazz {:tonic "F" :repeat 2}))
       "ten bars twice, the turnaround first, the tonic last; a duration carries on into the endings")
   (parse! (hp/->mus :basic {:tonic "C" :repeat 3 :name :r3}))
@@ -96,7 +96,7 @@
     (is (= [[55 59 62 65] [48 52 55 58] [48 52 55 58]] (map first (map cs [23 34 35])))
         "the turnaround's G7 before the last pass, two bars of C7 to end"))
   (testing "with a hit the last bar is still held"
-    (is (re-find #"\[ C3:7 C3:7 C3:7 C3:7 \| C3/1:7 \] \] \]$"
+    (is (re-find #"\[C3:7 C3:7 C3:7 C3:7 \| C3/1:7\]\]\]$"
                  (hp/->mus :basic {:repeat 2 :hit 1/4}))))
   (is (thrown-with-msg? Exception #"at least three bars" (hp/->mus "IIm7 | V7" {:repeat 2}))))
 

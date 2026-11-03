@@ -414,8 +414,8 @@
                  (let [rest (lp/part->mus (d/rest* nil nil dur))]
                    (if m (str (spell cands m) (subs rest 1)) rest)))]
      (str "{" (when id (str (name id) ": "))
-          (str/join " " (for [v voices] (str "[ !acc:explicit " (str/join " " (map part v)) " ]")))
-          " }"))))
+          (str/join " " (for [v voices] (str "[!acc:explicit " (str/join " " (map part v)) "]")))
+          "}"))))
 
 ;; ---------------------------------------------------------------------------
 ;; As a tree algo

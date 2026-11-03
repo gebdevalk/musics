@@ -100,7 +100,7 @@
 (deftest as-musics-text-and-tree-algo
   (let [r (cp/counterpoint {:cantus dorian :voices 2 :kind 5})
         txt (cp/->mus r :cpt)]
-    (is (re-find #"\{cpt: \[ !acc:explicit" txt))
+    (is (re-find #"\{cpt: \[!acc:explicit" txt))
     (with-out-str (store/read! txt))
     (is (= (reduce + (map #(count (remove (comp nil? first) %)) (:voices r)))
            (count (filter #(= :note (:kind %)) (ev/events (repo/registry) :cpt))))

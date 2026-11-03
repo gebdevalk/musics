@@ -30,7 +30,7 @@
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum"))
   (testing "what is no leaf is a word"
-    (doseq [w ["dup" "pop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cresc" "dim" "cls"]]
+    (doseq [w ["dup" "drop" "pick" "par" "rot" "be" "pulses->durations" "note?" "play+" "cresc" "dim" "cls"]]
       (is (= [[:Word [:WordName w]]] (items w)) w))
     (is (= [[:Word [:WordName "tool/cycle"]]] (items "tool/cycle")) "ns/word")
     (is (= [[:Word [:WordName "?empty"]] [:Word [:WordName "mine/?x"]]] (items "?empty mine/?x"))
@@ -39,7 +39,7 @@
         "or with + and a letter")
     (is (= [[:SignedInt "+5"]] (items "+5")) "+ and a digit stays a number")
     (is (= [[:Word "tool/[*]"]] (items "tool/[*]")) "ns/symbol word")
-    (doseq [w [">" ">+" ">>" ">>+" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "," "." ".s" ".." "<>" "<" ">" "<=" ">=" "=" "R!" "R@" "!" "@" "[_]"]]
+    (doseq [w [".>" ".>+" ".>>" ".>>+" "[*]" "[/]" "[+]" "[%]" "[?]" "[~]" "{+}" "[M]" "[H]" "[T]" "[!]" "[|]" "[||]" "[\\]" "[:]" "[I]" "[RI]" "*" "+" "-" "/" "," "." ".s" ".." "<>" ".<" ".>" ".<<" "<" ">" ">>" ">>+" ">+" "<<" "1+" "1-" "2dup" "2drop" "-rot" "<=" ">=" "=" "R!" "R@" "!" "@" "[_]"]]
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest an-empty-line-and-the-measures-word

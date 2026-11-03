@@ -427,7 +427,7 @@
   (atom {}))
 
 (defn cancel-staged!
-  "Forget a >> still waiting for its boundary: one target's, or all."
+  "Forget a .>> still waiting for its boundary: one target's, or all."
   ([] (doseq [t (keys @staged)] (cancel-staged! t)))
   ([target]
    (when-let [{:keys [keys action]} (get @staged target)]
@@ -563,7 +563,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
-  "Stop what plays, a staged >> and whatever stoppers hold."
+  "Stop what plays, a staged .>> and whatever stoppers hold."
   []
   (cancel-staged!)
   (reset! voices {})
@@ -804,6 +804,18 @@
                            (recur (inc i) (cond-> done k (conj k)) (-> acc (into ins) (conj [:el (nth out i)]))))))]
         (from-items x slots'))
       (reshape x f))))
+
+(defn numeric-data?
+  "Is x a data list or stream of numbers (an empty one too): what
+   arithmetic works through, element by element, rather than music?"
+  [x]
+  (let [x (streamed x)]
+    (cond (v/material? x) (let [els (elements x)]
+                            (if (empty? els)
+                              (= :DATA (:type (v/node x)))
+                              (number? (first els))))
+          (sequential? x) (or (empty? x) (number? (first x)))
+          :else false)))
 
 (defn numbers-of
   "The numbers of x, a data list or a stream, as a vector; anything else

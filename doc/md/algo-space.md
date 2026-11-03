@@ -171,7 +171,7 @@ converts what it is given.
 | Action | Acts on | Tools | Musically |
 |---|---|---|---|
 | **make** | nothing: a sequence without an idea | `scale` (root plus offsets), `range`, `repeat`, `iterate` | — |
-| **form** | positions, never values | `cycle`, `times`, `take`, `drop`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter`, `slice`, `splice`, `within` (a chunk through a quotation, put back where it came from) | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing, a passage reworked in place |
+| **form** | positions, never values | `cycle`, `times`, `take`, `tail`, `take-last`, `reverse`, `rotate`, `shuffle`, `then`, `interleave`, `partition`, `split-at`, `sputter`, `slice`, `splice`, `within` (a chunk through a quotation, put back where it came from) | repetition, ostinato, fragmentation, retrograde, rotation, succession, phrasing, a passage reworked in place |
 | **value** | each value | `map`, `rescale`, `transpose`, `invert`, `stretch`, `reductions` | transposition, inversion, augmentation, register |
 | **selection** | values, as a test | `filter`, `remove`, `mute`, `take-while`, `distinct`, `choose-n`, `choose-from`, `select` (the weighted draw, `pick` in today's code: renamed, since `pick` is mu's stack word) | elimination, thinning, choosing |
 | **analyse** | material, into the structure behind it, without an idea | none yet: `iso-strength`, once listed here, only cycles a given list of strengths over a rhythm's onsets, so it reads nothing of the rhythm | — |

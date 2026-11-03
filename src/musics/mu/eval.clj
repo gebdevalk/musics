@@ -6,7 +6,7 @@
    Words live in namespaces, looked up when run (late binding): a
    redefinition changes every word that uses it. A name is found in the
    namespaces in use; in two of them it is an error until qualified
-   (ns/word). An error clears the stack."
+   (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.common.context-keys :as ck]
@@ -15,6 +15,7 @@
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
+            [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
             [musics.registries :as reg]
             [musics.repo :as repo]))
@@ -24,7 +25,7 @@
 ;; ------------------------------------------------------------------
 
 (defn fresh-state []
-  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "rate" "soundfont" "mine"] :in "mine" :bindings {}})
+  {:stack [] :ns {} :use ["kernel" "tool" "music" "play" "soundfont" "mine"] :in "mine" :bindings {}})
 
 (defonce state (atom (fresh-state)))
 
@@ -88,11 +89,12 @@
 
 (defn to-mark
   "[below above]: stack split at its nearest | mark, the mark dropped --
-   what a gathering word takes. An error if there is none."
-  [stack word]
-  (let [i (some #(when (v/mark? (nth stack %)) %) (range (dec (count stack)) -1 -1))]
-    (when-not i (mu-error (str word ":") "needs a | mark below what it gathers, as | c d e" word))
-    [(subvec stack 0 i) (subvec stack (inc i))]))
+   what a word taking as many values as you like gathers; with no mark,
+   all of the stack is gathered."
+  [stack]
+  (if-let [i (some #(when (v/mark? (nth stack %)) %) (range (dec (count stack)) -1 -1))]
+    [(subvec stack 0 i) (subvec stack (inc i))]
+    [[] stack]))
 
 (defn lookup
   "The entry a name refers to: ns/word directly, else the one in the
@@ -150,17 +152,25 @@
    An error it throws is a mu error, named by the word."
   [stack name v]
   (let [al   (arity-for v stack)
-        _    (need stack (count al) name)
+        _    (try (need stack (count al) name)
+                  (catch clojure.lang.ExceptionInfo ex
+                    (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
         n    (- (count stack) (count al))
         r    (try (apply @v (subvec stack n))
                   (catch clojure.lang.ExceptionInfo ex
-                    (if (:mu/error (ex-data ex)) (throw ex) (mu-error (str name ":") (ex-message ex)))))]
+                    (let [msg (ex-message ex)]
+                      (cond
+                        ;; named already, by this word or by another it ran: as it is
+                        (str/starts-with? msg (str name ":")) (throw ex)
+                        (re-find #"^\S+:\s" msg)            (throw (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true})))
+                        :else (mu-error (str name ":") msg)))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn run-word
   "Run the word called name on stack."
   [stack name]
-  (let [entry (or (lookup @state name) (mu-error "unknown word:" name))]
+  (let [entry (or (lookup @state name)
+                  (mu-error (str "unknown word: " name " -- " (suggest/hint @state name))))]
     (cond
       (:var entry) (run-var stack name (:var entry))
       (:fn entry)  ((:fn entry) stack)
@@ -251,8 +261,7 @@
     :Group (let [xs (run-items [] (vec (rest node)) env)]
              (if (empty? xs)
                ;; () alone takes its values from the stack: those above the nearest |, else all
-               (let [s (if (some v/mark? stack) stack (into [v/mark] stack))
-                     [below xs] (to-mark s "()")]
+               (let [[below xs] (to-mark stack)]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
                ;; what it makes follows its first value: music a line, plain values a '[ ]
@@ -352,7 +361,7 @@
           column (- i (or (str/last-index-of before "\n") -1))]
       (str w " is a word (line " line ", column " column "), and words don't run"
            " inside a literal: [ … ] is musics text, read before anything runs.\n"
-           "Gather on the stack instead: | [a b] [?] [c d] [?] seq  (par for { })"))
+           "Gather on the stack instead: ( [a b] [?] [c d] [?] )  (| … par for { })"))
     (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
 
 (defn- parse-input
@@ -415,7 +424,7 @@
 
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
-   {:error message} -- after which the stack is empty. Nothing is
+   {:error message} -- the stack as it was before the input. Nothing is
    printed: as in Forth, only words that print do."
   [text]
   (let [r (try (parse-input text)
@@ -423,7 +432,7 @@
                (catch Exception e {:error (.getMessage e)}))]
     (cond
       (:incomplete r) r
-      (:error r)      (do (swap! state assoc :stack []) r)
+      (:error r)      r
       :else
       (try
         (let [s (run-input (:stack @state) r text)]
@@ -431,11 +440,8 @@
           {:ok s})
         (catch clojure.lang.ExceptionInfo e
           (when (:mu/bye (ex-data e)) (throw e))
-          (swap! state assoc :stack [])
           {:error (.getMessage e)})
         (catch StackOverflowError _
-          (swap! state assoc :stack [])
           {:error "the stack of calls overflowed -- a word calling itself without end?"})
         (catch Exception e
-          (swap! state assoc :stack [])
           {:error (str (.getSimpleName (class e)) ": " (.getMessage e))})))))

@@ -38,7 +38,7 @@ what is still open.
 | `M:3/4` `T:8=200` `K:D.major` `vol:mf` | a setting alone: `name:value`, no space, as `!name:value` writes it in a line | pushed as the context `^{ !M:3/4 }`: `x M:3/4 with` lays it under x. A leaf wins (`c:m7` is a chord) |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
-| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 add 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line, numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 + 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
@@ -71,13 +71,16 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
-- `|` at the top level is a **mark**: `seq` gathers what lies above the
-  nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
-  `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
-  is a bar line, as in the text.
+- `|` at the top level is a **mark**, and the words that take as many
+  values as you like gather what lies above the nearest one, **or the
+  whole stack when there is none**: `zip` and `>ctx` their parts, `par` the
+  parts of a parallel (`| [c d] [e f] par`), `chord` its notes, and the bare
+  `()`; a play word reads its count as a bar line's strength. Inside brackets `|` is a bar line, as in the text. `( c4 d
+  e )` is the same line as `[c4 d e]`: a group runs what is inside it and
+  gathers the result, a line of music or a list of numbers.
 - **Words don't run inside a literal**: a literal is musics text, read
   before anything runs. A known word inside one is an error that names
-  it and shows the way: `| [a b] [?] [c d] [?] seq`.
+  it and shows the way: `( [a b] [?] [c d] [?] )`.
 
 ## 4. Instructions and contexts
 
@@ -241,10 +244,16 @@ followed by nothing, a duration or `*n`.
 - **Only words print**, as in Forth: a literal or a number is pushed
   silently, a word's result goes on the stack silently, and the prompt
   shows the new depth (as gforth's ` ok 1`). Printing is what `.`,
-  `.s`, `words`, `see`, `ids`, `usages` and `ctx` are for; errors are
-  reported.
+  `.s`, `words`, `see`, `help`, `ids`, `usages` and `ctx` are for; errors are
+  reported. An unknown word is met with what to write instead: the name it
+  used to have (`add` is now `+`), else the words a typo away (`retrogrde`:
+  did you mean `retrograde`?), a word of a namespace not in use written
+  with it (`euclid`: `duration/euclid`), else where to look (`words`, `help`).
 - **Printing is isomorphic to reading**: what is printed can be typed
-  back and gives the same value.
+  back and gives the same value. Brackets are written tight, with no
+  space inside them: `[a b c]`, `{[a b] [c d]}`, `repeat 2 [a b c] volta
+  [[c] [b]]`; so are the texts that `prog/->mus`, `walking-bass`, a
+  recording and `display` write.
   - musical values print as musics text, absolutely: `C4/4`,
     `<C4 E4 G4>4` (no slash after the octave inside a chord), `r8`,
     `x4\36`; a line as `[…]`, with its own context and id. A duration
@@ -261,9 +270,10 @@ followed by nothing, a duration or `*n`.
 
 - **Late binding**: redefining a word changes every word that uses it,
   from then on.
-- **Errors clear the stack**, with a clear error message saying what
-  failed and where. The input is in the REPL's history, so it can be
-  recalled, corrected and run again.
+- **An error leaves the stack as it was before the input**, with a clear
+  error message saying what failed and where; an input is all or
+  nothing, so none of its words' results are kept. The input is in the
+  REPL's history, so it can be recalled, corrected and run again.
 - **The stack lasts the session**: leaving mu (`bye`, or Ctrl+D) and
   entering it again keeps the stack as it was.
 - **`"song.mus" load`** runs a file as mu input on a stack of its own
@@ -290,25 +300,25 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 
 | Group | Words |
 |---|---|
-| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `roll` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
-| **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
-| **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
+| **stack** | `dup` `drop` `swap` `over` `rot` `-rot` `nip` `tuck` `pick` `roll` `2dup` `2drop` `1+` `1-` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
+| **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `negate` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers); `true` `false` `and` `or` `xor` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
-| **playback** | `>` or `play` (stops what plays first), `>+` or `play+` (joins it now), `>>` or `play-next` (in its place, from the next boundary), `>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<`, `playing` or `<`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up >`, `\| '( … ) :riff >` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **playback** | `.>` or `play` (stops what plays first), `.>+` or `play+` (joins it now), `.>>` or `play-next` (in its place, from the next boundary), `.>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `.<<`, `playing` or `.<`, `hush`, `solo` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up .>`, `\| '( … ) :riff .>` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
-| **help** | `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
+| **help** | `help` (mu in a few lines; `'dup help` is `see`; other text, `"chord" help`, lists the words whose name or description mention it), `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description, and a word that gives its first argument back changed or rebuilt shows it primed: `( x n -- x' )` for `take`, `sort`, `times`, `+`; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 
 Stack effects:
 
 | Word | Effect | Does |
 |---|---|---|
 | `dup` | `( a -- a a )` | copy the top |
-| `pop` | `( a -- )` | discard the top |
+| `drop` | `( a -- )` | discard the top |
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `over` | `( a b -- a b a )` | copy the second over the top |
 | `rot` | `( a b c -- b c a )` | rotate the top three |
@@ -328,8 +338,8 @@ float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
 `float` converts to a float, `rational` to an exact ratio (Clojure's
 `rationalize`: `0.1 rational` → `1/10`).
 
-**`pop` against `drop`.** The stack word that discards the top is
-`pop`; `drop` is the form tool, Clojure's own (all but the first n).
+**`drop`** is the stack word that discards the top, as in Forth and Factor; all but the
+first n elements of a form is `tail` (`x 2 tail`, `x 2 [T]`).
 `pick` stays the stack word; the weighted draw is `select`.
 
 ### Tools
@@ -339,11 +349,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`, `context-of`); `with` writes one |
+| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
+| **access** | `head` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -356,7 +366,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   half products inside the algos (`pitch/lorenz` is lorenz and its
   bridge), so mu never meets a pulse or a weight.
 - **Selection takes a quotation**, the test, run on each element:
-  `[c e g c'] '( pitch 65 lt ) filter` keeps the low notes, `remove`
+  `[c e g c'] '( pitch 65 < ) filter` keeps the low notes, `remove`
   drops them (the later notes move earlier), `take-while`/`drop-while`
   stop at the first refused. A bar line or a jump mark passes every
   test. `mute` silences the notes its test keeps -- each becomes a rest
@@ -388,7 +398,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   elements as it was given (`map`, `mute`) gives each place its
   settings. Those before the first element are the line's own and stay
   at its start. `[c d !mf e f] 1 3 slice` is `[D4/4 !mf E4]` and
-  `3 drop` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
+  `3 tail` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
 - **`[]` is the empty line**, mu's own (musics text needs an element
   in its `[ ]`, so `[c [] d]` is not read). It is where a line is built
   up from (`[] x concat`), what `delete` leaves of a one-note line, and
@@ -399,8 +409,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   begins, so `[!mf c d] [!pp e f] concat` is `[!mf C4/4 D4 !pp E4 F4]`
   and nothing is lost. Settings carry on, as they do in text: a line
   with none of its own takes on what came before it. `flatten` opens
-  the lines inside a line, one level: `a b 2 line flatten` is `a b
-  concat`. `[2]`/`line` nests instead, each line keeping its own
+  the lines inside a line, one level: `a b [2] flatten` is `a b
+  concat`. `[2]` nests instead, each line keeping its own
   settings. Anything that is not two lines (data, streams) joins by its
   elements.
 - **`map`** runs a quotation on each element: notes give the form back
@@ -446,12 +456,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
     their inversion's, from 0 (Forte): `[c e g] prime-form` is `$(037)`,
     and so is the minor triad's, `[c e& g]`; the diminished seventh is
     `$(0369)`. It tells whether two phrases are one set class: `x
-    prime-form y prime-form eq`.
+    prime-form y prime-form =`.
   - `interval-vector` counts the interval classes between them:
     `[c e g] interval-vector` is `$<001110>`, one major third (ic 4), one
     fifth (ic 5), one minor third (ic 3).
   - What reads a list reads their numbers (`count`, `sum`, `max`, `@`,
-    `find`, `eq`, which ignores the kind: `$[037] '[0 3 7] eq` is true).
+    `find`, `=`, which ignores the kind: `$[037] '[0 3 7] =` is true).
     What changes the numbers (`sort`, `take`, `intervals`) gives a plain
     list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
 - **A rhythm as pulses**: `pulses` writes a line's rhythm as a grid, a 1
@@ -504,7 +514,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   sum`), and the input of a key estimate.
 - **Searching**: `find` is the first element a quotation accepts and
   `index-of` its place, counted from 0 as `nth` counts (a bar line is an
-  element, and never matches): `[c e g c'] '( pitch 65 gt ) find` is
+  element, and never matches): `[c e g c'] '( pitch 65 > ) find` is
   `G4/4`, `index-of` `2`. `index-of` also takes a value in place of the
   quotation, the first element equal to it as mu prints it
   (`[C4 E4 G4] E4 index-of` is `1`; a bare `e` after other notes in the
@@ -547,8 +557,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   the kit (`x8\38` gives `38`); `:articulation` is the note's name, else
   the context's factor as the staccato or tenuto it equals, else the
   number (`0.9` is the default); a line gives its context at its start
-  (`:Key setting` of a line is the key it starts in). `context-of` is its
-  other name. A ramp is followed along the line: in `[!vol:30< c4 d4 e4
+  (`:Key setting` of a line is the key it starts in). A ramp is followed along the line: in `[!vol:30< c4 d4 e4
   f4 !vol:90]` `2 @ :volume setting` is `60` and `3 @ :volume setting`
   `75`, and the volume at a time is `at` first: `1/2 at :volume setting`.
   `:Tempo` and `:Meter` read as written (`100`, `3/4`).
@@ -565,8 +574,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   mean !ff or !mf?"), and a context key without its value says so
   (`[!volume c]`: write `!volume:value`); `!name:value` still takes any
   key, a custom one too.
-- **`zip` builds leaves from their parts**: the top two, or everything
-  above a `|` mark, each part a stream in the order a leaf holds them --
+- **`zip` builds leaves from their parts**: everything above a `|` mark,
+  else the whole stack, each part a stream in the order a leaf holds them --
   durations, pitches (or drums), articulations, dynamics, ornaments,
   tremolos, ties -- then overrides by key (`:volume`, `:instrument`,
   `:pan` …). A stream a reader or an algo word gave knows its part
@@ -606,7 +615,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   finite beside it. `| :pitch '[60 62 64] :volume '[90 70] zip` is `'[:pitch
   '[60 62 64] :volume '[90 70]]`. A bundle is data, so it reads back as it prints, and `zip` takes it
   again as its parts. It can't sound: the play words, `render`, `par`,
-  `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
+  `{n}` and `[n]` refuse it, saying what it lacks. There is no
   default duration.
 - **A recipe as a tree** (`musics.recipe`): `@( … )`, an algo tree in
   RPN. Inside, an algo takes its inputs from the top of the recipe's own
@@ -620,7 +629,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   then run with each param resolved by name (alias, algo, plain,
   default) -- and lazy: `run` gives a finite result (an `@^{ }` under the
   recipe its settings), `see` the tree, a play word plays one live
-  (`| @( '[1/8] [~] scale [~] zip ) :sc >`). It is material: an id first
+  (`| @( '[1/8] [~] scale [~] zip ) :sc .>`). It is material: an id first
   names it (`@( sc: … )`), `R!` stores it as its text (a `:RECIPE` node)
   and `R@` rebuilds it; a voice playing a stored recipe follows a new one
   stored under its id, from its next note.
@@ -657,7 +666,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `retrograde ( c d e )` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
-  `[a b] 3 repeat [c] [d] volta`. `repeat` (`times`, `[*]`) gives one
+  `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one
   repeat played n times, counting the plays as the text and LilyPond
   do (it prints, and reads back, as the text). `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
@@ -681,48 +690,63 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`[c d | ./. | ./. | e]`). A tool that reorders a line can
   leave the marks unplayable (`[R]` puts DS before `$`), which is
   an error.
-- **`>>` waits for a boundary**, through the conductor: `x >>` replaces
+- **`.>>` waits for a boundary**, through the conductor: `x .>>` replaces
   what plays when it reaches its end, or the end of its repeat's
-  current pass; `x | >>` … `x |||| >>` at the next bar line of that
+  current pass; `x | .>>` … `x |||| .>>` at the next bar line of that
   strength. The new material starts when the boundary is due, so it
   lands in time; with nothing playing, or only what mu didn't start (an audition, a voice
-  from Clojure), whose passes it can't see, it plays at once. `>>+` waits the
+  from Clojure), whose passes it can't see, it plays at once. `.>>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time for each voice it
-  replaces: a later `>>` or `>>+` for it replaces it; `>`, `>+` and
+  replaces: a later `.>>` or `.>>+` for it replaces it; `.>`, `.>+` and
   `stop` forget it.
 - **Named music is a voice**: music with a name of its own plays as the
-  voice of that name -- `[bass: c d e] >` is the voice `:bass`, and so
-  is `[bass: c d] [~] >`, a loop of it. Playing named music replaces
-  only its own voice (or adds it), the others going on: `[bass: g a] >`
-  now, `[bass: g a] >>` at the end of `:bass`'s own pass (a bar line,
-  `x | >>`, is the next one of any voice). A name is one voice, so `>+`
-  on it is `>`. Unnamed music stops everything (`>`) or joins under an
-  id the engine gives (`>+`, `:TA` …). `voices` lists what plays, with
-  its id (`<<` for short); `:bass stop` stops one voice, `:bass playing`
-  (`:bass <`) puts what it plays on the stack (`:bass < 5 + >>`), `:bass hush` silences it
+  voice of that name -- `[bass: c d e] .>` is the voice `:bass`, and so
+  is `[bass: c d] [~] .>`, a loop of it. Playing named music replaces
+  only its own voice (or adds it), the others going on: `[bass: g a] .>`
+  now, `[bass: g a] .>>` at the end of `:bass`'s own pass (a bar line,
+  `x | .>>`, is the next one of any voice). A name is one voice, so `.>+`
+  on it is `.>`. Unnamed music stops everything (`.>`) or joins under an
+  id the engine gives (`.>+`, `:TA` …). `voices` lists what plays, with
+  its id (`.<<` for short); `:bass stop` stops one voice, `:bass playing`
+  (`:bass .<`) puts what it plays on the stack (`:bass .< 5 + .>>`), `:bass hush` silences it
   and `:bass solo` lets only it sound -- both keeping its place, again
   to undo.
 - **Voices by index**: wherever a voice's id goes, its index does too,
   by the mean pitch of what each plays: `1` the lowest voice with pitch,
   `n` the highest; the voices without pitch (drums) from `0` down, `0`
-  the one with the lowest drum key, `-1` the next. `1 <`, `2 hush`,
-  `0 stop`, `x 1 >>` (a voice's id or index on top of a play word is
-  the voice to play as: `3 < 12 + 3 >>`; alone, with no music under it,
-  the voice starts its own music again: `1 >`, `:bass >>`); `<<` lists
+  the one with the lowest drum key, `-1` the next. `1 .<`, `2 hush`,
+  `0 stop`, `x 1 .>>` (a voice's id or index on top of a play word is
+  the voice to play as: `3 .< 12 + 3 .>>`; alone, with no music under it,
+  the voice starts its own music again: `1 .>`, `:bass .>>`); `.<<` lists
   them by index, marking the drums, the lowest and the highest.
 
 ### Arithmetic on material, accessors
 
-mu is a musical space: the plain symbols act on material, and the
-same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
-symbol on two numbers is refused with that hint (`2 3 +`: "+: is
-musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
-point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values (music by its notes,
-names left out: `[c d e] [C4 D4 E4] eq` and `[a: c] [c] eq` are true; two loops by
-what they repeat; data element by element; another endless stream is refused), and
-`:=` binds a name (`=` is no word, and says so). The dot is Forth's: `.` prints, `.s` shows the
-stack, `..` is a range.
+`+` `-` `*` `/` work on everything they can (`musics.arith`, one
+multimethod over what the two values are):
+
+| the two values | the result |
+|---|---|
+| two numbers | the sum, difference, product, exact quotient: `2 3 +` is `5`, `1 4 /` is `1/4` |
+| a list or stream of numbers, and a number | each element, the number on either side in the order written: `'[60 62] 12 +` is `'[72 74]`, `10 '[1 2 3] -` is `'[9 8 7]`; an endless stream stays endless |
+| two lists or streams | element by element, as long as the shorter: `'[1 2 3] '[10 20] +` is `'[11 22]` |
+| music and a number | `+` `-` every pitch up, down by semitones; `*` `/` every duration times, divided (below) |
+
+Anything else is refused, naming both values.
+
+Comparison is Forth's: `= <> < > <= >=`. `<` `>` `<=` `>=` take numbers,
+ratios and durations (`1 2 <`, `/4 /8 >`); `=` and `<>` take any two values:
+two numbers by value (`1 1.0 =`, `1/2 0.5 =` are true), music by its notes,
+names left out (`[c d e] [C4 D4 E4] =` and `[a: c] [c] =` are true), two loops
+by what they repeat, data element by element (another endless stream is
+refused). A flag is `true` or `false` and nothing else: `and` `or` `xor` `not`
+`if` and `when` refuse a number or a note in its place, naming it. `:=`
+binds a name. Playing is `.>` (a dot, as in Forth's output words: `.` prints,
+`.s` shows the stack, `..` is a range), so `[c d] >` is refused with "to play,
+write .>"; the old `>>` `>+` `>>+` `<<` say what replaced them. The stack words
+are Forth's too: `dup drop swap over rot -rot nip tuck pick roll 2dup 2drop`,
+and `1+` `1-` (a number, a list, or a semitone for music).
 
 A bare symbol acts on each element (`[c d] 2 +` transposes every
 note); the same symbol in brackets acts on the whole line (`[a b] 3
@@ -730,25 +754,24 @@ note); the same symbol in brackets acts on the whole line (`[a b] 3
 is a symbol, and has a named twin, a name Clojure could carry too:
 `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion`,
 `[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[\]` `alternating`, `[[]]`
-`measures`, `[*]` `times`, `[/]` `parts`, `[n]` `n line`, `{n}` `n
-together`, `{+}` `beside`, `<>` `chord`, `[+]` `concat`, `!` `put`, `_` `delete`, `[_]` `cut`, `@` `nth`,
-`[H]` `head`, `[T]` `tail`, `[%]` `rotate`, `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `up`, `-` `down`, `*` `stretch`, `/` `shrink`. Playback, which acts on
-what plays rather than on a line, is written with `>`: `>` now, `>>` at
+`measures`, `[*]` `times`, `[/]` `parts`, `[+]` `concat`, `!` `put`, `_` `delete`, `[_]` `cut`, `@` `nth`,
+`[H]` `head`, `[T]` `tail`, `[%]` `rotating` (as it plays; `rotate` now), `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `-` `*` `/`. Playback, which acts on
+what plays rather than on a line, is written with `.>`: `.>` now, `.>>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
 
 | On material | Means | Example |
 |---|---|---|
-| `+`, `-` (`up`, `down`) | transposition up, down, by whole semitones, the key with it (`!K:` at the start of the line: its own moved, else the one it is in; not for whole octaves) | `c4 2 +` gives `D4/4`; `[c d] 2 +` `[!K:D.major D4/4 E4]`; `[c d e] 12 -` an octave down |
-| `*`, `/` (`stretch`, `shrink`) | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
+| `+`, `-` | transposition up, down, by whole semitones, the key with it (`!K:` at the start of the line: its own moved, else the one it is in; not for whole octaves) | `c4 2 +` gives `D4/4`; `[c d] 2 +` `[!K:D.major D4/4 E4]`; `[c d e] 12 -` an octave down |
+| `*`, `/` | duration times, divided by a positive factor, as in the grammar (`c4*1/3`, `R*4`) | `[c d e] 3 /` (triplets), `c4 2 *` |
 | `cresc`, `dim` | crescendo, diminuendo across the material, to a volume 0-100 | `[c d e f] 90 cresc` gives `[!vol:50.0< C4/4 D4/4 E4/4 F4/4 !vol:90]` |
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`concat`), each line's settings written where it begins | `[a b] [c d] [+]` |
 | `[_]` | a range of the elements cut out (`cut`): start and end, as `slice` takes them | `[c d e f g] 1 3 [_]` gives `[C4/4 F4 G4]` |
-| `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
-| `[%]` | the whole rotated by n, wrapping around, now (`rotate`); `rotating` makes the text's `rotate n [ … ]`, one step further each time it plays | `[a b c d] 1 [%]` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 rotating [~]` a new rotation every pass |
+| `[H]`, `[T]` | the head, the first element, or with a count n the first n elements, and the tail, all after the first n (1 without a count) (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `C4/4`, `[c d e f] 2 [H]` `[C4/4 D4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
+| `[%]` | the text's `rotate n [ … ]`, one step further each time it plays (`rotating`); data and streams are rotated now. `rotate` rotates music now, wrapping around | `[a b c d] 1 rotate` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 [%] [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
-| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] >`, `[c d] [~] \|\| >>+` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] .>`, `[c d] [~] \|\| .>>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
@@ -759,8 +782,8 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
 | `[*]` | the whole played n times (`times`), the text's `repeat n [ ]`; data and streams written out n times, printed as their repeat | `[a b] 3 [*]` gives `repeat 3 [A3/4 B3]`, `'[1 2] 2 [*]` `'[1 2] 2 times` (its elements `1 2 1 2`) |
-| `>`, `>+`, `>>`, `>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] >`, `[e f] >+`, `[g a] \|\| >>`, `[e f] \| >>+` |
-| `stop` | stop (and forget a waiting `>>`); Alt+. at the prompt, mid-typing | `stop` |
+| `.>`, `.>+`, `.>>`, `.>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] .>`, `[e f] .>+`, `[g a] \|\| .>>`, `[e f] \| .>>+` |
+| `stop` | stop (and forget a waiting `.>>`); Alt+. at the prompt, mid-typing | `stop` |
 | `pause` | pause what plays; again, resume it; Alt+, at the prompt | `pause` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
@@ -792,9 +815,10 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is
   `r2`.
-- `<>` gathers the leaves on top of the stack into a chord, stopping at
-  the first non-leaf: `[c d] a c e <>` leaves `[c d]` and `<A3 C4 E4>`.
-  The literal `<a c e>` is the grammar's chord.
+- `chord` puts the notes above the nearest `|` mark into one chord, else
+  the whole stack: `a c e chord` is `<A3 C4 E4>4`, `[c d] | a c e chord`
+  leaves `[c d]` and the chord. Anything but notes is refused. The literal
+  `<a c e>` is the grammar's chord.
 - `sounds` builds new leaves from one, as `zip` builds them from
   durations and pitches; it is for hearing what a soundfont holds
   (`doc/md/setup.md`, Gervill).
@@ -807,15 +831,15 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   written value (or `nil`), not the sounding one; a drum's `instrument`
   is its key. `key` reads the key a note was written in (see the keys
   above).
-- **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
-  data or a stream (`first` and `nth` an endless one too).
-- **Repeating**: `repeat` (`times`, `[*]`) plays n times, one repeat
+- **Access**: `head`, `last`, `nth` (from 0) and `count` take a line,
+  data or a stream (`head` and `nth` an endless one too).
+- **Repeating**: `times` (`[*]`) plays n times, one repeat
   (`vary` varying its passes); `[!]` writes the
   passes out as lines, each of which a quotation can change on its own
   (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);
   `[~]`/`cycle` loops, and a loop is taken from like a stream (`[c d]
   cycle 5 take`); `iterate` applies a quotation
-  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 add ) iterate 4 take`), `each` and `map` work
+  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 + ) iterate 4 take`), `each` and `map` work
   per element.
 
 ### Feedback
@@ -858,7 +882,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
 @^{ k:5 n:16 } duration/euclid            the settings on top are its own
 [c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, a rest's pitch unused
-[!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg >
+[!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg .>
                                          played in a line, a key param follows its !key:
 ```
 

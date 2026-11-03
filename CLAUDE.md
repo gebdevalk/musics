@@ -242,18 +242,18 @@ repo (`musics.mu.value`, all literals of one input walked together so
 durations and relative pitch carry over); `R!` stores in the repo, `R@` fetches,
 `play` plays a value without storing it. A bare symbol acts on each
 element (`+` transposes every note, writing the moved key, `!K:`, at
-the start of the line), the same symbol in brackets on
+the start of the line; `+ - * /` also work on numbers, lists of numbers and streams, `musics.arith`), the same symbol in brackets on
 the whole line (`[*]` n times, `[/]` parts, `[+]` `concat` (the second line's settings written where it begins), `flatten` opens nested lines one level, `[2]` `[3]` … the top n
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
-parts in one, `[%]` rotate now (`rotating`: as it plays, `rotate n [ ]`), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`), `[~]` loop, the row forms `[R]`
+parts in one, `[%]` rotate as it plays (`rotating`, `rotate n [ ]`; `rotate` does it now), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`; `shuffle` now), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
-the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
-plays, as LilyPond does), `[!]`
+the mean, `[:]` repeat signs (`times` and `[*]` count
+plays, as LilyPond's `repeat` does), `[!]`
 written out as it plays, `[||]` barred by the meter, `[|]` one of
 several each time it plays (`choose [ ]`), `[\]` them in turn
 (`alternate [ ]`), `[[]]` split by it
 into one line per measure). Selection takes a
-quotation as its test (`'( pitch 65 lt ) filter`, `remove`, `mute` --
+quotation as its test (`'( pitch 65 < ) filter`, `remove`, `mute` --
 the notes it keeps become rests of their length), `map` runs one on
 each element, `within` on a chunk (`x 1 4 '( [R] ) within`, start
 up to end, put back where it came from; `slice`/`splice` are its
@@ -264,11 +264,11 @@ line stays in front of its note through every one of them (`delay` a rest of any
 act on a line's children, instructions in place, `[]` is the empty line,
 mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every
-note's as a stream (`x :volume setting` reads what a note plays with, its own value else the context's, a line's at its start, `musics.music/setting`, also `context-of`; `x :volume 70 with` writes one, `with`'s `:arity` chooser in its `:mu` metadata telling that from `x ^{ } with`; a bare `!name` at the top level reads nothing and the refusal says `:name setting`), a repeat or loop around the line kept around the
+note's as a stream (`x :volume setting` reads what a note plays with, its own value else the context's, a line's at its start, `musics.music/setting`; `x :volume 70 with` writes one, `with`'s `:arity` chooser in its `:mu` metadata telling that from `x ^{ } with`; a bare `!name` at the top level reads nothing and the refusal says `:name setting`), a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note
-(`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`),
+(`| d p :volume v :articulation a zip`, `musics.mu.material/zip-parts`; `par` and `chord` gather above the mark too),
 each stepping once per note, a rest's values unused; an unnamed line
 among them is written on, keeping its form, a part given replacing its
 own (`x volume/walk zip`), and without durations and pitches it gives a
@@ -298,28 +298,28 @@ onto a line, a value per note. Instruments and drums stay apart: `instruments`/
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`
-when it changes. Playback: `>`
-now, stopping what plays; `>>` in its place at the next boundary
-(`x | >>` at the next `|`); `>+` joining now, `>>+` at the next
+when it changes. Playback: `.>`
+now, stopping what plays; `.>>` in its place at the next boundary
+(`x | .>>` at the next `|`); `.>+` joining now, `.>>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes); `,` (`edit`) takes the top into the next prompt as its printed text (`musics.mu.kernel/edit-text`, read by `mu.clj`'s `readLine`). Named music
-is a voice of that name (`[bass: c d] >`, a loop of it too): playing it
-replaces only that voice (`>` now, `>>` at the end of its own pass), the
+is a voice of that name (`[bass: c d] .>`, a loop of it too): playing it
+replaces only that voice (`.>` now, `.>>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
-everything or joins under an engine id. `voices` (`<<`), `:bass stop`,
-`:bass playing` (`:bass <`), `:bass hush`, `:bass solo`; an index
+everything or joins under an engine id. `voices` (`.<<`), `:bass stop`,
+`:bass playing` (`:bass .<`), `:bass hush`, `:bass solo`; an index
 addresses a voice too, by mean pitch (1 the lowest with pitch .. n, the
 drum voices 0, -1 … by lowest drum key: `musics.mu.material/voice-id`),
 and a voice's id or index on top of a play word is the voice to play as
-(`3 < 12 + 3 >>`) (`engine/stop-voice!`,
+(`3 .< 12 + 3 .>>`) (`engine/stop-voice!`,
 `hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Every sign
 has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
-`[~]` `cycle`, `>>` `play-next`, `[*]` `times`, `[H]` `head`, `+` `up`, `*` `stretch`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
+`[~]` `cycle`, `.>>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
-gathered by its first value: music into a line, `| … seq`, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
+gathered by its first value: music into a line, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
-comparison, the repo, help, files), `musics.tool`, `musics.music`,
+the repo, help, files), `musics.compare` (comparison, flags), `musics.arith` (`+ - * /`), `musics.tool`, `musics.music`,
 `musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
 loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
 too) -- `musics.mu.library` registers each
@@ -331,9 +331,9 @@ pass their `:mu :optional` test), pushing the one value it returns --
 nothing for a `!` function -- and naming an error by the word; it
 calls the var, so a redefinition changes the word everywhere. The words that read the stack's shape stay stack
 words: the stack, quotations, `:=` and printing the stack, and the play
-words with their optional context, mark and voice (`>`, `>>`, …) in
-`musics.mu.kernel`; `split-at` (two values), `seq` `par` `{n}` `[n]`
-`<>` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
+words with their optional context, mark and voice (`.>`, `.>>`, …) in
+`musics.mu.kernel`; `split-at` (two values), `par` `{n}` `[n]`
+`chord` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
 generated from the registry (`musics.mu.algos`). `musics.mu.material`
 holds what they all share. The prompt is `mu<n>` (the
 stack's depth); an unfinished input continues (JLine, decided by the
@@ -452,7 +452,7 @@ it, just passes it through.
 - Every signal carries `:at`, when it is due (`System/nanoTime`), so
   an action can start material exactly there:
   `musics.engine/play-from!` replaces what plays with a voice whose
-  `:t` 0 is that moment (or, joining, adds one) — mu's `>>`/`>>+`
+  `:t` 0 is that moment (or, joining, adds one) — mu's `.>>`/`.>>+`
   (`musics.mu.material/stage!`).
 - **`musics.engine/schedule-tx!`** — the primary use case: `(schedule-tx!
   id phase)` moves every voice that crosses `[id phase]` onto whatever
@@ -558,7 +558,7 @@ ones, so `(play [:loud :verse])` plays `:loud`'s settings over
 `build-chain`, a group's fresh context and
 `musics.domain.resolve/chain-links` all insert behind the overrides;
 doc/md/decisions.md, 2026-10-15). mu's play words with a context on
-top (`x ^{ !mf } >`) build the same `[ctx x]` form.
+top (`x ^{ !mf } .>`) build the same `[ctx x]` form.
 `tagged-form?`/`split-tag` recognize `[Form :algo Name]` by FIXED SHAPE
 (a vector, exactly 3 elements, `:algo` at index 1) — replacing an
 earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
@@ -889,7 +889,7 @@ It runs on `musics.algo.tree.builder`, a pure draft model
 `->tree`, `from-tree`, `render`; Ctrl+Z/Ctrl+Y in the window);
 `(t/build-tree tree tctx)` edits an existing tree. In mu (`musics.mu.live`)
 a play word given a **recipe** -- a quotation, or a composer tree
-(`compose`) -- plays live: `x '( 5 + ) :up >`, or from nothing with a mark
+(`compose`) -- plays live: `x '( 5 + ) :up .>`, or from nothing with a mark
 `|` (or nothing) under the recipe, `| '( duration/euclid [c e g] pitches
 zip [~] ) :riff >`. Each note the voice reaches is the next note of what
 the recipe gives now (`musics.algo.tree.live/bind-run!`, the generator's
@@ -954,7 +954,7 @@ is lazy, a `seed` in the settings starting the draws there; mu's `run`
 (`musics.mu.tools`) takes the recipe's inputs from the stack and puts a
 finite result there (a line, a `{ }`), refusing an endless one; `see`
 prints the tree it builds; a play word plays one live -- a generator
-from nothing (`| @( … ) :riff >`), one with an input on the music
+from nothing (`| @( … ) :riff .>`), one with an input on the music
 under it -- the voice pulling the lazy result note by note, its tctx
 the voice's settings (`set`, `settings`, `gui`, the Wall), a copy of the
 recipe's, so `set` never reaches the recipe; a named recipe plays as the
@@ -985,7 +985,7 @@ default `:tonic`, and `(prog/->mus :jazz
 {:tonic "F" :name :blues})` gives `[blues: !M:4/4 F3/1:7 | B&3:7 | ...]`,
 roots spelled in the key, a duration only where it changes, a closing
 bar on the tonic (`:end`, true; none when the scheme ends on it), `:hit` to strike each chord per beat,
-`:repeat n` the choruses as `repeat n [ ] volta [ [turnaround] [tonic] ]`.
+`:repeat n` the choruses as `repeat n [...] volta [[turnaround] [tonic]]`.
 `musics.algo.harmonic.walking-bass` walks a quarter-note bass under a
 line of chords: the root on each chord's first beat, the beat before
 the next an approach to its root (a half step, a scale step or its
@@ -997,7 +997,7 @@ walked in the same form) and writes `[bass: !i:acousticBass ...]`;
 then `(play #{id :bass})`. In mu the word `walking-bass` ( chords [n] --
 bass ) makes it from the line on the stack as it runs, every pass of a
 repeat walked anew: with n as long as the chords n times, each walked
-anew, the last chord held (`x 4 times x 4 walking-bass {2} >`); without,
+anew, the last chord held (`x 4 times x 4 walking-bass {2} .>`); without,
 an ostinato leading back into its own start, to loop (`x dup
 walking-bass {2} [~] >`). Both draw from
 `musics.algo.random`, so a seed repeats them.
@@ -1272,9 +1272,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   writes what the body's instructions change into each note as its
   override (the value it has where it's written), so it sounds
   backwards; jumps are refused. `shuffle ( … )` and `rotate n ( … )`
-  reorder once, now. Short forms: `TRP` for `transpose`, `SFL` for
-  `shuffle`, `ROT` for `rotate` (also mu words of those names); the
-  printers write the long names. `transpose` and the row forms reach
+  reorder once, now. `transpose` and the row forms reach
   into their whole body (`builder/deep-children!`): a nested line or
   parallel, a referenced part and a repeat's body move or turn round
   too (a parallel keeps its parts' order, reversing each); a part
@@ -1627,10 +1625,10 @@ value -- see "Comments and variables" in `doc/md/grammar-notes.md`.
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `rotate n [ … ]` (`:SEQ` marked `:rotate n`) moves them n places further
 each time it is entered (the walk counts entries per voice). `choose [ … ]`
-(`CHS`, `:choose`) plays one of its elements, picked at random, each
+(`:choose`) plays one of its elements, picked at random, each
 time it is entered (`choose 3,1 [ … ]` weighs them, one weight per
 element, kept as `:weights`); its length, where one is needed, is its longest
-element's (`d/duration`); `alternate [ … ]` (`ALT`) plays its elements
+element's (`d/duration`); `alternate [ … ]` plays its elements
 in turn, one each time it is entered, counted per voice like `rotate`.
 `shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
 and repeats play in a new random order each time it is entered, so

@@ -37,12 +37,12 @@ A few words for finding your way:
 ## Your first piece
 
 ```
-[verse: !mf c4 d e f] >
+[verse: !mf c4 d e f] .>
 ```
 
 This is one line with two parts. `[verse: !mf c4 d e f]` is music: a
 line named `verse`, at mezzo-forte, of four quarter notes. Typed at the
-prompt, it becomes a value on the stack. `>` plays the top of the
+prompt, it becomes a value on the stack. `.>` plays the top of the
 stack, now.
 
 That shape is the shape of everything else in this guide: music goes
@@ -174,23 +174,23 @@ repeat 2 [c4 d e f]
 
 ## Playing it back
 
-`>` plays now and stops what plays; `>>` plays at the next boundary;
+`.>` plays now and stops what plays; `.>>` plays at the next boundary;
 a `+` joins instead of replacing. `stop` (or Alt+.) stops everything,
 `pause` (Alt+,) pauses and goes on.
 
 ```
-[c d e f g] >
-[c d e f g] [~] >          loop it until stop
-[e f g a b] >>             takes over at the end of the current pass
-[c d] [e f] {2} >          two parts at once
+[c d e f g] .>
+[c d e f g] [~] .>          loop it until stop
+[e f g a b] .>>             takes over at the end of the current pass
+[c d] [e f] {2} .>          two parts at once
 ```
 
 Music with a name plays as a **voice** of that name, and playing it
 again replaces only that voice:
 
 ```
-[bass: c2 g] [~] >          the voice :bass
-[mel: e8 f g a] [~] >       a second voice; :bass goes on
+[bass: c2 g] [~] .>          the voice :bass
+[mel: e8 f g a] [~] .>       a second voice; :bass goes on
 voices                      what plays, the highest voice on top
 ```
 
@@ -203,15 +203,15 @@ voice plays the music it was given, so you can prepare a change at
 leisure and let it take over at a moment you choose:
 
 ```
-[bass: f2 c] [~] >>         :bass changes at the end of its pass
-[mel: g8 a b c] [~] | >>    at the next bar line instead
+[bass: f2 c] [~] .>>         :bass changes at the end of its pass
+[mel: g8 a b c] [~] | .>>    at the next bar line instead
 :mel hush                   silence :mel, keeping its place; again to undo
 :bass solo                  only :bass sounds; again to undo
-3 < 12 + 3 >>               voice 3, an octave up, at its boundary
+3 .< 12 + 3 .>>               voice 3, an octave up, at its boundary
 ```
 
-`3 <` puts what voice 3 plays on the stack, `12 +` moves it up an
-octave, and `3 >>` plays it as voice 3. Voices go by index from low to
+`3 .<` puts what voice 3 plays on the stack, `12 +` moves it up an
+octave, and `3 .>>` plays it as voice 3. Voices go by index from low to
 high (`1` the lowest), the drums from `0` down.
 
 A voice can also play a **recipe**: a quotation that makes the music,
@@ -220,10 +220,10 @@ recipe gives *now*, so a change to its settings is heard on the next
 note:
 
 ```
-| '( duration/euclid [c e g] pitches zip [~] ) :riff >
+| '( duration/euclid [c e g] pitches zip [~] ) :riff .>
 :riff @^{ k:5 } set         five beats instead of three, heard at once
 :riff settings              every setting and its range
-[c d e g] [~] '( 5 + ) :up >   the loop, a fourth higher
+[c d e g] [~] '( 5 + ) :up .>   the loop, a fourth higher
 ```
 
 `doc/md/mu-tutorial.md` (section 16) and `doc/md/algo-tree-tutorial.md`

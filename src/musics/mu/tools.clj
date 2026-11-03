@@ -1,7 +1,7 @@
 (ns musics.mu.tools
   "The tool and music words that read the stack's shape
    (doc/md/mu-repl.md, section 8): split-at (two values), what lies
-   above a | mark or a repeat, the top n ({n} [n] <>), and choose and
+   above a | mark or a repeat, the top n ({n} [n]), and choose and
    alternate with their quotations; each with its named twin. The other
    tool and music words are musics.tool and musics.music."
   (:require [clojure.string :as str]
@@ -29,14 +29,6 @@
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 
-(defn- gather
-  "A word that gathers what lies above the nearest | mark into (f xs)."
-  [word f]
-  (fn [s]
-    (let [[below xs] (e/to-mark s word)]
-      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
-      (conj below (f xs)))))
-
 ;; -- ( … ): what a group makes --------------------------------------------
 
 (defn- plain?
@@ -45,18 +37,31 @@
   (or (number? x) (keyword? x) (sequential? x)
       (and (v/material? x) (= :DATA (mt/kind x)))))
 
+(defn- gather
+  "A word that gathers what lies above the nearest | mark into (f xs)."
+  [word f]
+  (fn [s]
+    (let [[below xs] (e/to-mark s)]
+      (when (empty? xs) (e/mu-error (str word ":") "has nothing to gather"))
+      (conj below (f xs)))))
+
+(defn- music-or-marker?
+  "Music, or a bar line or jump mark among a line's elements."
+  [x]
+  (or (mt/music? x) (mt/marker? x)))
+
 (defmulti gathered
   "What the values of a ( … ) group make, decided by the first: music a
    line [ ], a number, keyword or data list a data list '[ ] (of lists, when
    they are lists). The rest must be of the same kind."
-  (fn [xs] (cond (mt/music? (first xs)) :music (plain? (first xs)) :data :else :other)))
+  (fn [xs] (cond (music-or-marker? (first xs)) :music (plain? (first xs)) :data :else :other)))
 
 (defn- all-of [pred what into xs]
   (when-let [x (first (remove pred xs))]
     (e/mu-error "( … ):" "gathers" what "into" (str into ", and left") (p/show x))))
 
 (defmethod gathered :music [xs]
-  (all-of mt/music? "music" "a line" xs)
+  (all-of music-or-marker? "music" "a line" xs)
   (mt/line xs))
 
 (defmethod gathered :data [xs]
@@ -66,9 +71,8 @@
 (defmethod gathered :other [xs]
   (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
 
-(word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" #(mt/line (map (partial mt/sounding! "seq") %))))
-
-(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" mt/par-of))
+(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
+       (gather "par" mt/par-of))
 (defn- top-n
   "A word taking the top n (pushed by the grammar, written <open>n<close>)
    into (f items)."
@@ -77,33 +81,50 @@
     (let [n (peek s) s (pop s) w (str open n close)]
       (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as" (str open 2 close)))
       (need s n w)
-      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+      (let [items (subvec s (- (count s) n))]
+        (when-let [bad (first (remove #(or (mt/leaf? %) (v/material? %)) items))]
+          (e/mu-error (str w ":") "takes music (notes, lines, parallels), got" (p/show bad)
+                      "-- numbers gather into a list with ( 1 2 )"))
+        (conj (subvec s 0 (- (count s) n)) (f items))))))
 
 (word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
        (top-n "{" "}" mt/par-of))
 (word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
-(word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
+(word! "music" "{+}" "( a b -- parallel )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
        (fn [s]
-         (let [leaves (reverse (take-while #(and (mt/leaf? %) (seq (:pitches %))) (rseq s)))]
-           (when (empty? leaves) (e/mu-error "<>: needs notes on top of the stack"))
-           (conj (subvec s 0 (- (count s) (count leaves)))
-                 (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
+         (need s 2 "{+}")
+         (let [b (peek s) a (peek (pop s))]
+           (doseq [x [a b]]
+             (when-not (or (v/material? x) (mt/leaf? x))
+               (e/mu-error "{+}: joins parallels, a line being one part -- got" (p/show x))))
+           (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
+             (conj (pop (pop s))
+                   (if (= :PAR (mt/kind a))
+                     (mt/reshape a #(concat % bs))
+                     (mt/par-of (cons a bs))))))))
+
+(word! "music" "chord" "( | notes -- chord )  the notes above the nearest | mark, else the whole stack, as one chord: c e g chord, [g] | c e chord"
+       (fn [s]
+         (let [[below leaves] (e/to-mark s)]
+           (when (empty? leaves) (e/mu-error "chord: needs notes to put together"))
+           (when-let [bad (first (remove #(and (mt/leaf? %) (seq (:pitches %))) leaves))]
+             (e/mu-error "chord: takes notes (above a | mark, else the whole stack), got" (p/show bad)))
+           (conj below (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
 ;; -- zip: leaves from their parts ------------------------------------------------
 
-(word! "music" "zip" "( durations pitches -- line ) or ( | [:part] stream … -- line )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
+(word! "music" "zip" "( durations pitches -- durations' ) or ( | [:part] stream … -- line' )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
        (fn [s]
-         (if (some v/mark? s)
-           (let [[below xs] (e/to-mark s "zip")]
-             (conj below (mt/zip-parts xs)))
-           (do (need s 2 "zip")
-               (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
+         (let [[below xs] (e/to-mark s)]
+           (when (and (< (count xs) 2) (not (some mt/bundle-columns xs)))
+             (e/mu-error "zip: needs 2 or more values to put together, has" (count xs)))
+           (conj below (mt/zip-parts xs)))))
 
 (word! "music" ">ctx" "( | :duration d :key v … -- ^{ } )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
-         (let [[below xs] (e/to-mark s ">ctx")]
+         (let [[below xs] (e/to-mark s)]
            (conj below (mt/control->ctx xs)))))
 
 (defn- recipe-value
@@ -145,7 +166,7 @@
     (when (= i (dec (count s))) (e/mu-error (str word ":") "has nothing above the repeat"))
     [(subvec s 0 i) (s i) (subvec s (inc i))]))
 
-(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as volta … in the text: [a b] 2 repeat [c] [d] volta"
+(word! "music" "volta" "( repeat ending … -- repeat )  the endings above a repeat, as volta … in the text: [a b] 2 times [c] [d] volta"
        (fn [s]
          (let [[below rep ends] (above-repeat s "volta")]
            (conj below (mt/with-endings rep (mapv mt/as-line ends))))))
@@ -209,8 +230,5 @@
 
 (doseq [[ns name sign-ns sign]
         [["music" "choosing"             "music" "[|]"]
-         ["music" "alternating"          "music" "[\\]"]
-         ["music" "line"                 "music" "[n]"]
-         ["music" "together"             "music" "{n}"]
-         ["music" "chord"                "music" "<>"]]]
+         ["music" "alternating"          "music" "[\\]"]]]
   (twin! ns name sign-ns sign))

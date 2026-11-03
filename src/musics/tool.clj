@@ -5,7 +5,7 @@
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
-  (:refer-clojure :exclude [first last nth count take drop take-last drop-last partition shuffle
+  (:refer-clojure :exclude [last nth count take take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
@@ -22,7 +22,7 @@
 (defn- count!
   "n, a whole number from 0."
   [n]
-  (when-not (and (integer? n) (>= n 0)) (fail "needs a whole number on top, got" (p/show n)))
+  (when-not (and (integer? n) (>= n 0)) (fail "needs a count (a whole number, 0 or more) on top, got" (p/show n)))
   n)
 
 (defn- quotation! [q]
@@ -44,7 +44,7 @@
   (core/range a b))
 
 (defn iterate
-  "x, then q of x, then q of that, forever: 1 '( 2 add ) iterate 4 take"
+  "x, then q of x, then q of that, forever: 1 '( 2 + ) iterate 4 take"
   [x q]
   (quotation! q)
   (mt/endless (core/iterate #(peek (e/call [%] q)) x)))
@@ -61,13 +61,6 @@
    (core/map #(+ root %) (mt/elements intervals))))
 
 ;; -- access -----------------------------------------------------------------
-
-(defn first
-  "The first element"
-  [x]
-  (let [els (mt/elements x)]
-    (when (empty? els) (fail "nothing in" (p/show x)))
-    (core/first els)))
 
 (defn last
   "The last element"
@@ -108,7 +101,7 @@
 
 (defn find
   "The first element a quotation accepts, else nil:
-   [c e g c'] '( pitch 65 gt ) find gives G4/4"
+   [c e g c'] '( pitch 65 > ) find gives G4/4"
   [x q]
   (core/first (core/filter (matching "find" q) (mt/finite! "find" (mt/elements x)))))
 
@@ -161,53 +154,54 @@
 ;; -- form -------------------------------------------------------------------
 
 (defn take
-  "The first n elements"
+  "x cut to its first n elements"
   [x n]
   (let [n (count! n) x (mt/streamed x)]
     (if (mt/endless? x) (core/take n x) (each x (partial core/take n)))))
 
-(defn drop
-  "All but the first n elements"
-  [x n]
-  (each x (partial core/drop (count! n))))
-
 (defn take-last
-  "The last n elements"
+  "x cut to its last n elements"
   [x n]
   (each x #(core/take-last (count! n) (mt/finite! "take-last" %))))
 
 (defn drop-last
-  "All but the last n elements"
+  "x without its last n elements"
   [x n]
   (each x #(core/drop-last (count! n) (mt/finite! "drop-last" %))))
 
 (defn head
-  "The first n elements, 1 without a count: [c d e f] [H] gives [c],
-   [c d e f] 2 [H] gives [c d]"
+  "The first element; with a count n, x cut to its first n elements:
+   [c d e f] head gives C4/4, [c d e f] 2 head gives [C4/4 D4]; n head and
+   n tail split x in two"
   {:mu {:names ["[H]"] :optional {:n integer?}}}
-  ([x] (head x 1))
+  ([x]
+   (let [els (mt/elements x)]
+     (when (empty? els) (fail "nothing in" (p/show x)))
+     (core/first els)))
   ([x n] (take x n)))
 
 (defn tail
-  "All after the first n, 1 without a count: [c d e f] [T] gives
-   [d e f]; n [H] and n [T] split x in two"
+  "x without its first n elements, 1 without a count: [c d e f] [T] gives
+   [d e f]; n head and n tail split x in two"
   {:mu {:names ["[T]"] :optional {:n integer?}}}
   ([x] (tail x 1))
-  ([x n] (drop x n)))
+  ([x n] (each x (partial core/drop (count! n)))))
 
 (defn rotate
-  "x rotated by n, wrapping around, now"
-  {:mu {:names ["[%]" "ROT"]}}
+  "x rotated by n, wrapping around, now ([%] rotates music anew as it plays)"
   [x n]
   (each x (fn [xs] (let [v (vec (mt/finite! "rotate" xs)) k (if (seq v) (mod (count! n) (core/count v)) 0)]
                      (core/concat (core/drop k v) (core/take k v))))))
 
 (defn rotating
-  "rotate n [ x ]: rotated n places further each time it plays, as
-   written the first time ([c d e] 1 rotating [~] rotates every pass;
-   [%] rotates now)"
+  "Music: rotate n [ x ], rotated n places further each time it plays, as
+   written the first time ([c d e] 1 [%] [~] rotates every pass); data or a
+   stream: rotated now, as rotate"
+  {:mu {:names ["[%]"]}}
   [x n]
-  (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x)))))
+  (if (mt/music? x)
+    (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x))))
+    (rotate x n)))
 
 (defn- grouped
   "The groups of x's elements as x's form gives them: a line of lines
@@ -233,7 +227,6 @@
 
 (defn shuffle
   "x in a random order, now ([?] orders music anew as it plays)"
-  {:mu {:names ["SFL"]}}
   [x]
   (each x (comp random/shuffle #(mt/finite! "shuffle" %))))
 
@@ -270,7 +263,7 @@
   (joined a b))
 
 (defn flatten
-  "x with the lines inside it opened into it, one level: a b 2 line flatten is a
+  "x with the lines inside it opened into it, one level: a b [2] flatten is a
    b concat"
   [x]
   (if-let [slots (mt/items x)]
@@ -423,7 +416,7 @@
   (each x (partial f #(or (mt/marker? %) (mt/result word q %)))))
 
 (defn filter
-  "x with only the elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
+  "x with only the elements q keeps: [c e g c'] '( pitch 65 < ) filter"
   [x q] (by-test "filter" core/filter x q))
 
 (defn remove
@@ -431,11 +424,11 @@
   [x q] (by-test "remove" (fn [t xs] (core/remove #(and (not (mt/marker? %)) (t %)) xs)) x q))
 
 (defn take-while
-  "The elements up to the first q refuses"
+  "x cut at the first element q refuses, keeping what comes before"
   [x q] (by-test "take-while" core/take-while x q))
 
 (defn drop-while
-  "The elements from the first q refuses"
+  "x without the elements before the first q refuses"
   [x q] (by-test "drop-while" (fn [t xs] (core/drop-while #(and (not (mt/marker? %)) (t %)) xs)) x q))
 
 (defn- by-print

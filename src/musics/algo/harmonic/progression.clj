@@ -119,7 +119,7 @@
   (str/join " | " (mapv (fn [bar] (str/join " " (mapv #(chord-text % last) bar))) bars)))
 
 (defn- volta-form
-  "scheme's bars as repeat n [ ... ] volta [ [ ... ] [ ... ] ]: the bars
+  "scheme's bars as repeat n [...] volta [[...] [...]]: the bars
    before the last two played n times, the last two (the turnaround) as
    the first ending, two bars of the tonic, the last held, as the
    second."
@@ -133,7 +133,7 @@
     (let [body (section (drop-last 2 form) last)
           e1   (section (take-last 2 form) last)
           e2   (section (conj tonic held) last)]
-      (str "repeat " n " [ " body " ] volta [ [ " e1 " ] [ " e2 " ] ]"))))
+      (str "repeat " n " [" body "] volta [[" e1 "] [" e2 "]]"))))
 
 (defn ->mus
   "scheme (see bars) as musics text: `[name: !M:4/4 F3/1:7 | ... ]`,
@@ -150,4 +150,4 @@
          opts (assoc opts :tonic (tonic-of scheme opts))]
      (str "[" (when name (str (clojure.core/name name) ": ")) "!M:4/4 "
           (if repeat (volta-form scheme repeat opts last) (section (bars scheme opts) last))
-          " ]"))))
+          "]"))))

@@ -2,6 +2,7 @@
   "musics.music's functions are mu's words: the proof that a word can be
    a plain Clojure function."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [musics.arith :as arith]
             [musics.music :as music]
             [musics.mu.eval :as e]
             [musics.mu.library]
@@ -22,7 +23,8 @@
 (deftest a-word-is-its-function
   (is (= #'music/retrograde (:var (e/lookup @e/state "[R]"))))
   (is (= #'music/retrograde (:var (e/lookup @e/state "retrograde"))) "by its name and its sign")
-  (is (= #'music/up (:var (e/lookup @e/state "+"))))
+  (is (= #'arith/+ (:var (e/lookup @e/state "+"))))
+  (is (nil? (e/lookup @e/state "up")) "a sign with no named twin")
   (is (= #'music/find-instrument! (:var (e/lookup @e/state "find-instrument"))) "a ! left off")
   (is (= #'music/times (:var (e/lookup @e/state "tool/[*]"))) "in its :ns"))
 
@@ -30,7 +32,7 @@
   (let [x (mu "[c d e]")]
     (is (= "[E4/4 D4 C4]" (p/show (music/retrograde x)) (run "[c d e] [R]")))
     (is (= "repeat 3 [C4/4 D4]" (p/show (music/times (mu "[c d]") 3)) (run "[c d] 3 [*]")))
-    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (music/up (mu "[c e g]") 7)) (run "[c e g] 7 +")))))
+    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (arith/+ (mu "[c e g]") 7)) (run "[c e g] 7 +")))))
 
 (deftest an-optional-argument-by-its-test
   (testing "n is taken only when the top is a whole number"
@@ -44,7 +46,6 @@
          (with-out-str (is (nil? (mu "\"viol\" find-instrument")))))))
 
 (deftest its-errors-are-mus-named-by-the-word
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: is musical; on numbers write add" (mu "1 2 +")))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: transposes by a whole number" (mu "[c d] 1/2 +"))))
 
 (deftest redefining-the-function-redefines-the-word
@@ -73,7 +74,7 @@
       (is (= :staccato (mu "[c4-. d] 0 nth :articulation setting")))
       (is (= 0.9 (mu "[c d] 0 nth :articulation setting"))))
     (testing "its other name"
-      (is (= 60 (mu (str line " :volume context-of")))))
+      (is (= 60 (mu (str line " :volume setting")))))
     (testing "a number has no context; a bare !name at the top level reads nothing and says how"
       (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
       (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
@@ -196,11 +197,11 @@
     (is (= "3" (run "$[047] count")))
     (is (= "4" (run "$[047] 1 @")))
     (is (= "7" (run "$(037) 2 @")))
-    (is (= "2" (run "$<001110> 3 @ 1 add")) "a count, then arithmetic")
+    (is (= "2" (run "$<001110> 3 @ 1 +")) "a count, then arithmetic")
     (is (= "'[0 4 7]" (run "$[047] >list")))
     (is (= "'[4 3]" (run "$[047] intervals")) "a changed set is a plain list")
-    (is (= "true" (run "$[037] '[0 3 7] eq")) "equal numbers are equal, the kind is no part of it")
-    (is (= "true" (run "$[047] $[740] eq")))))
+    (is (= "true" (run "$[037] '[0 3 7] =")) "equal numbers are equal, the kind is no part of it")
+    (is (= "true" (run "$[047] $[740] =")))))
 
 (deftest the-set-class-of-a-line
   (is (= "$(037)" (run "[c e g] prime-form")) "the major triad")

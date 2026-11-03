@@ -40,7 +40,7 @@
   [text]
   (try
     (let [r (e/eval-input text)]
-      (when-let [msg (:error r)] (println "error:" msg "-- the stack is cleared"))
+      (when-let [msg (:error r)] (println "error:" msg))
       true)
     (catch clojure.lang.ExceptionInfo ex
       (if (:mu/bye (ex-data ex)) false (throw ex)))))
@@ -146,17 +146,17 @@
              ""
              "Write music and it goes on the stack; words after it change it, combine it"
              "and play it, while it plays. Tab completes names, 'see' explains a word"
-             "(\"dup\" see), 'words' lists them."
+             "(\"dup\" see), 'words' lists them, 'help' shows the way in."
              ""
              "start    gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
-             "play     'x >' plays immediately, 'x >>' at the next boundary, 'x | >>' at the next |"
-             "         'x >+' joins now and 'x >>+' joins at the boundary"
-             "         '[id: …] >' replaces only :id"
+             "play     'x .>' plays immediately, 'x .>>' at the next boundary, 'x | .>>' at the next |"
+             "         'x .>+' joins now and 'x .>>+' joins at the boundary"
+             "         '[id: …] .>' replaces only :id"
              "stop     Alt+."
              "pause    Alt+, (again resumes)"
              "echo     prints each note"
-             "voices   'voices' or '<<' lists the playing voices: 1..n low to high, 0 -1 … the drums"
-             "         ':id <' gives what :id plays; :id stop, :id hush, :id solo"
+             "voices   'voices' or '.<<' lists the playing voices: 1..n low to high, 0 -1 … the drums"
+             "         ':id .<' gives what :id plays; :id stop, :id hush, :id solo"
              "gui      opens the GUI beside mu (closing it leaves mu running)"
              "leave    bye or Ctrl+D"]))
 

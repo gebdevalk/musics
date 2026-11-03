@@ -10,7 +10,7 @@
    extra arguments are taken only when the values in their places pass
    (musics.mu.library registers them, musics.mu.eval runs them).
    An error is an ex-info whose message mu prefixes with the word."
-  (:refer-clojure :exclude [key repeat cycle delay])
+  (:refer-clojure :exclude [key cycle delay])
   (:require [clojure.string :as str]
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
@@ -242,7 +242,7 @@
 ;; -- forms -----------------------------------------------------------------
 
 (defn cycle
-  "x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop; data or a
+  "x endlessly, repeat ~ [ x ]: [c d] [~] .> plays until stop; data or a
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
@@ -562,89 +562,23 @@
   [x]
   (mt/barred x))
 
-(defn repeat
-  "x played n times, as the text's repeat n [ x ] and LilyPond's (also
-   times, [*])."
-  [x n]
-  (when-not (and (integer? n) (not (neg? n))) (fail "needs a whole number on top, got" (p/show n)))
-  (times-of "repeat" x n))
-
 (defn times
   "x played n times, as the text's repeat n [ x ]; data and streams
    written out n times."
   {:mu {:ns "tool" :names ["[*]"]}}
   [x n]
   (when-not (and (integer? n) (not (neg? n))) (fail "needs a whole number on top, got" (p/show n)))
-  (times-of "[*]" x n))
-
-(defn beside
-  "The parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives
-   {[a] [b] [c] [d]}; a line is one part."
-  {:mu {:names ["{+}"]}}
-  [a b]
-  (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
-    (if (= :PAR (mt/kind a))
-      (mt/reshape a #(concat % bs))
-      (mt/par-of (cons a bs)))))
+  (times-of "times" x n))
 
 (defn mute
   "x with each note or drum q keeps made a rest of its length: the rhythm
-   stays -- [c e g c'] '( pitch 65 gt ) mute."
+   stays -- [c e g c'] '( pitch 65 > ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
   (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))
                     (merge (d/rest* nil nil (:duration %)) (select-keys % [:ratio]))
                     %)
                  x))
-
-;; -- the musical symbols ----------------------------------------------------
-
-(defn- by-number
-  "(g n x) for material x and a number n, after (check n); the symbol
-   word sign is musical -- on two numbers it points to the numeric word."
-  [sign x n g check]
-  (cond
-    (and (number? x) (number? n)) (fail "is musical; on numbers write" ({"+" "add" "-" "sub" "*" "mul" "/" "div"} sign))
-    (not (and (musical? x) (number? n))) (fail "needs material and a number, got" (p/show x) "and" (p/show n))
-    :else (do (check n) (g n x))))
-
-(defn- whole! [n] (when-not (integer? n) (fail "transposes by a whole number of semitones, got" n)))
-(defn- positive! [n] (when-not (pos? n) (fail "needs a positive factor, got" n)))
-
-(defn up
-  "x with every pitch up n semitones, its key with it (!K: at the start of its
-   line): [c e g] 7 +; a key moves up too"
-  {:mu {:names ["+"]}}
-  [x n]
-  (if (and (mt/key? x) (integer? n))
-    (el/transpose-key x n)
-    (by-number "+" x n (fn [n x] (mt/transposed x n)) whole!)))
-
-(defn down
-  "x with every pitch down n semitones, its key with it: [c e g] 12 -"
-  {:mu {:names ["-"]}}
-  [x n]
-  (if (and (mt/key? x) (integer? n))
-    (el/transpose-key x (- n))
-    (by-number "-" x n (fn [n x] (mt/transposed x (- n))) whole!)))
-
-(defn- scale-duration
-  "The factor kept as the leaf's :ratio, as c4*1/3 keeps it, so a length
-   that is no note value prints as written: c4 1/3 * as C4/4*1/3."
-  [leaf f]
-  (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
-
-(defn stretch
-  "x with every duration times f: [c d] 2 * gives halves"
-  {:mu {:names ["*"]}}
-  [x f]
-  (by-number "*" x f (fn [f x] (mt/map-leaves #(scale-duration % f) x)) positive!))
-
-(defn shrink
-  "x with every duration divided by f: [c d e] 3 / gives a triplet"
-  {:mu {:names ["/"]}}
-  [x f]
-  (by-number "/" x f (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) positive!))
 
 (defn- hairpin [x target dir]
   (when-not (and (number? target) (<= 0 target 100)) (fail "needs a target volume 0-100 on top, got" (p/show target)))
@@ -798,7 +732,6 @@
    as !key: writes it). A note, rest or drum: its own value, else the
    context's where it sits (a drum's instrument is its key of the kit,
    x8\\38: 38); a line: its context at its start."
-  {:mu {:names ["context-of"]}}
   [x k]
   (let [k (ck/canonical-key (keyword k))
         whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N
@@ -885,7 +818,8 @@
    (with x (mt/read-text (str "^{ " (setting-text k value) " }"))))
   ([x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
-    (when-not (= :CONTEXT (mt/kind ctx)) (fail "needs a context ^{ … } on top"))
+    (when-not (= :CONTEXT (mt/kind ctx))
+      (fail "needs a context ^{ … } or a key (D.major) on top -- or a key and its value, :volume 70 with"))
     (let [settings (str/join " " (map :raw (:children (v/node ctx))))
           shown    (p/show (mt/->material x))]
       ;; at the start of a line (or a note made a line); a { } or a
@@ -899,7 +833,7 @@
 (defn transpose
   "x moved by n semitones, or by the interval from one note to the other,
    as the text's transpose: [c e g] 5 transpose, [c e g] c d transpose"
-  {:mu {:names ["TRP"] :optional {:to mt/leaf?}}}
+  {:mu {:optional {:to mt/leaf?}}}
   ([x n]
    (when-not (integer? n) (fail "needs a whole number of semitones, or two notes, got" (p/show n)))
    (mt/transposed x n))

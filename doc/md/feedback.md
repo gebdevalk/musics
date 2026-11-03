@@ -8,6 +8,12 @@ the material's dimensions are settled.
 
 ## Built: sounds
 
+The rating words are in mu's `rate` namespace, which is not in use at the
+start (`next`, `step`, `gap` are names you may want for your own words):
+`"rate" use` makes `like`, `meh`, `dislike`, `audition`, … usable as written
+below, or write `rate/like`. Alt+j, Alt+k and Alt+l, Alt+J, Alt+K and Alt+L
+work either way.
+
 ### A trial
 
 A trial is one thing heard and rated. It is stored as:
@@ -46,10 +52,10 @@ A key works mid-typing: it leaves the line alone and confirms above the
 prompt, as `echo` prints. The keys are three neighbours on the home row,
 unshifted to rate (`j` dislike, `k` meh, `l` like) and shifted to move
 (`J` prev, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
-what you type (`>` plays, `.s` prints, `[/]` parts).
+what you type (`.>` plays, `.s` prints, `[/]` parts).
 
 The current trial is the audition's current item, else what was last
-played with `>`/`play` when that is a single note, chord or drum.
+played with `.>`/`play` when that is a single note, chord or drum.
 
 ### Auditions and combinations
 
