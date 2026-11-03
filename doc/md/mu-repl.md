@@ -422,7 +422,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   begins, so `[!mf c d] [!pp e f] concat` is `[!mf C4/4 D4 !pp E4 F4]`
   and nothing is lost. Settings carry on, as they do in text: a line
   with none of its own takes on what came before it. `flatten` opens
-  the lines inside a line, one level: `a b [2] flatten` is `a b
+  the lines inside a line, one level (data opens the data inside it,
+  `'[1 '[2 3]] flatten` is `'[1 2 3]`): `a b [2] flatten` is `a b
   concat`. `[2]` nests instead, each line keeping its own
   settings. Anything that is not two lines (data, streams) joins by its
   elements.

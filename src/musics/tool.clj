@@ -204,10 +204,12 @@
     (rotate x n)))
 
 (defn- grouped
-  "The groups of x's elements as x's form gives them: a line of lines
-   for music, else the groups."
+  "The groups of x's elements as x's form gives them: data of data for
+   data, a line of lines for music, else the groups."
   [x groups]
-  (if (or (v/material? x) (mt/leaf? x)) (mt/line (core/map mt/line groups)) groups))
+  (cond (= :DATA (mt/kind x))               (mt/data (core/map mt/data groups))
+        (or (v/material? x) (mt/leaf? x))   (mt/line (core/map mt/line groups))
+        :else                               groups))
 
 (defn partition
   "In groups of n elements"
@@ -264,13 +266,18 @@
 
 (defn flatten
   "x with the lines inside it opened into it, one level: a b [2] flatten is a
-   b concat"
+   b concat; data opens the data inside it: '[1 '[2 3]] flatten is '[1 2 3]"
   [x]
-  (if-let [slots (mt/items x)]
-    (mt/from-items x (vec (mapcat (fn [[tag v :as slot]]
-                                    (or (and (= tag :el) (= :SEQ (mt/kind v)) (mt/items v)) [slot]))
-                                  slots)))
-    (each x #(core/mapcat (fn [e] (if (and (v/material? e) (= :SEQ (mt/kind e))) (mt/elements e) [e])) %))))
+  (let [data? (= :DATA (mt/kind x))
+        ;; a list inside data is a plain sequence, a line inside music a :SEQ
+        open? #(if data?
+                 (and (sequential? %) (not (v/material? %)))
+                 (and (v/material? %) (= :SEQ (mt/kind %))))]
+    (if-let [slots (mt/items x)]
+      (mt/from-items x (vec (mapcat (fn [[tag v :as slot]]
+                                      (or (and (= tag :el) (open? v) (mt/items v)) [slot]))
+                                    slots)))
+      (each x #(core/mapcat (fn [e] (if (open? e) (mt/elements e) [e])) %)))))
 
 (defn interleave
   "The elements of a and b, alternating"

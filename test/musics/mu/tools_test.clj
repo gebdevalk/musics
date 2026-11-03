@@ -112,6 +112,16 @@
   (is (= "[C4/4 D4 E4]" (top "[c d] [e] concat")) "succession")
   (is (= "[C4/4 E4 D4 F4]" (top "[c d] [e f] interleave")))
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 partition")))
+  (testing "flatten opens data inside data; mute refuses data, which has no notes"
+    (is (= "'[1 2 3]" (top "'[1 '[2 3]] flatten")))
+    (is (= "'[1 2 3 4]" (top "'[1 '[2 3] 4] flatten")))
+    (is (re-find #"mute: needs music" (top "'[1 2 3] '( 2 > ) mute"))))
+  (testing "data stays data: its groups are data too"
+    (is (= "'['[1 2] '[3 4]]" (top "'[1 2 3 4] 2 partition")))
+    (is (= "'['[1 2 3] '[4 5]]" (top "'[1 2 3 4 5] 2 [/]")))
+    (is (= "'['[1 2] '[3 4]]" (top "'[1 2 3 4] 2 parts")))
+    (is (= "3" (top "'[1 2 3 4] 2 partition 0 @ sum")) "and a group is data to read")
+    (is (= "'[]" (top "'[] 1 partition"))))
   (is (= "[C4/4] [D4/4 E4]" (top "[c d e] 1 split-at")))
   (is (= "[C4/4 D4] [E4/4]" (top "[c d e] 2 [/] spread")) "[/]'s parts, spread on the stack")
   (is (= "[!mf C4/4 D4]" (top "[!mf c d e] 2 take")) "leading instructions are kept")
@@ -729,7 +739,7 @@
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] concat")) "concat writes the second's settings where it begins")
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] [2] flatten")) "flatten is what concat does")
   (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] [2] [f] [2] flatten")) "one level only")
-  (is (= "'[1 '[2] 3]" (top "'[1 '[2] 3] flatten")) "data is left as it is: only lines are opened"))
+  (is (= "'[1 2 3]" (top "'[1 '[2] 3] flatten")) "data opens the data inside it, music the lines"))
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")

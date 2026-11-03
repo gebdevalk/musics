@@ -575,6 +575,7 @@
    stays -- [c e g c'] '( pitch 65 > ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
+  (when (= :DATA (mt/kind x)) (fail "needs music: a data list has no notes to make rests"))
   (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))
                     (merge (d/rest* nil nil (:duration %)) (select-keys % [:ratio]))
                     %)
