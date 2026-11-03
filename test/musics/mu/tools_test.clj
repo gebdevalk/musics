@@ -133,11 +133,11 @@
 
 (deftest assemble
   (is (= "[C4/4 D4 E4]" (top "( c4 d e )")))
-  (is (= "{[C4/4 D4] [E4]}" (top "( [c d] e4 ) par")) "par makes the parts of a group of lines side by side")
+  (is (= "{[C4/4 D4] [E4]}" (top "| [c d] e4 par")) "par makes what lies above the mark side by side")
   (is (= "[G3/4] [C4/4 D4]" (top "[g] ( c d )")) "only what the group holds")
   (is (= "[C4/4 [D4 E4]]" (top "( c ( d e ) )")) "nested groups")
-  (is (re-find #"^par: takes a line of parts" (top "c par")))
-  (is (re-find #"^par: takes a line of parts" (top "{[c] [d]} par")) "a parallel is one already")
+  (is (re-find #"par: needs a \| mark" (top "c d par")))
+  (is (re-find #"has nothing above its \| mark" (top "c | par")))
   (is (re-find #"nothing on the stack to gather" (top "()")))
   (is (re-find #"unknown word: seq -- " (top "| c d seq")) "seq is gone: a group gathers"))
 
@@ -262,18 +262,6 @@
     (is (re-find #"^insert: has no elements: 1$" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
     (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
     (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
-
-(deftest a-group-is-the-parts-of-a-zip-or-a-control
-  (is (= "[G4/8 A4 B4]" (top "( [c8 d e] durations [g a b] pitches ) zip")))
-  (is (= "[G4/8\\volume:50 A4\\volume:60 B4\\volume:70]"
-         (top "( [c8 d e] durations [g a b] pitches :volume 50 '( 10 + ) iterate ) zip"))
-      "an endless stream, named, stays live in the group")
-  (is (= (top "| [c8 d e] [~] durations [c e g a] pitches zip") (top "( [c8 d e] [~] durations [c e g a] pitches ) zip"))
-      "a loop stays a loop")
-  (is (= "^{ !volume:50 !volume:90@1/4 }" (top "( :duration '[1/4 1/4] :volume '[50 90] ) >ctx")))
-  (is (= (top "| :duration '[1/4 1/4] :volume '[50 90] >ctx") (top "( :duration '[1/4 1/4] :volume '[50 90] ) >ctx")) "the mark still works")
-  (is (= "'[72 62]" (top "( 60 12 + 62 )")) "plain values are still a list that can be stored")
-  (is (= "'['[1/8 1/8 1/8] '[67 69 71]]" (top "( [c8 d e] durations [g a b] pitches )")) "a live list prints as the list it is"))
 
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")
@@ -603,7 +591,7 @@
         "a bundle zipped later is its parts zipped now: each cycles on its own, a color against a talea")
     (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a line"))
   (testing "it can't sound"
-    (doseq [in ["| :pitch '[60] zip [c d] {2}" "| :pitch '[60] zip [c d] [2]"]]
+    (doseq [in ["| :pitch '[60] zip [c d] {2}" "| | :pitch '[60] zip [c d] par" "| :pitch '[60] zip [c d] [2]"]]
       (is (re-find #"can't sound -- it has no durations" (top in)) in))
     (is (re-find #"no pitches or drums" (top "| '[/4] :volume '[60] zip \"x.mid\" render")))))
 

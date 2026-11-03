@@ -71,11 +71,13 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
-- `|` at the top level is a **mark**: `zip` and `>ctx` take what lies
-  above the nearest one as their parts, and a play word reads its count
-  as a bar line's strength. Inside brackets `|` is a bar line, as in the
-  text. `( c4 d e )` is the same line as `[c4 d e]`, and `( [c d] [e f] )
-  par` the parallel of the two.
+- `|` at the top level is a **mark**, and the words that take as many
+  values as you like gather what lies above the nearest one: `zip` and
+  `>ctx` their parts, `par` the parts of a parallel (`| [c d] [e f] par`),
+  `chord` its notes; a play word reads its count as a bar line's
+  strength. Inside brackets `|` is a bar line, as in the text. `( c4 d
+  e )` is the same line as `[c4 d e]`: a group runs what is inside it and
+  gathers the result, a line of music or a list of numbers.
 - **Words don't run inside a literal**: a literal is musics text, read
   before anything runs. A known word inside one is an error that names
   it and shows the way: `( [a b] [?] [c d] [?] )`.
@@ -113,8 +115,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 **Defining**, Forth style:
 
 ```
-: octaved ( x -- p )  ( $x $x 12 + ) par ;
-: canon ( a s -- p )  ( $a  $a $s + ) par ;
+: octaved ( x -- p )  | $x $x 12 + par ;
+: canon ( a s -- p )  | $a  $a $s +  par ;
 : echo  ( m -- l )    [$m $m r4 $m] ;
 ```
 
@@ -223,7 +225,7 @@ followed by nothing, a duration or `*n`.
 
   ```
   mu<1> : canon ( a s -- p )
-    ...   ( $a  $a $s + )
+    ...   | $a  $a $s +
     ...   par ;
   mu<1>
   ```

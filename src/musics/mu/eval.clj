@@ -263,9 +263,9 @@
                (let [s (if (some v/mark? stack) stack (into [v/mark] stack))
                      [below xs] (to-mark s "()")]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
-                 (conj below ((requiring-resolve 'musics.mu.tools/gather-group) xs)))
+                 (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
                ;; what it makes follows its first value: music a line, plain values a '[ ]
-               (conj stack ((requiring-resolve 'musics.mu.tools/gather-group) xs))))
+               (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")
@@ -361,7 +361,7 @@
           column (- i (or (str/last-index-of before "\n") -1))]
       (str w " is a word (line " line ", column " column "), and words don't run"
            " inside a literal: [ … ] is musics text, read before anything runs.\n"
-           "Gather on the stack instead: ( [a b] [?] [c d] [?] )  (( … ) par for { })"))
+           "Gather on the stack instead: ( [a b] [?] [c d] [?] )  (| … par for { })"))
     (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
 
 (defn- parse-input

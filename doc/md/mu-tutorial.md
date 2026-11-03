@@ -125,7 +125,7 @@ it leaves mu running, and `gui` opens it again.
 | `[2]` `[3]` … | `( a … -- line )` | the top n one after another |
 | `( … )` | `( -- line )` | what runs inside, gathered into one line (or a data list, for numbers) |
 | `{2}` `{3}` … | `( a … -- parallel )` | the top n at once |
-| `par` | `( line -- parallel )` | the parts of a line side by side: `( [c d] [e f] ) par` |
+| `par` | `( \| … -- parallel )` | everything above a `\|` mark side by side: `\| [c d] [e f] par` |
 | `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
 | `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
@@ -136,7 +136,9 @@ The pairs differ in what they take and what they make of it:
 
 - `( … )` gathers **whatever runs inside it**, as many as you like, each
   staying an element of its own: music into a line, numbers into a data
-  list. `par` turns such a line of parts into a parallel.
+  list. `par` (and `zip`, `>ctx`, `chord`) gather **everything above a
+  `|` mark** instead, as many as you like: `| [c d] [e f] par` is the
+  parallel of the two lines.
 - `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
   …, each staying an element (a part) of its own.
 - `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
@@ -150,7 +152,7 @@ The pairs differ in what they take and what they make of it:
 ( [c d] [e f] )         → [[C4/4 D4] [E4 F4]]       two lines, one after the other
 [c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
 [c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
-( [c d] [e f] [g a] ) par → {[C4/4 D4] [E4 F4] [G4 A4]}
+| [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
 {[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
@@ -1243,7 +1245,7 @@ c4 '[0 40 73] sounds audition
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |
-| `par` | `( line -- parallel )` |
+| `par` | `( \| … -- parallel )` |
 | `sounds` | `( note numbers -- line )` |
 | `tonic` | `( key -- note )` |
 | `transpose` | `( x from to -- x )` |

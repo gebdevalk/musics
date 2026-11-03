@@ -37,6 +37,14 @@
   (or (number? x) (keyword? x) (sequential? x)
       (and (v/material? x) (= :DATA (mt/kind x)))))
 
+(defn- gather
+  "A word that gathers what lies above the nearest | mark into (f xs)."
+  [word f]
+  (fn [s]
+    (let [[below xs] (e/to-mark s word)]
+      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
+      (conj below (f xs)))))
+
 (defn- music-or-marker?
   "Music, or a bar line or jump mark among a line's elements."
   [x]
@@ -56,41 +64,15 @@
   (all-of music-or-marker? "music" "a line" xs)
   (mt/line xs))
 
-(defn gather-group
-  "What a ( … ) of values xs makes: a line, or a list of plain values
-   marked as a group's."
-  [xs]
-  (let [r (gathered xs)]
-    (if (and (not (mt/music? r)) (instance? clojure.lang.IObj r))
-      (vary-meta r assoc :mu/group true)
-      r)))
-
-(defn- stream? [x] (and (sequential? x) (not (string? x))))
-
 (defmethod gathered :data [xs]
   (all-of plain? "plain values" "a '[ ]" xs)
-  ;; plain values and data lists are written to text and read back, so the
-  ;; list can be stored; a stream (endless, a loop, one that knows its part
-  ;; as zip wants it) cannot be, so the list holds them as they are
-  (if (some stream? xs)
-    (apply list xs)
-    (mt/data xs)))
-
-(defn group-list?
-  "Is x what a ( … ) made of plain values: the parts a word like zip takes?"
-  [x]
-  (boolean (:mu/group (meta x))))
+  (mt/data xs))
 
 (defmethod gathered :other [xs]
   (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
 
-(word! "music" "par" "( line -- parallel )  the elements of a line side by side, as { }: ( [c d] [e f] ) par gives {[c d] [e f]}"
-       (fn [s]
-         (need s 1 "par")
-         (let [x (peek s)]
-           (when-not (and (v/material? x) (= :SEQ (mt/kind x)))
-             (e/mu-error "par: takes a line of parts, ( [c d] [e f] ) par -- got" (p/show x)))
-           (conj (pop s) (mt/par-of (map (partial mt/sounding! "par") (mt/elements x)))))))
+(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
+       (gather "par" mt/par-of))
 (defn- top-n
   "A word taking the top n (pushed by the grammar, written <open>n<close>)
    into (f items)."
@@ -135,19 +117,16 @@
 
 (word! "music" "zip" "( durations pitches -- durations' ) or ( | [:part] stream … -- line' )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
        (fn [s]
-         (cond
-           (some v/mark? s) (let [[below xs] (e/to-mark s "zip")]
-                              (conj below (mt/zip-parts xs)))
-           (and (seq s) (group-list? (peek s))) (conj (pop s) (mt/zip-parts (mt/elements (peek s))))
-           :else (do (need s 2 "zip")
-                     (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
+         (if (some v/mark? s)
+           (let [[below xs] (e/to-mark s "zip")]
+             (conj below (mt/zip-parts xs)))
+           (do (need s 2 "zip")
+               (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
 
 (word! "music" ">ctx" "( | :duration d :key v … -- ^{ } )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
-         (if (and (seq s) (not (some v/mark? s)) (group-list? (peek s)))
-           (conj (pop s) (mt/control->ctx (mt/elements (peek s))))
-           (let [[below xs] (e/to-mark s ">ctx")]
-             (conj below (mt/control->ctx xs))))))
+         (let [[below xs] (e/to-mark s ">ctx")]
+           (conj below (mt/control->ctx xs)))))
 
 (defn- recipe-value
   "What a tree recipe gave, as a mu value: a line, a { } for parts, a

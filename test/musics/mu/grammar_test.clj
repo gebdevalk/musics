@@ -99,11 +99,11 @@
 
 (deftest definitions
   (is (= [[:Definition [:WordName "octaved"] [:StackEffect [:EffectIn "x"] [:EffectOut "p"]]
-           [:Group [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"]] [:Word [:WordName "par"]]]]
-         (items ": octaved ( x -- p ) ( $x $x 12 + ) par ;")))
+           [:Mark "|"] [:Local "x"] [:Local "x"] [:SignedInt "12"] [:Word "+"] [:Word [:WordName "par"]]]]
+         (items ": octaved ( x -- p ) | $x $x 12 + par ;")))
   (is (= [:Definition [:WordName "canon"] [:StackEffect [:EffectIn "a" "s"] [:EffectOut "p"]]
-          [:Group [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"]] [:Word [:WordName "par"]]]
-         (first (items ": canon ( a s -- p ) ( $a $a $s + ) par ;")))
+          [:Mark "|"] [:Local "a"] [:Local "a"] [:Local "s"] [:Word "+"] [:Word [:WordName "par"]]]
+         (first (items ": canon ( a s -- p ) | $a $a $s + par ;")))
       "a stack effect names the locals, leaf letters included"))
 
 (deftest unfinished-or-wrong

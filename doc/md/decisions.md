@@ -2765,3 +2765,15 @@ storable). Either is marked as a group's, and `zip` and `>ctx` take such a
 list as their parts: `( d p :volume v ) zip`, `( :duration d :volume v ) >ctx`.
 The `| … zip` form is kept beside it for now. `chord` takes the notes above a
 `|` mark, else the whole stack, instead of the leaves on top.
+
+## 2026-11-03 — The mark for the variadic words; the group for what it alone does
+
+The group that kept its streams (`( d p :volume v ) zip`, the entry above) and
+`par` taking a gathered line were two more ways to do what `| … zip` and
+`| … par` already did, and the code to carry them (a marked live list, a
+second path in `zip` and `>ctx`, a check in `par`) bought nothing the mark
+lacks. Both are out again: **the words that take as many values as you like
+gather what lies above a `|` mark** (`zip`, `>ctx`, `par`, `chord`), one
+spelling for all of them. `( … )` stays for what the mark cannot do: run a
+sub-computation on a stack of its own and gather by its first value into a
+line or a list of numbers. `seq` stays gone, a group being the line.
