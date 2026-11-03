@@ -389,7 +389,8 @@
                  (if-let [k (and (= :Key (:key i)) (el/parse-key (str (:val i))))]
                    (let [k' (el/key->str (shift k))] (assoc i :val k' :raw (str "!K:" k')))
                    i))
-               (if (and (v/material? x) (not (zero? (mod n 12)))) (with-key x) x))))
+               ;; the key is written for the notes that follow it: an empty line has none
+               (if (and (v/material? x) (not (zero? (mod n 12))) (seq (elements x))) (with-key x) x))))
 
 ;; -- the repo -------------------------------------------------------------
 

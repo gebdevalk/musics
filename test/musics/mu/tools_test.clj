@@ -784,6 +784,13 @@
       (is (not (re-find #"#\"" m)) "no grammar regexes"))))
 
 ;; a key the registry gives a range holds a number in it; volume is a whole number 0-100
+(deftest nothing-is-not-changed
+  (is (= "[]" (top "[] 2 +")) "transposing an empty line writes no key")
+  (is (= "[]" (top "[] 7 transpose")))
+  (is (= "[!K:D.major D4/4 E4]" (top "[c d] 2 +")) "a line with notes still does")
+  (is (re-find #"^with: needs music under the context, got \^\{ !mf \}" (top "[c d] ^{ !mf } ^{ !f } with"))
+      "a context is no subject: it goes on top of music"))
+
 (deftest a-known-key-holds-its-range
   (is (re-find #"volume is 0..100, got 700" (top "[c d] :volume 700 with")))
   (is (re-find #"volume is 0..100, got 700" (top "[!volume:700 c d]")))
