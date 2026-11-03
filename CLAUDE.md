@@ -985,7 +985,7 @@ default `:tonic`, and `(prog/->mus :jazz
 {:tonic "F" :name :blues})` gives `[blues: !M:4/4 F3/1:7 | B&3:7 | ...]`,
 roots spelled in the key, a duration only where it changes, a closing
 bar on the tonic (`:end`, true; none when the scheme ends on it), `:hit` to strike each chord per beat,
-`:repeat n` the choruses as `repeat n [ ] volta [ [turnaround] [tonic] ]`.
+`:repeat n` the choruses as `repeat n [...] volta [[turnaround] [tonic]]`.
 `musics.algo.harmonic.walking-bass` walks a quarter-note bass under a
 line of chords: the root on each chord's first beat, the beat before
 the next an approach to its root (a half step, a scale step or its

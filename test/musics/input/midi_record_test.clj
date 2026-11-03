@@ -93,15 +93,15 @@
 (deftest ->musics-text-test
   (testing "a single note needs the disambiguating '/' before its
             duration digit; a chord's trailing duration doesn't"
-    (is (= "[ !tempo:120 C4/4 ]\n"
+    (is (= "[!tempo:120 C4/4]\n"
            (rec/->musics-text [{:type :note :dur 500 :pitches [60]}] 120 nil)))
-    (is (= "[ !tempo:120 !instrument:40 <C4 E4 G4>4 ]\n"
+    (is (= "[!tempo:120 !instrument:40 <C4 E4 G4>4]\n"
            (rec/->musics-text [{:type :note :dur 500 :pitches [60 64 67]}] 120 40))))
   (testing "a rest spells as r<duration>, no pitch involved"
-    (is (= "[ !tempo:120 r4 ]\n"
+    (is (= "[!tempo:120 r4]\n"
            (rec/->musics-text [{:type :rest :dur 500}] 120 nil))))
   (testing "an empty recording still produces a valid, empty Sequence"
-    (is (= "[ !tempo:120 ]\n" (rec/->musics-text [] 120 nil)))))
+    (is (= "[!tempo:120]\n" (rec/->musics-text [] 120 nil)))))
 
 (deftest generated-text-parses-test
   (testing "every shape ->musics-text can produce is real, parseable

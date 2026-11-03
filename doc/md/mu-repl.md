@@ -247,7 +247,10 @@ followed by nothing, a duration or `*n`.
   did you mean `retrograde`?), a word of a namespace not in use written
   with it (`euclid`: `duration/euclid`), else where to look (`words`, `help`).
 - **Printing is isomorphic to reading**: what is printed can be typed
-  back and gives the same value.
+  back and gives the same value. Brackets are written tight, with no
+  space inside them: `[a b c]`, `{[a b] [c d]}`, `repeat 2 [a b c] volta
+  [[c] [b]]`; so are the texts that `prog/->mus`, `walking-bass`, a
+  recording and `display` write.
   - musical values print as musics text, absolutely: `C4/4`,
     `<C4 E4 G4>4` (no slash after the octave inside a chord), `r8`,
     `x4\36`; a line as `[…]`, with its own context and id. A duration

@@ -2707,3 +2707,18 @@ thing a second time.
   list it. `x 3 times` prints, as before, `repeat 3 [ … ]`; the text's
   `repeat n [ … ]` literal is untouched. **`context-of`** was a second name of
   `setting`. Both say `it is now written …` when typed.
+
+## 2026-11-03 — Brackets are printed tight
+
+`repeat 2 [a b c] volta [c b a]`, `[a b c]`, `{[a b] [c d]}`: mu's value printer
+already wrote brackets with no space inside them; the other writers of musics
+text did not (`repeat 2 [ x ] volta [ [ y ] ]`). `display`, `prog/->mus`,
+`walking-bass`, the counterpoint and notes writers and the MIDI recorder now
+write the same tight form, so a text printed anywhere reads like one printed
+by `show`, and stays valid if a space after `[` ever becomes significant (a
+`[` followed by a space as a stack word). The LilyPond, GUIDO and ABC
+importers are left as they were: their pretty printer
+(`lilypond-import/pretty-print-mus`) lays a piece out over many lines with
+each bracket on a line of its own, which is a layout, not a printing
+convention; they would need to change with the grammar if that rule comes.
+`^{ … }` contexts keep their spaces.

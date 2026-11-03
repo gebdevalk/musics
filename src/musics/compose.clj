@@ -601,10 +601,10 @@
 (defn- labelled
   "Branches as \"TA [...]  TB :algo :x [...]\" inside { }."
   [id segs algos texts]
-  (str "{" (when id (str (name id) ":")) " "
+  (str "{" (when id (str (name id) ": "))
        (str/join "  " (map (fn [seg a t] (str (name seg) (when a (str " :algo " a)) " " t))
                            segs algos texts))
-       " }"))
+       "}"))
 
 (defn- show-node [repo node]
   (cond
@@ -625,8 +625,8 @@
         :CONTEXT (str ":" (name (:id node)))
         :PAR     (labelled (:id node) (rank-segments mean-pitch-rank kids) (repeat nil)
                            (map #(show-node repo %) kids))
-        (str "[" (when (:id node) (str (name (:id node)) ":")) " "
-             (str/join " " (keep #(show-node repo %) kids)) " ]")))
+        (str "[" (when (:id node) (str (name (:id node)) ": "))
+             (str/join " " (keep #(show-node repo %) kids)) "]")))
     (:raw node) (:raw node)
     :else (lp/part->mus node)))
 
@@ -649,7 +649,7 @@
     (let [[tag items] (form-tag+items form)]
       (if (= tag :par)
         (show-form-par repo items nil)
-        (str "[ " (str/join " " (keep #(show-form repo %) items)) " ]")))
+        (str "[" (str/join " " (keep #(show-form repo %) items)) "]")))
     (nil? form) (throw (ex-info "display: don't know how to play nil -- expected a part id, a group, or material from sq"
                                 {:form form}))
     :else nil))

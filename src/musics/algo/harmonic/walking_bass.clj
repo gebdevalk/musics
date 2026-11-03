@@ -227,7 +227,7 @@
    line of musics text, `[!i:acousticBass F2/4 ... ]`, spelled with
    flats when the chords were. opts as walk's."
   [chords opts]
-  (str "[!i:acousticBass " (notes-text (walk chords opts) (flats? chords) (volatile! nil)) " ]"))
+  (str "[!i:acousticBass " (notes-text (walk chords opts) (flats? chords) (volatile! nil)) "]"))
 
 (defn ->mus
   "The walking bass under the chords of the part id as musics text, in
@@ -244,7 +244,7 @@
                  (let [[b es] (walk-repeat form opts)
                        n      (if (= :infinite (:count form)) "~" (:count form))
                        body   (notes-text b flat? last)]
-                   (str "repeat " n " [ " body " ]"
+                   (str "repeat " n " [" body "]"
                         (when (seq es)
-                          (str " volta [ " (str/join " " (mapv #(str "[ " (notes-text % flat? last) " ]") es)) " ]")))))]
-     (str "[" (name (:name opts :bass)) ": !i:acousticBass " music " ]"))))
+                          (str " volta [" (str/join " " (mapv #(str "[" (notes-text % flat? last) "]") es)) "]")))))]
+     (str "[" (name (:name opts :bass)) ": !i:acousticBass " music "]"))))

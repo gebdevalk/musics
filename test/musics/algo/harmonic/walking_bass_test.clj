@@ -98,7 +98,7 @@
   (doseq [seed [42 7 1234]]
     (rc/seed! seed)
     (let [text (wb/->mus :rv {:name :rvbass})]
-      (is (re-find #"^\[rvbass: !i:acousticBass repeat 2 \[ .* \] volta \[ \[ .* \] \[ .* F2/1 \] \] \]$" text)
+      (is (re-find #"^\[rvbass: !i:acousticBass repeat 2 \[.*\] volta \[\[.*\] \[.* F2/1\]\]\]$" text)
           "the chords' form, ending on a held F")
       (parse! text)
       (let [ns    (filter #(= :note (:kind %)) (ev/events (repo/registry) #{:rv :rvbass}))
