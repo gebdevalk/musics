@@ -77,9 +77,11 @@
                  (:error (run "[[ a b c d e] .s [e f g a b]]"))))
     (is (re-find #"^dup is a word \(line 2, column 3\)" (:error (run "[c d\n  dup e]"))))))
 
-;; a stack effect may name a result x', as mu's own help writes it
+;; a stack effect names what a word takes and gives; x' is x changed, as mu's own
+;; help writes it, so a word that only copies x says x, and one that changes it x'
 (deftest a-stack-effect-may-prime-a-name
-  (is (= [3 3] (:ok (run ": twice ( x -- x' x' ) $x $x ; 3 twice"))) "x' is a name like any other"))
+  (is (= [3 3] (:ok (run ": twice ( x -- x x ) $x $x ; 3 twice"))) "a copy leaves x as it is")
+  (is (= [4] (:ok (run ": bump ( n -- n' ) $n 1+ ; 3 bump"))) "a changed n is n'"))
 
 (deftest unfinished-input
   (is (:incomplete (run "[c d")))
