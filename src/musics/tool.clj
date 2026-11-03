@@ -22,7 +22,7 @@
 (defn- count!
   "n, a whole number from 0."
   [n]
-  (when-not (and (integer? n) (>= n 0)) (fail "needs a whole number on top, got" (p/show n)))
+  (when-not (and (integer? n) (>= n 0)) (fail "needs a count (a whole number, 0 or more) on top, got" (p/show n)))
   n)
 
 (defn- quotation! [q]

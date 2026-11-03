@@ -121,10 +121,11 @@ misspelt `!name` does suggest ("within two letters"). The machinery exists
 (`unknown-mark!`); words do not use it. `words` prints 270 names in a block;
 `see` is good.
 
-**M8. Printing is not isomorphic for some values (A).**
-`[c d e] key` prints `#musics.common.music_elements.Key{:signature {...}}`, a
-Java record; `:Key setting` the same. Every other value prints as something
-mu reads back.
+**M8. Withdrawn.** `[c d e] key` printed a Java record because the REPL used
+for the audit had reloaded `musics.common.music-elements`, leaving the default
+key an instance of the old class. In a fresh REPL it prints `C.major` and reads
+back; every other value does too. (The audit's REPL had been reloaded with
+`:reload-all`: restart it instead of reloading.)
 
 **M9. Error wording that misleads (B).**
 - `[c d e] -1 take` says "needs a whole number on top, got -1" (-1 is one;

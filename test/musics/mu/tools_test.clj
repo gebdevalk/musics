@@ -230,6 +230,22 @@
     (is (re-find #"can't read" (top "[SFL [c d]]")))
     (is (= "[F4/4 G4]" (top "[transpose 5 ( c d )]")) "the long names do it")))
 
+(deftest errors-say-what-is-wrong-and-where
+  (testing "a count is 0 or more"
+    (is (re-find #"^take: needs a count \(a whole number, 0 or more\) on top, got -1" (top "[c d e] -1 take")))
+    (is (re-find #"^head: needs a count .* got -1" (top "[c d e] -1 head"))))
+  (testing "[n] and {n} take music, and say how numbers gather"
+    (is (re-find #"^\[2\]: takes music \(notes, lines, parallels\), got 1 -- numbers gather into a list with \( 1 2 \)" (top "1 2 [2]")))
+    (is (re-find #"^\{2\}: takes music .* got 1 " (top "1 2 {2}")))
+    (is (= "'[1 2]" (top "( 1 2 )")) "and they do"))
+  (testing "with says every form it takes"
+    (is (re-find #"^with: needs a context \^\{ … \} or a key \(D.major\) on top -- or a key and its value, :volume 70 with"
+                 (top "[c d e] 70 :volume with"))))
+  (testing "an error is named by the word once"
+    (is (re-find #"^insert: has no elements: 1$" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
+    (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
+    (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
+
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")
   (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")

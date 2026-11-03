@@ -157,7 +157,12 @@
         n    (- (count stack) (count al))
         r    (try (apply @v (subvec stack n))
                   (catch clojure.lang.ExceptionInfo ex
-                    (if (:mu/error (ex-data ex)) (throw ex) (mu-error (str name ":") (ex-message ex)))))]
+                    (let [msg (ex-message ex)]
+                      (cond
+                        ;; named already, by this word or by another it ran: as it is
+                        (str/starts-with? msg (str name ":")) (throw ex)
+                        (re-find #"^\S+:\s" msg)            (throw (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true})))
+                        :else (mu-error (str name ":") msg)))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn run-word

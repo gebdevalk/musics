@@ -77,7 +77,11 @@
     (let [n (peek s) s (pop s) w (str open n close)]
       (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as" (str open 2 close)))
       (need s n w)
-      (conj (subvec s 0 (- (count s) n)) (f (subvec s (- (count s) n)))))))
+      (let [items (subvec s (- (count s) n))]
+        (when-let [bad (first (remove #(or (mt/leaf? %) (v/material? %)) items))]
+          (e/mu-error (str w ":") "takes music (notes, lines, parallels), got" (p/show bad)
+                      "-- numbers gather into a list with ( 1 2 )"))
+        (conj (subvec s 0 (- (count s) n)) (f items))))))
 
 (word! "music" "{n}" "( a … n -- parallel )  the top n side by side, written {2} {3} … : [c d] [e f] {2} gives {[c d] [e f]}"
        (top-n "{" "}" mt/par-of))

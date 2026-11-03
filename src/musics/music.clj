@@ -828,7 +828,8 @@
    (with x (mt/read-text (str "^{ " (setting-text k value) " }"))))
   ([x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
-    (when-not (= :CONTEXT (mt/kind ctx)) (fail "needs a context ^{ … } on top"))
+    (when-not (= :CONTEXT (mt/kind ctx))
+      (fail "needs a context ^{ … } or a key (D.major) on top -- or a key and its value, :volume 70 with"))
     (let [settings (str/join " " (map :raw (:children (v/node ctx))))
           shown    (p/show (mt/->material x))]
       ;; at the start of a line (or a note made a line); a { } or a
