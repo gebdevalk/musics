@@ -55,16 +55,14 @@
    octaves and a chord."
   "[C3/8 G3 C4 E4 G4 C5 <C4 E4 G4>2]")
 
-(defn- data? [x] (and (v/material? x) (= :DATA (mt/kind x))))
-
 (defn- music? [x]
-  (and (or (v/material? x) (mt/leaf? x) (mt/endless? x)) (not (data? x))))
+  (or (v/material? x) (mt/leaf? x) (mt/endless? x)))
 
 (defn- pair
   "[lo hi] of a data pair of programs '[56 63], else nil."
   [x]
-  (when (data? x)
-    (let [xs (vec (mt/elements x))]
+  (when (and (sequential? x) (not (mt/endless? x)))
+    (let [xs (vec x)]
       (when (and (= 2 (count xs)) (every? integer? xs)) (sort xs)))))
 
 (defn- pick? [x] (or (string? x) (some? (pair x))))

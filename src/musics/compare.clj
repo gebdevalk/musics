@@ -22,10 +22,9 @@
    loops when they repeat the same; data and streams element by element.
    An endless stream that is no loop is refused: it would never end."
   [a b]
-  (let [data?    #(core/and (v/material? %) (core/= :DATA (mt/kind %)))
-        music?   #(core/and (core/or (v/material? %) (v/leaf? %)) (core/not (data? %)))
+  (let [music?   #(core/or (v/material? %) (v/leaf? %))
         endless? #(core/and (sequential? %) (:mu/endless (meta %)))
-        items?   #(core/or (data? %) (v/pcset? %) (core/and (sequential? %) (core/not (string? %))))]
+        items?   #(core/or (v/pcset? %) (core/and (sequential? %) (core/not (string? %))))]
     (cond
       (core/and (number? a) (number? b)) (== a b)
       (core/and (music? a) (music? b)) (binding [p/*names* false] (core/= (p/show a) (p/show b)))

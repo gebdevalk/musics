@@ -439,7 +439,8 @@
       (let [{vs :values auto-ids :auto-ids}
             (v/read-literals lits text (current-repo) (:auto-ids @reg/session) (:bindings @state))]
         (swap! reg/session assoc :auto-ids auto-ids)
-        (reduce (fn [acc [lit x]] (assoc acc (:mu/index (meta lit)) x)) values (map vector lits vs))))))
+        (reduce (fn [acc [lit x]] (assoc acc (:mu/index (meta lit)) ((requiring-resolve 'musics.mu.material/as-value) x)))
+                values (map vector lits vs))))))
 
 (defn- run-input
   "Run a parsed input on stack, segment by segment."

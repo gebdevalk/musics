@@ -279,9 +279,7 @@
              (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
                                   (:items x))
              (mt/leaf? x)     (:pitches x)
-             (v/material? x)  (if (= :DATA (mt/kind x))
-                                (mt/numbers-of word x)
-                                (mapcat :pitches (mt/played-leaves (mt/finite! word x))))
+             (v/material? x)  (mapcat :pitches (mt/played-leaves (mt/finite! word x)))
              (sequential? x)  (mt/numbers-of word x)
              :else            (fail "needs a line, a chord or pitch numbers, got" (p/show x)))]
     (when-not (every? integer? ps) (fail "needs whole pitch numbers, got" (p/show (first (remove integer? ps)))))
@@ -317,7 +315,6 @@
   [x]
   (cond
     (v/pcset? x) (mt/read-text (str "'[" (str/join " " (:items x)) "]"))
-    (and (v/material? x) (= :DATA (mt/kind x))) x
     (sequential? x) (mt/read-text (str "'[" (str/join " " (map p/show (mt/finite! ">list" x))) "]"))
     :else (fail "needs a set or a list, got" (p/show x))))
 
@@ -325,8 +322,8 @@
   "The time each pitch class sounds in a line or a chord, a vector of
    twelve ratios, C first: a chord's time shared among its pitches."
   [word x]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line or a chord, got" (p/show x)))
-  (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data -- for pitch numbers use classes"))
+  (when-not (or (mt/leaf? x) (v/material? x))
+    (fail (if (sequential? x) "needs music with durations, not data -- for pitch numbers use classes" "needs a line or a chord, got") (p/show x)))
   (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! word x)))]
     (reduce (fn [w leaf]
               (let [ps (seq (:pitches leaf))]
@@ -380,7 +377,7 @@
   (let [w (cond
             (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
                                  (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (:items x)))
-            (or (sequential? x) (and (v/material? x) (= :DATA (mt/kind x))))
+            (sequential? x)
             (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (pitch-numbers "key-of" x))
             :else            (class-weights "key-of" x))
         w (mapv double w)]
@@ -461,8 +458,8 @@
   {:mu {:optional {:pulse number?}}}
   ([x] (pulses x nil))
   ([x pulse]
-   (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
-   (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data"))
+   (when-not (or (mt/leaf? x) (v/material? x))
+     (fail (if (sequential? x) "needs music with durations, not data, got" "needs a line, got") (p/show x)))
    (when (par-inside? x) (fail "needs one line, not parallel parts: take a part with nth first"))
    (let [leaves (filterv #(pos? (or (:duration %) 0))
                          (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "pulses" x))))
@@ -575,7 +572,8 @@
    stays -- [c e g c'] '( pitch 65 > ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
-  (when (= :DATA (mt/kind x)) (fail "needs music: a data list has no notes to make rests"))
+  (when (and (sequential? x) (seq x) (not-every? #(or (mt/leaf? %) (v/material? %)) (take 1 x)))
+    (fail "needs music: a data list has no notes to make rests"))
   (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))
                     (merge (d/rest* nil nil (:duration %)) (select-keys % [:ratio]))
                     %)

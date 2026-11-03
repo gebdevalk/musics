@@ -629,7 +629,7 @@
         :Data        (let [s (walk-children (flat/push-container state :DATA) children)]
                        (if (= :DATA (:type (peek (:stack state))))
                          ;; inside data, a list of values, not a container
-                         (-> s (update :stack pop) (flat/append-child (apply list (:children (peek (:stack s))))))
+                         (-> s (update :stack pop) (flat/append-child (vec (:children (peek (:stack s))))))
                          (flat/pop-container s)))
         :Nil         (flat/append-child state nil)
         ;; ./. inside data: idem, the value before once more

@@ -35,7 +35,7 @@
     (is (not (str/includes? head "…")) (str ns "/" w " writes ... in ascii: " head))))
 
 (deftest the-table-matches-the-functions
-  (let [vars (into {} (for [[ns w entry] (words) :when (:var entry)] [w (:var entry)]))]
+  (let [vars (into {} (for [[_ w entry] (words) :when (:var entry)] [w (:var entry)]))]
     (doseq [[w eff] lib/stack-effects]
       (testing w
         (is (contains? vars w) "names a word registered from a function")

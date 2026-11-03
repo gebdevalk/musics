@@ -1551,6 +1551,17 @@ again):
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
+**A data list is a vector in mu.** The walker builds a `:DATA` node for `'[ ]`
+(`:data-type` `:int` `:pitch` `:duration` …), but what mu holds and every word
+reads is a plain vector of its values with that type on its metadata
+(`musics.mu.material/as-value`, applied where text is read: `read-text` and
+the input's literals), a list inside it a vector too. A word that rebuilds
+data keeps the vector and its metadata; a stream (`pitches`, `map`, `cycle`)
+stays lazy and prints the same. The `:DATA` node exists in the repo only when
+stored (`R!`: `->material` builds it, `R@` reads it back as a vector), so
+`:ROOT`'s children, `write` and `load` are unchanged. `:SEQ`, `:PAR` and the
+rest are not vectors: they carry ids, contexts and addresses the engine reads.
+
 `( )` means two things, never ambiguous with each other since they're
 reachable from totally different positions: a slur mark glued directly
 onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own

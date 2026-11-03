@@ -34,8 +34,7 @@
 (defn- plain?
   "A value a '[ ] holds: a number, a keyword, a data list or a stream."
   [x]
-  (or (number? x) (keyword? x) (sequential? x)
-      (and (v/material? x) (= :DATA (mt/kind x)))))
+  (or (number? x) (keyword? x) (sequential? x)))
 
 (defn- gather
   "A word that gathers what lies above the nearest | mark into (f xs)."
@@ -82,6 +81,7 @@
       (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as" (str open 2 close)))
       (need s n w)
       (let [items (subvec s (- (count s) n))]
+        (run! #(mt/sounding! w %) items)
         (when-let [bad (first (remove #(or (mt/leaf? %) (v/material? %)) items))]
           (e/mu-error (str w ":") "takes music (notes, lines, parallels), got" (p/show bad)
                       "-- numbers gather into a list with ( 1 2 )"))
@@ -193,9 +193,9 @@
   [word kw]
   (fn [s]
     (need s 1 word)
-    (let [weights? (and (= "choose" kw) (= :DATA (mt/kind (peek s))) (seq (mt/elements (peek s)))
-                        (every? number? (mt/elements (peek s))))
-          ws   (when weights? (vec (mt/elements (peek s))))
+    (let [weights? (and (= "choose" kw) (vector? (peek s)) (seq (peek s))
+                        (every? number? (peek s)))
+          ws   (when weights? (vec (peek s)))
           s    (if weights? (pop s) s)
           qs   (vec (reverse (take-while v/quotation? (rseq s))))
           s    (subvec s 0 (- (count s) (count qs)))

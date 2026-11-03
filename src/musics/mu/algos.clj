@@ -81,7 +81,6 @@
    taken apart, data as its values, a stream as it is."
   [type x]
   (cond
-    (and (v/material? x) (= :DATA (mt/kind x))) (mt/elements x)
     (or (v/material? x) (mt/leaf? x))
     (let [ls (mt/played-leaves x)]
       (case type

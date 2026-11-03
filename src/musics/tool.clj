@@ -207,7 +207,7 @@
   "The groups of x's elements as x's form gives them: data of data for
    data, a line of lines for music, else the groups."
   [x groups]
-  (cond (= :DATA (mt/kind x))               (mt/data (core/map mt/data groups))
+  (cond (vector? x)                         (with-meta (mapv #(with-meta (vec %) (meta x)) groups) {:data-type nil})
         (or (v/material? x) (mt/leaf? x))   (mt/line (core/map mt/line groups))
         :else                               groups))
 
@@ -268,8 +268,8 @@
   "x with the lines inside it opened into it, one level: a b [2] flatten is a
    b concat; data opens the data inside it: '[1 '[2 3]] flatten is '[1 2 3]"
   [x]
-  (let [data? (= :DATA (mt/kind x))
-        ;; a list inside data is a plain sequence, a line inside music a :SEQ
+  (let [data? (sequential? x)
+        ;; a list inside data is a sequence, a line inside music a :SEQ
         open? #(if data?
                  (and (sequential? %) (not (v/material? %)))
                  (and (v/material? %) (= :SEQ (mt/kind %))))]

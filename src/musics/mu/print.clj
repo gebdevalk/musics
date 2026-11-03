@@ -36,6 +36,7 @@
     (cond (keyword? x)    (if (= data-type :name) (name x) (str x))
           (nil? x)        "nil"
           (= :LOOP (:type x)) (str (data-element nil (:items x)) " [~]")
+          (:mu/repeat (meta x)) (str (data-element nil (first (:mu/repeat (meta x)))) " [~]")
           (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
           :else           (str x))))
 
@@ -146,10 +147,13 @@
     (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (map? x) (d/jump? x)) (d/jump-text x)
-    (and (sequential? x) (not (vector? x)) (not (string? x)))
+    (and (vector? x) (contains? (meta x) :data-type))
+    (let [t (:data-type (meta x))]
+      (str "'[" (when (typed-data t) (str (name t) " ")) (str/join " " (map #(data-element t %) x)) "]"))
+    (and (sequential? x) (not (string? x)))
     (let [shown (take 17 x)
           more  (> (count shown) 16)
           items (str/join " " (map show (take 16 shown)))
-          leaves? (every? #(and (map? %) (#{:LEAF :REST :DRUM} (:type %))) (take 16 shown))]
+          leaves? (and (seq shown) (every? #(and (map? %) (#{:LEAF :REST :DRUM} (:type %))) (take 16 shown)))]
       (str (if leaves? "[" "'[") items (when more " …") "]"))
     :else (pr-str x)))

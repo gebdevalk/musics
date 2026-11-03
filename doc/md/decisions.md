@@ -2833,3 +2833,29 @@ Rejected: Gforth's `{: a b :}` / `{ a b -- }` locals (ugly, and `{ }` is the
 parallel bracket); making the comment pure documentation (it would lose the
 locals, which `[$m $m r4 $m]` needs); `…` in comments (hard to type: `...` is
 written, `…` still read).
+
+## 2026-11-03 — A data list is a vector, not a material
+
+`'[ ]` was a `Material` of kind `:DATA` while every other list a word handed
+back (`pitches`, `map`, `take` on a stream, `range`, `cycle`) was a plain
+sequence; a list nested in data was a plain list. Words had to know both
+(`grouped` took data for music and failed on `'[1 2 3 4] 2 partition`,
+`flatten` and `mute` silently did nothing on data). "Always a material" could
+not be done: a material holds its children finite in a repo map, and the
+streams are lazy or endless.
+
+Now a data list is a vector of its values, its type (`:data-type`) on the
+vector's metadata, nested lists vectors too. One conversion where text is
+read (`musics.mu.material/as-value`, from `read-text` and the input's
+literals) and one where the repo is read (`fetch`); the walker builds the
+`:DATA` node as before, and `->material` builds it again when `R!` stores a
+vector, spending an auto id (`read-material` with keep?). Words take any
+sequential, give a vector back when they were given one (`reshape`,
+`grouped`), and `mt/kind` of data is nil. `:SEQ`/`:PAR` stay nodes in the flat
+repo: they carry ids, contexts and the addresses a voice's snapshot reads,
+none of which survives on metadata, and the engine never sees data.
+
+A vector was preferred over a seq for the canonical form: `count` and `nth`
+are cheap, `conj` appends (on a list it would prepend, silently reversing a
+result), and a stored vector is evidently finite. Lost metadata costs only the
+type in a print (`'[60 62]` for `'[pitch C4 D4]`), never a sound.

@@ -741,6 +741,30 @@
   (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] [2] [f] [2] flatten")) "one level only")
   (is (= "'[1 2 3]" (top "'[1 '[2] 3] flatten")) "data opens the data inside it, music the lines"))
 
+(defn- value
+  "The value the last input leaves on the stack."
+  [input]
+  (swap! e/state assoc :stack [])
+  (peek (:ok (e/eval-input input))))
+
+;; a data list '[ ] is a vector, as any list of values is; its type rides on the
+;; vector's metadata. Nested lists are vectors too, so every word reads them alike.
+(deftest data-is-a-vector
+  (is (vector? (value "'[1 2 3]")))
+  (is (= {:data-type :int} (meta (value "'[1 2 3]"))))
+  (is (= [1 [2 3]] (value "'[1 '[2 3]]")) "nested too")
+  (is (every? vector? (value "'[1 2 3 4] 2 partition")) "the groups are data")
+  (is (= {:data-type :pitch} (meta (value "'[pitch c d]"))) "a typed list keeps its type")
+  (is (= "'[pitch C#4 D#4]" (top "'[pitch c d] 1 +")) "through a word that rebuilds it")
+  (is (= "'[pitch C4 D4]" (top "'[pitch c d] 2 take")))
+  (is (= "'[60 62] '[1 2]" (top "'[60 62] '[1 2]")) "no id is spent on one that isn't stored")
+  (testing "stored and fetched, it is a vector again"
+    (is (= [60 62] (value "'[60 62] R! R@")))
+    (is (= [1 [2 3]] (value "'[1 '[2 3]] R! R@"))))
+  (testing "a deep list opens one level at a time"
+    (is (= "'[1 2 '[3]]" (top "'[1 '[2 '[3]]] flatten")))
+    (is (= "'[1 2 3]" (top "'[1 '[2 '[3]]] flatten flatten")))))
+
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")
   (is (= "[!mf F4/4]" (top "[c d !mf e f] 3 tail")) "its note gone, it waits for the next that stays")

@@ -33,7 +33,7 @@
   [text]
   (try
     (let [left (e/run-text [] text)]
-      (when-let [x (first (remove #(or (v/material? %) (v/leaf? %)) left))]
+      (when-let [x (first (remove #(or (v/material? %) (v/leaf? %) (and (vector? %) (contains? (meta %) :data-type))) left))]
         (e/mu-error "text to store leaves only music, not" (p/show x)))
       {:ids (mt/store-all! (map vector left (repeat nil)))})
     (catch clojure.lang.ExceptionInfo e
