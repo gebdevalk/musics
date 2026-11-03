@@ -346,8 +346,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`, `context-of`); `with` writes one |
+| **assemble** | `seq` `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
+| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -551,8 +551,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   the kit (`x8\38` gives `38`); `:articulation` is the note's name, else
   the context's factor as the staccato or tenuto it equals, else the
   number (`0.9` is the default); a line gives its context at its start
-  (`:Key setting` of a line is the key it starts in). `context-of` is its
-  other name. A ramp is followed along the line: in `[!vol:30< c4 d4 e4
+  (`:Key setting` of a line is the key it starts in). A ramp is followed along the line: in `[!vol:30< c4 d4 e4
   f4 !vol:90]` `2 @ :volume setting` is `60` and `3 @ :volume setting`
   `75`, and the volume at a time is `at` first: `1/2 at :volume setting`.
   `:Tempo` and `:Meter` read as written (`100`, `3/4`).
@@ -661,7 +660,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   text and postfix on the stack: `transpose c d ( c e g )` is
   `[c e g] c d transpose`, `retrograde ( c d e )` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
-  `[a b] 3 repeat [c] [d] volta`. `repeat` (`times`, `[*]`) gives one
+  `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one
   repeat played n times, counting the plays as the text and LilyPond
   do (it prints, and reads back, as the text). `volta` takes the endings above
   the nearest repeat on the stack -- the repeat is the mark -- and gives
@@ -828,7 +827,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   above).
 - **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
   data or a stream (`first` and `nth` an endless one too).
-- **Repeating**: `repeat` (`times`, `[*]`) plays n times, one repeat
+- **Repeating**: `times` (`[*]`) plays n times, one repeat
   (`vary` varying its passes); `[!]` writes the
   passes out as lines, each of which a quotation can change on its own
   (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);

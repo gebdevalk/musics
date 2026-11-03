@@ -10,7 +10,7 @@
    extra arguments are taken only when the values in their places pass
    (musics.mu.library registers them, musics.mu.eval runs them).
    An error is an ex-info whose message mu prefixes with the word."
-  (:refer-clojure :exclude [key repeat cycle delay])
+  (:refer-clojure :exclude [key cycle delay])
   (:require [clojure.string :as str]
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
@@ -562,20 +562,13 @@
   [x]
   (mt/barred x))
 
-(defn repeat
-  "x played n times, as the text's repeat n [ x ] and LilyPond's (also
-   times, [*])."
-  [x n]
-  (when-not (and (integer? n) (not (neg? n))) (fail "needs a whole number on top, got" (p/show n)))
-  (times-of "repeat" x n))
-
 (defn times
   "x played n times, as the text's repeat n [ x ]; data and streams
    written out n times."
   {:mu {:ns "tool" :names ["[*]"]}}
   [x n]
   (when-not (and (integer? n) (not (neg? n))) (fail "needs a whole number on top, got" (p/show n)))
-  (times-of "[*]" x n))
+  (times-of "times" x n))
 
 (defn beside
   "The parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives
@@ -749,7 +742,6 @@
    as !key: writes it). A note, rest or drum: its own value, else the
    context's where it sits (a drum's instrument is its key of the kit,
    x8\\38: 38); a line: its context at its start."
-  {:mu {:names ["context-of"]}}
   [x k]
   (let [k (ck/canonical-key (keyword k))
         whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N

@@ -13,6 +13,7 @@
    "pop" "drop", "up" "+", "down" "-", "stretch" "*", "shrink" "/"
    "reverse" "retrograde", "rest" "tail", "size" "count", "len" "count"
    "print" ".", "show" "see", "quit" "bye", "exit" "bye", "loop" "cycle"
+   "repeat" "times", "context-of" "setting"
    "ROT" "rotate (the stack's is rot)", "SFL" "shuffle", "TRP" "transpose"})
 
 (defn distance

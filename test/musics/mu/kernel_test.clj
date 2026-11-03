@@ -24,7 +24,7 @@
   (let [saved @e/state]
     (try
       (with-fresh-registries
-        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "play" "music"])))
+        (reset! e/state (assoc (e/fresh-state) :ns (select-keys (:ns saved) ["kernel" "play" "music" "tool"])))
         (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
         (t))
       (finally (reset! e/state saved)))))
@@ -478,7 +478,7 @@
         (run "-0 stop")
         (is (re-find #"no drum voice" (:error (run "0 .<"))))
         (run "[!tempo:60 C2/1 D2] [~] .>+")
-        (run "[!tempo:60 C7/1 D7] 2 repeat .>+")
+        (run "[!tempo:60 C7/1 D7] 2 times .>+")
         (is (re-find #"C2/1" (p/show (first (:ok (run "1 .<"))))) "a loop ranks by its pitch")
         (is (re-find #"C7/1" (p/show (first (:ok (run "5 .<"))))) "a repeat too, not among the drums")
         (finally (mt/stop-all!))))))
@@ -487,7 +487,7 @@
   (let [show #(p/show (first (:ok (run %))))]
     (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered as | … seq")
     (is (= "[C4/4 D4 E4]" (show "( c d e )")))
-    (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 repeat [e] [f] volta ) 1 +"))
+    (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 times [e] [f] volta ) 1 +"))
         "one line, so a word reaches all of it: the key covers the endings too")
     (is (= "[D4/4 D4]" (show ": twice ( x -- y ) ( $x $x ) ; d4 twice")) "inside a definition, with locals")
     (is (= "[C4/4 D4 E4]" (show "c d e ()")) "() alone gathers the stack")
@@ -503,7 +503,7 @@
     (is (= "'['[1 2] '[3 4]]" (show "( '[1 2] '[3 4] )")) "data lists gather into a list of lists")
     (is (re-find #"gathers music into a line, and left 1" (:error (run "( c 1 )"))) "the first value decides")
     (is (re-find #"gathers plain values into a '\[ \], and left C4" (:error (run "( 1 c )"))))
-    (run "( [c d] 2 repeat [e] [f] volta ) 1 + ^{ !K:D.major } with :grouped R!")
+    (run "( [c d] 2 times [e] [f] volta ) 1 + ^{ !K:D.major } with :grouped R!")
     (is (= [61 63 65 61 63 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (ev/events (repo/registry) :grouped))))
         "the first ending's F stays F under another key")))
 

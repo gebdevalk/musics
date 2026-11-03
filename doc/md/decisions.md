@@ -2685,3 +2685,21 @@ lists the words whose name or description mention it (an `apropos`, names
 first, 20 at most): one word instead of a second one for searching, at the
 cost of an argument whose kind decides what it does (a string or a quoted
 name; nothing else on top is taken).
+
+## 2026-11-03 — Fewer second spellings: ROT SFL TRP, [%], repeat, context-of
+
+Three of the audit's doublure findings (M1 to M3), each a name that said a
+thing a second time.
+
+- **`ROT`, `SFL` and `TRP`** are the text's short commands (`[TRP 5 ( c d )]`)
+  and no longer mu words: `ROT` differed from the stack's `rot` only by case,
+  and `1 ROT` read as the stack word. An unknown one says what to write.
+- **`[%]` is `rotating`**, as `[?]` is `shuffling`, `[|]` `choosing` and `[\]`
+  `alternating`: the signs of the family that acts as the music plays. The two
+  words that act now, `rotate` and `shuffle`, have no sign. `rotating` of data
+  or a stream rotates now (there is no playing), as `shuffling` does.
+- **`repeat` is gone as a word**: it was `times` (`[*]`) under the text's name,
+  a separate function listing the other two as its twins while they did not
+  list it. `x 3 times` prints, as before, `repeat 3 [ … ]`; the text's
+  `repeat n [ … ]` literal is untouched. **`context-of`** was a second name of
+  `setting`. Both say `it is now written …` when typed.

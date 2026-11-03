@@ -247,8 +247,8 @@ the whole line (`[*]` n times, `[/]` parts, `[+]` `concat` (the second line's se
 one after another; `{2}` `{3}` … side by side, `{+}` two parallels'
 parts in one, `[%]` rotate as it plays (`rotating`, `rotate n [ ]`; `rotate` does it now), `[?]` shuffle as it plays (`shuffling`, `shuffle [ ]`; `shuffle` now), `[~]` loop, the row forms `[R]`
 `[I]` `[RI]` (exactly `[R]`; `[ R ]` is a rest), `[M]` inversion around
-the mean, `[:]` repeat signs (`repeat`, `times` and `[*]` count
-plays, as LilyPond does), `[!]`
+the mean, `[:]` repeat signs (`times` and `[*]` count
+plays, as LilyPond's `repeat` does), `[!]`
 written out as it plays, `[||]` barred by the meter, `[|]` one of
 several each time it plays (`choose [ ]`), `[\]` them in turn
 (`alternate [ ]`), `[[]]` split by it
@@ -264,7 +264,7 @@ line stays in front of its note through every one of them (`delay` a rest of any
 act on a line's children, instructions in place, `[]` is the empty line,
 mu's own), and the leaf readers read one note (`pitch`, `duration`, `volume`,
 ...) while their plurals (`pitches`, `durations`, ...) give every
-note's as a stream (`x :volume setting` reads what a note plays with, its own value else the context's, a line's at its start, `musics.music/setting`, also `context-of`; `x :volume 70 with` writes one, `with`'s `:arity` chooser in its `:mu` metadata telling that from `x ^{ } with`; a bare `!name` at the top level reads nothing and the refusal says `:name setting`), a repeat or loop around the line kept around the
+note's as a stream (`x :volume setting` reads what a note plays with, its own value else the context's, a line's at its start, `musics.music/setting`; `x :volume 70 with` writes one, `with`'s `:arity` chooser in its `:mu` metadata telling that from `x ^{ } with`; a bare `!name` at the top level reads nothing and the refusal says `:name setting`), a repeat or loop around the line kept around the
 values (`[c d] [~] pitches` is `'[60 62] [~]`; two loops zip into a
 loop as long as they take to line up), so `x durations x pitches zip`
 is `x` again; above a `|` mark `zip` takes every part of a note

@@ -74,7 +74,7 @@
       (is (= :staccato (mu "[c4-. d] 0 nth :articulation setting")))
       (is (= 0.9 (mu "[c d] 0 nth :articulation setting"))))
     (testing "its other name"
-      (is (= 60 (mu (str line " :volume context-of")))))
+      (is (= 60 (mu (str line " :volume setting")))))
     (testing "a number has no context; a bare !name at the top level reads nothing and says how"
       (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
       (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))

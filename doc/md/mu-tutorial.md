@@ -169,7 +169,7 @@ puts them back together. Bar lines and jump marks are left out, since
 they mean nothing outside their line.
 
 A group makes one line of what would be several values, so the next word
-reaches all of it: `( [c d] 2 repeat [e] [f] volta ) 1 +` moves the repeat
+reaches all of it: `( [c d] 2 times [e] [f] volta ) 1 +` moves the repeat
 and its endings together, under one key.
 
 Both `seq` results play the same four notes; the first keeps the two
@@ -387,7 +387,7 @@ groups of three, `232` as six groups of two.
 
 | Word | Stack | Does |
 |---|---|---|
-| `repeat`, `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
+| `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
 | `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream, printed `'[1 2] [~]` |
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
@@ -413,13 +413,12 @@ written out (`[c d] 5 transpose`).
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
 
-The number is how often it plays: `3 repeat` plays three times, as
-`repeat 3 [ ]` does in the text and in LilyPond. `times` is the same
-word in plain English.
+The number is how often it plays: `3 times` plays three times, as
+`repeat 3 [ ]` does in the text and in LilyPond.
 
 ```
 [c d] 3 times                                → repeat 3 [C4/4 D4]
-[c d] 3 repeat                               → repeat 3 [C4/4 D4]
+[c d] 3 times                                → repeat 3 [C4/4 D4]
 [a b c d] 2 times [c2 b a] [a4] volta        → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
 [c d] 3 times '( ) '( 12 + ) '( [R] ) vary   → [[C4/4 D4] [C5 D5] [D4 C4]]
 [c d] [:]                                    → [: C4/4 D4 :]
@@ -1234,7 +1233,7 @@ c4 '[0 40 73] sounds audition
 | `combos` | `( note numbers k -- line )` |
 | `delay` | `( x d -- line )` |
 | `delays` | `( parallel d\|list -- parallel )` |
-| `setting`, `context-of` | `( note\|line :key -- value )` |
+| `setting` | `( note\|line :key -- value )` |
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
 | `length` | `( x -- n )` |
@@ -1248,7 +1247,6 @@ c4 '[0 40 73] sounds audition
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |
 | `par` `seq` | `( \| … -- parallel \| line )` |
-| `repeat` | `( x n -- repeat )` (n plays, as `times`) |
 | `sounds` | `( note numbers -- line )` |
 | `tonic` | `( key -- note )` |
 | `transpose` | `( x from to -- x )` |
