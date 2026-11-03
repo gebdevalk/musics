@@ -2667,3 +2667,21 @@ H4 and the Forth list) asked for the Forth set, which needs `< > <>` free.
 - **Stack words** `2dup 2drop -rot 1+ 1-` and `negate` (for `neg`) are Forth's
   names; `1+` and `1-` go through `+` and `-`, so they move a list of numbers
   or music by a semitone too.
+
+## 2026-11-03 — help, and what mu says after an unknown word
+
+`help` was an unknown word, and a misspelt word (`retrogrde`) or a word renamed
+the day before (`add`) got `unknown word: x` and nothing else, while a misspelt
+`!name` had always named the marks within two letters (audit M7).
+`musics.mu.suggest` answers an unknown word with, in this order: the name it
+used to have or another language has (`renamed`: `add` is `+`, `pop` is
+`drop`, `quit` is `bye`), else the words a typo away (an edit distance of 1,
+or 2 for names over three letters; a swap of two neighbours counts one; the
+ones in use before those of a namespace not in use, which are written with
+it), else where to look. Only words that start with a letter are suggested:
+signs would match every short typo. `see` says the same for an unknown word.
+`help` alone is a short way in, with a word it is `see`, with other text it
+lists the words whose name or description mention it (an `apropos`, names
+first, 20 at most): one word instead of a second one for searching, at the
+cost of an argument whose kind decides what it does (a string or a quoted
+name; nothing else on top is taken).

@@ -26,6 +26,7 @@ around on it, and you'll need them throughout:
 | `drop` | `( a -- )` | discard the top |
 | `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `"dup" see` |
+| `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help` |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside

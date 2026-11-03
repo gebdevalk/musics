@@ -18,6 +18,7 @@
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
+            [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
             [musics.recipe :as recipe]
             [musics.repo :as repo]))
@@ -218,12 +219,51 @@
     (println (p/show word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
              (str "\n  takes " (:arity word) " from the stack under it"))
   (let [n (name-of word) entry (e/lookup @e/state n)]
-    (println (cond (nil? entry) (str "unknown word: " n)
+    (println (cond (nil? entry) (str "unknown word: " n " -- " (suggest/hint @e/state n))
                    (:source entry) (:source entry)
                    :else (let [[_ eff what] (re-matches #"(?s)(\(.*?\))\s\s(.*)" (str (:effect entry)))]
                            (if eff
                              (str n " " eff "\n  " what)
                              (str n " " (:effect entry)))))))))
+
+(def ^:private guide
+  ["mu: music is written as text and goes on the stack; words change it, join it and play it."
+   ""
+   "  [c d e f]            a line, now on the stack (a note alone is a value too)"
+   "  7 +   2 *   [R]      up a fifth, twice as long, backwards: a word takes what lies under it"
+   "  .>   .>>   .>+       play now, at the next boundary, joining what plays;  stop  pause"
+   "  [bass: c2 g] [~] .>  a named line is a voice of that name;  :bass stop,  :bass .< is what it plays"
+   "  dup drop swap over   the stack is Forth's;  .s shows it,  clear empties it"
+   "  see  words  help     \"dup\" see explains a word, words lists them, \"chord\" help searches"
+   "  Tab                  completes words, ids, instruments and keys;  bye leaves (Ctrl+D too)"
+   ""
+   "  more: doc/md/mu-tutorial.md walks through it, doc/md/mu-repl.md has every word"])
+
+(defn- matches
+  "[where word effect] for each word whose name or description mentions text."
+  [text]
+  (let [t (str/lower-case text) st @e/state]
+    (sort-by (fn [[_ w _]] (if (str/includes? (str/lower-case w) t) 0 1))
+             (for [[ns ws] (sort-by key (:ns st)) [w entry] (sort-by key ws)
+                   :let [eff (str (:effect entry))]
+                   :when (or (str/includes? (str/lower-case w) t) (str/includes? (str/lower-case eff) t))]
+               [(if (some #{ns} (:use st)) w (str ns "/" w)) w eff]))))
+
+(defn help!
+  "mu in a few lines; with a word, as see explains it; with other text,
+   the words that mention it: help, 'dup help, \"chord\" help, \"transpose\" help"
+  {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
+  ([] (run! println guide))
+  ([topic]
+   (let [n (name-of topic)]
+     (if (try (e/lookup @e/state n) (catch clojure.lang.ExceptionInfo _ :ambiguous))
+       (see! topic)
+       (let [hits (matches n)]
+         (if (empty? hits)
+           (println (str "nothing mentions \"" n "\" -- " (suggest/hint @e/state n)))
+           (do (doseq [[shown _ eff] (take 20 hits)]
+                 (println (str shown "  " (first (str/split eff #"\s\s" 2)))))
+               (when (> (count hits) 20) (println (str "… and " (- (count hits) 20) " more -- a longer text narrows it"))))))))))
 
 (defn- file-text
   "The musics text of the file at path: a .mus file as it is, LilyPond

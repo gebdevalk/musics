@@ -6,7 +6,7 @@
    Words live in namespaces, looked up when run (late binding): a
    redefinition changes every word that uses it. A name is found in the
    namespaces in use; in two of them it is an error until qualified
-   (ns/word). An error clears the stack."
+   (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.common.context-keys :as ck]
@@ -15,6 +15,7 @@
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
+            [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
             [musics.registries :as reg]
             [musics.repo :as repo]))
@@ -162,7 +163,8 @@
 (defn run-word
   "Run the word called name on stack."
   [stack name]
-  (let [entry (or (lookup @state name) (mu-error "unknown word:" name))]
+  (let [entry (or (lookup @state name)
+                  (mu-error (str "unknown word: " name " -- " (suggest/hint @state name))))]
     (cond
       (:var entry) (run-var stack name (:var entry))
       (:fn entry)  ((:fn entry) stack)
