@@ -31,7 +31,7 @@
      @prompts]))
 
 (deftest the-prompt-shows-the-depth
-  (let [[_ prompts] (session "1 2" "pop")]
+  (let [[_ prompts] (session "1 2" "drop")]
     (is (= ["mu<0> " "mu<2> " "mu<1> "] prompts))))
 
 (deftest an-unfinished-input-continues
@@ -49,8 +49,8 @@
     (is (str/includes? out "0> 2\n1> 1\n") "a pasted block, one line per prompt")))
 
 (deftest errors-are-reported
-  (let [[out prompts] (session "1 2 pop pop pop" "7")]
-    (is (str/includes? out "error: pop: needs 1 item"))
+  (let [[out prompts] (session "1 2 drop drop drop" "7")]
+    (is (str/includes? out "error: drop: needs 1 item"))
     (is (= "mu<0> " (second prompts)) "the stack is cleared")))
 
 (deftest bye-and-the-end-leave

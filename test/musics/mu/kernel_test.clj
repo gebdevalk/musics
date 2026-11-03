@@ -73,7 +73,7 @@
   (is (= [true false] (:ok (run "'[1 2] [~] '[1 2] [~] eq  '[1 2] [~] '[1 3] [~] eq"))) "loops by what they repeat")
   (is (= [:yes] (:ok (run "1 2 lt '( :yes ) '( :no ) if"))))
   (is (= [:no] (:ok (run "2 1 lt '( :yes ) '( :no ) if"))))
-  (is (= [5] (:ok (run "5 1 2 gt '( pop ) when"))) "when false: nothing")
+  (is (= [5] (:ok (run "5 1 2 gt '( drop ) when"))) "when false: nothing")
   (is (= ["C4/4" "D4/4" "E4/4"] (mapv p/show (:ok (run "[c d e] '( ) each")))) "each: every element")
   (is (= [6] (:ok (run "'[1 2 3] 0 '( add ) reduce")))))
 
@@ -484,7 +484,7 @@
           (finally (mt/stop-all!)))))))
 
 (deftest endless-each-and-runaway-words
-  (is (re-find #"each: an endless stream" (:error (run "'[1 2] [~] '( pop ) each"))))
+  (is (re-find #"each: an endless stream" (:error (run "'[1 2] [~] '( drop ) each"))))
   (is (re-find #"reduce: an endless stream" (:error (run "'[1 2] [~] 0 '( add ) reduce"))))
   (is (re-find #"overflowed" (:error (run ": loop ( -- ) loop ; loop"))) "a word calling itself ends in an error, not a crash"))
 
@@ -524,7 +524,7 @@
 
 (deftest ctx-takes-a-line-not-stored
   (is (= "(not stored under :ROOT -- its own context only)\n  Tempo=90@0\n" (out "[!T:90 c d] ctx")) "its own settings, where they begin")
-  (run "[a: !T:90 c d] R! pop")
+  (run "[a: !T:90 c d] R! drop")
   (is (= ":a: Tempo=90@0\n" (out ":a ctx")) "a stored name, its chain")
   (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the line fetched with R@")
   (is (re-find #"something stored" (:error (run "7 ctx"))) "anything else is refused"))

@@ -60,8 +60,8 @@
     (is (= ["C4/4" "E4/4" "G4/4" "C5/4"] (shown (run "c4 e g c"))))))
 
 (deftest errors-clear-the-stack
-  (let [r (run "1 2 pop pop pop")]
-    (is (re-find #"pop: needs 1 item" (:error r)))
+  (let [r (run "1 2 drop drop drop")]
+    (is (re-find #"drop: needs 1 item" (:error r)))
     (is (= [] (:stack @e/state)) "cleared"))
   (is (re-find #"unknown word: frobnicate" (:error (run "1 frobnicate"))))
   (is (re-find #"instruction needs a container" (:error (run "!mf"))))

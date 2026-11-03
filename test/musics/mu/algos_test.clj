@@ -103,4 +103,4 @@
   (is (= "'[1/16 1/16 1/16]" (top "'( @^{ k:5 n:5 } @^{ k:3 n:3 } duration/euclid ) call")) "a local @^{ } wins over the head")
   (is (= "2 4" (top "'( @^{ len:4 } pitch/walk @^{ len:2 } volume/walk ) call count swap count")) "the head for one, a local one for the other")
   (is (= (top "@^{ seed:7 len:8 } pitch/walk") (top "'( @^{ seed:7 len:8 } pitch/walk ) call")) "a seed in the head")
-  (is (= "'[3/16 3/16 1/8]" (top "@^{ k:5 } duration/euclid pop duration/euclid")) "outside a recipe, used up by the next word"))
+  (is (= "'[3/16 3/16 1/8]" (top "@^{ k:5 } duration/euclid drop duration/euclid")) "outside a recipe, used up by the next word"))

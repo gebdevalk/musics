@@ -5,7 +5,7 @@
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
-  (:refer-clojure :exclude [first last nth count take drop take-last drop-last partition shuffle
+  (:refer-clojure :exclude [first last nth count take take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
@@ -161,39 +161,34 @@
 ;; -- form -------------------------------------------------------------------
 
 (defn take
-  "The first n elements"
+  "x cut to its first n elements"
   [x n]
   (let [n (count! n) x (mt/streamed x)]
     (if (mt/endless? x) (core/take n x) (each x (partial core/take n)))))
 
-(defn drop
-  "All but the first n elements"
-  [x n]
-  (each x (partial core/drop (count! n))))
-
 (defn take-last
-  "The last n elements"
+  "x cut to its last n elements"
   [x n]
   (each x #(core/take-last (count! n) (mt/finite! "take-last" %))))
 
 (defn drop-last
-  "All but the last n elements"
+  "x without its last n elements"
   [x n]
   (each x #(core/drop-last (count! n) (mt/finite! "drop-last" %))))
 
 (defn head
-  "The first n elements, 1 without a count: [c d e f] [H] gives [c],
+  "x cut to its first n elements, 1 without a count: [c d e f] [H] gives [c],
    [c d e f] 2 [H] gives [c d]"
   {:mu {:names ["[H]"] :optional {:n integer?}}}
   ([x] (head x 1))
   ([x n] (take x n)))
 
 (defn tail
-  "All after the first n, 1 without a count: [c d e f] [T] gives
+  "x without its first n elements, 1 without a count: [c d e f] [T] gives
    [d e f]; n [H] and n [T] split x in two"
   {:mu {:names ["[T]"] :optional {:n integer?}}}
   ([x] (tail x 1))
-  ([x n] (drop x n)))
+  ([x n] (each x (partial core/drop (count! n)))))
 
 (defn rotate
   "x rotated by n, wrapping around, now"
@@ -431,11 +426,11 @@
   [x q] (by-test "remove" (fn [t xs] (core/remove #(and (not (mt/marker? %)) (t %)) xs)) x q))
 
 (defn take-while
-  "The elements up to the first q refuses"
+  "x cut at the first element q refuses, keeping what comes before"
   [x q] (by-test "take-while" core/take-while x q))
 
 (defn drop-while
-  "The elements from the first q refuses"
+  "x without the elements before the first q refuses"
   [x q] (by-test "drop-while" (fn [t xs] (core/drop-while #(and (not (mt/marker? %)) (t %)) xs)) x q))
 
 (defn- by-print

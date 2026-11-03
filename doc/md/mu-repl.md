@@ -290,7 +290,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 
 | Group | Words |
 |---|---|
-| **stack** | `dup` `pop` `swap` `over` `rot` `nip` `tuck` `pick` `roll` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
+| **stack** | `dup` `drop` `swap` `over` `rot` `nip` `tuck` `pick` `roll` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
 | **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
@@ -308,7 +308,7 @@ Stack effects:
 | Word | Effect | Does |
 |---|---|---|
 | `dup` | `( a -- a a )` | copy the top |
-| `pop` | `( a -- )` | discard the top |
+| `drop` | `( a -- )` | discard the top |
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `over` | `( a b -- a b a )` | copy the second over the top |
 | `rot` | `( a b c -- b c a )` | rotate the top three |
@@ -328,8 +328,8 @@ float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
 `float` converts to a float, `rational` to an exact ratio (Clojure's
 `rationalize`: `0.1 rational` → `1/10`).
 
-**`pop` against `drop`.** The stack word that discards the top is
-`pop`; `drop` is the form tool, Clojure's own (all but the first n).
+**`drop`** is the stack word that discards the top, as in Forth and Factor; all but the
+first n elements of a form is `tail` (`x 2 tail`, `x 2 [T]`).
 `pick` stays the stack word; the weighted draw is `select`.
 
 ### Tools
@@ -388,7 +388,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   elements as it was given (`map`, `mute`) gives each place its
   settings. Those before the first element are the line's own and stay
   at its start. `[c d !mf e f] 1 3 slice` is `[D4/4 !mf E4]` and
-  `3 drop` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
+  `3 tail` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
 - **`[]` is the empty line**, mu's own (musics text needs an element
   in its `[ ]`, so `[c [] d]` is not read). It is where a line is built
   up from (`[] x concat`), what `delete` leaves of a one-note line, and

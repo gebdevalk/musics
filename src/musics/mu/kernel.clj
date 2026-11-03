@@ -16,8 +16,8 @@
 (word! "kernel" "dup" "( a -- a a )  copy the top"
        (fn [s] (need s 1 "dup") (conj s (peek s))))
 
-(word! "kernel" "pop" "( a -- )  drop the top"
-       (fn [s] (need s 1 "pop") (pop s)))
+(word! "kernel" "drop" "( a -- )  discard the top"
+       (fn [s] (need s 1 "drop") (pop s)))
 
 (word! "kernel" "swap" "( a b -- b a )  exchange the top two"
        (fn [s]

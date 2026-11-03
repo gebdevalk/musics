@@ -23,7 +23,7 @@ around on it, and you'll need them throughout:
 | `dup` | `( a -- a a )` | copy the top |
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `rot` | `( a b c -- b c a )` | the third comes on top |
-| `pop` | `( a -- )` | drop the top |
+| `drop` | `( a -- )` | discard the top |
 | `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `"dup" see` |
 
@@ -810,7 +810,7 @@ the line's own and stay at its start:
 
 ```
 [c d !mf e f] 1 3 slice                 → [D4/4 !mf E4]
-[c d !mf e f] 3 drop                    → [!mf F4/4]
+[c d !mf e f] 3 tail                    → [!mf F4/4]
 [c !mf d e !pp f] 2 rotate              → [E4/4 !pp F4 C4 !mf D4]
 ```
 

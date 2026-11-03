@@ -103,7 +103,7 @@
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4]" (top "[c d e f] 2 take")))
-  (is (= "[E4/4 F4]" (top "[c d e f] 2 drop")))
+  (is (= "[E4/4 F4]" (top "[c d e f] 2 tail")))
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] retrograde")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
@@ -264,7 +264,7 @@
   (is (re-find #"can't be written out" (top "[c d] [~] '( 2 + ) vary")))
   (is (= "{[C4/4 D4] [E4 F4]}" (top "[c d] [e f] {2}")) "{2} puts the top two side by side")
   (is (= "{[C4/4] [E4] [G4]}" (top "[c] [e] [g] {3}")) "{3} the top three")
-  (is (= "[C4/4]" (top "[c] [e] [g] {2} pop")) "only the top n")
+  (is (= "[C4/4]" (top "[c] [e] [g] {2} drop")) "only the top n")
   (is (re-find #"\{4\}: needs 4" (top "[c] [e] {4}")))
   (is (re-find #"\{1\}: takes 2 or more" (top "[c] {1}")))
   (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d] [e f] [2]")) "[2] the top two, one after another")
@@ -448,7 +448,7 @@
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
   (is (= "'[60 62] 3 times" (top "'[60 62] 3 times")))
   (is (= "6" (top "'[60 62] 3 times count")) "still all of its values")
-  (is (= "'[60 62 60 62]" (top "'[60 62] 2 times 0 drop")) "and still data: a tool rebuilds it as data")
+  (is (= "'[60 62 60 62]" (top "'[60 62] 2 times 0 tail")) "and still data: a tool rebuilds it as data")
   (is (= "'[60 nil] [~]" (top "[c r] [~] pitches")) "a rest's pitch, nil")
   (is (= "'[60 nil] [~]" (top "'[60 nil] [~]")) "reads back as it prints")
   (is (= "'['[60 64] 62] 2 times" (top "'['[60 64] 62] 2 times")) "a chord's pitches, a list inside data")
@@ -688,7 +688,7 @@
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")
-  (is (= "[!mf F4/4]" (top "[c d !mf e f] 3 drop")) "its note gone, it waits for the next that stays")
+  (is (= "[!mf F4/4]" (top "[c d !mf e f] 3 tail")) "its note gone, it waits for the next that stays")
   (is (= "[C4/4 D4]" (top "[c d !mf e f] 2 take")) "none follows: dropped")
   (is (= "[C4/4 x !mf E4 F4]" (top "[c d !mf e f] 1 2 [x] splice")))
   (is (= "[!mf !pp E4/4 F4]" (top "[!mf c d !pp e f] '( pitch 63 lt ) remove")) "both wait for e")
@@ -743,7 +743,7 @@
   (is (= "[C4/4 D4 E4 !pp A4]" (top "[c d e] 3 3 [!pp A4] splice")) "at the end appends")
   (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "no settings: as before")
   (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( [R] ) within")))
-  (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( pop [!pp A4 B4 C5] ) within")) "a chunk changed into a line with a setting keeps it")
+  (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( drop [!pp A4 B4 C5] ) within")) "a chunk changed into a line with a setting keeps it")
   (is (= "'[1 9 9 4]" (top "'[1 2 3 4] 1 3 '[9 9] splice")) "data as before"))
 
 (deftest every-place-a-test-or-a-value-matches

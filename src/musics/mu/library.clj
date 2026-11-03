@@ -25,7 +25,7 @@
   #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
     "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "up" "down" "transpose"
     "retrograde" "inversion" "retrograde-inversion" "mirror" "stretch" "shrink" "delay"
-    "delays" "with" "cresc" "dim"})
+    "delays" "with" "cresc" "dim" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"})
 
 (defn effect
   "v's stack effect and description, as a word written in Clojure shows
