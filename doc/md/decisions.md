@@ -2743,3 +2743,13 @@ nor a line next to the streams that are written on it. Those are ordinary
 of live, named parts; `|` is also still the bar strength of `.>>` and the
 "no music" of a live recipe. Rejected for now: a group that keeps its values
 as they are instead of as text (a bigger change to what a data list is).
+
+## 2026-11-03 — `line`, `together` and `beside` are gone
+
+The named twins of `[n]`, `{n}` and `{+}` were a second spelling of three
+signs that are plain to type; `x 2 line` and `[c d] [e f] 2 line` were the same
+as `[2]`, and `line` without its count ended in a Java `ClassCastException`.
+Typed, each says `it is now written …`. (A twin stays where its sign is awkward
+to write or to say: `[R]` `retrograde`, `[~]` `cycle`.) `{+}` is now defined
+in `musics.mu.tools` beside the other stack-shape signs, and refuses what is
+not music with a message.

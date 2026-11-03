@@ -180,10 +180,13 @@
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]
                              ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[||]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
-                             ["{+}" "beside" "{[c] [d]} [e]"] ["[+]" "concat" "[c] [d]"]
+                             ["[+]" "concat" "[c] [d]"]
                              ["[%]" "rotating" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
-  (is (= (top "[c] [d] [e] [3]") (top "[c] [d] [e] 3 line")))
+  (testing "line, together and beside are the signs only"
+    (doseq [[w in] [["line" "[c] [d] 2 line"] ["together" "[c] [d] 2 together"] ["beside" "{[c] [d]} [e] beside"]]]
+      (is (re-find (re-pattern (str "unknown word: " w " -- it is now written")) (top in)) w))
+    (is (= "{[C4/4] [D4] [E4]}" (top "{[c] [d]} [e] {+}")) "{+} joins a parallel and a line"))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
   (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
@@ -264,8 +267,7 @@
   (is (= "[C4/4 D4]" (top "[c d e f] 2 [H]")))
   (is (= "[E4/4 F4]" (top "[c d e f] 2 [T]")) "the same n splits the line in two")
   (is (= "'[1]" (top "'[1 2 3] [H]")) "numbers: the data is on top, no count")
-  (is (= "'[3]" (top "'[1 2 3] 2 [T]")))
-  (is (= (top "[c] [d] {2}") (top "[c] [d] 2 together"))))
+  (is (= "'[3]" (top "'[1 2 3] 2 [T]"))))
 
 (deftest row-forms
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")
@@ -713,8 +715,8 @@
   (is (= "[C4/4 D4 !mf G4 E4 F4]" (top "[c d !mf e f] 2 g insert")) "inserted after the instruction before it, as typed")
   (is (= "[C4/4 !mf F4]" (top "[c d !mf e f] 1 3 [_]")))
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] concat")) "concat writes the second's settings where it begins")
-  (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] 2 line flatten")) "flatten is what concat does")
-  (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] 2 line [f] 2 line flatten")) "one level only")
+  (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] [2] flatten")) "flatten is what concat does")
+  (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] [2] [f] [2] flatten")) "one level only")
   (is (= "'[1 '[2] 3]" (top "'[1 '[2] 3] flatten")) "data is left as it is: only lines are opened"))
 
 (deftest the-element-words-keep-the-settings-of-a-line

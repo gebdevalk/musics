@@ -570,16 +570,6 @@
   (when-not (and (integer? n) (not (neg? n))) (fail "needs a whole number on top, got" (p/show n)))
   (times-of "times" x n))
 
-(defn beside
-  "The parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives
-   {[a] [b] [c] [d]}; a line is one part."
-  {:mu {:names ["{+}"]}}
-  [a b]
-  (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
-    (if (= :PAR (mt/kind a))
-      (mt/reshape a #(concat % bs))
-      (mt/par-of (cons a bs)))))
-
 (defn mute
   "x with each note or drum q keeps made a rest of its length: the rhythm
    stays -- [c e g c'] '( pitch 65 > ) mute."

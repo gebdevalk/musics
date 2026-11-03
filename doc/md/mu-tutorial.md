@@ -122,12 +122,12 @@ it leaves mu running, and `gui` opens it again.
 
 | Word | Stack | Does |
 |---|---|---|
-| `[2]` `[3]` … (`line`) | `( a … -- line )` | the top n one after another |
+| `[2]` `[3]` … | `( a … -- line )` | the top n one after another |
 | `( … )` | `( -- line )` | what runs inside, gathered into one line (or a data list, for numbers) |
-| `{2}` `{3}` … (`together`) | `( a … -- parallel )` | the top n at once |
+| `{2}` `{3}` … | `( a … -- parallel )` | the top n at once |
 | `par` | `( line -- parallel )` | the parts of a line side by side: `( [c d] [e f] ) par` |
 | `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
-| `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
+| `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
 | `chord` | `( notes -- chord )` | the notes on top of the stack as a chord |
 | `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a line's notes or a parallel's parts |
@@ -781,20 +781,20 @@ as text: `[c d e] ,` leaves `mu0> [C4/4 D4 E4]` to edit and run again.
 ### Joining lines
 
 `concat` joins two lines into one, each keeping its own settings where it
-begins. `flatten` opens the lines inside a line, one level, and `2 line`
+begins. `flatten` opens the lines inside a line, one level, and `[2]`
 (`[2]`) is the other way, a line of two lines. `[]` is the empty line,
 the place to start building from:
 
 ```
 [!mf c d] [!pp e f] concat              → [!mf C4/4 D4 !pp E4 F4]
-[!mf c d] [!pp e f] 2 line              → [[!mf C4/4 D4] [!pp E4 F4]]
-[c d] [e f] 2 line flatten              → [C4/4 D4 E4 F4]
+[!mf c d] [!pp e f] [2]               → [[!mf C4/4 D4] [!pp E4 F4]]
+[c d] [e f] [2] flatten               → [C4/4 D4 E4 F4]
 [] [c d] concat                         → [C4/4 D4]
 [c d e] 1 _ 1 _ 0 _                     → []
 ```
 
 `concat` is the text of both written together, so a line with no settings
-of its own takes on what came before it; `2 line` keeps each line's own
+of its own takes on what came before it; `[2]` keeps each line's own
 apart. (`[]` is mu's alone: inside a line, `[c [] d]` is not read.)
 
 ### Settings stay with their notes
@@ -1212,9 +1212,9 @@ c4 '[0 40 73] sounds audition
 |---|---|
 | `chord` | `( notes -- chord )` |
 | `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
-| `{2}` `{3}` … `{n}`, `n together` | `( a … -- parallel )` |
+| `{2}` `{3}` … `{n}` | `( a … -- parallel )` |
 | `**` `spread` | `( x -- a b … )` |
-| `{+}` `beside` | `( a b -- parallel )` |
+| `{+}` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- line )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
 | `[:]` `repeats` | `( x -- [: x :] )` |

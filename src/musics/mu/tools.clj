@@ -89,6 +89,19 @@
 (word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
+(word! "music" "{+}" "( a b -- parallel )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
+       (fn [s]
+         (need s 2 "{+}")
+         (let [b (peek s) a (peek (pop s))]
+           (doseq [x [a b]]
+             (when-not (or (v/material? x) (mt/leaf? x))
+               (e/mu-error "{+}: joins parallels, a line being one part -- got" (p/show x))))
+           (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
+             (conj (pop (pop s))
+                   (if (= :PAR (mt/kind a))
+                     (mt/reshape a #(concat % bs))
+                     (mt/par-of (cons a bs))))))))
+
 (word! "music" "chord" "( leaves -- chord )  the notes on top of the stack as one chord: c e g chord"
        (fn [s]
          (let [leaves (reverse (take-while #(and (mt/leaf? %) (seq (:pitches %))) (rseq s)))]
@@ -214,7 +227,5 @@
 
 (doseq [[ns name sign-ns sign]
         [["music" "choosing"             "music" "[|]"]
-         ["music" "alternating"          "music" "[\\]"]
-         ["music" "line"                 "music" "[n]"]
-         ["music" "together"             "music" "{n}"]]]
+         ["music" "alternating"          "music" "[\\]"]]]
   (twin! ns name sign-ns sign))

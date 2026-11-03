@@ -266,7 +266,7 @@
   (joined a b))
 
 (defn flatten
-  "x with the lines inside it opened into it, one level: a b 2 line flatten is a
+  "x with the lines inside it opened into it, one level: a b [2] flatten is a
    b concat"
   [x]
   (if-let [slots (mt/items x)]
