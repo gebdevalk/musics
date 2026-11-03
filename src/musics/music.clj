@@ -850,7 +850,7 @@
 (defn transpose
   "x moved by n semitones, or by the interval from one note to the other,
    as the text's transpose: [c e g] 5 transpose, [c e g] c d transpose"
-  {:mu {:names ["TRP"] :optional {:to mt/leaf?}}}
+  {:mu {:optional {:to mt/leaf?}}}
   ([x n]
    (when-not (integer? n) (fail "needs a whole number of semitones, or two notes, got" (p/show n)))
    (mt/transposed x n))

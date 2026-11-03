@@ -192,7 +192,7 @@
 
 (defn rotate
   "x rotated by n, wrapping around, now"
-  {:mu {:names ["[%]" "ROT"]}}
+  {:mu {:names ["[%]"]}}
   [x n]
   (each x (fn [xs] (let [v (vec (mt/finite! "rotate" xs)) k (if (seq v) (mod (count! n) (core/count v)) 0)]
                      (core/concat (core/drop k v) (core/take k v))))))
@@ -228,7 +228,6 @@
 
 (defn shuffle
   "x in a random order, now ([?] orders music anew as it plays)"
-  {:mu {:names ["SFL"]}}
   [x]
   (each x (comp random/shuffle #(mt/finite! "shuffle" %))))
 
