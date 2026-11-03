@@ -14,7 +14,7 @@ mu, the musical REPL, and a GUI beside it.
   `[c d e] 1 g !` puts a note at an index (or down a path `'[1 2]`),
   `insert`, `_` and `[_]` delete, `concat` joins, `x 1/4 delay` starts
   it late, settings written in the middle of a line stay with their
-  notes. Ask it things: `length`, `at`, `bar`, `find`, `indexes`, `pulses`
+  notes. Ask it things: `duration`, `at`, `bar`, `find`, `indexes`, `pulses`
   (its rhythm as a grid), `classes` and `prime-form` (`$[047]` `$(037)`,
   pitch-class sets), `key-of`, `chord-name` (`<c e g>1` is `"C:M"`),
   and `x :volume setting` for what a note plays with.

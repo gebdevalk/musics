@@ -327,9 +327,9 @@ name, most specific first: its alias's (`bass.k`), its algo's
 (`duration/euclid.k`), the plain one (`k`), then the default:
 
 ```
-@( ^{ k:5 } duration/euclid '[60] [~] zip ) run count                → 5
-@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run count            → 2
-@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run count → 6
+@( ^{ k:5 } duration/euclid '[60] [~] zip ) run length               → 5
+@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run length           → 2
+@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length → 6
 ```
 
 The settings can also come from outside, an `@^{ }` right under the

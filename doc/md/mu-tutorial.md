@@ -247,7 +247,7 @@ part its own delay, one for each part:
 {[c d] [c d]} '[0 1/3] delays           → {[C4/4 D4] [3:1(r1) C4/4 D4]}
 ```
 
-The delay is a rest in the music, so `length`, `bar` and `at` see it, and
+The delay is a rest in the music, so `duration`, `bar` and `at` see it, and
 a `{ }` still ends with its longest part. A delay of 0 changes nothing. (A
 whole number among ratios is a ratio, so `'[0 1/3]` is a list of ratios.)
 
@@ -510,7 +510,7 @@ stream (a list).
 | One note | Every note | Gives |
 |---|---|---|
 | `pitch` | `pitches` | the pitch: `60`, a chord's pitches `'[60 64 67]`, nil for a rest or drum |
-| `duration` | `durations` | the length, in whole notes |
+| `duration` | `durations` | the length, in whole notes (a line's too: `[c4 d4 e2] duration` is 1) |
 | `volume` | `volumes` | its own volume (`c4\f`, `c4\vol:90`), else nil |
 | `articulation` | `articulations` | its articulation (`:accent`, `:staccato` …), else nil |
 | `instrument` | `instruments` | its own instrument (`c4\i:40`), else nil (a drum has none) |
@@ -585,15 +585,15 @@ its value, `!volume:70`.
 
 ### By time and by bar
 
-`length` is a line's length in whole notes, as written. `at` is the note
+`duration` is a line's length in whole notes, as written. `at` is the note
 sounding that long into it, a note sounding until the next starts, and
 `bar` the n-th measure by the line's meter, counted from 0 as `nth`
 counts:
 
 ```
-[c4 d4 e2] length                       → 1
-[c8 d e] length                         → 3/8
-{[c4 d4] [e2]} length                   → 1/2
+[c4 d4 e2] duration                     → 1
+[c8 d e] duration                       → 3/8
+{[c4 d4] [e2]} duration                 → 1/2
 [c4 d4 e2] 3/8 at                       → D4/4
 [c4 r4 e2] 1/4 at                       → r4
 [c2 d2 e2 f2] 1 bar                     → [E4/2 F4]
@@ -637,7 +637,7 @@ and `E` for 11), and the words above read it as the list it holds:
 ```
 [c e g c'] classes                      → $[047]
 [g c e d c'] classes                    → $[0247]
-[c e g c'] classes count                → 3
+[c e g c'] classes length               → 3
 $[047] 1 @                              → 4
 $[047] >list                            → '[0 4 7]
 ```
@@ -681,7 +681,7 @@ note value every length is a whole number of, or the one you give:
 [c4 d8] 1/16 pulses            → '[1 0 0 0 1 0]
 ```
 
-`pulses sum` is the number of notes and `pulses count` the number of
+`pulses sum` is the number of notes and `pulses length` the number of
 pulses. The algos read the same grid back (`pulses->durations`).
 
 `chord-name` names a chord the way chord symbols are written, as a string:
@@ -791,7 +791,7 @@ takes a value in place of the test. Nothing found is `nil`:
 ```
 
 `indexes` gives every place instead of the first, as a list; `indexes
-count` is how many notes match.
+length` is how many notes match.
 
 (A bare `e` or `c` as the value reads relative to the notes before it in
 the same input, as everywhere; capital letters say which.)
@@ -1292,6 +1292,7 @@ c4 '[0 40 73] sounds audition
 | `setting` | `( note\|line :key -- value )` |
 | `degrees` | `( numbers key -- line )` |
 | `key` | `( note\|line -- key )` |
+| `duration` | `( x -- t )` |
 | `length` | `( x -- n )` |
 | `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
 | `>list` | `( set -- list )` |

@@ -105,11 +105,11 @@
 
 (deftest time-gives-access-to-a-line
   (testing "length, in whole notes as written"
-    (is (= 1 (mu "[c4 d4 e2] length")))
-    (is (= 3/8 (mu "[c8 d e] length")))
-    (is (= 1/2 (mu "{[c4 d4] [e2]} length")) "a parallel is its longest part")
-    (is (= 3/2 (mu "[c4 d4] 3 [*] length")) "a repeat written out")
-    (is (= 1 (mu "[c2 d2 e2 f2] 1 bar length"))))
+    (is (= 1 (mu "[c4 d4 e2] duration")))
+    (is (= 3/8 (mu "[c8 d e] duration")))
+    (is (= 1/2 (mu "{[c4 d4] [e2]} duration")) "a parallel is its longest part")
+    (is (= 3/2 (mu "[c4 d4] 3 [*] duration")) "a repeat written out")
+    (is (= 1 (mu "[c2 d2 e2 f2] 1 bar duration"))))
   (testing "at: the note sounding t whole notes in"
     (is (= "C4/4" (run "[c4 d4 e2] 0 at")))
     (is (= "D4/4" (run "[c4 d4 e2] 1/4 at")))
@@ -142,8 +142,8 @@
     (is (= "[3:1(r1) C4/4 D4]" (run "[c d] 1/3 delay")) "a length that is no note value, as a tuplet")
     (is (= "[!mf r4 C4 D4]" (run "[!mf c d] 1/4 delay")) "the line's own settings stay first")
     (is (= "[r4 C4]" (run "c 1/4 delay")) "a note becomes a line")
-    (is (= 3/4 (mu "[c d] 1/4 delay length")))
-    (is (= 5/6 (mu "[c d] 1/3 delay length")) "a third of a whole note, exactly")
+    (is (= 3/4 (mu "[c d] 1/4 delay duration")))
+    (is (= 5/6 (mu "[c d] 1/3 delay duration")) "a third of a whole note, exactly")
     (is (= "C4/4" (run "{[c d] [c d]} 1/4 delays 1 @ 1/4 at")) "the second part sounds from 1/4")
     (is (= "[r4 C4 D4]" (run "[c d] 0.25 delay")) "a float is read as the ratio it names")
     (is (thrown-with-msg? Exception #"above 0" (e/run-text [] "[c d] 0 delay")))
@@ -153,7 +153,7 @@
     (is (= "{[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}" (run "{[c d] [c d] [c d]} 1/4 delays")) "part k by k times the step")
     (is (= "{[C4/4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d]} '[0/1 1/3] delays")) "a list: each its own, 0 leaves one alone")
     (is (= "{[C4/4 D4] [C4 D4]}" (run "{[c d] [c d]} 0 delays")) "a step of 0 changes nothing")
-    (is (= 1 (mu "{[c d] [c d] [c d]} 1/4 delays length")) "a parallel ends with its longest part: 1/2 + 2 * 1/4")
+    (is (= 1 (mu "{[c d] [c d] [c d]} 1/4 delays duration")) "a parallel ends with its longest part: 1/2 + 2 * 1/4")
     (is (thrown-with-msg? Exception #"one delay for each of the 2 parts, got 3" (e/run-text [] "{[c d] [c d]} '[0/1 1/4 1/2] delays")))
     (is (thrown-with-msg? Exception #"needs a parallel" (e/run-text [] "[c d] 1/4 delays")))
     (is (thrown-with-msg? Exception #"from 0" (e/run-text [] "{[c d] [c d]} -1/4 delays")))))
@@ -172,7 +172,7 @@
   (is (= "$[047]" (run "'[60 64 67 72] classes")) "pitch numbers too")
   (is (= "$[047]" (run "[c r e x8\\38 g] classes")) "rests and drums have none")
   (is (= "$[]" (run "[r r] classes")))
-  (is (= "3" (run "[c e g c'] classes count")) "a set the number words read")
+  (is (= "3" (run "[c e g c'] classes length")) "a set the number words read")
   (is (= "7" (run "[c e g c'] classes max")))
   (is (= "'[0 4 7]" (run "[c e g c'] classes >list")) ">list: a plain list, the kind gone")
   (is (thrown-with-msg? Exception #"loop|endless" (e/run-text [] "[c d] [~] classes")))
@@ -194,7 +194,7 @@
     (is (= "$()" (run "$()")))
     (is (thrown-with-msg? Exception #"six counts" (e/run-text [] "$<0011>"))))
   (testing "the numbers are what a list reader reads"
-    (is (= "3" (run "$[047] count")))
+    (is (= "3" (run "$[047] length")))
     (is (= "4" (run "$[047] 1 @")))
     (is (= "7" (run "$(037) 2 @")))
     (is (= "2" (run "$<001110> 3 @ 1 +")) "a count, then arithmetic")
@@ -227,7 +227,7 @@
   (is (= (run "[c4 e4] profile") (run "[c4 e4 r2] profile")) "a rest is silence, not weight")
   (is (= "'[1 0 0 0 0 0 0 0 0 0 0 0]" (run "[C4/4 C5 C6] profile")) "the octave does not count")
   (is (= "'[0 0 0 0 0 0 0 0 0 0 0 0]" (run "[r4 r4] profile")) "nothing sounds: all 0")
-  (is (= "12" (run "[c e g] profile count")) "a list the number words read")
+  (is (= "12" (run "[c e g] profile length")) "a list the number words read")
   (is (= "1" (run "[c e g] profile max")))
   (is (= "5/3" (run "[c4 e4 g4 c2] profile sum")) "exact: 1 + 1/3 + 1/3")
   (is (thrown-with-msg? Exception #"not data" (e/run-text [] "'[60 64] profile")))
@@ -320,7 +320,7 @@
     (is (= "'[1 0 1 0]" (run "[c4 d4] 1/8 pulses")))
     (is (= "'[1 1]" (run "[c4 d4] 1/2 pulses")) "a length under a pulse is still one"))
   (testing "a number the number words read"
-    (is (= "8" (run "[c4 d8 e8 f2] pulses count")))
+    (is (= "8" (run "[c4 d8 e8 f2] pulses length")))
     (is (= "4" (run "[c4 d8 e8 f2] pulses sum")) "four notes: the onsets"))
   (testing "refused"
     (is (thrown-with-msg? Exception #"not parallel" (e/run-text [] "{[c d] [e f]} pulses")))

@@ -484,16 +484,9 @@
   [x]
   (cond (mt/leaf? x)   (:duration x)
         (mt/marker? x) 0
-        (v/material? x) (let [parts (map length-of (mt/finite! "length" (mt/elements x)))]
+        (v/material? x) (let [parts (map length-of (mt/finite! "duration" (mt/elements x)))]
                           (if (= :PAR (mt/kind x)) (reduce max 0 parts) (reduce + 0 parts)))
         :else 0))
-
-(defn length
-  "The length in whole notes, as written (jumps not followed, [!] first
-   writes them out): [c4 d4 e2] length gives 1; a { } is its longest part"
-  [x]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs music, got" (p/show x)))
-  (let [n (length-of x)] (if (integer? n) (long n) n)))
 
 (defn- note-at
   "[leaf nil] for the note sounding t whole notes into x, else [nil what
@@ -622,8 +615,14 @@
   "Each note's pitch, as a stream, a rest's too: x durations x pitches zip is x again"
   [line] (mt/as-part :pitch (each-note "pitches" note-pitch true line)))
 (defn duration
-  "The length, in whole notes; for a line, durations"
-  [note] (one-note "duration" "durations" :duration note))
+  "How long it is, in whole notes: a note's; a line's as written (jumps not
+   followed, [!] first writes them out), a { } its longest part: [c4 d4 e2]
+   duration gives 1. durations gives every note's."
+  [x]
+  (cond
+    (mt/leaf? x)    (one-note "duration" "durations" :duration x)
+    (v/material? x) (let [n (length-of x)] (if (integer? n) (long n) n))
+    :else           (fail "needs a note or a line, got" (p/show x))))
 (defn durations
   "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
   [line] (mt/as-part :duration (each-note "durations" :duration true line)))

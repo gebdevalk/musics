@@ -366,7 +366,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `transpose` `inversion` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
-| **access** | `head` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
+| **access** | `head` `last` `nth` (`@`) `length`; by time: `duration` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -474,7 +474,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   - `interval-vector` counts the interval classes between them:
     `[c e g] interval-vector` is `$<001110>`, one major third (ic 4), one
     fifth (ic 5), one minor third (ic 3).
-  - What reads a list reads their numbers (`count`, `sum`, `max`, `@`,
+  - What reads a list reads their numbers (`length`, `sum`, `max`, `@`,
     `find`, `=`, which ignores the kind: `$[037] '[0 3 7] =` is true).
     What changes the numbers (`sort`, `take`, `intervals`) gives a plain
     list `'[4 3]`; `>list` is that conversion by itself: `$[047] >list`.
@@ -487,7 +487,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `'[1 0 0 0 1 0]`. A chord is one onset, a tie's second note a hold, a
   drum a note. It is what the algos' `pulses->durations` reads back, as a
   list of numbers the number words read (`pulses sum` is how many notes,
-  `pulses count` how many pulses). A parallel, data and a loop are refused.
+  `pulses length` how many pulses). A parallel, data and a loop are refused.
 - **Naming a chord**: `chord-name` gives the name of a chord as a chord
   symbol is written, as a string: the root, a colon and a quality word
   (`M` the major triad, `m`, `d`, `A`, `5`, `s2`, `s4`, `7`, `M7`, `m7`,
@@ -523,7 +523,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `'[1 0 0 0 1/3 0 0 1/3 0 0 0 0]` (C sounds 3/4, E and G 1/4);
   `[<c e g>2 <f a c'>2] profile` gives C 1 and the other four 1/2. Rests and drums add nothing, the octave does not
   count, nothing sounding is all 0, and a loop is refused. It scores,
-  it has no durations: `length` gives the time, `classes` which
+  it has no durations: `duration` gives the time, `classes` which
   classes. The scores are exact ratios, which the number words read (`profile
   sum`), and the input of a key estimate.
 - **Searching**: `find` is the first element a quotation accepts and
@@ -537,7 +537,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   all: `take` first. `x dup '( … ) index-of nth` reads the element back.
   `indexes` is every place instead of the first, as a list, a quotation or
   a value again: `[C4 E4 C4 E4] C4 indexes` is `'[0 2]`, `'[3 5 1 5] 5
-  indexes` `'[1 3]`, none an empty `'[]`; `indexes count` is how many match.
+  indexes` `'[1 3]`, none an empty `'[]`; `indexes length` is how many match.
 - **Delaying**: `delay` puts a rest of d whole notes in front of a line,
   d any rational (`[c d] 1/4 delay` is `[r4 C4 D4]`, `1/3 delay` a rest
   as a tuplet), its own settings staying first; a note becomes a line.
@@ -545,12 +545,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   it (`{[c d] [c d] [c d]} 1/4 delays`, a canon at the quarter), a data
   list one delay for each part (`'[0 1/3] delays`; a whole number among ratios is a ratio), 0 leaves a part alone,
   and the list must be as long as the parts are many. The delay is a rest
-  in the music, so `length`, `bar` and `at` see it, and the parallel ends
+  in the music, so `duration`, `bar` and `at` see it, and the parallel ends
   with its longest part. `delay` refuses a parallel and `delays` a line,
   each pointing at the other.
-- **By time and by bar**: `length` is a line's length in whole notes as
-  written (jumps not followed; `[!]` first writes them out; a `{ }` is
-  its longest part): `[c4 d4 e2] length` is `1`. `at` is the note, rest
+- **By time and by bar**: `duration` is a line's length in whole notes as
+  written (a note's is its own) (jumps not followed; `[!]` first writes them out; a `{ }` is
+  its longest part): `[c4 d4 e2] duration` is `1`. `at` is the note, rest
   or drum sounding t whole notes in, a note sounding until the next
   starts: `[c4 d4 e2] 3/8 at` is `D4/4`, `1/2 at` or `0.5 at` `E4/2`; it
   reads through nested lines, is refused past the end and for a `{ }`
@@ -845,7 +845,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   written value (or `nil`), not the sounding one; a drum's `instrument`
   is its key. `key` reads the key a note was written in (see the keys
   above).
-- **Access**: `head`, `last`, `nth` (from 0) and `count` take a line,
+- **Access**: `head`, `last`, `nth` (from 0) and `length` (how many elements; `duration` is how long) take a line,
   data or a stream (`head` and `nth` an endless one too).
 - **Repeating**: `times` (`[*]`) plays n times, one repeat
   (`vary` varying its passes); `[!]` writes the

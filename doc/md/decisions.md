@@ -2877,3 +2877,13 @@ type in a print (`'[60 62]` for `'[pitch C4 D4]`), never a sound.
 - A parse error shows the line with a caret and the literal symbols that could
   follow, no grammar regexes: `c/4` points at the `/`, `{c d}` at the space
   after `c`.
+
+## 2026-11-03 — length counts, duration measures
+
+`count` was the number of elements and `length` the time a line takes in whole
+notes, the reverse of what the names say elsewhere (`'[1 2 3] length` was `0`,
+a duration data doesn't have). Now `length` is how many elements (any line,
+list or stream) and `duration` is how long: a note's own, a line's as
+written, a `{ }`'s longest part, so `x duration` and `x durations sum` agree.
+`count`, `size` and `len` answer `it is now written length`. A line typed as
+`[c d e] length` now gives `3`, not `3/4`.

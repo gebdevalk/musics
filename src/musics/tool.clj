@@ -5,7 +5,7 @@
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
-  (:refer-clojure :exclude [last nth count take take-last drop-last partition shuffle
+  (:refer-clojure :exclude [last nth take take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
@@ -146,10 +146,10 @@
   [x]
   (each x (fn [_] (let [ns (mt/numbers-of "intervals" x)] (core/map - (core/rest ns) ns)))))
 
-(defn count
-  "How many elements"
+(defn length
+  "How many elements (duration is the time a line takes)"
   [x]
-  (core/count (mt/finite! "count" (mt/elements x))))
+  (core/count (mt/finite! "length" (mt/elements x))))
 
 ;; -- form -------------------------------------------------------------------
 

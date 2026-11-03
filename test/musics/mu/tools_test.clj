@@ -139,7 +139,7 @@
     (is (str/ends-with? (top "1 '( 1 + ) iterate") "…]")))
   (testing "where all of a stream is needed, an endless one is refused"
     (is (re-find #"endless -- take some first" (top "'[1 2] cycle retrograde")))
-    (is (re-find #"endless" (top "'[1 2] cycle count")))))
+    (is (re-find #"endless" (top "'[1 2] cycle length")))))
 
 (deftest assemble
   (is (= "[C4/4 D4 E4]" (top "( c4 d e )")))
@@ -191,7 +191,7 @@
                       ["interleave" "( x1 x2 -- x3 )"] ["partition" "( x n -- l )"]
                       ["zip" "( durations pitches -- m )"]]]
       (is (str/starts-with? (effect w) head) w))
-    (doseq [w ["count" "last" "concat" "pitches" "dup"]]
+    (doseq [w ["length" "last" "concat" "pitches" "dup"]]
       (is (not (str/includes? (first (str/split (effect w) #"\)\s\s" 2)) "'")) (str w " does not return its input changed")))))
 
 (deftest every-sign-has-a-twin
@@ -395,10 +395,10 @@
   (is (re-find #"pitch: reads one note; for every note of a line, use pitches" (top "[c d] pitch")))
   (is (re-find #"note\?: reads one note; for every note of a line, use '\( note\? \) map" (top "[c d] note?")))
   (is (re-find #"pitch: reads a note" (top "5 pitch")))
-  (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] head [c d e] last [c d e] 1 nth [c d e] count")))
+  (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] head [c d e] last [c d e] 1 nth [c d e] length")))
   (is (re-find #"nth: 5 is past the end" (top "[c d e] 5 nth")))
   (is (= "C4/4" (top "[c d] cycle head")) "head of an endless stream")
-  (is (re-find #"endless" (top "[c d] cycle count"))))
+  (is (re-find #"endless" (top "[c d] cycle length"))))
 
 (deftest pitches-print-as-written-or-by-key
   (is (= "[B&3/4 C4 E&4 F#4]" (top "[b& c e& f#]")) "as written")
@@ -502,7 +502,7 @@
 (deftest data-repeats-print-as-repeats
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
   (is (= "'[60 62] 3 times" (top "'[60 62] 3 times")))
-  (is (= "6" (top "'[60 62] 3 times count")) "still all of its values")
+  (is (= "6" (top "'[60 62] 3 times length")) "still all of its values")
   (is (= "'[60 62 60 62]" (top "'[60 62] 2 times 0 tail")) "and still data: a tool rebuilds it as data")
   (is (= "'[60 nil] [~]" (top "[c r] [~] pitches")) "a rest's pitch, nil")
   (is (= "'[60 nil] [~]" (top "'[60 nil] [~]")) "reads back as it prints")
@@ -542,7 +542,7 @@
 (deftest the-empty-line
   (is (= "[]" (top "[]")))
   (is (= "[]" (top "[ ]")) "spaces inside")
-  (is (= "0" (top "[] count")))
+  (is (= "0" (top "[] length")))
   (is (= "[C4/4 D4]" (top "[] [c d] concat")) "the start of a joining")
   (is (= "[C4/4 D4]" (top "[c d] [] concat")))
   (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")) "[[]] is still the measures")
@@ -851,6 +851,6 @@
   (is (= "'[3 4]" (top "[C4 D4 | E4 F4] '( pitch 63 > ) indexes")) "a bar line counts as an element, and never matches")
   (is (= "'[1 3]" (top "'[3 5 1 5] 5 indexes")) "data too")
   (is (= "'[]" (top "[C4 E4] D4 indexes")) "none: an empty list")
-  (is (= "2" (top "[C4 E4 C4 E4] C4 indexes count")) "a list the number words read")
+  (is (= "2" (top "[C4 E4 C4 E4] C4 indexes length")) "a list the number words read")
   (is (= (top "[C4 E4 G4 C5] '( pitch 65 > ) index-of") (top "[C4 E4 G4 C5] '( pitch 65 > ) indexes 0 @")) "the first is index-of")
   (is (re-find #"endless" (top "1 '( 1 + ) iterate '( 5 > ) indexes")) "an endless stream is refused"))
