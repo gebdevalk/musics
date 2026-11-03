@@ -220,11 +220,13 @@
   (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
   (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
   (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal")
-  (is (re-find #"unknown word: TRP -- it is now written transpose" (top "[c d] 5 TRP")) "TRP is the text's, not a word")
-  (is (re-find #"unknown word: ROT -- it is now written rotate" (top "[c d e] 1 ROT")))
-  (is (re-find #"unknown word: SFL -- it is now written shuffle" (top "[c d] SFL")))
-  (is (= "shuffle [C4/4 D4]" (top "SFL [c d]")) "SFL [ … ] reads as shuffle [ … ]")
-  (is (= "[F4/4 G4]" (top "[TRP 5 ( c d )]")) "TRP in the text"))
+  (testing "TRP, SFL and ROT are no more: not words, not the text's commands"
+    (is (re-find #"unknown word: TRP -- it is now written transpose" (top "[c d] 5 TRP")))
+    (is (re-find #"unknown word: ROT -- it is now written rotate" (top "[c d e] 1 ROT")))
+    (is (re-find #"unknown word: SFL -- it is now written shuffle" (top "[c d] SFL")))
+    (is (re-find #"can't read" (top "[TRP 5 ( c d )]")))
+    (is (re-find #"can't read" (top "[SFL [c d]]")))
+    (is (= "[F4/4 G4]" (top "[transpose 5 ( c d )]")) "the long names do it")))
 
 (deftest head-and-tail
   (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")

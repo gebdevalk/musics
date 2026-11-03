@@ -2691,9 +2691,11 @@ name; nothing else on top is taken).
 Three of the audit's doublure findings (M1 to M3), each a name that said a
 thing a second time.
 
-- **`ROT`, `SFL` and `TRP`** are the text's short commands (`[TRP 5 ( c d )]`)
-  and no longer mu words: `ROT` differed from the stack's `rot` only by case,
-  and `1 ROT` read as the stack word. An unknown one says what to write.
+- **`ROT`, `SFL` and `TRP`** are gone altogether, as mu words and as the
+  text's short commands (`[TRP 5 ( c d )]`, grammar included): `ROT` differed
+  from the stack's `rot` only by case, and the short forms saved nothing the
+  long names, which the printers always wrote, did not. A word typed that way
+  says what to write; the text's `ALT` and `CHS` shorthands are untouched.
 - **`[%]` is `rotating`**, as `[?]` is `shuffling`, `[|]` `choosing` and `[\]`
   `alternating`: the signs of the family that acts as the music plays. The two
   words that act now, `rotate` and `shuffle`, have no sign. `rotating` of data

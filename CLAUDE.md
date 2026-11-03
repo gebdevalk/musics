@@ -1272,9 +1272,7 @@ isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
   writes what the body's instructions change into each note as its
   override (the value it has where it's written), so it sounds
   backwards; jumps are refused. `shuffle ( … )` and `rotate n ( … )`
-  reorder once, now. Short forms: `TRP` for `transpose`, `SFL` for
-  `shuffle`, `ROT` for `rotate` (the text's commands only: the mu words are
-  written out, and `rot` is the stack's); the printers write the long names. `transpose` and the row forms reach
+  reorder once, now. `transpose` and the row forms reach
   into their whole body (`builder/deep-children!`): a nested line or
   parallel, a referenced part and a repeat's body move or turn round
   too (a parallel keeps its parts' order, reversing each); a part

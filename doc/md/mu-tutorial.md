@@ -406,9 +406,6 @@ the text's `alternate [ … ]`. Weights go on top, one per alternative:
 `[[c d] [e f]] '[3 1] [|]` gives `choose 3,1 [ … ]`, the first three
 times as often as the second.
 
-`TRP`, `SFL` and `ROT` are short for `transpose`, `shuffle` and `rotate`
-as the text's commands inside a line (`[TRP 5 ( c d )]`); as words they are
-written out (`[c d] 5 transpose`).
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
 | `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
 | `[!]` or `unfold` | `( x -- line )` | written out as it plays |
