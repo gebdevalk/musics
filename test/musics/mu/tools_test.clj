@@ -212,7 +212,7 @@
 
 (deftest the-retrograde-plays-backwards
   (is (= "[E4/8 D4 C4~ C4/4]" (top "[c4~ c8 d e] [R]")) "a tie turns round: on the note now before its partner")
-  (is (= "[F4/4\\volume:40.0 E4\\volume:50.0 D4\\volume:70 C4]" (top "[c !f d !vol< e f !pp] [R]"))
+  (is (= "[F4/4\\volume:40 E4\\volume:50 D4\\volume:70 C4]" (top "[c !f d !vol< e f !pp] [R]"))
       "what the instructions change is written into the notes, so it sounds backwards")
   (is (= "[!mf D4/4 C4]" (top "[!mf c d] [R]")) "a setting from the start stays one")
   (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")))
@@ -784,6 +784,17 @@
     (let [m (top "c/4")]
       (is (re-find #"^can't read this \(line 1, column 2\):\nc/4\n \^" m))
       (is (not (re-find #"#\"" m)) "no grammar regexes"))))
+
+;; a key the registry gives a range holds a number in it; volume is a whole number 0-100
+(deftest a-known-key-holds-its-range
+  (is (re-find #"volume is 0..100, got 700" (top "[c d] :volume 700 with")))
+  (is (re-find #"volume is 0..100, got 700" (top "[!volume:700 c d]")))
+  (is (re-find #"volume is 0..100, got -1" (top "[c4\\vol:-1]")) "a note's own too")
+  (is (= "50" (top "[c d] :volume setting")) "the default is a whole number")
+  (is (= "70" (top "[c d] :volume 70.0 with :volume setting")) "a decimal is the whole number it is")
+  (is (= "73" (top "[c d] :volume 72.5 with :volume setting")))
+  (is (= "70" (top "[c d] :bogus 70 with :bogus setting")) "a custom key has no range")
+  (is (= "[!swingUnit:16 C4/4 D4]" (top "[c d] :swingUnit 16 with")) "a log-scale key's range is a slider's, not a rule"))
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")

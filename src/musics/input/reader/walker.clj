@@ -342,8 +342,8 @@
   [ctx-key [tag v :as node]]
   (case tag
     :IntList     (instrument-list ctx-key "\\" (rest node))
-    :SignedInt   (Long/parseLong v)
-    :SignedFloat (Double/parseDouble v)
+    :SignedInt   (ck/conform ctx-key (Long/parseLong v))
+    :SignedFloat (ck/conform ctx-key (Double/parseDouble v))
     :Ratio       (let [[n d] (str/split v #"/")] (/ (Long/parseLong n) (Long/parseLong d)))
     :Name      (case ctx-key
                  :instrument (instrument-program! v)
@@ -1008,7 +1008,7 @@
                 target-node   (find-child ramp-children :Target)]
             (if (and dur-node target-node)
               (let [dur       (parse-duration-expr-node dur-node)
-                    target    (parse-target-node target-node)
+                    target    (ck/conform ctx-key (parse-target-node target-node))
                     start-val (ctx-local-value ctx ctx-key t)
                     obj       {:type :assignment
                                :key  (keyword name-val)
@@ -1049,7 +1049,7 @@
             state')
 
           :SignedInt
-          (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) (Integer/parseInt val))
+          (let [parsed-val (if (= ctx-key :Meter) (el/parse-meter-str val) (ck/conform ctx-key (Integer/parseInt val)))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
@@ -1065,7 +1065,7 @@
             state')
 
           :SignedFloat
-          (let [parsed-val (Double/parseDouble val)
+          (let [parsed-val (ck/conform ctx-key (Double/parseDouble val))
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]

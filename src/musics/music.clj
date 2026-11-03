@@ -734,7 +734,8 @@
    x8\\38: 38); a line: its context at its start."
   [x k]
   (let [k (ck/canonical-key (keyword k))
-        whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N
+        whole (fn [v] (let [v (ck/whole k v)] ; an :int key a whole number, an interpolated 60, not 60N
+                        (if (and (integer? v) (not (instance? Long v))) (long v) v)))]
     (whole
      (cond
       (mt/leaf? x) (cond

@@ -314,7 +314,7 @@
   (is (= "[!K:D.major D4/4 | E4]" (p/show (first (:ok (run "[c | d] 2 +")))))))
 
 (deftest hairpins
-  (is (= "[!vol:50.0< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
+  (is (= "[!vol:50< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
       "a crescendo from the line's volume (here the defaults') to 90")
   (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 dim")))))
       "a decrescendo from the line's own mf, after its leading instructions")

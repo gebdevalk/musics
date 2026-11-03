@@ -2887,3 +2887,17 @@ list or stream) and `duration` is how long: a note's own, a line's as
 written, a `{ }`'s longest part, so `x duration` and `x durations sum` agree.
 `count`, `size` and `len` answer `it is now written length`. A line typed as
 `[c d e] length` now gives `3`, not `3/4`.
+
+## 2026-11-03 — A key with a range holds a number in it; volume is a whole number
+
+`:volume 700 with` and `!volume:700` were accepted and played, and a default
+volume read back as `50.0` where one set was `70`. The registry already knows
+each key's range and type (`musics.common.context-keys`, from
+`music-data/quantities`); now `volume` is an `:int` 0..100 (the default 50, not
+50.0), and the walker passes every number it stores (`!key:n`, `\key:n`, a ramp's
+target) through `ck/conform`: a decimal of an `:int` key becomes the whole
+number it is (70.0 is 70, an interpolated 72.5 is 73, `setting` reads it so),
+and a number outside the range of a linear key is refused with the range
+(`volume is 0..100, got 700`). A log-scale key's range (tempo, a swing unit
+written 16 for a sixteenth) is only where its slider goes, so it is not
+enforced; a custom key (`!bogus:70`) has none and stays legal.

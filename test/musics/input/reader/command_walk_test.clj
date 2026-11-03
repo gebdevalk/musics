@@ -925,7 +925,7 @@
   (testing "a bare !vol< starts from the ambient volume"
     (let [seq-c (first-token "[c4 !vol< d4 e4]")
           ctx   (:context seq-c)]
-      (is (= 50.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))))))
+      (is (= 50 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))))))
 
 (deftest a-glued-dynamic-stays-on-its-note-inside-transient-commands
   (testing "reverse"

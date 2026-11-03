@@ -33,7 +33,7 @@
    ;; linear
    :pitch          {:type :int    :min 24   :max 119   :default 60  :scale :linear :doc "MIDI pitch, the range musics text writes (octaves 1-8)"}
    :semitones      {:type :int    :min -60  :max 60    :default 0   :scale :linear :doc "transposition in semitones"}
-   :volume         {:type :double :min 0.0  :max 100.0 :default 50.0 :scale :linear :doc "0-100 authoring scale"}
+   :volume         {:type :int :min 0  :max 100 :default 50 :scale :linear :doc "0-100 authoring scale"}
    :panning        {:type :double :min -1.0 :max 1.0   :default 0.0 :scale :linear :doc "left -1 .. right +1"}
    :delay          {:type :double :min 0.0  :max 2.0   :default 0.0 :scale :linear :doc "seconds"}
    :reverb         {:type :double :min 0.0  :max 1.0   :default 0.0 :scale :linear :doc "amount"}
