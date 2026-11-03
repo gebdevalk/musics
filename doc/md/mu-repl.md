@@ -42,7 +42,7 @@ what is still open.
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
-| `tool/cycle` | a qualified word | run |
+| `music/cycle` | a qualified word | run |
 | `$a` | a local, inside a word's body | its value pushed |
 
 **Leaves win.** A bare `a`, `c4` or `R` is always a note or rest. Any
@@ -134,7 +134,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   data): held code, run by `call`, `if`, `each`, `map` …
 
 **Namespaces**:
-- a word is qualified as `ns/word` (`tool/cycle`, `duration/euclid`);
+- a word is qualified as `ns/word` (`music/cycle`, `duration/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - `"musics.algo.random" require` loads a Clojure namespace while mu runs,
@@ -350,7 +350,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
-| **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
+| **value** | `+` `-` `*` `/` `cresc` `dim` `map` `transpose` `inversion` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
 | **access** | `head` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
@@ -921,7 +921,6 @@ duration/euclid                          → '[3/16 3/16 1/8]
 
 To write and play music by hand: the whole kernel; make, form,
 selection and assemble; from the value tools `map` and `transpose`; the leaf readers, on a leaf or a whole line; and the algos.
-The other value tools (`rescale`, `reductions`) follow.
 
 ## 9. Still open
 

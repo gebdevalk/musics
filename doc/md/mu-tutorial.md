@@ -24,6 +24,11 @@ around on it, and you'll need them throughout:
 | `swap` | `( a b -- b a )` | exchange the top two |
 | `rot` | `( a b c -- b c a )` | the third comes on top |
 | `drop` | `( a -- )` | discard the top |
+| `over` | `( a b -- a b a )` | copy the second to the top |
+| `nip` `tuck` | `( a b -- b )` `( a b -- b a b )` | drop the second; copy the top under the second |
+| `2dup` `2drop` | `( a b -- a b a b )` `( a b -- )` | copy or drop the top two |
+| `-rot` | `( a b c -- c a b )` | the top goes third: `rot` the other way |
+| `pick` `roll` | `( … n -- … )` | copy or move the n-th item to the top, the top being 0 |
 | `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `"dup" see` |
 | `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help` |
@@ -31,6 +36,55 @@ around on it, and you'll need them throughout:
 A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside
 are optional: `'(12 +)` is `'( 12 + )`.
+
+### Numbers, comparison, conditions
+
+Arithmetic is `+ - * /`, the same signs that move and stretch music
+(section 4 and 6): on two numbers they add, subtract, multiply and divide
+exactly (`7 2 /` is `7/2`); a number with a list works on each element, on
+either side; two lists work in step, as long as the shorter.
+
+```
+3 4 +                  → 7
+7 2 /                  → 7/2
+'[60 62] 12 +          → '[72 74]
+10 '[1 2 3] -          → '[9 8 7]
+'[1 2 3] '[10 20] +    → '[11 22]
+7 1+                   → 8                    1+ and 1- are one more, one less
+9 7 mod                → 2                    mod negate abs min max round int float rational
+```
+
+Comparison is Forth's: `= <> < > <= >=`, giving `true` or `false`. The order
+signs take numbers, ratios and durations (`/4 /8 >` is true); `=` and `<>`
+take any two values, two numbers by value (`1 1.0 =`), music by its notes
+(`[c d] [c d] =`), data element by element.
+
+```
+1 2 <                  → true
+/4 /8 >                → true
+1 1.0 =                → true
+[c d] [c d] =          → true
+```
+
+A **flag** is `true` or `false` and nothing else: `true false and or xor not`
+join them, and `if` and `when` run a quotation by one. A number or a note in a
+flag's place is refused, naming it.
+
+```
+1 2 < 3 4 < and                    → true
+1 2 < '( :yes ) '( :no ) if        → :yes
+5 1 2 > '( drop ) when             → 5          the quotation did not run
+0 not                              → ERR not: needs a flag (true or false), got 0
+```
+
+An error leaves the stack as it was before the input, so a typo costs the line,
+not what you built. A word mu does not know says what it is now called, or
+what is close to it, and `help` shows the way in:
+
+```
+3 5 add                → ERR unknown word: add -- it is now written +
+retrogrde              → ERR unknown word: retrogrde -- did you mean retrograde?
+```
 
 ## 1. Writing music
 
@@ -478,7 +532,7 @@ c4 note? <c e>4 chord?   → true   true
 The singular on a line is an error that names the plural:
 
 ```
-[c d] pitch              → pitch: reads one note; for every note of a line, use pitches
+[c d] pitch              → ERR pitch: reads one note; for every note of a line, use pitches
 ```
 
 ### What a note plays with
@@ -1055,8 +1109,8 @@ the same run -- a walk heard as pitch and as volume, rising and
 falling together:
 
 ```
-@^{ seed:7 len:6 } pitch/walk     → '[48 48 48 53 60 60]
-@^{ seed:7 len:6 } volume/walk    → '[40.0 40.0 40.0 45.88… 53.40… 52.88…]
+@^{ seed:7 len:6 } pitch/walk     → '[70 67 70 71 72 72]
+@^{ seed:7 len:6 } volume/walk    → '[64.00… 60.87… 64.11… 65.82… 67.14… 67.05…]
 ```
 
 ### Noise, masks, rows and automata
@@ -1193,7 +1247,10 @@ and leaves the tree it builds on the stack, a recipe like a quotation
 
 ## 17. Rating what you hear
 
-mu keeps your taste in sounds (`~/.mu-feedback.edn`):
+mu keeps your taste in sounds (`~/.mu-feedback.edn`). The rating words are in the
+`rate` namespace, which is not in use at the start: `"rate" use` makes them
+usable as written below (or write `rate/like`); Alt+j, k and l, Alt+J, K and L
+work either way.
 
 | Word | Does |
 |---|---|
