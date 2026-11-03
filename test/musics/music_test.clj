@@ -200,8 +200,8 @@
     (is (= "2" (run "$<001110> 3 @ 1 +")) "a count, then arithmetic")
     (is (= "'[0 4 7]" (run "$[047] >list")))
     (is (= "'[4 3]" (run "$[047] intervals")) "a changed set is a plain list")
-    (is (= "true" (run "$[037] '[0 3 7] eq")) "equal numbers are equal, the kind is no part of it")
-    (is (= "true" (run "$[047] $[740] eq")))))
+    (is (= "true" (run "$[037] '[0 3 7] =")) "equal numbers are equal, the kind is no part of it")
+    (is (= "true" (run "$[047] $[740] =")))))
 
 (deftest the-set-class-of-a-line
   (is (= "$(037)" (run "[c e g] prime-form")) "the major triad")

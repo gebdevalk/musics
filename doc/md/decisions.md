@@ -2634,3 +2634,36 @@ convention suits `[R]` and `[~]`, which are awkward to type or read; `+ - * /`
 are plain. The four operations are private helpers of `musics.arith`; `up`
 etc. are no words any more, and `x 7 up` is `x 7 +`. The tree algos named
 `up` and `stretch>` (`musics.algo.tree.lib`) are a different thing and stay.
+
+## 2026-11-03 — Forth comparisons, flags, and `.>` for play
+
+A Forth programmer's first guesses failed in mu: `<` and `>` played, `<>` made
+a chord, `=` and `<=` were "not a word" stubs, comparison went by `lt gt le ge
+eq ne`, `true false and or xor` did not exist (two conditions could not be
+joined) and `0 not` was `false`. The audit (`doc/md/audits/mu-repl-audit.md`,
+H4 and the Forth list) asked for the Forth set, which needs `< > <>` free.
+
+- **Comparison** is `= <> < > <= >=` (`musics.compare`); `lt gt le ge eq ne`
+  are gone (one spelling, as `add sub mul div` went). `<` `>` `<=` `>=` take
+  numbers, ratios and durations only; ordering notes by pitch is a guess, so
+  it stays explicit (`'( pitch 65 < )`). `=` and `<>` take any two values, two
+  numbers by value (`1 1.0 =` is true; a musician writes both), music by its
+  notes as `eq` did. Broadcasting a comparison over a stream waits for a
+  consumer of a stream of flags (a mask select).
+- **Flags** are `true` and `false` only. `and or xor not if when` refuse any
+  other value, naming it: in mu a note or a line is never a condition, and a
+  silent `false` for `0 not` hides a mistake. Forth's 0-is-false was rejected
+  for that reason.
+- **Play** is `.>` `.>>` `.>+` `.>>+`, what a voice plays `.<`, the voice list
+  `.<<`: today's family with a dot, the dot being Forth's output family (`.`
+  prints, `.s` shows the stack) and `.>` playing the top and dropping it.
+  Rejected: `:>` (reads as an id, `:bass :<`), `.$` (`$` already means sets,
+  locals and the segno), `->` (Clojure's threading macros, and 1241 lines of
+  the sources contain `->`). A lost dot is met with a hint: `[c d] >` says
+  "to play, write .>", and `>>` `>+` `>>+` `<<` are words that only say what
+  replaced them.
+- **The chord sign** `<>` is gone (`chord` stays; the text `<c e g>` is
+  untouched).
+- **Stack words** `2dup 2drop -rot 1+ 1-` and `negate` (for `neg`) are Forth's
+  names; `1+` and `1-` go through `+` and `-`, so they move a list of numbers
+  or music by a semitone too.

@@ -242,7 +242,7 @@
 ;; -- forms -----------------------------------------------------------------
 
 (defn cycle
-  "x endlessly, repeat ~ [ x ]: [c d] [~] > plays until stop; data or a
+  "x endlessly, repeat ~ [ x ]: [c d] [~] .> plays until stop; data or a
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
@@ -589,7 +589,7 @@
 
 (defn mute
   "x with each note or drum q keeps made a rest of its length: the rhythm
-   stays -- [c e g c'] '( pitch 65 gt ) mute."
+   stays -- [c e g c'] '( pitch 65 > ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
   (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))

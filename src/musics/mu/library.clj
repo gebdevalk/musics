@@ -9,6 +9,7 @@
             [musics.mu.kernel]
             [musics.mu.tools]
             [musics.arith]
+            [musics.compare]
             [musics.kernel]
             [musics.music]
             [musics.tool]
@@ -38,6 +39,7 @@
         optional (set (map name (keys (:optional (:mu (meta v))))))
         args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
         out      (cond (str/ends-with? (str (:name (meta v))) "!") ""
+                       (:out (:mu (meta v))) (:out (:mu (meta v)))
                        (changes-x (word-name v)) "x'"
                        :else (word-name v))]
     (str "( " (str/join " " (concat args ["--"] (when (seq out) [out]))) " )  " (str/replace (str doc) #"\s+" " "))))
@@ -57,6 +59,7 @@
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 
 (register! 'musics.kernel "kernel")
+(register! 'musics.compare "kernel")
 (register! 'musics.tool "tool")
 (register! 'musics.play "play")
 (register! 'musics.rate "rate")

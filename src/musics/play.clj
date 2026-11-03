@@ -2,7 +2,7 @@
   "mu's play words as Clojure functions, done for their effect: stopping,
    the voices, hushing, pausing, echoing, the synthesizer (its soundfonts are musics.soundfont's) and the GUI --
    registered into mu's play namespace by musics.mu.library. Starting
-   music (play, >, play-next, >>, …) reads the stack's shape -- a
+   music (play, .>, play-next, .>>, …) reads the stack's shape -- a
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
@@ -19,7 +19,7 @@
   "The id of the voice a voice's id or index names, which must play."
   [word voice]
   (when (and (number? voice) (not (integer? voice)))
-    (fail "takes a voice's id or index (:bass, 1); to compare numbers write lt"))
+    (fail "takes a voice's id or index (:bass, 1)"))
   (let [id (mt/voice-id word voice)]
     (when-not (keyword? id) (fail "takes a voice's id or index, :bass, :TA or 1 (the lowest) -- voices lists them"))
     (when-not (engine/voice-at id) (fail (pr-str id) "isn't playing -- voices lists what plays"))
@@ -35,7 +35,7 @@
 (defn voices!
   "What plays: each voice's index (1 the lowest, 0 -1 … the drums), id,
    material, and whether it is hushed or soloed"
-  {:mu {:names ["<<"]}}
+  {:mu {:names [".<<"]}}
   []
   (let [vs (mt/live-voices) {:keys [hushed solo]} (engine/hushed)]
     (if (empty? vs)
@@ -55,9 +55,9 @@
                            (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))))
 
 (defn playing
-  "What a voice plays, to change and play again: :bass playing 5 + >>,
-   1 < (the lowest)"
-  {:mu {:names ["<"]}}
+  "What a voice plays, to change and play again: :bass playing 5 + .>>,
+   1 .< (the lowest)"
+  {:mu {:names [".<"]}}
   [voice]
   (mt/playing (voice-id "playing" voice)))
 
@@ -155,7 +155,7 @@
 
 (defn compose
   "The composer window: build a tree by drag and drop; Finalize leaves it
-   on the stack, a recipe for a play word (compose :riff >); with a tree,
+   on the stack, a recipe for a play word (compose :riff .>); with a tree,
    edit it"
   {:mu {:optional {:tree t/node?}}}
   ([] (compose nil))

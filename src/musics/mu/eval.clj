@@ -150,7 +150,9 @@
    An error it throws is a mu error, named by the word."
   [stack name v]
   (let [al   (arity-for v stack)
-        _    (need stack (count al) name)
+        _    (try (need stack (count al) name)
+                  (catch clojure.lang.ExceptionInfo ex
+                    (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
         n    (- (count stack) (count al))
         r    (try (apply @v (subvec stack n))
                   (catch clojure.lang.ExceptionInfo ex

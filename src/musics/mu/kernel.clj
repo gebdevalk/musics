@@ -1,11 +1,13 @@
 (ns musics.mu.kernel
   "mu's kernel words that read the stack itself (namespace kernel): the
    stack, quotations, printing the stack, binding; also the play words
-   that read the stack's shape (play, >, play-next, >>, …)
+   that read the stack's shape (play, .>, play-next, .>>, …)
    (doc/md/mu-repl.md, section 8). The kernel's other words are
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
-  (:require [musics.mu.eval :as e :refer [word! need]]
+  (:require [musics.arith :as arith]
+            [musics.compare :as cmp]
+            [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -18,6 +20,28 @@
 
 (word! "kernel" "drop" "( a -- )  discard the top"
        (fn [s] (need s 1 "drop") (pop s)))
+
+(word! "kernel" "2dup" "( a b -- a b a b )  copy the top two"
+       (fn [s] (need s 2 "2dup") (conj s (peek (pop s)) (peek s))))
+
+(word! "kernel" "2drop" "( a b -- )  discard the top two"
+       (fn [s] (need s 2 "2drop") (pop (pop s))))
+
+(word! "kernel" "-rot" "( a b c -- c a b )  rotate the top three the other way: the top goes third"
+       (fn [s]
+         (need s 3 "-rot")
+         (let [n (count s)]
+           (conj (subvec s 0 (- n 3)) (peek s) (nth s (- n 3)) (nth s (- n 2))))))
+
+(doseq [[w op] [["1+" arith/+] ["1-" arith/-]]]
+  (word! "kernel" w (str "( n -- n' )  one " (if (= w "1+") "more" "less") ": a number, a list of numbers, or music (a semitone)")
+         (fn [s]
+           (need s 1 w)
+           (conj (pop s) (try (op (peek s) 1)
+                              (catch clojure.lang.ExceptionInfo ex (e/mu-error (str w ":") (ex-message ex))))))))
+
+(word! "kernel" "true" "( -- flag )  the flag true" (fn [s] (conj s true)))
+(word! "kernel" "false" "( -- flag )  the flag false" (fn [s] (conj s false)))
 
 (word! "kernel" "swap" "( a b -- b a )  exchange the top two"
        (fn [s]
@@ -85,18 +109,24 @@
 
 (defn- quote? [x] (v/quotation? x))
 
+(defn- flag-of
+  "x, a flag, or an error naming the word."
+  [word x]
+  (try (cmp/flag! x)
+       (catch clojure.lang.ExceptionInfo ex (e/mu-error (str word ":") (ex-message ex)))))
+
 (word! "kernel" "if" "( flag q-then q-else -- … )  run q-then if flag is true, else q-else"
        (fn [s]
          (need s 3 "if")
          (let [n (count s) [f t el] (subvec s (- n 3))]
            (when-not (and (quote? t) (quote? el)) (e/mu-error "if: needs two quotations '( … ) on top"))
-           (e/call (subvec s 0 (- n 3)) (if f t el)))))
+           (e/call (subvec s 0 (- n 3)) (if (flag-of "if" f) t el)))))
 
 (word! "kernel" "when" "( flag q -- … )  run q if flag is true"
        (fn [s]
          (need s 2 "when")
          (let [q (peek s) f (peek (pop s)) s (pop (pop s))]
-           (if f (e/call s q) s))))
+           (if (flag-of "when" f) (e/call s q) s))))
 
 (defn- finite
   "xs, refused if it is an endless stream: word would never end."
@@ -137,13 +167,6 @@
   (word! "kernel" w "( a -- )  take the top off the stack into the next prompt as text, to change and run again"
          (fn [s] (need s 1 w) (reset! edit-text (p/show (peek s))) (pop s))))
 
-(word! "kernel" "=" "( -- )  not a word: bind with :=, compare with eq"
-       (fn [_] (e/mu-error "=: isn't a word; bind a name with 'name value :=, compare with eq")))
-
-(doseq [[w num] [["<=" "le"] [">=" "ge"]]]
-  (word! "kernel" w (str "( -- )  not a word: compare numbers with " num)
-         (fn [_] (e/mu-error (str w ":") "isn't a word; to compare numbers write" num))))
-
 ;; -- bindings -------------------------------------------------------------
 
 (word! "kernel" ":=" "( 'name value -- )  bind; \\name is the value"
@@ -163,13 +186,13 @@
 (defn- target-of
   "[voice-id stack]: a voice's id (:bass) or index (1 the lowest) on top
    is the voice to play as; else nil. With nothing under it, the voice
-   plays its own music again, from the start (1 >, :bass >>)."
+   plays its own music again, from the start (1 .>, :bass .>>)."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
     (let [k (peek s)]
       (when (and (keyword? k) (= 1 (count s)) (not (get (mt/live-voices) k)))
         (e/mu-error (str word ":") (pr-str k) "on top is the voice to play as, and plays no music;"
-                    "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ >"))
+                    "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ .>"))
       (let [id (mt/voice-id word k) s (pop s)]
         (if-let [{:keys [x ctx]} (and (empty? s) (get (mt/live-voices) id))]
           [id (cond-> (or (live/replay id) [x]) ctx (conj ctx))]
@@ -205,14 +228,14 @@
         (mt/play! x ctx join? target))
       s)))
 
-(word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also >); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass >) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
+(word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also .>); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass .>) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
        (play-now "play" false))
 
-(word! "play" "play+" "( material [recipe] [^{ }] [voice] -- )  play it now, joining what plays (also >+)"
+(word! "play" "play+" "( material [recipe] [^{ }] [voice] -- )  play it now, joining what plays (also .>+)"
        (play-now "play+" true))
 
-(word! "play" ">" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
-(word! "play" ">+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
+(word! "play" ".>" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
+(word! "play" ".>+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
   "( material [recipe] [^{ }] [|…||||] [voice] -- ): stage! from the next boundary."
@@ -228,12 +251,17 @@
           (mt/stage! x ctx n join? target))
         s))))
 
-(word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also >>)"
+(word! "play" "play-next" "( material [^{ }] [|…||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also .>>)"
        (staged-word "play-next" false))
-(word! "play" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also >>+)"
+(word! "play" "play-next+" "( material [^{ }] [|…||||] -- )  joining what plays, from the next boundary, as play-next finds it (also .>>+)"
        (staged-word "play-next+" true))
-(word! "play" ">>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
-       (staged-word ">>" false))
-(word! "play" ">>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
-       (staged-word ">>+" true))
+(word! "play" ".>>" "( material [^{ }] [|…||||] -- )  play-next, in place of what plays from the next boundary"
+       (staged-word ".>>" false))
+(word! "play" ".>>+" "( material [^{ }] [|…||||] -- )  play-next+, joining what plays from the next boundary"
+       (staged-word ".>>+" true))
+
+;; the old signs: not words, and say what replaced them
+(doseq [[w new] [[">+" ".>+"] [">>" ".>>"] [">>+" ".>>+"] ["<<" ".<<"]]]
+  (word! "play" w (str "( -- )  not a word: write " new)
+         (fn [_] (e/mu-error (str w ":") "isn't a word; write" new))))
 

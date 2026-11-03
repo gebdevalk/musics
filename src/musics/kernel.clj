@@ -4,7 +4,7 @@
    kernel namespace by musics.mu.library. The words of the stack itself
    (dup, swap, pick, …), of quotations (call, if, each, …), binding (:=)
    and printing the stack stay stack words in musics.mu.kernel."
-  (:refer-clojure :exclude [min max mod abs not int float])
+  (:refer-clojure :exclude [min max mod abs int float])
   (:require [clojure.core :as core]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -25,8 +25,8 @@
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
 ;; -- numbers ------------------------------------------------------------
-;; Arithmetic is + - * / (musics.arith); comparison has names
-;; (doc/md/mu-repl.md).
+;; Arithmetic is + - * / (musics.arith); comparison and flags are
+;; musics.compare.
 
 (defn- numbers [& xs]
   (when-not (every? number? xs)
@@ -51,40 +51,12 @@
   {:mu {:optional {:b number?}}}
   ([xs] (extreme "max" core/max xs))
   ([a b] (numbers a b) (core/max a b)))
-(defn neg      "The number negated" [a] (numbers a) (- a))
+(defn negate   "The number negated" [a] (numbers a) (- a))
 (defn abs      "The number without its sign" [a] (numbers a) (core/abs a))
 (defn round    "Rounded to the nearest whole number" [a] (numbers a) (long (Math/round (double a))))
 (defn int      "Cut to a whole number, toward zero: 7/2 int gives 3" [a] (numbers a) (long a))
 (defn float    "As a decimal number: 1/4 float gives 0.25" [a] (numbers a) (double a))
 (defn rational "As an exact ratio: 0.1 rational gives 1/10" [a] (numbers a) (rationalize a))
-
-(defn lt "True when a is less than b" [a b] (numbers a b) (< a b))
-(defn gt "True when a is greater than b" [a b] (numbers a b) (> a b))
-(defn le "True when a is at most b" [a b] (numbers a b) (<= a b))
-(defn ge "True when a is at least b" [a b] (numbers a b) (>= a b))
-(defn not "True becomes false, false true" [flag] (core/not flag))
-
-(defn- same?
-  "a and b equal: music (a line or a note) when it prints the same, its
-   names left out, so two lines of the same notes are equal wherever
-   each came from and whatever they are called; two loops when they
-   repeat the same; data and streams element by element. An endless
-   stream that is no loop is refused: it would never end."
-  [a b]
-  (let [data?    #(and (v/material? %) (= :DATA (mt/kind %)))
-        music?   #(and (or (v/material? %) (v/leaf? %)) (core/not (data? %)))
-        endless? #(and (sequential? %) (:mu/endless (meta %)))
-        items?   #(or (data? %) (v/pcset? %) (and (sequential? %) (core/not (string? %))))]
-    (cond
-      (and (music? a) (music? b)) (binding [p/*names* false] (= (p/show a) (p/show b)))
-      (and (mt/loop? a) (mt/loop? b)) (same? (first (mt/repeat-of a)) (first (mt/repeat-of b)))
-      (or (endless? a) (endless? b)) (fail "an endless stream never ends -- take some first")
-      (and (items? a) (items? b)) (let [xs (vec (mt/elements a)) ys (vec (mt/elements b))]
-                                    (and (= (count xs) (count ys)) (every? true? (map same? xs ys))))
-      :else (= a b))))
-
-(defn eq "True when a equals b (any values; music when it has the same notes)" [a b] (same? a b))
-(defn ne "True when a differs from b (any values; music when its notes differ)" [a b] (core/not (same? a b)))
 
 ;; -- the repo -------------------------------------------------------------
 

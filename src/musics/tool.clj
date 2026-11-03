@@ -108,7 +108,7 @@
 
 (defn find
   "The first element a quotation accepts, else nil:
-   [c e g c'] '( pitch 65 gt ) find gives G4/4"
+   [c e g c'] '( pitch 65 > ) find gives G4/4"
   [x q]
   (core/first (core/filter (matching "find" q) (mt/finite! "find" (mt/elements x)))))
 
@@ -418,7 +418,7 @@
   (each x (partial f #(or (mt/marker? %) (mt/result word q %)))))
 
 (defn filter
-  "x with only the elements q keeps: [c e g c'] '( pitch 65 lt ) filter"
+  "x with only the elements q keeps: [c e g c'] '( pitch 65 < ) filter"
   [x q] (by-test "filter" core/filter x q))
 
 (defn remove

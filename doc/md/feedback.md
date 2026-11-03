@@ -46,10 +46,10 @@ A key works mid-typing: it leaves the line alone and confirms above the
 prompt, as `echo` prints. The keys are three neighbours on the home row,
 unshifted to rate (`j` dislike, `k` meh, `l` like) and shifted to move
 (`J` prev, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
-what you type (`>` plays, `.s` prints, `[/]` parts).
+what you type (`.>` plays, `.s` prints, `[/]` parts).
 
 The current trial is the audition's current item, else what was last
-played with `>`/`play` when that is a single note, chord or drum.
+played with `.>`/`play` when that is a single note, chord or drum.
 
 ### Auditions and combinations
 

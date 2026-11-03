@@ -101,14 +101,14 @@ In mu:
 
 - **A word, or a recipe:** every algo is a word, and a tree is a run of
   words, or a tree recipe `@( … )`. `run` puts a finite result on the
-  stack, and a play word plays it: `>`, or live from nothing with
-  `| '( … ) :riff >`. `doc/md/algo-tree-tutorial.md` goes through it.
+  stack, and a play word plays it: `.>`, or live from nothing with
+  `| '( … ) :riff .>`. `doc/md/algo-tree-tutorial.md` goes through it.
 - **Compose by drag and drop:** `compose` opens a canvas and a pane of
   shelves -> algos (what each delivers: pitch, duration, volume,
   articulation, leaf, parallel, tools, and the workshop of raw material).
   You drop algos onto the tree's open slots (only fitting ones are
   accepted), and Finalize leaves the tree on the stack as a recipe:
-  `compose :riff >`.
+  `compose :riff .>`.
 - **A window for it:** `:riff gui` opens a live voice's settings, a
   control per param; the GUI's Wall window shows every live voice's.
 - **Live:** a voice playing a recipe plays each next note of what the
@@ -129,7 +129,7 @@ In code, the same steps are `musics.algo.tree`'s:
 A tree ends in leaves (Leaf/Rest/Drum maps), which the engine walks as
 a plain Form; a part (drums, counterpoint) plays its voices at once. A
 tree that reads `:nodes` transforms a voice's own notes instead, which
-is what a mu recipe with music under it does (`[c d e] '( 5 + ) :up >`).
+is what a mu recipe with music under it does (`[c d e] '( 5 + ) :up .>`).
 
 ## Where things live
 
@@ -173,7 +173,7 @@ Jeppesen against a cantus you give, in any of the five kinds, and
 checks counterpoint against the same rules:
 
 ```
-[D4/1 F E D G F A G F E D] @^{ voices:3 kind:2 } parallel/species >
+[D4/1 F E D G F A G F E D] @^{ voices:3 kind:2 } parallel/species .>
 ```
 
 In mu, `parallel/species` takes the cantus from the stack, its settings
@@ -336,8 +336,8 @@ reproducible. The result is a `par` group with one layer per kit piece,
 each layer a vector of Drum/Rest maps, so it plays as a whole:
 
 ```
-@^{ style:funk swing:0.2 } parallel/drums >
-@^{ style:jazz bars:4 } parallel/drums [~] >
+@^{ style:funk swing:0.2 } parallel/drums .>
+@^{ style:jazz bars:4 } parallel/drums [~] .>
 ```
 
 In code: `(t/play! (drums) {:style :jazz :bars 4})`.

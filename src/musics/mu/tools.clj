@@ -84,10 +84,10 @@
 (word! "music" "[n]" "( a … n -- line )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
-(word! "music" "<>" "( leaves -- chord )  the notes on top of the stack as one chord: c e g <>"
+(word! "music" "chord" "( leaves -- chord )  the notes on top of the stack as one chord: c e g chord"
        (fn [s]
          (let [leaves (reverse (take-while #(and (mt/leaf? %) (seq (:pitches %))) (rseq s)))]
-           (when (empty? leaves) (e/mu-error "<>: needs notes on top of the stack"))
+           (when (empty? leaves) (e/mu-error "chord: needs notes on top of the stack"))
            (conj (subvec s 0 (- (count s) (count leaves)))
                  (assoc (first leaves) :pitches (vec (distinct (mapcat :pitches leaves))))))))
 
@@ -211,6 +211,5 @@
         [["music" "choosing"             "music" "[|]"]
          ["music" "alternating"          "music" "[\\]"]
          ["music" "line"                 "music" "[n]"]
-         ["music" "together"             "music" "{n}"]
-         ["music" "chord"                "music" "<>"]]]
+         ["music" "together"             "music" "{n}"]]]
   (twin! ns name sign-ns sign))
