@@ -170,22 +170,19 @@
   (each x #(core/drop-last (count! n) (mt/finite! "drop-last" %))))
 
 (defn head
-  "The first element; with a count n, x cut to its first n elements:
-   [c d e f] head gives C4/4, [c d e f] 2 head gives [C4/4 D4]; n head and
-   n tail split x in two"
-  {:mu {:names ["[H]"] :optional {:n integer?}}}
-  ([x]
-   (let [els (mt/elements x)]
-     (when (empty? els) (fail "nothing in" (p/show x)))
-     (core/first els)))
-  ([x n] (take x n)))
+  "The first element: [c d e f] head gives C4/4 (n take is the first n)"
+  {:mu {:names ["[H]"]}}
+  [x]
+  (let [els (mt/elements x)]
+    (when (empty? els) (fail "nothing in" (p/show x)))
+    (core/first els)))
 
 (defn tail
-  "x without its first n elements, 1 without a count: [c d e f] [T] gives
-   [d e f]; n head and n tail split x in two"
-  {:mu {:names ["[T]"] :optional {:n integer?}}}
-  ([x] (tail x 1))
-  ([x n] (each x (partial core/drop (count! n)))))
+  "x without its first element: [c d e f] tail gives [d e f] (split-at cuts
+   at any n)"
+  {:mu {:names ["[T]"]}}
+  [x]
+  (each x (partial core/drop 1)))
 
 (defn rotate
   "x rotated by n, wrapping around, now ([%] rotates music anew as it plays)"

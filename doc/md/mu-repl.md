@@ -351,8 +351,9 @@ float. `int` truncates toward zero (`7/2 int` → `3`), `round` rounds,
 `float` converts to a float, `rational` to an exact ratio (Clojure's
 `rationalize`: `0.1 rational` → `1/10`).
 
-**`drop`** is the stack word that discards the top, as in Forth and Factor; all but the
-first n elements of a form is `tail` (`x 2 tail`, `x 2 [T]`).
+**`drop`** is the stack word that discards the top, as in Forth and Factor; the first
+element of a form is `head`, all the rest `tail`, the first n `take` and the
+last n `take-last` (`split-at` cuts at any n).
 `pick` stays the stack word; the weighted draw is `select`.
 
 ### Tools
@@ -411,7 +412,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   elements as it was given (`map`, `mute`) gives each place its
   settings. Those before the first element are the line's own and stay
   at its start. `[c d !mf e f] 1 3 slice` is `[D4/4 !mf E4]` and
-  `3 tail` is `[!mf F4/4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
+  `[!mf c d e] tail` is `[!mf D4/4 E4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
 - **`[]` is the empty line**, mu's own (musics text needs an element
   in its `[ ]`, so `[c [] d]` is not read). It is where a line is built
   up from (`[] x concat`), what `delete` leaves of a one-note line, and
@@ -782,7 +783,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`concat`), each line's settings written where it begins | `[a b] [c d] [+]` |
 | `[_]` | a range of the elements cut out (`cut`): start and end, as `slice` takes them | `[c d e f g] 1 3 [_]` gives `[C4/4 F4 G4]` |
-| `[H]`, `[T]` | the head, the first element, or with a count n the first n elements, and the tail, all after the first n (1 without a count) (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `C4/4`, `[c d e f] 2 [H]` `[C4/4 D4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
+| `[H]`, `[T]` | the head, the first element, and the tail, all after it (`head`, `tail`); the first n is `take` | `[c d e f] [H]` gives `C4/4`, `[c d e f] [T]` `[D4/4 E4 F4]`, `[c d e f] 2 take` `[C4/4 D4]` |
 | `[%]` | the text's `rotate n [ … ]`, one step further each time it plays (`rotating`); data and streams are rotated now. `rotate` rotates music now, wrapping around | `[a b c d] 1 rotate` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 [%] [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] .>`, `[c d] [~] \|\| .>>+` |

@@ -102,7 +102,7 @@
 
 (deftest form-tools-keep-the-form
   (is (= "[C4/4 D4]" (top "[c d e f] 2 take")))
-  (is (= "[E4/4 F4]" (top "[c d e f] 2 tail")))
+  (is (= "[D4/4 E4 F4]" (top "[c d e f] tail")))
   (is (= "[F4/4]" (top "[c d e f] 1 take-last")))
   (is (= "[F4/4 E4 D4 C4]" (top "[c d e f] retrograde")) "retrograde")
   (is (= "[D4/4 E4 C4]" (top "[c d e] 1 rotate")))
@@ -208,7 +208,7 @@
     (is (= "{[C4/4] [D4] [E4]}" (top "{[c] [d]} [e] {+}")) "{+} joins a parallel and a line"))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
-  (is (= (top "[c d e f] 2 [T]") (top "[c d e f] 2 tail"))))
+  (is (= (top "[c d e f] [T]") (top "[c d e f] tail"))))
 
 (deftest the-retrograde-plays-backwards
   (is (= "[E4/8 D4 C4~ C4/4]" (top "[c4~ c8 d e] [R]")) "a tie turns round: on the note now before its partner")
@@ -267,7 +267,7 @@
 (deftest errors-say-what-is-wrong-and-where
   (testing "a count is 0 or more"
     (is (re-find #"^take: needs a count \(a whole number, 0 or more\) on top, got -1" (top "[c d e] -1 take")))
-    (is (re-find #"^head: needs a count .* got -1" (top "[c d e] -1 head"))))
+    (is (re-find #"^head: needs a line, a list or a stream, got -1" (top "[c d e] -1 head")) "head takes no count: n take is the first n"))
   (testing "[n] and {n} take music, and say how numbers gather"
     (is (re-find #"^\[2\]: takes music \(notes, lines, parallels\), got 1 -- numbers gather into a list with \( 1 2 \)" (top "1 2 [2]")))
     (is (re-find #"^\{2\}: takes music .* got 1 " (top "1 2 {2}")))
@@ -282,14 +282,12 @@
 
 (deftest head-and-tail
   (is (= "C4/4" (top "[c d e f] [H]")) "without a count, the first element")
-  (is (= "[C4/4]" (top "[c d e f] 1 [H]")) "with a count, a line of that many")
+  (is (re-find #"^\[H\]: needs a line, a list or a stream, got 1" (top "[c d e f] 1 [H]")) "no count: 1 take is the first one as a line")
   (is (re-find #"unknown word: first -- it is now written head" (top "[c d] first")) "first is head")
   (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")
-  (is (= "[C4/4 D4]" (top "[c d e f] 2 [H]")))
-  (is (= "[E4/4 F4]" (top "[c d e f] 2 [T]")) "the same n splits the line in two")
+  (is (= "[C4/4 D4]" (top "[c d e f] 2 take")) "the first n is take")
   (is (= "1" (top "'[1 2 3] [H]")) "numbers: the data is on top, no count")
-  (is (= "'[1]" (top "'[1 2 3] 1 [H]")) "with a count, a list")
-  (is (= "'[3]" (top "'[1 2 3] 2 [T]"))))
+  (is (= "'[2 3]" (top "'[1 2 3] [T]"))))
 
 (deftest row-forms
   (is (= "[G4/4 E4 D4 C4]" (top "[c4 d e g] [R]")) "the retrograde")
@@ -503,7 +501,7 @@
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
   (is (= "'[60 62] 3 times" (top "'[60 62] 3 times")))
   (is (= "6" (top "'[60 62] 3 times length")) "still all of its values")
-  (is (= "'[60 62 60 62]" (top "'[60 62] 2 times 0 tail")) "and still data: a tool rebuilds it as data")
+  (is (= "'[62 60 62]" (top "'[60 62] 2 times tail")) "and still data: a tool rebuilds it as data")
   (is (= "'[60 nil] [~]" (top "[c r] [~] pitches")) "a rest's pitch, nil")
   (is (= "'[60 nil] [~]" (top "'[60 nil] [~]")) "reads back as it prints")
   (is (= "'['[60 64] 62] 2 times" (top "'['[60 64] 62] 2 times")) "a chord's pitches, a list inside data")
@@ -798,7 +796,7 @@
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")
-  (is (= "[!mf F4/4]" (top "[c d !mf e f] 3 tail")) "its note gone, it waits for the next that stays")
+  (is (= "[!mf D4/4 E4]" (top "[!mf c d e] tail")) "its note gone, it waits for the next that stays")
   (is (= "[C4/4 D4]" (top "[c d !mf e f] 2 take")) "none follows: dropped")
   (is (= "[C4/4 x !mf E4 F4]" (top "[c d !mf e f] 1 2 [x] splice")))
   (is (= "[!mf !pp E4/4 F4]" (top "[!mf c d !pp e f] '( pitch 63 < ) remove")) "both wait for e")

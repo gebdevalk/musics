@@ -2901,3 +2901,14 @@ and a number outside the range of a linear key is refused with the range
 (`volume is 0..100, got 700`). A log-scale key's range (tempo, a swing unit
 written 16 for a sixteenth) is only where its slider goes, so it is not
 enforced; a custom key (`!bogus:70`) has none and stays legal.
+
+## 2026-11-03 — head and tail take no count
+
+`head` was the first element, or with a count the first n elements, and `tail`
+all after the first n (1 without a count): one word with two result shapes (an
+element, then a list), and `n head` was `n take` again. Now `head` is the first
+element and `tail` all after it (`[H]`, `[T]` the same); `take` is the first n,
+`take-last` the last n, `split-at` cuts at any n. Dropping the first n elements
+has no word of its own. `drop-last` and `drop-while` keep their names beside the
+stack word `drop`; `[/]` stays the twin of `parts` (n pieces), `partition` is
+chunks of size n.
