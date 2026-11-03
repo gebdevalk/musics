@@ -38,7 +38,7 @@ what is still open.
 | `M:3/4` `T:8=200` `K:D.major` `vol:mf` | a setting alone: `name:value`, no space, as `!name:value` writes it in a line | pushed as the context `^{ !M:3/4 }`: `x M:3/4 with` lays it under x. A leaf wins (`c:m7` is a chord) |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
-| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 add 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 + 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
@@ -292,7 +292,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | Group | Words |
 |---|---|
 | **stack** | `dup` `drop` `swap` `over` `rot` `nip` `tuck` `pick` `roll` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
-| **numbers** | `add` `sub` `mul` `div` `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
+| **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `neg` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison** | `eq` (any values; music by its notes) `lt` `gt` `le` `ge` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
@@ -340,7 +340,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `drop` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `seq` `par` `<>` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `repeat` `volta` `vary` |
@@ -715,10 +715,18 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 
 ### Arithmetic on material, accessors
 
-mu is a musical space: the plain symbols act on material, and the
-same operations on numbers are words (`2 3 add`, `1 2 lt`). A plain
-symbol on two numbers is refused with that hint (`2 3 +`: "+: is
-musical; on numbers write add"); `<`, `<=` and `>=` aren't words but
+`+` `-` `*` `/` work on everything they can (`musics.arith`, one
+multimethod over what the two values are):
+
+| the two values | the result |
+|---|---|
+| two numbers | the sum, difference, product, exact quotient: `2 3 +` is `5`, `1 4 /` is `1/4` |
+| a list or stream of numbers, and a number | each element, the number on either side in the order written: `'[60 62] 12 +` is `'[72 74]`, `10 '[1 2 3] -` is `'[9 8 7]`; an endless stream stays endless |
+| two lists or streams | element by element, as long as the shorter: `'[1 2 3] '[10 20] +` is `'[11 22]` |
+| music and a number | `+` `-` every pitch up, down by semitones; `*` `/` every duration times, divided (below) |
+
+Anything else is refused, naming both values. Comparison has names
+(`1 2 lt`); `<`, `<=` and `>=` aren't comparison words but
 point to `lt`, `le`, `ge`; `eq` and `ne` compare any two values (music by its notes,
 names left out: `[c d e] [C4 D4 E4] eq` and `[a: c] [c] eq` are true; two loops by
 what they repeat; data element by element; another endless stream is refused), and
@@ -816,7 +824,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   (`[a c d e] 3 [*] [!] '( shuffle ) map`: three different shuffles);
   `[~]`/`cycle` loops, and a loop is taken from like a stream (`[c d]
   cycle 5 take`); `iterate` applies a quotation
-  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 add ) iterate 4 take`), `each` and `map` work
+  again and again (`c4 '( 2 + ) iterate 4 take`, or on numbers `1 '( 2 + ) iterate 4 take`), `each` and `map` work
   per element.
 
 ### Feedback

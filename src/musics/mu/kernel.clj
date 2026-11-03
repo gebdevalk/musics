@@ -110,7 +110,7 @@
          (let [q (peek s) xs (finite "each" (mt/elements (peek (pop s))))]
            (reduce (fn [st x] (e/call (conj st x) q)) (pop (pop s)) xs))))
 
-(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( add ) reduce gives 6"
+(word! "kernel" "reduce" "( things init q -- r )  fold the elements into one value with q, from init: '[1 2 3] 0 '( + ) reduce gives 6"
        (fn [s]
          (need s 3 "reduce")
          (let [n (count s) [xs init q] (subvec s (- n 3))]

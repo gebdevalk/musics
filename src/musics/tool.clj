@@ -44,7 +44,7 @@
   (core/range a b))
 
 (defn iterate
-  "x, then q of x, then q of that, forever: 1 '( 2 add ) iterate 4 take"
+  "x, then q of x, then q of that, forever: 1 '( 2 + ) iterate 4 take"
   [x q]
   (quotation! q)
   (mt/endless (core/iterate #(peek (e/call [%] q)) x)))

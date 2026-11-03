@@ -8,6 +8,7 @@
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.tools]
+            [musics.arith]
             [musics.kernel]
             [musics.music]
             [musics.tool]
@@ -25,7 +26,7 @@
   #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
     "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "up" "down" "transpose"
     "retrograde" "inversion" "retrograde-inversion" "mirror" "stretch" "shrink" "delay"
-    "delays" "with" "cresc" "dim" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"})
+    "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"})
 
 (defn effect
   "v's stack effect and description, as a word written in Clojure shows
@@ -48,10 +49,10 @@
   [ns-sym mu-ns]
   (doseq [[_ v] (sort-by key (ns-publics ns-sym))
           :when (fn? @v)
-          :let [{:keys [names] own-ns :ns} (:mu (meta v))
+          :let [{:keys [names also] own-ns :ns} (:mu (meta v))
                 all (cons (word-name v) names)]
           w all
-          :let [others (remove #{w} all)]]
+          :let [others (concat (remove #{w} all) also)]]
     (e/define! (or own-ns mu-ns) w
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 
@@ -61,3 +62,4 @@
 (register! 'musics.rate "rate")
 (register! 'musics.soundfont "soundfont")
 (register! 'musics.music "music")
+(register! 'musics.arith "music")

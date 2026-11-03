@@ -805,6 +805,18 @@
         (from-items x slots'))
       (reshape x f))))
 
+(defn numeric-data?
+  "Is x a data list or stream of numbers (an empty one too): what
+   arithmetic works through, element by element, rather than music?"
+  [x]
+  (let [x (streamed x)]
+    (cond (v/material? x) (let [els (elements x)]
+                            (if (empty? els)
+                              (= :DATA (:type (v/node x)))
+                              (number? (first els))))
+          (sequential? x) (or (empty? x) (number? (first x)))
+          :else false)))
+
 (defn numbers-of
   "The numbers of x, a data list or a stream, as a vector; anything else
    among them is refused."

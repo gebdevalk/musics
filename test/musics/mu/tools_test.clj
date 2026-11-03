@@ -121,13 +121,13 @@
 (deftest streams-and-endless
   (is (= "'[0 1 2]" (top "0 3 range")))
   (is (= "'[60 62 64]" (top "60 '[0 2 4] scale")))
-  (is (= "'[1 3 5 7]" (top "1 '( 2 add ) iterate 4 take")))
+  (is (= "'[1 3 5 7]" (top "1 '( 2 + ) iterate 4 take")))
   (is (= "repeat ~ [C4/4 D4]" (top "[c d] cycle")) "cycle on music is the loop, [~]")
   (is (= "[C4/4 D4 C4 D4 C4]" (top "[c d] cycle 5 take")) "take from a loop as from a stream")
   (is (= "'[1 2 1 2 1]" (top "'[1 2] cycle 5 take")) "on data, an endless stream")
   (is (= "'[1 2] [~]" (top "'[1 2] cycle")) "a loop prints as one")
   (testing "another endless stream prints its start"
-    (is (str/ends-with? (top "1 '( 1 add ) iterate") "…]")))
+    (is (str/ends-with? (top "1 '( 1 + ) iterate") "…]")))
   (testing "where all of a stream is needed, an endless one is refused"
     (is (re-find #"endless -- take some first" (top "'[1 2] cycle retrograde")))
     (is (re-find #"endless" (top "'[1 2] cycle count")))))
@@ -383,7 +383,7 @@
 (deftest map-each-element
   (is (= "[C5/4 E5 G5]" (top "[c e g] '( 12 + ) map")) "notes give the line back")
   (is (= "'[60 64 67]" (top "[c e g] '( pitch ) map")) "anything else a stream")
-  (is (= "'[10 20]" (top "'[1 2] '( 10 mul ) map"))))
+  (is (= "'[10 20]" (top "'[1 2] '( 10 * ) map"))))
 
 (deftest a-line-taken-apart-and-zipped-again
   (is (= "'[1/8 1/4 1/8 1/8]" (top "[c8 <e g>4 r8 d] durations")))
@@ -411,7 +411,7 @@
   (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "| :duration [c8 d4 | e8] [~] [c d] [~] pitches zip"))
       "a loop of a line gives its notes, not its bar lines")
   (is (= "repeat ~ [C4/8 D4 G4/4]" (top "| :duration [[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
-  (is (re-find #"take some first" (top "1 '( 1 add ) iterate dup zip")) "endless, not loops"))
+  (is (re-find #"take some first" (top "1 '( 1 + ) iterate dup zip")) "endless, not loops"))
 
 (deftest zip-builds-leaves-from-their-parts
   (testing "the durations set the length, the other parts cycle"
@@ -442,7 +442,7 @@
     (is (re-find #"weight an articulation gives" (top "| '[/4] '[60] :dynamic '[3] zip")))
     (is (re-find #"not an ornament" (top "| '[/4] '[60] :ornament '[:nope] zip")))
     (is (re-find #"a drum has no ornament" (top "| '[/4] :drum '[:kick] :ornament '[:trill] zip")))
-    (is (re-find #"take some first" (top "| [c d] [~] durations 1 '( 1 add ) iterate zip")) "an endless part under looping durations")))
+    (is (re-find #"take some first" (top "| [c d] [~] durations 1 '( 1 + ) iterate zip")) "an endless part under looping durations")))
 
 (deftest data-repeats-print-as-repeats
   (is (= "'[60 62] [~]" (top "'[60 62] [~]")))
@@ -453,7 +453,7 @@
   (is (= "'[60 nil] [~]" (top "'[60 nil] [~]")) "reads back as it prints")
   (is (= "'['[60 64] 62] 2 times" (top "'['[60 64] 62] 2 times")) "a chord's pitches, a list inside data")
   (is (= "true" (top "'[1 2] 2 times '[1 2 1 2] eq")) "equal to its values written out")
-  (is (re-find #"endless stream never ends" (top "'[1 2] [~] 1 '( 1 add ) iterate eq")) "an endless stream no loop is refused"))
+  (is (re-find #"endless stream never ends" (top "'[1 2] [~] 1 '( 1 + ) iterate eq")) "an endless stream no loop is refused"))
 
 (deftest a-chunk-out-changed-and-back
   (is (= "[D4/4 E4]" (top "[c d e f g] 1 3 slice")) "start up to, not including, end")
@@ -464,7 +464,7 @@
   (is (= "[D4/4 C4 E4]" (top "[c d e] 0 2 '( retrograde ) within")) "from the start")
   (is (re-find #"0 <= start < end" (top "[c d e] 1 1 '( retrograde ) within")) "a chunk holds something")
   (is (= "[C4/4 A4 D4 E4]" (top "[c d e] 1 1 [a] splice")) "start = end inserts")
-  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 mul ) map retrograde ) within")) "numbers too")
+  (is (= "'[1 30 20 4]" (top "'[1 2 3 4] 1 3 '( '( 10 * ) map retrograde ) within")) "numbers too")
   (is (re-find #"0 <= start < end <= 3" (top "[c d e] 2 5 slice")))
   (is (re-find #"one value" (top "[c d e] 0 2 '( dup ) within"))))
 
@@ -540,9 +540,9 @@
   (is (= "'[:duration '[1/4] :volume '[60]]" (top "| '[/4] :volume '[60] zip")) "durations alone too: rests would drop the volumes")
   (is (= "'[:pitch '[60 62] [~] :volume '[90 80 70]]" (top "| :pitch '[60 62] [~] :volume '[90 80 70] zip")) "a loop stays a loop")
   (is (= "'[:pitch '[60 62] [~]]" (top "| :pitch '[60 62] [~] zip")) "loops alone too")
-  (is (= "'[:pitch '[1 2 3] :volume '[90 80 70]]" (top "| :pitch 1 '( 1 add ) iterate :volume '[90 80 70] zip"))
+  (is (= "'[:pitch '[1 2 3] :volume '[90 80 70]]" (top "| :pitch 1 '( 1 + ) iterate :volume '[90 80 70] zip"))
       "an endless stream that isn't a loop taken to the longest finite part's length")
-  (is (re-find #"an endless part and nothing finite" (top "| :pitch 1 '( 1 add ) iterate zip")))
+  (is (re-find #"an endless part and nothing finite" (top "| :pitch 1 '( 1 + ) iterate zip")))
   (testing "a loop inside data reads back as it prints, and plays as one"
     (is (= "'[:pitch '[60 62] [~] :volume '[90 80 70]]" (top "'[:pitch '[60 62] [~] :volume '[90 80 70]]")))
     (is (= "[C4/4\\volume:90 D4\\volume:80 C4\\volume:70 D4\\volume:90 C4\\volume:80]"
@@ -754,4 +754,4 @@
   (is (= "'[]" (top "[C4 E4] D4 indexes")) "none: an empty list")
   (is (= "2" (top "[C4 E4 C4 E4] C4 indexes count")) "a list the number words read")
   (is (= (top "[C4 E4 G4 C5] '( pitch 65 gt ) index-of") (top "[C4 E4 G4 C5] '( pitch 65 gt ) indexes 0 @")) "the first is index-of")
-  (is (re-find #"endless" (top "1 '( 1 add ) iterate '( 5 gt ) indexes")) "an endless stream is refused"))
+  (is (re-find #"endless" (top "1 '( 1 + ) iterate '( 5 gt ) indexes")) "an endless stream is refused"))

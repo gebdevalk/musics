@@ -2,6 +2,7 @@
   "musics.music's functions are mu's words: the proof that a word can be
    a plain Clojure function."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
+            [musics.arith :as arith]
             [musics.music :as music]
             [musics.mu.eval :as e]
             [musics.mu.library]
@@ -22,7 +23,8 @@
 (deftest a-word-is-its-function
   (is (= #'music/retrograde (:var (e/lookup @e/state "[R]"))))
   (is (= #'music/retrograde (:var (e/lookup @e/state "retrograde"))) "by its name and its sign")
-  (is (= #'music/up (:var (e/lookup @e/state "+"))))
+  (is (= #'arith/+ (:var (e/lookup @e/state "+"))))
+  (is (= #'music/up (:var (e/lookup @e/state "up"))) "up is music's own, + the sign for numbers too")
   (is (= #'music/find-instrument! (:var (e/lookup @e/state "find-instrument"))) "a ! left off")
   (is (= #'music/times (:var (e/lookup @e/state "tool/[*]"))) "in its :ns"))
 
@@ -44,7 +46,7 @@
          (with-out-str (is (nil? (mu "\"viol\" find-instrument")))))))
 
 (deftest its-errors-are-mus-named-by-the-word
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: is musical; on numbers write add" (mu "1 2 +")))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^up: is for music; on numbers write \+" (mu "1 2 up")))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: transposes by a whole number" (mu "[c d] 1/2 +"))))
 
 (deftest redefining-the-function-redefines-the-word
@@ -196,7 +198,7 @@
     (is (= "3" (run "$[047] count")))
     (is (= "4" (run "$[047] 1 @")))
     (is (= "7" (run "$(037) 2 @")))
-    (is (= "2" (run "$<001110> 3 @ 1 add")) "a count, then arithmetic")
+    (is (= "2" (run "$<001110> 3 @ 1 +")) "a count, then arithmetic")
     (is (= "'[0 4 7]" (run "$[047] >list")))
     (is (= "'[4 3]" (run "$[047] intervals")) "a changed set is a plain list")
     (is (= "true" (run "$[037] '[0 3 7] eq")) "equal numbers are equal, the kind is no part of it")

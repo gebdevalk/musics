@@ -25,18 +25,13 @@
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
 ;; -- numbers ------------------------------------------------------------
-;; The plain symbols are musical; arithmetic and comparison on numbers
-;; have names (doc/md/mu-repl.md).
+;; Arithmetic is + - * / (musics.arith); comparison has names
+;; (doc/md/mu-repl.md).
 
 (defn- numbers [& xs]
   (when-not (every? number? xs)
     (fail (if (next xs) "needs two numbers, got" "needs a number, got") (str/join " and " (map p/show xs)))))
 
-(defn add      "Add two numbers" [a b] (numbers a b) (+ a b))
-(defn sub      "Subtract b from a" [a b] (numbers a b) (- a b))
-(defn mul      "Multiply two numbers" [a b] (numbers a b) (* a b))
-(defn div      "Divide a by b, exactly: 1 4 div gives 1/4" [a b]
-  (numbers a b) (when (zero? b) (fail "division by zero")) (/ a b))
 (defn mod      "The remainder of a divided by b" [a b] (numbers a b) (core/mod a b))
 (defn- extreme
   "f over the numbers of a stream, at least one."

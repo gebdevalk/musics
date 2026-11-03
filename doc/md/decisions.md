@@ -2604,3 +2604,23 @@ machine with no sound hardware can still be silent without a word. Java's
 own first-run line, "Created user preferences directory", is turned down to
 warnings (`musics.mu/quiet-java-logging!`).
 
+
+## 2026-11-03 — + - * / work on everything; add sub mul div are gone
+
+`3 5 +` was refused with a hint (`on numbers write add`) and `'[60 62] 12 +`
+succeeded without changing anything (a data list counts as material, and a
+number is no note). The audit (`doc/md/audits/mu-repl-audit.md`, H3/H4) read
+both as one fault: the signs knew what was meant and did not do it. Now
+`musics.arith` holds `+ - * /` as one multimethod over the kinds of the two
+values: numbers (the exact result), a list or stream of numbers with a number
+(each element, either side, lazy for an endless stream), two lists (in step,
+as long as the shorter), music with a number (`up`, `down`, `stretch`,
+`shrink`, which stay as music's own words), a key with a number. The named
+`add sub mul div` are removed rather than kept as a second spelling: the
+plain signs are what a person at the prompt tries first. Comparison keeps its
+names (`lt gt le ge eq ne`), since `<` and `>` are the play words and cannot
+be dispatched by type. Rejected: dispatching inside `up` and the others (they
+would stop being music's); a Clojure `defmulti` var cannot be a word by
+itself (`musics.mu.library` registers `fn?` vars), so each sign is a thin
+`defn` over the multimethod. `up` and its three siblings now refuse numbers
+and lists, pointing to the sign, where they used to do nothing.
