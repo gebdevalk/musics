@@ -317,7 +317,7 @@ has a named twin, a name Clojure could carry too (`[R]` `retrograde`,
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( a -- b ) … ;` with `$a` locals and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
-gathered by its first value: music into a line, `| … seq`, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
+gathered by its first value: music into a line, numbers and data lists into a `'[ ]`; an empty `()` gathers the stack, above the nearest `|` else all of it). Most words are plain Clojure
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 the repo, help, files), `musics.compare` (comparison, flags), `musics.arith` (`+ - * /`), `musics.tool`, `musics.music`,
 `musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
@@ -332,7 +332,7 @@ nothing for a `!` function -- and naming an error by the word; it
 calls the var, so a redefinition changes the word everywhere. The words that read the stack's shape stay stack
 words: the stack, quotations, `:=` and printing the stack, and the play
 words with their optional context, mark and voice (`.>`, `.>>`, …) in
-`musics.mu.kernel`; `split-at` (two values), `seq` `par` `{n}` `[n]`
+`musics.mu.kernel`; `split-at` (two values), `par` `{n}` `[n]`
 `chord` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
 generated from the registry (`musics.mu.algos`). `musics.mu.material`
 holds what they all share. The prompt is `mu<n>` (the

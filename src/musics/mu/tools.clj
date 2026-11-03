@@ -1,7 +1,7 @@
 (ns musics.mu.tools
   "The tool and music words that read the stack's shape
    (doc/md/mu-repl.md, section 8): split-at (two values), what lies
-   above a | mark or a repeat, the top n ({n} [n] <>), and choose and
+   above a | mark or a repeat, the top n ({n} [n]), and choose and
    alternate with their quotations; each with its named twin. The other
    tool and music words are musics.tool and musics.music."
   (:require [clojure.string :as str]
@@ -29,14 +29,6 @@
 
 ;; -- assemble and meaning (music) ----------------------------------------------
 
-(defn- gather
-  "A word that gathers what lies above the nearest | mark into (f xs)."
-  [word f]
-  (fn [s]
-    (let [[below xs] (e/to-mark s word)]
-      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
-      (conj below (f xs)))))
-
 ;; -- ( … ): what a group makes --------------------------------------------
 
 (defn- plain?
@@ -45,18 +37,23 @@
   (or (number? x) (keyword? x) (sequential? x)
       (and (v/material? x) (= :DATA (mt/kind x)))))
 
+(defn- music-or-marker?
+  "Music, or a bar line or jump mark among a line's elements."
+  [x]
+  (or (mt/music? x) (mt/marker? x)))
+
 (defmulti gathered
   "What the values of a ( … ) group make, decided by the first: music a
    line [ ], a number, keyword or data list a data list '[ ] (of lists, when
    they are lists). The rest must be of the same kind."
-  (fn [xs] (cond (mt/music? (first xs)) :music (plain? (first xs)) :data :else :other)))
+  (fn [xs] (cond (music-or-marker? (first xs)) :music (plain? (first xs)) :data :else :other)))
 
 (defn- all-of [pred what into xs]
   (when-let [x (first (remove pred xs))]
     (e/mu-error "( … ):" "gathers" what "into" (str into ", and left") (p/show x))))
 
 (defmethod gathered :music [xs]
-  (all-of mt/music? "music" "a line" xs)
+  (all-of music-or-marker? "music" "a line" xs)
   (mt/line xs))
 
 (defmethod gathered :data [xs]
@@ -66,9 +63,13 @@
 (defmethod gathered :other [xs]
   (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
 
-(word! "music" "seq" "( | … -- line )  what lies above the | mark, one after another, as a line [ ]" (gather "seq" #(mt/line (map (partial mt/sounding! "seq") %))))
-
-(word! "music" "par" "( | … -- parallel )  what lies above the | mark, side by side, as { }" (gather "par" mt/par-of))
+(word! "music" "par" "( line -- parallel )  the elements of a line side by side, as { }: ( [c d] [e f] ) par gives {[c d] [e f]}"
+       (fn [s]
+         (need s 1 "par")
+         (let [x (peek s)]
+           (when-not (and (v/material? x) (= :SEQ (mt/kind x)))
+             (e/mu-error "par: takes a line of parts, ( [c d] [e f] ) par -- got" (p/show x)))
+           (conj (pop s) (mt/par-of (map (partial mt/sounding! "par") (mt/elements x)))))))
 (defn- top-n
   "A word taking the top n (pushed by the grammar, written <open>n<close>)
    into (f items)."

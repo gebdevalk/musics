@@ -122,9 +122,10 @@ it leaves mu running, and `gui` opens it again.
 
 | Word | Stack | Does |
 |---|---|---|
-| `seq`, or `[2]` `[3]` … (`line`) | `( \| … -- line )` or `( a … -- line )` | one after another |
-| `( … )` | `( -- line )` | what runs inside, gathered into one line, as `\| … seq` |
-| `par`, or `{2}` `{3}` … (`together`) | `( \| … -- parallel )` or `( a … -- parallel )` | at once |
+| `[2]` `[3]` … (`line`) | `( a … -- line )` | the top n one after another |
+| `( … )` | `( -- line )` | what runs inside, gathered into one line (or a data list, for numbers) |
+| `{2}` `{3}` … (`together`) | `( a … -- parallel )` | the top n at once |
+| `par` | `( line -- parallel )` | the parts of a line side by side: `( [c d] [e f] ) par` |
 | `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
 | `{+}` or `beside` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
@@ -133,9 +134,9 @@ it leaves mu running, and `gui` opens it again.
 
 The pairs differ in what they take and what they make of it:
 
-- `seq` and `par` gather **everything above a `|` mark**, as many as
-  you like, each staying an element of its own. `( … )` is `| … seq` in
-  brackets: what runs inside, gathered into a line.
+- `( … )` gathers **whatever runs inside it**, as many as you like, each
+  staying an element of its own: music into a line, numbers into a data
+  list. `par` turns such a line of parts into a parallel.
 - `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
   …, each staying an element (a part) of its own.
 - `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
@@ -145,12 +146,11 @@ The pairs differ in what they take and what they make of it:
 `[ ]` makes or acts on a line, `{ }` makes or acts on a parallel.
 
 ```
-| c d e seq             → [C4/4 D4 E4]
 ( c d e )               → [C4/4 D4 E4]
-| [c d] [e f] seq       → [[C4/4 D4] [E4 F4]]       two lines, one after the other
+( [c d] [e f] )         → [[C4/4 D4] [E4 F4]]       two lines, one after the other
 [c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
 [c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
-| [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
+( [c d] [e f] [g a] ) par → {[C4/4 D4] [E4 F4] [G4 A4]}
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
 {[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
@@ -172,7 +172,7 @@ A group makes one line of what would be several values, so the next word
 reaches all of it: `( [c d] 2 times [e] [f] volta ) 1 +` moves the repeat
 and its endings together, under one key.
 
-Both `seq` results play the same four notes; the first keeps the two
+Both lines play the same four notes; the first keeps the two
 lines apart, so a word can still treat them as two (`[R]` swaps the
 lines, where on the flat line it reverses the notes).
 
@@ -1243,7 +1243,7 @@ c4 '[0 40 73] sounds audition
 | `at` | `( line t -- note )` |
 | `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
 | `mute` | `( x q -- x )` |
-| `par` `seq` | `( \| … -- parallel \| line )` |
+| `par` | `( line -- parallel )` |
 | `sounds` | `( note numbers -- line )` |
 | `tonic` | `( key -- note )` |
 | `transpose` | `( x from to -- x )` |

@@ -38,7 +38,7 @@ what is still open.
 | `M:3/4` `T:8=200` `K:D.major` `vol:mf` | a setting alone: `name:value`, no space, as `!name:value` writes it in a line | pushed as the context `^{ !M:3/4 }`: `x M:3/4 with` lays it under x. A leaf wins (`c:m7` is a chord) |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
-| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line (`\| … seq`), numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 + 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
+| `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one line, numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 + 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
 | `dup` `play` `transpose` `s` | a word | run |
@@ -71,13 +71,14 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
-- `|` at the top level is a **mark**: `seq` gathers what lies above the
-  nearest mark into a `:SEQ`, `par` into a `:PAR`, and drops the mark:
-  `| c4 d e seq` is the same line as `[c4 d e]`. Inside brackets `|`
-  is a bar line, as in the text.
+- `|` at the top level is a **mark**: `zip` and `>ctx` take what lies
+  above the nearest one as their parts, and a play word reads its count
+  as a bar line's strength. Inside brackets `|` is a bar line, as in the
+  text. `( c4 d e )` is the same line as `[c4 d e]`, and `( [c d] [e f] )
+  par` the parallel of the two.
 - **Words don't run inside a literal**: a literal is musics text, read
   before anything runs. A known word inside one is an error that names
-  it and shows the way: `| [a b] [?] [c d] [?] seq`.
+  it and shows the way: `( [a b] [?] [c d] [?] )`.
 
 ## 4. Instructions and contexts
 
@@ -112,8 +113,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 **Defining**, Forth style:
 
 ```
-: octaved ( x -- p )  | $x $x 12 + par ;
-: canon ( a s -- p )  | $a  $a $s +  par ;
+: octaved ( x -- p )  ( $x $x 12 + ) par ;
+: canon ( a s -- p )  ( $a  $a $s + ) par ;
 : echo  ( m -- l )    [$m $m r4 $m] ;
 ```
 
@@ -222,7 +223,7 @@ followed by nothing, a duration or `*n`.
 
   ```
   mu<1> : canon ( a s -- p )
-    ...   | $a  $a $s +
+    ...   ( $a  $a $s + )
     ...   par ;
   mu<1>
   ```
@@ -349,7 +350,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `seq` `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
+| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
 | **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -612,7 +613,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   finite beside it. `| :pitch '[60 62 64] :volume '[90 70] zip` is `'[:pitch
   '[60 62 64] :volume '[90 70]]`. A bundle is data, so it reads back as it prints, and `zip` takes it
   again as its parts. It can't sound: the play words, `render`, `par`,
-  `seq`, `{n}` and `[n]` refuse it, saying what it lacks. There is no
+  `{n}` and `[n]` refuse it, saying what it lacks. There is no
   default duration.
 - **A recipe as a tree** (`musics.recipe`): `@( … )`, an algo tree in
   RPN. Inside, an algo takes its inputs from the top of the recipe's own

@@ -48,7 +48,7 @@
   (is (= ["kernel" "tool" "music" "play" "rate" "soundfont" "mine"] (:use (e/fresh-state)))))
 
 (deftest bar-lines-are-elements
-  (is (= "[C4/4 D4 | E4]" (top "| [c d | e] '( ) each seq")) "seq keeps a bar of a line's elements")
+  (is (= "[C4/4 D4 | E4]" (top "( [c d | e] '( ) each )")) "a group keeps a bar of a line's elements")
   (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] retrograde")) "a tool keeps it in a line")
   (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "and through * and [*]"))
 
@@ -132,12 +132,14 @@
     (is (re-find #"endless" (top "'[1 2] cycle count")))))
 
 (deftest assemble
-  (is (= "[C4/4 D4 E4]" (top "| c4 d e seq")))
-  (is (= "{[C4/4 D4] [E4]}" (top "| [c d] e4 par")))
-  (is (= "[G3/4] [C4/4 D4]" (top "[g] | c d seq")) "only what lies above the mark")
-  (is (= "[C4/4 [D4 E4]]" (top "| c | d e seq seq")) "nested marks, nearest first")
-  (is (re-find #"seq: needs a \| mark" (top "c d seq")))
-  (is (re-find #"has nothing above its \| mark" (top "c | seq"))))
+  (is (= "[C4/4 D4 E4]" (top "( c4 d e )")))
+  (is (= "{[C4/4 D4] [E4]}" (top "( [c d] e4 ) par")) "par makes the parts of a group of lines side by side")
+  (is (= "[G3/4] [C4/4 D4]" (top "[g] ( c d )")) "only what the group holds")
+  (is (= "[C4/4 [D4 E4]]" (top "( c ( d e ) )")) "nested groups")
+  (is (re-find #"^par: takes a line of parts" (top "c par")))
+  (is (re-find #"^par: takes a line of parts" (top "{[c] [d]} par")) "a parallel is one already")
+  (is (re-find #"nothing on the stack to gather" (top "()")))
+  (is (re-find #"unknown word: seq -- " (top "| c d seq")) "seq is gone: a group gathers"))
 
 (deftest a-mark-prints-as-a-bar
   (is (= "1 | 2" (top "1 | 2")))
@@ -585,7 +587,7 @@
         "a bundle zipped later is its parts zipped now: each cycles on its own, a color against a talea")
     (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a line"))
   (testing "it can't sound"
-    (doseq [in ["| :pitch '[60] zip [c d] {2}" "| | :pitch '[60] zip [c d] par" "| | :pitch '[60] zip [c d] seq" "| :pitch '[60] zip [c d] [2]"]]
+    (doseq [in ["| :pitch '[60] zip [c d] {2}" "| :pitch '[60] zip [c d] [2]"]]
       (is (re-find #"can't sound -- it has no durations" (top in)) in))
     (is (re-find #"no pitches or drums" (top "| '[/4] :volume '[60] zip \"x.mid\" render")))))
 

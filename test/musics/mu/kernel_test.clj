@@ -485,7 +485,7 @@
 
 (deftest a-group-is-one-line
   (let [show #(p/show (first (:ok (run %))))]
-    (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered as | … seq")
+    (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered into a line")
     (is (= "[C4/4 D4 E4]" (show "( c d e )")))
     (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 times [e] [f] volta ) 1 +"))
         "one line, so a word reaches all of it: the key covers the endings too")

@@ -2722,3 +2722,24 @@ importers are left as they were: their pretty printer
 each bracket on a line of its own, which is a layout, not a printing
 convention; they would need to change with the grammar if that rule comes.
 `^{ … }` contexts keep their spaces.
+
+## 2026-11-03 — One variadic gather: the group; `seq` is gone, `par` takes a line
+
+Building a line from a number of values had three spellings (`[n]`, `| … seq`,
+`( … )`) and a parallel two (`{n}`, `| … par`) (audit M4). A line is now
+counted (`[n]`) or gathered by the group (`( … )`, which also makes a data
+list of numbers); a parallel is counted (`{n}`) or the group's line of parts
+turned into one: `( [c d] [e f] ) par`. `seq` and the `| … par` form are gone;
+`par` takes a line (`par: takes a line of parts` otherwise). The group also
+takes a bar line or jump mark among the elements, as `seq` did.
+
+`zip` and `>ctx` keep reading a `|` mark. They were to take a group's list
+(`( d p :volume v ) zip`), but a group builds its data list by printing its
+values and reading the text back, so it cannot hold an endless stream
+(`volume/walk`, `1 '( 1 + ) iterate`: "can't build a value from … 16 …]]") and
+it mangles a loop (`[c8 d e] [~] durations` becomes a stray `[~]` element),
+nor a line next to the streams that are written on it. Those are ordinary
+`zip` inputs, so the mark stays for the two words that take a variable number
+of live, named parts; `|` is also still the bar strength of `.>>` and the
+"no music" of a live recipe. Rejected for now: a group that keeps its values
+as they are instead of as text (a bigger change to what a data list is).

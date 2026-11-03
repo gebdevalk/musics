@@ -361,7 +361,7 @@
           column (- i (or (str/last-index-of before "\n") -1))]
       (str w " is a word (line " line ", column " column "), and words don't run"
            " inside a literal: [ … ] is musics text, read before anything runs.\n"
-           "Gather on the stack instead: | [a b] [?] [c d] [?] seq  (par for { })"))
+           "Gather on the stack instead: ( [a b] [?] [c d] [?] )  (( … ) par for { })"))
     (str "can't read this:\n" (str/trim (with-out-str (print failure))))))
 
 (defn- parse-input
