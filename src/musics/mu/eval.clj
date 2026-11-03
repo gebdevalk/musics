@@ -89,11 +89,12 @@
 
 (defn to-mark
   "[below above]: stack split at its nearest | mark, the mark dropped --
-   what a gathering word takes. An error if there is none."
-  [stack word]
-  (let [i (some #(when (v/mark? (nth stack %)) %) (range (dec (count stack)) -1 -1))]
-    (when-not i (mu-error (str word ":") "needs a | mark below what it gathers, as | c d e" word))
-    [(subvec stack 0 i) (subvec stack (inc i))]))
+   what a word taking as many values as you like gathers; with no mark,
+   all of the stack is gathered."
+  [stack]
+  (if-let [i (some #(when (v/mark? (nth stack %)) %) (range (dec (count stack)) -1 -1))]
+    [(subvec stack 0 i) (subvec stack (inc i))]
+    [[] stack]))
 
 (defn lookup
   "The entry a name refers to: ns/word directly, else the one in the
@@ -260,8 +261,7 @@
     :Group (let [xs (run-items [] (vec (rest node)) env)]
              (if (empty? xs)
                ;; () alone takes its values from the stack: those above the nearest |, else all
-               (let [s (if (some v/mark? stack) stack (into [v/mark] stack))
-                     [below xs] (to-mark s "()")]
+               (let [[below xs] (to-mark stack)]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
                ;; what it makes follows its first value: music a line, plain values a '[ ]

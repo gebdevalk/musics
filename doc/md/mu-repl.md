@@ -72,10 +72,10 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - One read is the whole input until it is complete (section 7), so a
   melody across several lines inside one `[ … ]` carries over.
 - `|` at the top level is a **mark**, and the words that take as many
-  values as you like gather what lies above the nearest one: `zip` and
-  `>ctx` their parts, `par` the parts of a parallel (`| [c d] [e f] par`),
-  `chord` its notes; a play word reads its count as a bar line's
-  strength. Inside brackets `|` is a bar line, as in the text. `( c4 d
+  values as you like gather what lies above the nearest one, **or the
+  whole stack when there is none**: `zip` and `>ctx` their parts, `par` the
+  parts of a parallel (`| [c d] [e f] par`), `chord` its notes, and the bare
+  `()`; a play word reads its count as a bar line's strength. Inside brackets `|` is a bar line, as in the text. `( c4 d
   e )` is the same line as `[c4 d e]`: a group runs what is inside it and
   gathers the result, a line of music or a list of numbers.
 - **Words don't run inside a literal**: a literal is musics text, read
@@ -574,8 +574,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   mean !ff or !mf?"), and a context key without its value says so
   (`[!volume c]`: write `!volume:value`); `!name:value` still takes any
   key, a custom one too.
-- **`zip` builds leaves from their parts**: the top two, or everything
-  above a `|` mark, each part a stream in the order a leaf holds them --
+- **`zip` builds leaves from their parts**: everything above a `|` mark,
+  else the whole stack, each part a stream in the order a leaf holds them --
   durations, pitches (or drums), articulations, dynamics, ornaments,
   tremolos, ties -- then overrides by key (`:volume`, `:instrument`,
   `:pan` …). A stream a reader or an algo word gave knows its part

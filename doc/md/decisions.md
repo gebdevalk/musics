@@ -2777,3 +2777,13 @@ gather what lies above a `|` mark** (`zip`, `>ctx`, `par`, `chord`), one
 spelling for all of them. `( … )` stays for what the mark cannot do: run a
 sub-computation on a stack of its own and gather by its first value into a
 line or a list of numbers. `seq` stays gone, a group being the line.
+
+## 2026-11-03 — One rule for every word that takes as many values as you like
+
+`zip` took the top two without a mark, `par` and `>ctx` refused to run without
+one, `chord` and the bare `()` took the whole stack. Now they all gather what
+lies above the nearest `|` mark, or the whole stack when there is none
+(`musics.mu.eval/to-mark`, one function). `durations pitches zip` still works
+on a stack that holds just those two; with something else below, a `|` marks
+where the parts start. `zip` of fewer than two values is refused (a lone
+bundle is allowed); `par` and `>ctx` of nothing say there is nothing to gather.

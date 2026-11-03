@@ -41,8 +41,8 @@
   "A word that gathers what lies above the nearest | mark into (f xs)."
   [word f]
   (fn [s]
-    (let [[below xs] (e/to-mark s word)]
-      (when (empty? xs) (e/mu-error (str word ":") "has nothing above its | mark"))
+    (let [[below xs] (e/to-mark s)]
+      (when (empty? xs) (e/mu-error (str word ":") "has nothing to gather"))
       (conj below (f xs)))))
 
 (defn- music-or-marker?
@@ -107,7 +107,7 @@
 
 (word! "music" "chord" "( | notes -- chord )  the notes above the nearest | mark, else the whole stack, as one chord: c e g chord, [g] | c e chord"
        (fn [s]
-         (let [[below leaves] (if (some v/mark? s) (e/to-mark s "chord") [[] s])]
+         (let [[below leaves] (e/to-mark s)]
            (when (empty? leaves) (e/mu-error "chord: needs notes to put together"))
            (when-let [bad (first (remove #(and (mt/leaf? %) (seq (:pitches %))) leaves))]
              (e/mu-error "chord: takes notes (above a | mark, else the whole stack), got" (p/show bad)))
@@ -117,15 +117,14 @@
 
 (word! "music" "zip" "( durations pitches -- durations' ) or ( | [:part] stream … -- line' )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
        (fn [s]
-         (if (some v/mark? s)
-           (let [[below xs] (e/to-mark s "zip")]
-             (conj below (mt/zip-parts xs)))
-           (do (need s 2 "zip")
-               (conj (pop (pop s)) (mt/zip-parts [(peek (pop s)) (peek s)]))))))
+         (let [[below xs] (e/to-mark s)]
+           (when (and (< (count xs) 2) (not (some mt/bundle-columns xs)))
+             (e/mu-error "zip: needs 2 or more values to put together, has" (count xs)))
+           (conj below (mt/zip-parts xs)))))
 
 (word! "music" ">ctx" "( | :duration d :key v … -- ^{ } )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
-         (let [[below xs] (e/to-mark s ">ctx")]
+         (let [[below xs] (e/to-mark s)]
            (conj below (mt/control->ctx xs)))))
 
 (defn- recipe-value

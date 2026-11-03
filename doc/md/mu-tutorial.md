@@ -137,7 +137,7 @@ The pairs differ in what they take and what they make of it:
 - `( … )` gathers **whatever runs inside it**, as many as you like, each
   staying an element of its own: music into a line, numbers into a data
   list. `par` (and `zip`, `>ctx`, `chord`) gather **everything above a
-  `|` mark** instead, as many as you like: `| [c d] [e f] par` is the
+  `|` mark**, or the whole stack when there is none, instead: `| [c d] [e f] par` is the
   parallel of the two lines.
 - `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
   …, each staying an element (a part) of its own.
