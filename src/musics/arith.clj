@@ -3,17 +3,17 @@
    (the sum, difference, product, exact quotient), a data list or stream
    of numbers with a number (each element, the number on either side),
    two such lists (element by element, as long as the shorter), and music
-   with a number (every pitch up or down by n semitones, every duration
-   times or divided by n: musics.music's up, down, stretch, shrink). One
+   with a number (every pitch up or down by n semitones, its key with it;
+   every duration times or divided by n). One
    multimethod, dispatching on what the two values are, so a new kind of
    value is one defmethod."
   (:refer-clojure :exclude [+ - * /])
   (:require [clojure.core :as core]
             [clojure.string :as str]
+            [musics.common.music-elements :as el]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
-            [musics.mu.value :as v]
-            [musics.music :as music]))
+            [musics.mu.value :as v]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
@@ -38,11 +38,34 @@
   (when (zero? b) (fail "division by zero"))
   (core// a b))
 
+;; -- music with a number ----------------------------------------------------
+
+(defn- whole! [n] (when-not (integer? n) (fail "transposes by a whole number of semitones, got" n)))
+(defn- positive! [n] (when-not (pos? n) (fail "needs a positive factor, got" n)))
+
+(defn- up
+  "x with every pitch up n semitones, its key with it (!K: at the start of its
+   line); a key moves up too."
+  [x n]
+  (if (mt/key? x)
+    (do (whole! n) (el/transpose-key x n))
+    (do (whole! n) (mt/transposed x n))))
+
+(defn- scale-duration
+  "The factor kept as the leaf's :ratio, as c4*1/3 keeps it, so a length
+   that is no note value prints as written: c4 1/3 * as C4/4*1/3."
+  [leaf f]
+  (-> leaf (update :duration core/* f) (update :ratio (fnil core/* 1) f)))
+
+(defn- stretch [x f]
+  (positive! f)
+  (mt/map-leaves #(scale-duration % f) x))
+
 (def ^:private ops
-  {"+" {:num core/+ :music music/up}
-   "-" {:num core/- :music music/down}
-   "*" {:num core/* :music music/stretch}
-   "/" {:num quotient :music music/shrink}})
+  {"+" {:num core/+ :music up}
+   "-" {:num core/- :music (fn [x n] (up x (core/- n)))}
+   "*" {:num core/* :music stretch}
+   "/" {:num quotient :music (fn [x f] (positive! f) (stretch x (core// 1 f)))}})
 
 (defn- through
   "x, a data list or stream, with f of each element: a finite one's worked
@@ -79,23 +102,19 @@
   "The sum: two numbers; a list or stream of numbers and a number, each
    element (either side), or two lists in step; music and n, every pitch
    up n semitones, its key with it: [c e g] 7 +"
-  {:mu {:also ["up"]}}
   [x n] (arith (ops "+") x n))
 
 (defn -
   "The difference, as + adds: 7 2 - gives 5, '[5 7] 1 - gives '[4 6];
    music and n, every pitch down n semitones: [c e g] 12 -"
-  {:mu {:also ["down"]}}
   [x n] (arith (ops "-") x n))
 
 (defn *
   "The product, as + adds: 3 4 * gives 12, '[1 2 3] 2 * gives '[2 4 6];
    music and f, every duration times f: [c d] 2 * gives halves"
-  {:mu {:also ["stretch"]}}
   [x f] (arith (ops "*") x f))
 
 (defn /
   "The exact quotient, as + adds: 1 4 / gives 1/4, '[2 4] 2 / gives '[1 2];
    music and f, every duration divided by f: [c d e] 3 / gives a triplet"
-  {:mu {:also ["shrink"]}}
   [x f] (arith (ops "/") x f))

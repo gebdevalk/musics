@@ -24,7 +24,7 @@
   (is (= #'music/retrograde (:var (e/lookup @e/state "[R]"))))
   (is (= #'music/retrograde (:var (e/lookup @e/state "retrograde"))) "by its name and its sign")
   (is (= #'arith/+ (:var (e/lookup @e/state "+"))))
-  (is (= #'music/up (:var (e/lookup @e/state "up"))) "up is music's own, + the sign for numbers too")
+  (is (nil? (e/lookup @e/state "up")) "a sign with no named twin")
   (is (= #'music/find-instrument! (:var (e/lookup @e/state "find-instrument"))) "a ! left off")
   (is (= #'music/times (:var (e/lookup @e/state "tool/[*]"))) "in its :ns"))
 
@@ -32,7 +32,7 @@
   (let [x (mu "[c d e]")]
     (is (= "[E4/4 D4 C4]" (p/show (music/retrograde x)) (run "[c d e] [R]")))
     (is (= "repeat 3 [C4/4 D4]" (p/show (music/times (mu "[c d]") 3)) (run "[c d] 3 [*]")))
-    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (music/up (mu "[c e g]") 7)) (run "[c e g] 7 +")))))
+    (is (= "[!K:G.major G4/4 B4 D5]" (p/show (arith/+ (mu "[c e g]") 7)) (run "[c e g] 7 +")))))
 
 (deftest an-optional-argument-by-its-test
   (testing "n is taken only when the top is a whole number"
@@ -46,7 +46,6 @@
          (with-out-str (is (nil? (mu "\"viol\" find-instrument")))))))
 
 (deftest its-errors-are-mus-named-by-the-word
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^up: is for music; on numbers write \+" (mu "1 2 up")))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"^\+: transposes by a whole number" (mu "[c d] 1/2 +"))))
 
 (deftest redefining-the-function-redefines-the-word

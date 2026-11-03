@@ -597,56 +597,6 @@
                     %)
                  x))
 
-;; -- the musical symbols ----------------------------------------------------
-
-(defn- by-number
-  "(g n x) for material x and a number n, after (check n); numbers, a
-   data list or a stream are refused, pointing to the sign, which works
-   on them too (musics.arith)."
-  [sign x n g check]
-  (cond
-    (or (number? x) (mt/numeric-data? x)) (fail "is for music; on numbers write" sign)
-    (not (and (musical? x) (number? n))) (fail "needs material and a number, got" (p/show x) "and" (p/show n))
-    :else (do (check n) (g n x))))
-
-(defn- whole! [n] (when-not (integer? n) (fail "transposes by a whole number of semitones, got" n)))
-(defn- positive! [n] (when-not (pos? n) (fail "needs a positive factor, got" n)))
-
-(defn up
-  "x with every pitch up n semitones, its key with it (!K: at the start of its
-   line): [c e g] 7 up, or 7 +; a key moves up too"
-  {:mu {:also ["+"]}}
-  [x n]
-  (if (and (mt/key? x) (integer? n))
-    (el/transpose-key x n)
-    (by-number "+" x n (fn [n x] (mt/transposed x n)) whole!)))
-
-(defn down
-  "x with every pitch down n semitones, its key with it: [c e g] 12 down, or 12 -"
-  {:mu {:also ["-"]}}
-  [x n]
-  (if (and (mt/key? x) (integer? n))
-    (el/transpose-key x (- n))
-    (by-number "-" x n (fn [n x] (mt/transposed x (- n))) whole!)))
-
-(defn- scale-duration
-  "The factor kept as the leaf's :ratio, as c4*1/3 keeps it, so a length
-   that is no note value prints as written: c4 1/3 * as C4/4*1/3."
-  [leaf f]
-  (-> leaf (update :duration * f) (update :ratio (fnil * 1) f)))
-
-(defn stretch
-  "x with every duration times f: [c d] 2 stretch, or 2 *, gives halves"
-  {:mu {:also ["*"]}}
-  [x f]
-  (by-number "*" x f (fn [f x] (mt/map-leaves #(scale-duration % f) x)) positive!))
-
-(defn shrink
-  "x with every duration divided by f: [c d e] 3 shrink, or 3 /, gives a triplet"
-  {:mu {:also ["/"]}}
-  [x f]
-  (by-number "/" x f (fn [f x] (mt/map-leaves #(scale-duration % (/ 1 f)) x)) positive!))
-
 (defn- hairpin [x target dir]
   (when-not (and (number? target) (<= 0 target 100)) (fail "needs a target volume 0-100 on top, got" (p/show target)))
   (when-not (musical? x) (fail "needs material under the target, got" (p/show x)))

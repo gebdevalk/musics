@@ -24,8 +24,8 @@
 ;; Words that give x back changed: their result is named x' in the stack effect.
 (def ^:private changes-x
   #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
-    "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "up" "down" "transpose"
-    "retrograde" "inversion" "retrograde-inversion" "mirror" "stretch" "shrink" "delay"
+    "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "transpose"
+    "retrograde" "inversion" "retrograde-inversion" "mirror" "delay"
     "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"})
 
 (defn effect
@@ -49,10 +49,10 @@
   [ns-sym mu-ns]
   (doseq [[_ v] (sort-by key (ns-publics ns-sym))
           :when (fn? @v)
-          :let [{:keys [names also] own-ns :ns} (:mu (meta v))
+          :let [{:keys [names] own-ns :ns} (:mu (meta v))
                 all (cons (word-name v) names)]
           w all
-          :let [others (concat (remove #{w} all) also)]]
+          :let [others (remove #{w} all)]]
     (e/define! (or own-ns mu-ns) w
                {:var v :effect (str (effect v) (when (seq others) (str " (also " (str/join " " others) ")")))})))
 

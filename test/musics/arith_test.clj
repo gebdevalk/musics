@@ -52,14 +52,15 @@
   (is (= "'[2 4 6]" (top "1 '( 1 + ) iterate 2 * 3 take")) "an endless stream stays endless")
   (is (= "'[11 22]" (top "'[1 2] [~] '[10 20] + 2 take")) "a loop with a list: the finite one's length"))
 
-(deftest music-with-a-number-is-up-down-stretch-shrink
-  (is (= (top "[c e g] 7 up") (top "[c e g] 7 +")))
-  (is (= (top "[c e g] 12 down") (top "[c e g] 12 -")))
-  (is (= (top "[c d] 2 stretch") (top "[c d] 2 *")))
-  (is (= (top "[c d e] 3 shrink") (top "[c d e] 3 /")))
+(deftest music-with-a-number-moves-pitches-and-scales-durations
+  (is (= "[!K:G.major G4/4 B4 D5]" (top "[c e g] 7 +")) "up, the key with it")
+  (is (= "[!K:F.major F3/4 A3 C4]" (top "[c e g] 7 -")) "down")
+  (is (= "[C4/2 D4]" (top "[c d] 2 *")) "stretched")
+  (is (= "[3:1(C4/4 D4 E4)]" (top "[c d e] 3 /")) "shrunk: a triplet")
   (is (= "C4/4" (top "c 0 +")) "a note too")
-  (is (re-find #"^up: is for music; on numbers write \+" (top "'[1 2] 3 up")))
-  (is (re-find #"^up: is for music" (top "1 2 up"))))
+  (is (re-find #"^\+: transposes by a whole number" (top "[c d] 1/2 +")))
+  (is (re-find #"^/: needs a positive factor, got 0" (top "[c d] 0 /")) "a number first, music second is refused below")
+  (is (= "D.major" (top "C.major 2 +")) "a key"))
 
 (deftest what-fits-no-kind-is-refused-naming-both
   (is (re-find #"\+: needs two numbers, a list of numbers and a number, or music and a number, got \[C4/4\] and \[E4/4\]"

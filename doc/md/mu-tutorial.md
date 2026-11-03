@@ -201,7 +201,7 @@ on the line as a whole.
 
 | Word | Stack | Does |
 |---|---|---|
-| `+` / `-` or `up` / `down` | `( x n -- x )` | every pitch up / down n semitones; `+` and `-` also add and subtract numbers, and work through a list of numbers (`'[60 62] 12 +` is `'[72 74]`) |
+| `+` / `-` | `( x n -- x )` | every pitch up / down n semitones; `+` and `-` also add and subtract numbers, and work through a list of numbers (`'[60 62] 12 +` is `'[72 74]`) |
 | `transpose` | `( x from to -- x )` | moved by the interval between two notes |
 | `[R]` or `retrograde` | `( x -- x )` | backwards, as it sounds: ties and dynamics turn round with it |
 | `[I]` or `inversion` | `( x -- x )` | mirrored around the first note, which stays |
@@ -260,8 +260,8 @@ plays C♯ and `f` F♯ in D major.
 
 | Word | Stack | Does |
 |---|---|---|
-| `*` or `stretch` | `( x f -- x )` | every duration times f; `*` also multiplies numbers and the numbers of a list |
-| `/` or `shrink` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one; `/` also divides numbers, exactly (`1 4 /` is `1/4`) |
+| `*` | `( x f -- x )` | every duration times f; `*` also multiplies numbers and the numbers of a list |
+| `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one; `/` also divides numbers, exactly (`1 4 /` is `1/4`) |
 | `[\|\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
 | `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
 
@@ -1224,7 +1224,7 @@ c4 '[0 40 73] sounds audition
 | `[\|\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
-| `+` `-` `*` `/`, `up` `down` `stretch` `shrink` | `( x n -- x )` |
+| `+` `-` `*` `/` | `( x n -- x )` |
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
 | `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
@@ -1249,7 +1249,6 @@ c4 '[0 40 73] sounds audition
 | `par` `seq` | `( \| … -- parallel \| line )` |
 | `repeat` | `( x n -- repeat )` (n plays, as `times`) |
 | `sounds` | `( note numbers -- line )` |
-| `stretch` | `( x f -- x )` |
 | `tonic` | `( key -- note )` |
 | `transpose` | `( x from to -- x )` |
 | `vary` | `( repeat q … -- line )` |

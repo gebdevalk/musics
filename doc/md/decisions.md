@@ -2624,3 +2624,13 @@ would stop being music's); a Clojure `defmulti` var cannot be a word by
 itself (`musics.mu.library` registers `fn?` vars), so each sign is a thin
 `defn` over the multimethod. `up` and its three siblings now refuse numbers
 and lists, pointing to the sign, where they used to do nothing.
+
+## 2026-11-03 — up, down, stretch and shrink are gone too
+
+With `+ - * /` working on music, the four named twins were a second spelling
+of the same thing, the doublure that removing `add sub mul div` was meant to
+end, kept only by the convention that every sign has a named twin. That
+convention suits `[R]` and `[~]`, which are awkward to type or read; `+ - * /`
+are plain. The four operations are private helpers of `musics.arith`; `up`
+etc. are no words any more, and `x 7 up` is `x 7 +`. The tree algos named
+`up` and `stretch>` (`musics.algo.tree.lib`) are a different thing and stay.
