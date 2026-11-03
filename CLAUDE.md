@@ -1625,10 +1625,10 @@ value -- see "Comments and variables" in `doc/md/grammar-notes.md`.
 `repeat ~ [ … ]` repeats endlessly (`:count :infinite`, no `volta`).
 `rotate n [ … ]` (`:SEQ` marked `:rotate n`) moves them n places further
 each time it is entered (the walk counts entries per voice). `choose [ … ]`
-(`CHS`, `:choose`) plays one of its elements, picked at random, each
+(`:choose`) plays one of its elements, picked at random, each
 time it is entered (`choose 3,1 [ … ]` weighs them, one weight per
 element, kept as `:weights`); its length, where one is needed, is its longest
-element's (`d/duration`); `alternate [ … ]` (`ALT`) plays its elements
+element's (`d/duration`); `alternate [ … ]` plays its elements
 in turn, one each time it is entered, counted per voice like `rotate`.
 `shuffle [ … ]` is a line (`:SEQ` marked `:shuffle`) whose notes, lines
 and repeats play in a new random order each time it is entered, so

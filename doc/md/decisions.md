@@ -2695,7 +2695,9 @@ thing a second time.
   text's short commands (`[TRP 5 ( c d )]`, grammar included): `ROT` differed
   from the stack's `rot` only by case, and the short forms saved nothing the
   long names, which the printers always wrote, did not. A word typed that way
-  says what to write; the text's `ALT` and `CHS` shorthands are untouched.
+  says what to write. The text's `ALT` and `CHS` (alternate, choose) went the
+  same way; the row-form letters `R` `I` `RI` `M` are a different matter, being
+  the established notation (and `R` alone is a bar's rest).
 - **`[%]` is `rotating`**, as `[?]` is `shuffling`, `[|]` `choosing` and `[\]`
   `alternating`: the signs of the family that acts as the music plays. The two
   words that act now, `rotate` and `shuffle`, have no sign. `rotating` of data
