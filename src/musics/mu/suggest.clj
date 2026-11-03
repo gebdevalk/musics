@@ -11,7 +11,7 @@
   {"add" "+", "sub" "-", "mul" "*", "div" "/", "inc" "1+", "dec" "1-"
    "lt" "<", "gt" ">", "le" "<=", "ge" ">=", "eq" "=", "ne" "<>", "neg" "negate"
    "pop" "drop", "up" "+", "down" "-", "stretch" "*", "shrink" "/"
-   "reverse" "retrograde", "rest" "tail", "size" "count", "len" "count"
+   "reverse" "retrograde", "rest" "tail", "first" "head", "size" "count", "len" "count"
    "print" ".", "show" "see", "quit" "bye", "exit" "bye", "loop" "cycle"
    "repeat" "times", "context-of" "setting"
    "line" "[2] [3] … (the count in the sign: [c d] [e f] [2])", "together" "{2} {3} … (the count in the sign)", "beside" "{+}"

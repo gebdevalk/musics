@@ -247,3 +247,25 @@ it is spelled and how it fails.
 - Is the third and fourth way to build a line (`( )` and `| seq`) kept for a
   reason, or did they arrive one at a time (M4)?
 - Are `ROT`/`SFL`/`TRP` wanted in mu at all (M1)?
+
+## Status, 2026-11-03
+
+| Finding | Status |
+|---|---|
+| H1 stack kept on error | done |
+| H2 `drop` trap | no guard (decided); docs say `tail` cuts |
+| H3 `+ - * /` on data | done: they work on numbers, lists, streams, music |
+| H4 comparison signs | done: `= <> < > <= >=`, flags, `.>` for play |
+| H5 `x'` in definitions | done |
+| M1 case twins | done: `ROT` `SFL` `TRP` `ALT` `CHS` gone, grammar included |
+| M2 `[%]` | done: `[%]` is `rotating` |
+| M3 doublures | done: `repeat`, `context-of`, `line`, `together`, `beside` gone |
+| M4 line and parallel builders | done: `[n]` `{n}` `( )`; the words taking as many values as you like (`zip` `>ctx` `par` `chord` `()`) gather from the `\|` mark, else the whole stack; `seq` gone |
+| M5 `chord` | done: the same rule |
+| M6 naming | done: `head` is the first element, `first` gone |
+| M7 `help`, did-you-mean | done |
+| M8 | withdrawn |
+| M9 error wording | done |
+| M10 optional arguments | left as they are |
+| M11 generic names | done: `rate` is not in use at the start |
+

@@ -5,7 +5,7 @@
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
-  (:refer-clojure :exclude [first last nth count take take-last drop-last partition shuffle
+  (:refer-clojure :exclude [last nth count take take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
@@ -61,13 +61,6 @@
    (core/map #(+ root %) (mt/elements intervals))))
 
 ;; -- access -----------------------------------------------------------------
-
-(defn first
-  "The first element"
-  [x]
-  (let [els (mt/elements x)]
-    (when (empty? els) (fail "nothing in" (p/show x)))
-    (core/first els)))
 
 (defn last
   "The last element"
@@ -177,15 +170,19 @@
   (each x #(core/drop-last (count! n) (mt/finite! "drop-last" %))))
 
 (defn head
-  "x cut to its first n elements, 1 without a count: [c d e f] [H] gives [c],
-   [c d e f] 2 [H] gives [c d]"
+  "The first element; with a count n, x cut to its first n elements:
+   [c d e f] head gives C4/4, [c d e f] 2 head gives [C4/4 D4]; n head and
+   n tail split x in two"
   {:mu {:names ["[H]"] :optional {:n integer?}}}
-  ([x] (head x 1))
+  ([x]
+   (let [els (mt/elements x)]
+     (when (empty? els) (fail "nothing in" (p/show x)))
+     (core/first els)))
   ([x n] (take x n)))
 
 (defn tail
   "x without its first n elements, 1 without a count: [c d e f] [T] gives
-   [d e f]; n [H] and n [T] split x in two"
+   [d e f]; n head and n tail split x in two"
   {:mu {:names ["[T]"] :optional {:n integer?}}}
   ([x] (tail x 1))
   ([x n] (each x (partial core/drop (count! n)))))

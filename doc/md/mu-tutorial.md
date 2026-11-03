@@ -128,7 +128,7 @@ it leaves mu running, and `gui` opens it again.
 | `par` | `( \| … -- parallel )` | everything above a `\|` mark side by side: `\| [c d] [e f] par` |
 | `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
 | `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
-| `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first n (1 without a count), and all after them: the same n splits a line in two |
+| `[H]` or `head`, `[T]` or `tail` | `( x [n] -- x )` | the first element (`head`) or the first n, and all after the first n (`tail`, 1 without a count): the same n splits a line in two |
 | `chord` | `( \| notes -- chord )` | the notes above the nearest `\|` mark, else the whole stack, as a chord |
 | `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a line's notes or a parallel's parts |
 
@@ -156,7 +156,7 @@ The pairs differ in what they take and what they make of it:
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
 {[c] [d]} {[e] [f]} {+} → {[C4/4] [D4] [E4] [F4]}
-[c d e f] [H]           → [C4/4]                    the head
+[c d e f] [H]           → C4/4                      the head, one element
 [c d e f] [T]           → [D4/4 E4 F4]              the tail
 [c d e f] 2 [H]         → [C4/4 D4]
 c e g chord             → <C4 E4 G4>4

@@ -68,7 +68,7 @@
 (deftest data-and-repeat-kinds-reach-an-algo
   (is (= 16 (count (re-seq #"\d+" (top "'[60 62 64] pitch/constrained")))) "data as its values")
   (is (str/ends-with? (top "'[60 62 64] [~] pitch/constrained") "] [~]") "a loop of data, as the reader prints it")
-  (is (str/starts-with? (top "[repeat tremolo 4 [c16 d]] first leaf/pocket") "repeat tremolo 4 [") "a tremolo stays one")
+  (is (str/starts-with? (top "[repeat tremolo 4 [c16 d]] head leaf/pocket") "repeat tremolo 4 [") "a tremolo stays one")
   (is (str/starts-with? (top "[: c d :] leaf/pocket") "[: ") "repeat signs stay"))
 
 (deftest a-param-follows-the-music

@@ -353,7 +353,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `rescale` `transpose` `inversion` `reductions` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
-| **access** | `first` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
+| **access** | `head` `last` `nth` (`@`) `count`; by time: `length` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a line with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -768,7 +768,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[/]` | the whole split into n parts, as equal as can be, the longer first | `[a b c d] 2 [/]` gives `[[A3/4 B3] [C4 D4]]` |
 | `[+]` | two lines joined into one (`concat`), each line's settings written where it begins | `[a b] [c d] [+]` |
 | `[_]` | a range of the elements cut out (`cut`): start and end, as `slice` takes them | `[c d e f g] 1 3 [_]` gives `[C4/4 F4 G4]` |
-| `[H]`, `[T]` | the head, the first n elements (1 without a count), and the tail, all after them (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `[C4/4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
+| `[H]`, `[T]` | the head, the first element, or with a count n the first n elements, and the tail, all after the first n (1 without a count) (`head`, `tail`); the same n splits a line in two | `[c d e f] [H]` gives `C4/4`, `[c d e f] 2 [H]` `[C4/4 D4]`, `[c d e f] 2 [T]` `[E4/4 F4]` |
 | `[%]` | the text's `rotate n [ … ]`, one step further each time it plays (`rotating`); data and streams are rotated now. `rotate` rotates music now, wrapping around | `[a b c d] 1 rotate` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 [%] [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] .>`, `[c d] [~] \|\| .>>+` |
@@ -831,8 +831,8 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   written value (or `nil`), not the sounding one; a drum's `instrument`
   is its key. `key` reads the key a note was written in (see the keys
   above).
-- **Access**: `first`, `last`, `nth` (from 0) and `count` take a line,
-  data or a stream (`first` and `nth` an endless one too).
+- **Access**: `head`, `last`, `nth` (from 0) and `count` take a line,
+  data or a stream (`head` and `nth` an endless one too).
 - **Repeating**: `times` (`[*]`) plays n times, one repeat
   (`vary` varying its passes); `[!]` writes the
   passes out as lines, each of which a quotation can change on its own

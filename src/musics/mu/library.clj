@@ -28,7 +28,7 @@
   #{"cut" "delete" "insert" "put" "splice" "within" "remove" "filter" "mute" "rotate"
     "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "transpose"
     "retrograde" "inversion" "retrograde-inversion" "mirror" "delay"
-    "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "head" "tail"
+    "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "tail"
     "sort" "sputter" "rotating" "shuffling" "interleave" "partition" "times" "cycle"})
 
 (defn effect

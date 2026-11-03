@@ -2787,3 +2787,23 @@ lies above the nearest `|` mark, or the whole stack when there is none
 on a stack that holds just those two; with something else below, a `|` marks
 where the parts start. `zip` of fewer than two values is refused (a lone
 bundle is allowed); `par` and `>ctx` of nothing say there is nothing to gather.
+
+## 2026-11-03 — head is the first element; the rating words wait for "rate" use; optional arguments stay
+
+Three closing choices from the REPL audit (M6, M10, M11).
+
+- **`head` is Haskell's**: `x head` is the first element, `x n head` the first n
+  elements; `first` is gone (`unknown word: first -- it is now written head`).
+  `tail` is all after the first n, 1 without a count; `last` stays; `count` is
+  the number of elements and `length` the duration in whole notes, as before.
+  The result of `head` depends on its arity (an element, then a list), which
+  was weighed and accepted against a second word.
+- **Optional arguments chosen by the top value's type stay** (M10): `see` shows
+  the optional argument in brackets, and the words where a stray number could
+  pick a voice (`stop`, the play words) already require a keyword or an
+  integer that names a voice.
+- **`rate` is not in use at the start** (M11): `next`, `prev`, `step`, `gap`,
+  `again` and `ask` are names a user wants for their own words, and a
+  definition of one silently replaced the rating word. `"rate" use` (or
+  `rate/like`) brings them; Alt+j, k, l, J, K, L call the functions directly
+  and work either way.

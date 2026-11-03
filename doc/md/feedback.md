@@ -8,6 +8,12 @@ the material's dimensions are settled.
 
 ## Built: sounds
 
+The rating words are in mu's `rate` namespace, which is not in use at the
+start (`next`, `step`, `gap` are names you may want for your own words):
+`"rate" use` makes `like`, `meh`, `dislike`, `audition`, … usable as written
+below, or write `rate/like`. Alt+j, Alt+k and Alt+l, Alt+J, Alt+K and Alt+L
+work either way.
+
 ### A trial
 
 A trial is one thing heard and rated. It is stored as:

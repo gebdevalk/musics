@@ -45,7 +45,7 @@
   (is (re-find #"unknown word: \[\*\]" (top "[c d] 2 [*]")) "tool isn't in use here"))
 
 (deftest tool-is-in-use-by-default
-  (is (= ["kernel" "tool" "music" "play" "rate" "soundfont" "mine"] (:use (e/fresh-state)))))
+  (is (= ["kernel" "tool" "music" "play" "soundfont" "mine"] (:use (e/fresh-state)))))
 
 (deftest bar-lines-are-elements
   (is (= "[C4/4 D4 | E4]" (top "( [c d | e] '( ) each )")) "a group keeps a bar of a line's elements")
@@ -178,7 +178,7 @@
                       ["times" "( x n -- x' )"] ["cycle" "( x -- x' )"] ["rotate" "( x n -- x' )"]
                       ["take" "( x n -- x' )"] ["+" "( x n -- x' )"] ["zip" "( durations pitches -- durations' )"]]]
       (is (str/starts-with? (effect w) head) w))
-    (doseq [w ["count" "first" "concat" "pitches" "dup"]]
+    (doseq [w ["count" "last" "concat" "pitches" "dup"]]
       (is (not (str/includes? (first (str/split (effect w) #"\)\s\s" 2)) "'")) (str w " does not return its input changed")))))
 
 (deftest every-sign-has-a-twin
@@ -268,11 +268,14 @@
     (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
 
 (deftest head-and-tail
-  (is (= "[C4/4]" (top "[c d e f] [H]")) "without a count, the first")
+  (is (= "C4/4" (top "[c d e f] [H]")) "without a count, the first element")
+  (is (= "[C4/4]" (top "[c d e f] 1 [H]")) "with a count, a line of that many")
+  (is (re-find #"unknown word: first -- it is now written head" (top "[c d] first")) "first is head")
   (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")
   (is (= "[C4/4 D4]" (top "[c d e f] 2 [H]")))
   (is (= "[E4/4 F4]" (top "[c d e f] 2 [T]")) "the same n splits the line in two")
-  (is (= "'[1]" (top "'[1 2 3] [H]")) "numbers: the data is on top, no count")
+  (is (= "1" (top "'[1 2 3] [H]")) "numbers: the data is on top, no count")
+  (is (= "'[1]" (top "'[1 2 3] 1 [H]")) "with a count, a list")
   (is (= "'[3]" (top "'[1 2 3] 2 [T]"))))
 
 (deftest row-forms
@@ -379,9 +382,9 @@
   (is (re-find #"pitch: reads one note; for every note of a line, use pitches" (top "[c d] pitch")))
   (is (re-find #"note\?: reads one note; for every note of a line, use '\( note\? \) map" (top "[c d] note?")))
   (is (re-find #"pitch: reads a note" (top "5 pitch")))
-  (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] first [c d e] last [c d e] 1 nth [c d e] count")))
+  (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] head [c d e] last [c d e] 1 nth [c d e] count")))
   (is (re-find #"nth: 5 is past the end" (top "[c d e] 5 nth")))
-  (is (= "C4/4" (top "[c d] cycle first")) "first of an endless stream")
+  (is (= "C4/4" (top "[c d] cycle head")) "head of an endless stream")
   (is (re-find #"endless" (top "[c d] cycle count"))))
 
 (deftest pitches-print-as-written-or-by-key
