@@ -565,8 +565,8 @@ aspect, genericity, locality, extent and principle:
    that plays one after another, and no `interleave` or `alternate`.
    The play args have both (`[]`, `#{}`); the tree only the parallel
    one.
-2. **Order tools.** No `reverse` (retrograde); `rotate` is the tool for
-   rotation (`euclid` and the necklaces no longer rotate themselves).
+2. **Order tools.** `reverse` (retrograde) and `rotate` are the tools for
+   order (`euclid` and the necklaces no longer rotate themselves).
 3. **Value tools.** No inversion (reflection about a pitch or a value)
    beside `transpose` (translation) and `stretch` (multiplication).
 4. **Each type's algebra.** Pulse grids have no union, intersection or

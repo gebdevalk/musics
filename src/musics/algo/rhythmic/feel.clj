@@ -150,7 +150,6 @@
    "slowest"         (fn [p] (vec (mapcat #(repeat 3 %) p)))
    "fastest"         (fn [p] (if (> (count p) 1) (vec (take-nth 2 p)) (vec p)))
    "disconnect"      (fn [p] (vec (map-indexed (fn [i v] (if (even? i) v 0)) p)))
-   "only_essentials" (fn [p] (vec (map-indexed (fn [i v] (if (and (= v 1) (even? i)) 1 0)) p)))
    "mistakes"        (fn [p] (mapv (fn [v] (if (> (rand/rand-double) 0.2) v (- 1 v))) p))
    "silence"         (fn [p] (vec (repeat (count p) 0)))
    "double"          (fn [p] (vec (concat p p)))
@@ -162,7 +161,7 @@
    call; an unrecognized strategy name is a no-op (returns pattern
    unchanged)."
   {:algo {:in [:pulse] :out :pulse :arity 2
-          :params {:strategy {:type :string :default "random" :choices ["random" "reverse" "invert" "slowest" "fastest" "disconnect" "only_essentials" "mistakes" "silence" "double" "mirror"] :doc "which transform"}}}}
+          :params {:strategy {:type :string :default "random" :choices ["random" "reverse" "invert" "slowest" "fastest" "disconnect" "mistakes" "silence" "double" "mirror"] :doc "which transform"}}}}
   ([pattern] (oblique pattern "random"))
   ([pattern strategy]
    (let [strategy (if (= strategy "random") (rand/choose (keys oblique-strategies)) strategy)

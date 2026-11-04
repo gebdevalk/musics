@@ -8,12 +8,13 @@
      cycle shuffle  :in any   repeat forever / reshuffle every pass
      take           :len      first :len items
      rotate         :steps    the front items round to the back
+     reverse                  the items in reverse order
      map filter     :fn       each item through a fn / the items a fn keeps
      remove         :fn       the items a fn doesn't drop
      mute           :fn       leaves: the notes a fn is true for become rests
      rescale        :from-lo .. :to-hi   numbers from one range onto another
      stretch        :factor   durations or notes, each duration times :factor"
-  (:refer-clojure :exclude [map filter remove take cycle shuffle])
+  (:refer-clojure :exclude [map filter remove take cycle shuffle reverse])
   (:require [musics.algo.common.rotate :as rot]
             [musics.algo.numeric.random :as random]
             [musics.algo.tree :refer [defalgo]]
@@ -37,6 +38,10 @@
   {:algo {:category "tool" :in [:any] :out :same
           :params {:steps {:type :int :min -256 :max 256 :default 1 :doc "places to the left"}}}}
   [xs steps] (let [v (vec xs)] (if (empty? v) v (rot/rotate v steps))))
+
+(defalgo reverse "Its child (finite) in reverse order."
+  {:algo {:category "tool" :in [:any] :out :same}}
+  [xs] (vec (clojure.core/reverse xs)))
 
 (defalgo map "Each item through :fn (set at the REPL), lazily; the type stays."
   {:algo {:category "tool" :in [:any] :out :same

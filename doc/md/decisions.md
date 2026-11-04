@@ -3211,3 +3211,21 @@ stretch rotate` now.
   necessary choice of a derived word. `points->pitches` has no
   `numbers->…` twin at all (it maps onto the steps of a key), so it stays whole.
   Revisit if a bridge chain is built for another reason.
+
+## 2026-11-04 — step 4: duplicates and hidden params, not selectors; `reverse` joins `rotate`
+
+Read against the rule (a parameter stays if the algo needs it, goes if another
+function does it), most of the algos that pick behaviour by name keep their
+selector: `emi` (four mutations are steps of one procedure), `text-rhythm :mode`
+(three counting rules), `djembe :technique` (a choice among stroke patterns) and
+`oblique :strategy` (the strategies are its content). Splitting `oblique` would
+add about eight tiny algos and as many derived `duration/` words.
+
+- `oblique` lost `only_essentials`: on a 0/1 pattern it is `disconnect` exactly
+  (`(if (and (= v 1) (even? i)) 1 0)` against `(if (even? i) v 0)`).
+- `stochastic` took its distribution-specific values out of a `:params` map, where
+  no registry spec, range or setting could reach them, into real params: `mean`,
+  `std`, `rate` (nil: the old defaults from `length` and `density`) and `decay`.
+- `reverse` is a tree tool beside `rotate`: the "order" tools `algo-space.md`
+  found missing. It lives in `musics.algo.tree.tools`, which excludes it from
+  `clojure.core` with the rest.

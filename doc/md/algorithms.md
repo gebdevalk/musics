@@ -311,6 +311,7 @@ is wanted:
 | `cycle`, `shuffle` | repeat forever / reshuffle every pass (lazy) |
 | `take` | the first `:len` items |
 | `rotate` | the front `:steps` items round to the back |
+| `reverse` | the items in reverse order |
 | `map`, `filter` | each item through `:fn` / the items `:fn` keeps (`:fn` set in code; in mu, `map` and `filter` take a quotation) |
 | `remove` | the items `:fn` doesn't drop; on leaves the line gets shorter |
 | `mute` | leaves: each note `:fn` is true for becomes a rest of its duration, the rhythm stays |

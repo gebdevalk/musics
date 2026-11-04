@@ -23,6 +23,11 @@
   (is (= [60 67 72] (t/run (lib/degrees->pitches (tools/rescale [55 60 65])) {:from-lo 55.0 :from-hi 65.0 :to-lo 0.0 :to-hi 7.0}))
       "a walk's range onto one octave of steps"))
 
+(deftest reverse-turns-the-items-round
+  (is (= [3 2 1] (t/run (tools/reverse [1 2 3]) {})))
+  (is (= [] (t/run (tools/reverse []) {})))
+  (is (= [0 1 0 0 1 0 0 1] (t/run (tools/reverse lib/euclid) {})) "euclid, backwards"))
+
 (deftest rotate-moves-the-front-round-to-the-back
   (is (= [2 3 1] (t/run (tools/rotate [1 2 3]) {})) "one place left by default")
   (is (= [3 1 2] (t/run (tools/rotate [1 2 3]) {:steps -1})) "negative goes right")

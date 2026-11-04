@@ -49,22 +49,22 @@
 (deftest uniform-stochastic-rhythm-hits-the-exact-density
   ;; uniform placement samples without replacement, so the count of ones
   ;; is always exactly (int (* length density)), not just approximate
-  (is (= 8 (reduce + (p/stochastic "uniform" {} 16 0.5)))))
+  (is (= 8 (reduce + (p/stochastic "uniform" 16 0.5)))))
 
 (deftest gaussian-stochastic-rhythm-clusters-near-the-mean
-  (let [pattern (p/stochastic "gaussian" {:mean 8 :std 2} 16 0.9)
+  (let [pattern (p/stochastic "gaussian" 16 0.9 :mean 8 :std 2)
         near-mean (reduce + (subvec pattern 5 11))
         far-from-mean (+ (reduce + (subvec pattern 0 3)) (reduce + (subvec pattern 13 16)))]
     (is (> near-mean far-from-mean)
         "high density near the mean should dominate the sparse tails")))
 
 (deftest poisson-stochastic-rhythm-stays-in-bounds
-  (let [pattern (p/stochastic "poisson" {} 16 0.5)]
+  (let [pattern (p/stochastic "poisson" 16 0.5)]
     (is (= 16 (count pattern)))
     (is (every? #{0 1} pattern))))
 
 (deftest exponential-stochastic-rhythm-front-loads
-  (let [pattern (p/stochastic "exponential" {:decay 4.0} 20 0.5)]
+  (let [pattern (p/stochastic "exponential" 20 0.5 :decay 4.0)]
     (is (= 1 (first pattern)) "decay=4 at i=0 always fires (prob 1.0)")))
 
 (deftest cloud-rhythm-returns-sorted-timings-within-duration

@@ -49,19 +49,21 @@
 ;; musics.algo.numeric.random (seedable, algo-safe) rather than raw clojure.core/rand.
 
 (defn stochastic
-  "Binary pattern of the given length, placed according to distribution
-   ('uniform', 'gaussian', 'poisson', or 'exponential') at roughly the
-   given density (0.0-1.0). params is a map of distribution-specific
-   keys: :mean/:std for 'gaussian' (default length/2, length/6), :rate
-   for 'poisson' (default density*10), :decay for 'exponential'
-   (default 2.0)."
+  "A binary pattern of the given length, its onsets placed by distribution
+   (\"uniform\", \"gaussian\", \"poisson\" or \"exponential\") at roughly the given
+   density (0.0-1.0). gaussian reads mean and std (default length/2 and
+   length/6), poisson rate (default density*10), exponential decay (default 2.0);
+   the others ignore them."
   {:algo {:in [] :out :pulse
           :params {:distribution {:type :string :default "gaussian" :doc "where onsets fall"
                                   :choices ["uniform" "gaussian" "poisson" "exponential"]}
-                   :params       {:type :map :default {} :doc "e.g. {:mean 8 :std 2} for gaussian"}
                    :length       {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
-                   :density      {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "how many onsets"}}}}
-  [distribution params length density]
+                   :density      {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "how many onsets"}
+                   :mean         {:type :any :default nil :doc "gaussian centre, nil = length/2"}
+                   :std          {:type :any :default nil :doc "gaussian spread, nil = length/6"}
+                   :rate         {:type :any :default nil :doc "poisson events per ten pulses, nil = density*10"}
+                   :decay        {:type :double :min 0.0 :max 100.0 :default 2.0 :doc "exponential fall-off"}}}}
+  [distribution length density & {:keys [mean std rate decay] :or {decay 2.0}}]
   (case distribution
     "uniform"
     (let [num-ones (int (* length density))]
@@ -69,14 +71,14 @@
               (rand/choose-n num-ones (range length))))
 
     "gaussian"
-    (let [mean  (get params :mean (/ length 2.0))
-          std   (get params :std (/ length 6.0))
+    (let [mean  (or mean (/ length 2.0))
+          std   (or std (/ length 6.0))
           probs (mapv #(Math/exp (* -0.5 (Math/pow (/ (- % mean) std) 2))) (range length))
           max-p (apply max probs)]
       (mapv (fn [p] (if (weighted-coin (* (/ p max-p) density)) 1 0)) probs))
 
     "poisson"
-    (let [rate (get params :rate (* density 10))]
+    (let [rate (or rate (* density 10))]
       (loop [pattern (vec (repeat length 0)) current 0]
         (if (>= current length)
           pattern
@@ -87,11 +89,10 @@
               pattern)))))
 
     "exponential"
-    (let [decay (get params :decay 2.0)]
-      (mapv (fn [i]
-              (let [prob (Math/exp (/ (* (- decay) i) length))]
-                (if (weighted-coin (* prob density 2)) 1 0)))
-            (range length)))
+    (mapv (fn [i]
+            (let [prob (Math/exp (/ (* (- decay) i) length))]
+              (if (weighted-coin (* prob density 2)) 1 0)))
+          (range length))
 
     (vec (repeat length 0))))
 

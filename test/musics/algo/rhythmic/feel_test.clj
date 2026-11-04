@@ -64,7 +64,7 @@
     (is (= [1 1 1 0 0 0 1 1 1 1 1 1 0 0 0] (micro/oblique pattern "slowest")))
     (is (= [1 1 0] (micro/oblique pattern "fastest")))
     (is (= [1 0 1 0 0] (micro/oblique pattern "disconnect")))
-    (is (= [1 0 1 0 0] (micro/oblique pattern "only_essentials")))
+    (is (= [1 0 1 0 0] (micro/oblique pattern "disconnect")))
     (is (= [0 0 0 0 0] (micro/oblique pattern "silence")))
     (is (= [1 0 1 1 0 1 0 1 1 0] (micro/oblique pattern "double")))
     (is (= [1 0 1 1 0 0 1 1 0 1] (micro/oblique pattern "mirror")))))

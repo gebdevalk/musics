@@ -37,7 +37,7 @@
 
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
-  (eval '(do (clojure.core/refer-clojure :exclude '[map filter remove take cycle shuffle])
+  (eval '(do (clojure.core/refer-clojure :exclude '[map filter remove take cycle shuffle reverse])
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
                       '[musics.algo.tree.tools :refer :all]

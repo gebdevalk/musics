@@ -722,7 +722,7 @@ classes as raw numbers, so the bridges serialise any parameter --
 with `row-form`, and `matrix`/`combinatorial`/`prime-form`/`interval-vector`
 as plain fns) — and
 `defalgo`s the tools (`musics.algo.tree.tools`: within one type, any
-material, plain names -- `cycle`, `shuffle`, `take`, `rotate`,
+material, plain names -- `cycle`, `shuffle`, `take`, `rotate`, `reverse`,
 `map`/`filter` with a `:fn` param, `rescale` a range onto another,
 `stretch` durations; that namespace excludes the `clojure.core` names it
 takes) -- the helpers (`scale`, `transpose`, `pick`) and
