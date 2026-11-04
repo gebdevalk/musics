@@ -40,7 +40,7 @@
     (is (re-find #"did you mean .*duration/euclid" (error "euclid")))
     (is (re-find #"did you mean pitch/lorenz" (error "pitch/lorenzz")) "a typo in a qualified name"))
   (testing "nothing close says where to look"
-    (is (re-find #"^unknown word: zzzzzz -- words lists them, help shows the way$" (error "zzzzzz")))))
+    (is (re-find #"^unknown word: zzzzzz -- about zzzzzz looks for it; words lists them$" (error "zzzzzz")))))
 
 (deftest a-renamed-word-says-what-replaced-it
   (doseq [[old new] [["add" "+"] ["lt" "<"] ["eq" "="] ["neg" "negate"] ["pop" "drop"] ["up" "+"] ["quit" "bye"]]]

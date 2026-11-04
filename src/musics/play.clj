@@ -8,6 +8,7 @@
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
             [musics.engine :as engine]
+            [musics.mu.about :as about]
             [musics.mu.eval :as e]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
@@ -143,9 +144,12 @@
 
 (defn settings!
   "A live voice's settings: each param its recipe reads, its value, range,
-   default and what it does"
+   default and what it does; with a parameter's name (settings tempo), its
+   range, default and how it is written"
   [voice]
-  (t/describe (live/tctx-of "settings" voice)))
+  (if (or (symbol? voice) (string? voice))
+    (println (about/settings-text voice))
+    (t/describe (live/tctx-of "settings" voice))))
 
 (defn retree!
   "A new recipe for a live voice, its settings and position kept: '( … ) :riff retree"

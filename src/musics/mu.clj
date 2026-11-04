@@ -150,6 +150,7 @@
              "'words' lists them, 'help' shows the way in."
              ""
              "stack    each input that runs says ok; '.s' shows the stack, '.' prints the top and drops it"
+             "about    'about tempo' says what a name is -- a word, parameter, mark, instrument -- and where it can appear"
              "start    gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
              "play     'x ->' plays immediately, 'x ->>' at the next boundary, 'x | ->>' at the next |"
              "         'x ->+' joins now and 'x ->>+' joins at the boundary"

@@ -601,7 +601,9 @@
   (doseq [in ["help dup" "see dup" "'dup help" "\"dup\" see"]]
     (let [out (atom nil)]
       (swap! e/state assoc :stack [])
-      (reset! out (with-out-str (e/eval-input in)))
+      (let [r (atom nil)]
+        (reset! out (with-out-str (reset! r (e/eval-input in))))
+        (is (nil? (:error @r)) (str in " runs without an error")))
       (is (str/starts-with? @out "dup ( x -- x x )") in)
       (is (= [] (:stack @e/state)) "dup was looked up, not run")))
   (testing "a sign or a literal after them is not read as the name"
@@ -613,3 +615,45 @@
     (is (str/starts-with? (with-out-str (e/eval-input "'( see swap ) call")) "swap ( x1 x2 -- x2 x1 )"))
     (e/eval-input ": what see over ;")
     (is (str/starts-with? (with-out-str (e/eval-input "what")) "over ( x1 x2 -- x1 x2 x1 )"))))
+
+;; about: what a name is, and where it can appear (read from the grammar)
+(deftest about-says-what-a-name-is-and-where-it-can-appear
+  (let [run-out (fn [in] (swap! e/state assoc :stack [])
+                  (let [r (atom nil) out (with-out-str (reset! r (e/eval-input in)))]
+                    (is (nil? (:error @r)) (str in " runs without an error"))
+                    (str/trim-newline out)))]
+    (testing "a musical parameter: one sentence"
+      (is (= "tempo is a musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ]." (run-out "about tempo"))))
+    (testing "pitch, duration and articulation are properties of leaves"
+      (is (re-find #"^pitch is a property of a note or chord\.\npitch is a word of mu" (run-out "about pitch")))
+      (is (= "duration is a property of a note, chord or rest, or the length of a line." (first (str/split-lines (run-out "about duration"))))))
+    (testing "a mark, an instrument, a drum, a scale, an articulation"
+      (is (= "!allegro is a mark (it sets Tempo to 138) and can appear in ^{ }, { } and [ ]." (run-out "about allegro")))
+      (is (= "violin is an instrument (vln, program 40) and can appear in ^{ }, { } and [ ]." (run-out "about violin")))
+      (is (re-find #"^Bass Drum 1 is a drum \(key 36\) and can appear in \[ \]\." (run-out "about kick")))
+      (is (re-find #"^Major is a scale \(also ionian\)\." (run-out "about major")))
+      (is (re-find #"staccato is an articulation .* and can appear in \[ \], after a note\." (run-out "about staccato"))))
+    (testing "a word, and a name that is several things"
+      (is (= "dup is a word of mu ( x -- x x )." (run-out "about dup")))
+      (let [out (run-out "about volume")]
+        (is (re-find #"(?m)^volume is a musical parameter" out))
+        (is (re-find #"(?m)^volume is a word of mu \( note -- volume \)" out))))
+    (testing "settings and marks say more about a parameter"
+      (is (= "30..300, default 100, Beats per minute. Written !tempo:100, or set on a line with x :tempo 100 with"
+             (run-out "settings tempo")))
+      (is (re-find #"^!adagissimo " (run-out "marks tempo")))
+      (is (not (re-find #"\d" (run-out "marks tempo"))) "names only"))
+    (testing "where it can appear is the grammar's: notes are in [ ] only"
+      (is (re-find #"^Leaf is a rule of the grammar and can appear in \[ \]\." (run-out "about Leaf")))
+      (is (re-find #"^TempoMark is a rule of the grammar and can appear in \^\{ \}, \{ \} and \[ \]\." (run-out "about TempoMark"))))
+    (testing "a string and a quoted name say the same"
+      (is (= (run-out "about tempo") (run-out "\"tempo\" about")))
+      (is (= (run-out "about tempo") (run-out "'tempo about"))))
+    (testing "an unknown name lists the names that start with it; no name says how to ask"
+      (is (= "nothing is called \"tem\"; names with it: Tempo" (run-out "about tem")))
+      (is (re-find #"nothing is called \"zzzz\"" (run-out "about zzzz")))
+      (is (re-find #"^about <name>:" (run-out "about"))))
+    (testing "the stack is left as it was"
+      (swap! e/state assoc :stack [])
+      (e/eval-input "[c d] about tempo")
+      (is (= 1 (count (:stack @e/state)))))))

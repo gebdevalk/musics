@@ -15,6 +15,7 @@
             [musics.input.lilypond-import :as ly]
             [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
+            [musics.mu.about :as about]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -258,6 +259,19 @@
                    :let [eff (str (:effect entry))]
                    :when (or (str/includes? (str/lower-case w) t) (str/includes? (str/lower-case eff) t))]
                [(if (some #{ns} (:use st)) w (str ns "/" w)) w eff]))))
+
+(defn about!
+  "What a name is -- a word, a setting, a mark, an instrument, a drum, a
+   scale, a rule of the grammar -- and where it can appear: about tempo,
+   'tempo about, \"violin\" about"
+  {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
+  ([] (println (about/report @e/state "")))
+  ([topic] (println (about/report @e/state (str topic)))))
+
+(defn marks!
+  "The marks that set a musical parameter, by value: marks tempo"
+  [topic]
+  (println (about/marks-text (str topic))))
 
 (defn help!
   "mu in a few lines; with a word, as see explains it; with other text,
