@@ -1038,6 +1038,17 @@ buttons from the same facts (`musics.gui.core/action-button`), and colours
 the panel opener for the next step. `(show-algos)` lists the algo
 registry by category.
 
+mu's lookup words read the word after them (`musics.mu.eval/name-asked-for`),
+as Forth's `see` does: `help dup`, `see dup`, `about tempo`, `marks tempo`,
+and `settings tempo` when no voice (keyword or integer) is on top.
+`musics.mu.about` answers `about` with one sentence for each thing the name is
+(a musical parameter, a property of a note, a mark, a word, an instrument, a
+drum, a kit, a scale, a chord quality, an articulation, a grammar rule), and
+where it can appear is read from the grammar (`homes`: the brackets `^{ }`,
+`{ }`, `[ ]` that allow the rule directly). `settings-text` gives a
+parameter's range, default and how it is written; `marks-text` the marks that
+set it, by value.
+
 ### Composing vs. performing: `musics.compose`
 
 `musics.compose` (`src/musics/compose.clj`) holds the play-arg mini-

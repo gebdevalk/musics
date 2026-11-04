@@ -11,6 +11,7 @@
             [clojure.walk :as walk]
             [musics.common.context-keys :as ck]
             [musics.common.music-data :as data]
+            [musics.common.music-elements :as el]
             [musics.mu.grammar :as g]))
 
 ;; -- where a rule can appear ------------------------------------------------------------
@@ -167,6 +168,13 @@
             (str "nothing is called " (pr-str t)
                  (if (seq sim) (str "; names with it: " (str/join ", " sim)) "; words lists the words"))))))))
 
+(defn- written
+  "A default as it is written: a key as D.major, a meter as 4/4."
+  [x]
+  (cond (instance? musics.common.music_elements.Key x) (el/key->str x)
+        (instance? musics.common.music_elements.Meter x) (el/meter->str x)
+        :else (pr-str x)))
+
 (defn settings-text
   "A musical parameter in detail: its range, default, what it is, how it is written
    and set. For any other name, where to look."
@@ -179,7 +187,7 @@
       (str/join "\n"
                 (for [{:keys [range default description]} ks
                       :let [shown (if (number? default) default "value")]]
-                  (str (when range (str (first range) ".." (second range) ", ")) "default " (pr-str default) ", "
+                  (str (when range (str (first range) ".." (second range) ", ")) "default " (written default) ", "
                        (str/replace (str description) #"\.$" "") ". Written !" t ":" shown
                        ", or set on a line with x :" t " " shown " with")))
       :else (str (pr-str t) " is no musical parameter; about " t " says what it is"))))
@@ -189,11 +197,11 @@
    of its marks."
   [n]
   (let [t (str/trim (str n))
-        ctx (or (some-> (first (parameters t)) :name clojure.core/name)
-                (some (fn [[k [c _]]] (when (same? t (name k)) (name c))) data/instruction-context))
-        ms (when ctx
+        ctxs (or (seq (map #(clojure.core/name (:name %)) (parameters t)))
+                 (some (fn [[k [c _]]] (when (same? t (name k)) [(name c)])) data/instruction-context))
+        ms (when ctxs
              (sort-by (fn [[k [_ v]]] (if (number? v) [0 v "" (name k)] [1 0 (str v) (name k)]))
-                      (filter (fn [[_ [c _]]] (same? (name c) ctx)) data/instruction-context)))]
+                      (filter (fn [[_ [c _]]] (some #(same? (name c) %) ctxs)) data/instruction-context)))]
     (cond
       (str/blank? t) "marks <name>: the marks that set a musical parameter, by value -- marks tempo"
       (seq ms) (str/join " " (for [[k _] ms] (str "!" (name k))))

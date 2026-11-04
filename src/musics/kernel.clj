@@ -271,6 +271,8 @@
 (defn marks!
   "The marks that set a musical parameter, by value: marks tempo"
   [topic]
+  (when-not (or (symbol? topic) (string? topic))
+    (fail "takes a parameter's name, marks tempo -- got" (p/show topic)))
   (println (about/marks-text (str topic))))
 
 (defn help!
