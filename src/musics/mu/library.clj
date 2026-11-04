@@ -62,7 +62,7 @@
    ".." "( n1 n2 -- l )", "range" "( n1 n2 -- l )", "@" "( x n -- elem )", "nth" "( x n -- elem )"
    "concat" "( x1 x2 -- x3 )", "parts" "( x n -- l )", "partition" "( x n -- l )"
    "head" "( x -- elem )"
-   "choose-from" "( x -- l )", "choose-n" "( x n -- l )", "length" "( x -- n )"
+   "choose-from" "( x -- l )", "choose-n" "( x how-many -- l )", "length" "( x -- n )"
    "find" "( x q -- elem )", "index-of" "( x q -- n )", "indexes" "( x q -- l )"
    "interleave" "( x1 x2 -- x3 )", "intervals" "( l -- steps )", "iterate" "( x q -- l )"
    "last" "( x -- elem )", "map" "( x q -- x' )", "mean" "( l -- n )"

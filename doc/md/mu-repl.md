@@ -331,7 +331,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ onsets:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
@@ -655,7 +655,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   default duration.
 - **A recipe as a tree** (`musics.recipe`): `@( … )`, an algo tree in
   RPN. Inside, an algo takes its inputs from the top of the recipe's own
-  stack and pushes itself, its params (`k:3`) and alias (`'bass`) right
+  stack and pushes itself, its params (`onsets:3`) and alias (`'bass`) right
   before it; `zip`/`par` join the top two or all above a `|`; `dup`
   `swap` `over` `rot`; data and numbers; a `^{ }` first, the settings for
   all of it; no music inside -- what the tree needs from below is taken
@@ -922,7 +922,7 @@ the doc and the settings it reads, `@^{ k n … }`.
 
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
-@^{ k:5 n:16 } duration/euclid            the settings on top are its own
+@^{ onsets:5 pulses:16 } duration/euclid            the settings on top are its own
 [c8 d4 e8] dup durations @^{ index:1 } duration/bracelet swap pitches zip
                                          the rhythm as a bracelet member, a rest's pitch unused
 [!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg ->

@@ -199,11 +199,11 @@
 ;; ------------------------------------------------------------
 
 (defn choose-n
-  "Choose n random elements from coll, without replacement."
+  "Choose how-many random elements from coll, without replacement."
   {:algo {:in [:any] :out :same :children [:coll]
-          :params {:n {:type :int :min 0 :max 256 :default 4 :doc "elements drawn"}}}}
-  [n coll]
-  (vec (take n (shuffle coll))))
+          :params {:how-many {:type :int :min 0 :max 256 :default 4 :doc "elements drawn"}}}}
+  [how-many coll]
+  (vec (take how-many (shuffle coll))))
 
 
 (defn deep-shuffle
@@ -254,22 +254,22 @@
 
 
 (defn sputter
-  "A list where some elements are repeated: each element, with probability p (default 0.25), repeats, and repetitions may repeat in turn. The result has at most max elements (default 100).
+  "A list where some elements are repeated: each element, with probability p (default 0.25), repeats, and repetitions may repeat in turn. The result has at most max-length elements (default 100).
      (sputter [1 2 3 4])        ;=> [1 1 2 3 3 4]
      (sputter [1 2 3 4] 0.7 5)  ;=> [1 1 1 2 3]
      (sputter [1 2 3 4] 0.8 10) ;=> [1 2 2 2 2 2 2 2 3 3]
      (sputter [1 2 3 4] 1 10)   ;=> [1 1 1 1 1 1 1 1 1 1]"
   {:algo {:in [:any] :out :same :arity 3
           :params {:prob (assoc unit-spec :default 0.25 :doc "chance of a repeat")
-                   :max  {:type :int :min 1 :max 1024 :default 100 :doc "longest result"}}}}
+                   :max-length {:type :int :min 1 :max 1024 :default 100 :doc "longest result"}}}}
   ([lst]          (sputter lst 0.25))
   ([lst prob]     (sputter lst prob 100))
-  ([lst prob max] (sputter lst prob max []))
-  ([[head & tail] prob max result]
-   (if (and head (< (count result) max))
+  ([lst prob max-length] (sputter lst prob max-length []))
+  ([[head & tail] prob max-length result]
+   (if (and head (< (count result) max-length))
      (if (< (rand-double) prob)
-       (recur (cons head tail) prob max (conj result head))
-       (recur tail prob max (conj result head)))
+       (recur (cons head tail) prob max-length (conj result head))
+       (recur tail prob max-length (conj result head)))
      result)))
 
 

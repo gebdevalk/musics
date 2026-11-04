@@ -112,7 +112,7 @@ In mu:
 - **A window for it:** `:riff gui` opens a live voice's settings, a
   control per param; the GUI's Wall window shows every live voice's.
 - **Live:** a voice playing a recipe plays each next note of what the
-  recipe gives now: `:riff @^{ k:3 } set` is heard on the next note,
+  recipe gives now: `:riff @^{ onsets:3 } set` is heard on the next note,
   `'( … ) :riff retree` swaps the recipe and keeps the settings and the
   position, and `:riff stop` ends it.
 

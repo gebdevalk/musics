@@ -33,5 +33,5 @@
 (deftest alternatives-give-the-one-their-index-picks
   (is (= [0 1 0 1 1] (t/run (lib/bracelet [1 0 1 0 1]) {:index 1})))
   (is (= [1 0 1 0 1] (t/run (lib/bracelet [1 0 1 0 1]) {:index 0})) "the pattern itself first")
-  (is (every? #(= 3 (reduce + %)) (for [i (range 7)] (t/run (lib/necklaces) {:n 8 :k 3 :index i}))))
+  (is (every? #(= 3 (reduce + %)) (for [i (range 7)] (t/run (lib/necklaces) {:pulses 8 :onsets 3 :index i}))))
   (is (= [1 1 0 0] (t/run (lib/crossover [1 1 1 1] [0 0 0 0]) {:crossover-point 2 :child 0}))))

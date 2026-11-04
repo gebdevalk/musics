@@ -287,7 +287,7 @@ many steps, the shorter ones cycling; `with` lays it under a line. The algos are
 (`musics.mu.algos`, generated from the registry): `duration/euclid`,
 `pitch/lorenz`, `duration/emi`, `parallel/drums` -- a line taken apart
 into the algo's inputs (a repeat or loop around them kept around the
-result), an `@^{ k:5 }` on top as its own settings -- an algo's settings
+result), an `@^{ onsets:5 }` on top as its own settings -- an algo's settings
 are a value of their own, `:TCONTEXT`, apart from the music's `^{ }`,
 which an algo word refuses -- then a live voice's (`set`), then the
 head of the recipe it runs in (the `@^{ }` a quotation opens with,
@@ -831,7 +831,7 @@ pitches. The builder places an algo inside its bridges the same way
 its bare name unless two different algos read it with different specs
 (then `:<short>.<name>`); a named instance's are `:<as>/<name>`. Each is
 written under a name -- `"k"`, `"euclid.k"`, `"bass.k"` -- in text
-`@^{ k:5 euclid.k:3 bass.k:2 }` (see Grammar).
+`@^{ onsets:5 euclid.onsets:3 bass.onsets:2 }` (see Grammar).
 **The tctx** is its own shape, `{:params-atom a}`, `a` holding only what
 is set as plain values under those names; the tree's specs ride on the
 atom's metadata (`t/specs`), never the tree itself: one tree can run
@@ -926,14 +926,14 @@ value of mu's (`musics.mu.value/Recipe`, read by `mu.ebnf`'s
 `TreeRecipe`, built by `musics.recipe/build` from mu's evaluator):
 
 ```
-@( riff: ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip )  a generator, named
-@^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run          its settings given from outside
+@( riff: ^{ seed:7 } onsets:3 pulses:8 euclid len:8 pitch/walk zip )  a generator, named
+@^{ onsets:3 pulses:8 len:8 } @( euclid pitch/walk zip ) run          its settings given from outside
 [c8 d e f g a b c] @( dup duration/emi zip ) run            music from the stack, changed
 ```
 
 Inside, the words build the tree on a stack of their own: an algo (its
 registry name, `euclid`, `pitch/walk`, or a mu word's `shelf/name`)
-takes the params (`k:3`) and the `'alias` lying on top of it, then as
+takes the params (`onsets:3`) and the `'alias` lying on top of it, then as
 many inputs as it has, and pushes its node, bridges put in where a type
 doesn't fit (the trees' constructors); `zip` and `par` join the top two,
 or everything above a `|`; `dup` `swap` `over` `rot` arrange, a `dup`'d
@@ -1561,7 +1561,7 @@ again):
 | `[ ]`     | `Sequence`    | musical sequence — also reused as-is for `repeat`/`volta`'s own body; the walker, not the grammar, decides whether a given `[ ]` becomes a real, addressable container or is spliced/stashed, never how it's spelled |
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
-| `@^{ }`    | `Settings`    | an algo's settings, `@^{ k:5 bass.k:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }`; a recipe's head |
+| `@^{ }`    | `Settings`    | an algo's settings, `@^{ onsets:5 bass.onsets:3 }` -- a value of mu's (`:TCONTEXT`), never inside a line or a `^{ }`; a recipe's head |
 | `@( )`   | `TreeRecipe`  | (`mu.ebnf`) an algo tree in RPN: `@( name:? ^{ … }? words … )`, stored by `R!` as a `:RECIPE` |
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
@@ -1747,7 +1747,7 @@ pitch`, its `last-ref`), as a duration carries over -- notes, chord tones
 chord-symbol roots and bass notes alike; octave 4 at the start.
 
 An algo's settings are their own value, `@^{ name:value … }`
-(`Settings`), never among the music's keys: `@^{ k:5 n:16 bass.k:3 }`.
+(`Settings`), never among the music's keys: `@^{ onsets:5 pulses:16 bass.onsets:3 }`.
 The walker (`walk-settings`) makes a `:TCONTEXT` node holding `:params`,
 `[name value]` pairs as written, and `:text`, which prints it back; it
 is a definition form like a `^{ }`, plain data that `R!` stores and
@@ -1756,7 +1756,7 @@ is a definition form like a `^{ }`, plain data that `R!` stores and
 strings, a bare name (a keyword), a comma list or a `( )` list (a
 vector). No ramps -- an algo reads its params once per run. No line or
 `^{ }` holds one: `?name:value` (`AlgoAssignment`) is parsed only to be
-refused, "an algo's settings are @^{ k:… } -- music holds ! keys only".
+refused, "an algo's settings are @^{ onsets:… } -- music holds ! keys only".
 A name bound to another name in mu (`'dp 'duration-pulse :=`) is a
 short name: `musics.mu.value` hands such bindings to the walker as
 `:param-aliases`, and `@^{ dp:1/8 }` is kept and written back as

@@ -6,7 +6,7 @@
 
 (deftest find-algos-by-category-types-and-params
   (let [shorts #(set (map :short (lt/find-algos %)))]
-    (is (contains? (shorts {:category "rhythmic" :param :k}) :euclid))
+    (is (contains? (shorts {:category "rhythmic" :param :onsets}) :euclid))
     (is (contains? (shorts {:in :pulse :out :duration}) :pulses->durations))
     (is (every? #(#{:pulse :same} (:out %)) (lt/find-algos {:out :pulse}))
         "a :same algo gives a grid when fed one; an :any output doesn't count")

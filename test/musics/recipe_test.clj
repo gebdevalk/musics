@@ -35,7 +35,7 @@
   (peek (:stack @e/state)))
 
 (deftest a-recipe-reads-and-prints-back
-  (let [text "@( ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip )"]
+  (let [text "@( ^{ seed:7 } onsets:3 pulses:8 euclid len:8 pitch/walk zip )"]
     (is (= text (top text)) "a value of its own, printed as written")
     (is (= 0 (:arity (recipe text))) "a generator takes nothing from the stack")))
 
@@ -43,28 +43,28 @@
   (is (re-find #"builds \(zip \(pulses->durations \(euclid\)\)"
                (with-out-str (top "@( euclid lorenz zip ) see")))
       "an algo takes its inputs from the stack; bridges are put in")
-  (is (= "[C4/8. E4 G4/8]" (top "@( k:3 n:8 euclid '[60 64 67] [~] zip ) run")) "data, looped")
-  (is (= "[C4/8. G4 C5/8]" (top "@( 'deg k:3 euclid '[0 4 7] [~] degrees->pitches zip ) run")) "an algo on data")
-  (is (re-find #"^\{" (top "@( k:3 euclid '[60 64 67] [~] zip '[1/4] '[72] zip par ) run")) "par")
+  (is (= "[C4/8. E4 G4/8]" (top "@( onsets:3 pulses:8 euclid '[60 64 67] [~] zip ) run")) "data, looped")
+  (is (= "[C4/8. G4 C5/8]" (top "@( 'deg onsets:3 euclid '[0 4 7] [~] degrees->pitches zip ) run")) "an algo on data")
+  (is (re-find #"^\{" (top "@( onsets:3 euclid '[60 64 67] [~] zip '[1/4] '[72] zip par ) run")) "par")
   (is (= "[C4/4 D4]" (top "@( | '[1/4 1/4] '[60 62] zip ) run")) "all above a | mark"))
 
 (deftest settings-resolve-by-the-naming-rule
   (testing "the default"
     (is (= "3" (top "@( duration/euclid '[60] [~] zip ) run length"))))
   (testing "the head's plain name reaches every node"
-    (is (= "5" (top "@( ^{ k:5 } duration/euclid '[60] [~] zip ) run length"))))
+    (is (= "5" (top "@( ^{ onsets:5 } duration/euclid '[60] [~] zip ) run length"))))
   (testing "the algo's name before the plain one"
-    (is (= "4" (top "@( ^{ k:5 duration/euclid.k:4 } duration/euclid '[60] [~] zip ) run length"))))
+    (is (= "4" (top "@( ^{ onsets:5 duration/euclid.onsets:4 } duration/euclid '[60] [~] zip ) run length"))))
   (testing "a node's own param, written right before it: a local override"
-    (is (= "2" (top "@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run length"))))
+    (is (= "2" (top "@( ^{ onsets:5 } onsets:2 duration/euclid '[60] [~] zip ) run length"))))
   (testing "an alias: its own value, its own name"
-    (is (= "3" (top "@( ^{ k:5 } 'bass k:3 duration/euclid '[60] [~] zip ) run length")))
-    (is (= "6" (top "@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length")))))
+    (is (= "3" (top "@( ^{ onsets:5 } 'bass onsets:3 duration/euclid '[60] [~] zip ) run length")))
+    (is (= "6" (top "@( ^{ onsets:5 bass.onsets:6 } 'bass duration/euclid '[60] [~] zip ) run length")))))
 
 (deftest settings-given-from-outside
-  (is (= "3" (top "@^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run length"))
+  (is (= "3" (top "@^{ onsets:3 pulses:8 len:8 } @( euclid pitch/walk zip ) run length"))
       "a recipe without values, given its settings at use")
-  (is (= "2" (top "@^{ k:5 } @( k:2 duration/euclid '[60] [~] zip ) run length")) "a node's own value still wins")
+  (is (= "2" (top "@^{ onsets:5 } @( onsets:2 duration/euclid '[60] [~] zip ) run length")) "a node's own value still wins")
   (is (re-find #"kk is not a param" (top "@^{ kk:3 } @( euclid ) run")) "checked like the head"))
 
 (deftest a-short-name-is-read-as-the-long-one
@@ -77,12 +77,12 @@
 (deftest collecting-checks-every-setting
   (is (re-find #"kk is not a param" (top "@( ^{ kk:3 } euclid )")) "a typo in the head")
   (is (re-find #"zz is not a param" (top "@( zz:3 euclid )")) "a typo before an algo")
-  (is (re-find #"at most" (top "@( k:99 euclid )")) "out of range")
+  (is (re-find #"at most" (top "@( onsets:99 euclid )")) "out of range")
   (is (re-find #"written twice.*give one an alias"
-               (top "@( k:3 duration/euclid k:5 duration/euclid zip )")) "two un-aliased writers of one param")
+               (top "@( onsets:3 duration/euclid onsets:5 duration/euclid zip )")) "two un-aliased writers of one param")
   (is (re-find #"is no algo" (top "@( nope )")))
   (is (re-find #"leaves 2" (top "@( euclid lorenz )")) "one tree")
-  (is (re-find #"param or alias is left" (top "@( euclid k:3 )"))))
+  (is (re-find #"param or alias is left" (top "@( euclid onsets:3 )"))))
 
 (deftest music-comes-from-the-stack
   (is (= 1 (:arity (recipe "@( dup duration/emi zip )"))) "what the tree takes from below is its input")
@@ -104,30 +104,30 @@
     (is (re-find #"endless" (top "@( '[1/8] [~] '[60 62] [~] zip ) run")))))
 
 (deftest a-seed-gives-one-result
-  (let [run #(top "@( ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip ) run")]
+  (let [run #(top "@( ^{ seed:7 } onsets:3 pulses:8 duration/euclid len:8 pitch/walk zip ) run")]
     (is (= (run) (run)))
-    (is (= (run) (top "@( ^{ seed:7 } k:3 n:8 euclid len:8 pitch/walk zip ) run"))
+    (is (= (run) (top "@( ^{ seed:7 } onsets:3 pulses:8 euclid len:8 pitch/walk zip ) run"))
         "a derived algo, and its source with the bridge put in, give the same")))
 
 (deftest a-recipe-names-itself
-  (is (= "@( riff: k:3 euclid '[60] [~] zip )" (top "@( riff: k:3 euclid '[60] [~] zip )")) "printed with its name")
-  (is (= :riff (:id (recipe "@( riff: k:3 euclid '[60] [~] zip )"))))
+  (is (= "@( riff: onsets:3 euclid '[60] [~] zip )" (top "@( riff: onsets:3 euclid '[60] [~] zip )")) "printed with its name")
+  (is (= :riff (:id (recipe "@( riff: onsets:3 euclid '[60] [~] zip )"))))
   (is (= "@( euclid )" (top "@(euclid)")) "printed in one spacing"))
 
 (deftest a-recipe-is-stored-as-its-text
   (testing "under its own name, everything written inside it kept"
-    (is (= ":riff" (top "@( riff: ^{ seed:7 } 'bass k:2 duration/euclid len:8 pitch/walk zip ) R!")))
-    (is (= {:type :RECIPE :id :riff :text "^{ seed:7 } 'bass k:2 duration/euclid len:8 pitch/walk zip"}
+    (is (= ":riff" (top "@( riff: ^{ seed:7 } 'bass onsets:2 duration/euclid len:8 pitch/walk zip ) R!")))
+    (is (= {:type :RECIPE :id :riff :text "^{ seed:7 } 'bass onsets:2 duration/euclid len:8 pitch/walk zip"}
            (repo/current :riff)))
-    (is (= "@( riff: ^{ seed:7 } 'bass k:2 duration/euclid len:8 pitch/walk zip )" (top ":riff R@")) "R@ rebuilds it")
+    (is (= "@( riff: ^{ seed:7 } 'bass onsets:2 duration/euclid len:8 pitch/walk zip )" (top ":riff R@")) "R@ rebuilds it")
     (is (= "2" (top ":riff R@ run length")) "the local override came along"))
   (testing "under an id given, or an auto one"
-    (is (= ":beat" (top "@( k:3 euclid '[60] [~] zip ) :beat R!")))
-    (is (= "@( beat: k:3 euclid '[60] [~] zip )" (top ":beat R@")))
-    (is (re-matches #":r\d+" (top "@( k:3 euclid '[60] [~] zip ) R!"))))
+    (is (= ":beat" (top "@( onsets:3 euclid '[60] [~] zip ) :beat R!")))
+    (is (= "@( beat: onsets:3 euclid '[60] [~] zip )" (top ":beat R@")))
+    (is (re-matches #":r\d+" (top "@( onsets:3 euclid '[60] [~] zip ) R!"))))
   (testing "settings given at use don't reach what is stored"
     (top "@( beat: duration/euclid '[60] [~] zip ) R!")
-    (is (= "5" (top "@^{ k:5 } :beat R@ run length")))
+    (is (= "5" (top "@^{ onsets:5 } :beat R@ run length")))
     (is (= "3" (top ":beat R@ run length"))))
   (testing "a stored part of the repo, not of :ROOT's music"
     (is (some #{:beat} (repo/ids)))
@@ -136,7 +136,7 @@
 (deftest a-stored-recipe-is-kept-by-write-and-load
   (let [f (java.io.File/createTempFile "recipes" ".edn")]
     (try
-      (top "@( beat: k:3 euclid '[60] [~] zip ) R!")
+      (top "@( beat: onsets:3 euclid '[60] [~] zip ) R!")
       ((requiring-resolve 'musics.persist/write) (str f))
       (repo/commit-node! :beat nil)
       ((requiring-resolve 'musics.persist/load) (str f))

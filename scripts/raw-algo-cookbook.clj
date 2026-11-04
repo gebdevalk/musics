@@ -52,19 +52,19 @@
   [{:group "First steps"}
 
    {:title "A raw source"
-    :text "A raw word gives raw material, not music: `raw/euclid` is a row of pulses, 1 for an onset and 0 for a rest. Settings go in an `@^{ }` just before the word, `name:value` each; the defaults are `k:3 n:8`."
+    :text "A raw word gives raw material, not music: `raw/euclid` is a row of pulses, 1 for an onset and 0 for a rest. Settings go in an `@^{ }` just before the word, `name:value` each; the defaults are `onsets:3 pulses:8`."
     :lines ["raw/euclid"
-            "@^{ k:5 n:16 } raw/euclid"]}
+            "@^{ onsets:5 pulses:16 } raw/euclid"]}
 
    {:title "Pulses become durations"
     :text "A bridge turns raw material into a half product. `raw/pulses->durations` lets each onset last until the next one, on a grid of `pulse` (1/16 of a whole note by default). It takes the pulses from the stack, so the source comes first, and its settings sit before it."
     :lines ["raw/euclid raw/pulses->durations"
-            "@^{ k:5 n:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations"]}
+            "@^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations"]}
 
    {:title "Durations and pitches make notes"
     :text "`zip` joins a note's parts. A stream a raw word gave knows what it is, so durations and pitches meet in the right place. The pitch list is data (`'[ ]`); it cycles over the notes."
     :lines ["raw/euclid raw/pulses->durations '[60 62 64 67] zip"
-            "@^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] zip"]}
+            "@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] zip"]}
 
    {:title "mu's own words work on raw material"
     :text "Raw material is a plain list, so the words that act on lists apply: `rotate` moves the front round to the back, `retrograde` reverses, `take` keeps the first n."
@@ -97,9 +97,9 @@
 
    {:title "Rotations and reflections"
     :text "`bracelet` picks the index-th pattern among a pattern's rotations and reversals; `phases` gives every rotation as a layer; `necklaces` picks a necklace class of n pulses and k onsets."
-    :lines ["@^{ k:3 n:8 } raw/euclid @^{ index:3 } raw/bracelet"
+    :lines ["@^{ onsets:3 pulses:8 } raw/euclid @^{ index:3 } raw/bracelet"
             "raw/euclid raw/phases"
-            "@^{ n:8 k:3 index:1 } raw/necklaces"]}
+            "@^{ pulses:8 onsets:3 index:1 } raw/necklaces"]}
 
    {:title "Layers"
     :text "A layer is several rows at once. `polyrhythm` and `hemiola` give them; `layer` picks one by `index`; `duet` gives a pattern and the same pattern shifted."
@@ -175,15 +175,15 @@
 
    {:title "A rhythm, pitches and accents"
     :text "Above a `|` mark `zip` takes every stream with its part: durations, pitches and volumes (written on each note as `\\volume:`). `[~]` loops a stream, so the shorter ones keep cycling."
-    :lines ["| @^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes [~] zip"]}
+    :lines ["| @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes [~] zip"]}
 
    {:title "A walk plays the pitches"
     :text "The rhythm is a looped Euclid, the pitches a random walk laid on the notes."
-    :lines ["@^{ k:5 n:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:60 step-bound:2 } raw/walk @^{ from-lo:54 from-hi:66 lo:55 hi:79 } raw/numbers->pitches zip 8 take"]}
+    :lines ["@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:60 step-bound:2 } raw/walk @^{ from-lo:54 from-hi:66 lo:55 hi:79 } raw/numbers->pitches zip 8 take"]}
 
    {:title "Playing"
     :text "A recipe that ends in music plays with `->`, a loop of it with `[~]` before. These are shown, not run here: nothing sounds when this page is made."
-    :lines [[:play "@^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] zip [~] ->"]
+    :lines [[:play "@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] zip [~] ->"]
             [:play "stop"]]}
 
    {:group "The functions themselves"}
@@ -284,7 +284,7 @@
                 "A **bridge** (`pulses->durations`, `numbers->pitches` …) turns raw material into a half product, a duration, a pitch, a volume; the finished words `duration/euclid` and `pitch/lorenz` are a source and a bridge welded together, with the bridge's range read from the source. "
                 "Here you do the welding yourself, one word at a time, and choose which bridge.\n\n"
                 "Three things to keep in mind:\n\n"
-                "- **Settings go before their word.** `@^{ k:5 n:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations`: each word reads only its own settings.\n"
+                "- **Settings go before their word.** `@^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations`: each word reads only its own settings.\n"
                 "- **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right (the table at the end says what each takes and gives), and give a bridge the range its input really has.\n"
                 "- **`seed:N` repeats a word.** A word with no seed draws from the shared generator.\n\n"
                 "## Recipes (" n-recipes ")\n\n"

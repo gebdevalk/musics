@@ -60,7 +60,7 @@
   (with-file
     (fn [f]
       (top "[verse: c4 d e f] R!" "'motif [c8 e g] :=" ": lift ( $x -- y ) $x 5 + ;"
-           "'r @( k:3 euclid '[60] [~] zip ) :=")
+           "'r @( onsets:3 euclid '[60] [~] zip ) :=")
       (with-out-str (top (str "\"" f "\" save-session")))
       (top ": junk 1 ;" "'motif [a] :=" "'extra 1 :=")
       (top "[c] 7")

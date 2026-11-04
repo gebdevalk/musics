@@ -523,7 +523,7 @@
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-algo-params
-  (parse! "@^{ k:5 style:rock iv:0,2,4 key:\"D.major\" }")
+  (parse! "@^{ onsets:5 style:rock iv:0,2,4 key:\"D.major\" }")
   (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
     (try
       (with-out-str (persist/write (.getPath tmp)))
@@ -531,8 +531,8 @@
       (reset! reg/session {:auto-ids {}})
       (with-out-str (persist/load (.getPath tmp)))
       (let [settings (some #(when (= :TCONTEXT (:type %)) %) (vals @(repo/registry)))]
-        (is (= [["k" 5] ["style" :rock] ["iv" [0 2 4]] ["key" "D.major"]] (:params settings)))
-        (is (= "k:5 style:rock iv:0,2,4 key:\"D.major\"" (:text settings)) "written back as written"))
+        (is (= [["onsets" 5] ["style" :rock] ["iv" [0 2 4]] ["key" "D.major"]] (:params settings)))
+        (is (= "onsets:5 style:rock iv:0,2,4 key:\"D.major\"" (:text settings)) "written back as written"))
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record

@@ -1020,8 +1020,8 @@ from the music's `^{ }`:
 
 ```
 duration/euclid                                        → '[3/16 3/16 1/8]
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
                                                        → [C4/4. E4 G4/4]
 ```
 
@@ -1047,7 +1047,7 @@ loop of the varied rhythm, ready to zip with a loop of pitches:
 ```
 [c4. d8 e4] [~] durations @^{ index:1 duration-pulse:1/8 } duration/bracelet
     → '[r8 1/8 3/8 1/8] [~]
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```
 
@@ -1062,7 +1062,7 @@ line's form. With eight beats among eight eighths, `volume/euclid`
 gives the meter's accents:
 
 ```
-[c8 d e f g a b c] @^{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
+[c8 d e f g a b c] @^{ onsets:8 pulses:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
     → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
 ```
 
@@ -1204,7 +1204,7 @@ settings changes what you hear on the next note, without starting over.
   settings too.
 
 ```
-:riff @^{ k:5 } set        five beats instead of the default three, heard at once
+:riff @^{ onsets:5 } set        five beats instead of the default three, heard at once
 :riff settings             every setting the recipe's algos read: value, range, default
 :riff 'k unset             back to the recipe's head or the default
 '( duration/euclid [c e g a] pitches shuffle zip [~] ) :riff retree    a new recipe, the same settings, the voice going on
@@ -1243,8 +1243,8 @@ music takes it from under the recipe:
 ```
 | @( '[1/8] [~] scale [~] zip ) :sc ->                     from nothing
 [c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol ->   on the music under it
-@^{ k:5 } @( duration/euclid '[60] [~] zip ) run          settings from outside; run puts a finite one on the stack
-@( arp: k:3 euclid '[60 64 67] [~] zip ) R!               stored as :arp, as its text; :arp R@ gives it back
+@^{ onsets:5 } @( duration/euclid '[60] [~] zip ) run          settings from outside; run puts a finite one on the stack
+@( arp: onsets:3 euclid '[60 64 67] [~] zip ) R!               stored as :arp, as its text; :arp R@ gives it back
 ```
 
 All play words take a recipe: `->>` from the next boundary (`| '( … ) ||

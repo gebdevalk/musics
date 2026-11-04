@@ -40,7 +40,7 @@ The `[@^{ … }]` is optional: settings on top of the stack, `@^{ name:value
 settings, kept apart from the music's `^{ }`:
 
 ```
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid      → '[1/4 1/8 1/4 1/8 1/4]
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } duration/euclid      → '[1/4 1/8 1/4 1/8 1/4]
 @^{ seed:7 len:8 pitch-lo:60 pitch-hi:72 } pitch/walk → '[60 60 60 62 64 64 60 60]
 ```
 
@@ -53,7 +53,7 @@ differently each time; `seed:7` makes it repeat.
 tree with more than one branch:
 
 ```
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
     → [C4/4. E4 G4/4]
 ```
 
@@ -62,7 +62,7 @@ leaves the pitches of a line, and `zip` takes both. As a tree it is
 
 ```
 zip
-├── duration/euclid  (@^{ k:3 n:8 duration-pulse:1/8 })
+├── duration/euclid  (@^{ onsets:3 pulses:8 duration-pulse:1/8 })
 └── pitches
     └── [c e g]
 ```
@@ -71,21 +71,21 @@ zip
 take the second branch's place:
 
 ```
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid @^{ seed:7 len:8 pitch-lo:60 pitch-hi:72 } pitch/walk zip
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } duration/euclid @^{ seed:7 len:8 pitch-lo:60 pitch-hi:72 } pitch/walk zip
 ```
 
 `zip` stops at the shorter stream: five durations, five notes. A loop
 `[~]` around the pitches cycles them, so the rhythm decides the length:
 
 ```
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid [c e g a] pitches [~] zip
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } duration/euclid [c e g a] pitches [~] zip
     → [C4/4 E4/8 G4/4 A4/8 C4/4]
 ```
 
 and two loops zip into a loop as long as they take to line up:
 
 ```
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] pitches [~] zip
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] pitches [~] zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```
 
@@ -98,7 +98,7 @@ The branches of a tree don't have to be written in the order the word
 takes them: the stack words move values around.
 
 ```
-[c e g] pitches @^{ k:3 n:8 duration-pulse:1/8 } duration/euclid swap zip
+[c e g] pitches @^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid swap zip
     → [C4/4. E4 G4/4]
 ```
 
@@ -149,7 +149,7 @@ and the variation goes back onto pitches with `zip`:
 onto a line, a value per note:
 
 ```
-[c8 d e f g a b c] @^{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
+[c8 d e f g a b c] @^{ onsets:8 pulses:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
 ```
 
 Every algo is a word on one of these shelves; `words` lists them with
@@ -162,7 +162,7 @@ A piece of a recipe can be named with a definition, `: name ( in -- out ) … ;`
 and used like any word:
 
 ```
-: riff ( -- line ) @^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ;
+: riff ( -- line ) @^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ;
 riff                  → [C4/4. E4 G4/4]
 riff dup 7 + {2}      → {[C4/4. E4 G4/4] [!K:G.major G4/4. B4 D5/4]}
 ```
@@ -184,7 +184,7 @@ time:
 
 ```
 : line-of ( $ctx -- line ) $ctx duration/euclid [c e g a] pitches [~] zip ;
-@^{ k:5 n:8 duration-pulse:1/8 } line-of     → [C4/4 E4/8 G4/4 A4/8 C4/4]
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } line-of     → [C4/4 E4/8 G4/4 A4/8 C4/4]
 ```
 
 A **quotation** `'( … )` is a recipe kept as a value, not run: pushed,
@@ -207,8 +207,8 @@ another, `{n}` side by side.
 [c e g] dup 7 + dup 7 + [3]
     → [[C4/4 D4 E4] [!K:G.major G4 A4 B4] [!K:D.major D5 E5 F#5]]
 
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches [~] zip
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid [G4 b d] pitches [~] zip {2}
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches [~] zip
+@^{ onsets:5 pulses:8 duration-pulse:1/8 } duration/euclid [G4 b d] pitches [~] zip {2}
     → {[C4/4. E4 G4/4] [G4 B4/8 D5/4 G4/8 B4/4]}
 ```
 
@@ -238,7 +238,7 @@ its settings is heard on the next note, the voice going on where it is.
 Its settings are every param the recipe's algos read, set with `set`:
 
 ```
-:riff @^{ k:5 n:8 } set     five beats in eight, heard at once
+:riff @^{ onsets:5 pulses:8 } set     five beats in eight, heard at once
 :riff settings
 :k             5            0..32            3          euclid       onsets
 :n             8            1..32            8          euclid       pulses
@@ -303,13 +303,13 @@ A random algo's `seed` is a setting like any other: in the head
 A recipe can also be a tree, written in RPN between `@(` and `)`. Inside,
 the words build the tree on a stack of their own: an algo takes as many
 inputs as it has from the top and pushes itself, `zip` joins the top two
-(`par` puts them side by side), and the params (`k:3`) and an alias
+(`par` puts them side by side), and the params (`onsets:3`) and an alias
 (`'bass`) go right *before* the algo they belong to. A `^{ }` first holds
 the settings for all of it:
 
 ```
-@( ^{ seed:7 } k:3 n:8 duration/euclid len:8 pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
-@( k:3 n:8 euclid '[60 64 67] [~] zip ) run                         → [C4/8. E4 G4/8]
+@( ^{ seed:7 } onsets:3 pulses:8 duration/euclid len:8 pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
+@( onsets:3 pulses:8 euclid '[60 64 67] [~] zip ) run                         → [C4/8. E4 G4/8]
 @( '[1/4] '[60] zip '[1/8] '[72 74] zip par ) run                   → {[C4/4] [C5/8]}
 ```
 
@@ -327,16 +327,16 @@ name, most specific first: its alias's (`bass.k`), its algo's
 (`duration/euclid.k`), the plain one (`k`), then the default:
 
 ```
-@( ^{ k:5 } duration/euclid '[60] [~] zip ) run length               → 5
-@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run length           → 2
-@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length → 6
+@( ^{ onsets:5 } duration/euclid '[60] [~] zip ) run length               → 5
+@( ^{ onsets:5 } onsets:2 duration/euclid '[60] [~] zip ) run length           → 2
+@( ^{ onsets:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length → 6
 ```
 
 The settings can also come from outside, an `@^{ }` right under the
 recipe, so one recipe runs with different ones:
 
 ```
-@^{ seed:7 k:3 n:8 len:8 } @( euclid pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
+@^{ seed:7 onsets:3 pulses:8 len:8 } @( euclid pitch/walk zip ) run   → [A#4/8. G4 A#4/8]
 ```
 
 No music is written inside: music comes from the stack under the recipe.
@@ -371,10 +371,10 @@ stores it under that name -- or under an id you give, or an `:r1` of its
 own -- and `R@` gives it back:
 
 ```
-@( arp: k:3 n:8 euclid '[60 64 67] [~] zip ) R!     → :arp
-:arp R@                                              → @( arp: k:3 n:8 euclid '[60 64 67] [~] zip )
+@( arp: onsets:3 pulses:8 euclid '[60 64 67] [~] zip ) R!     → :arp
+:arp R@                                              → @( arp: onsets:3 pulses:8 euclid '[60 64 67] [~] zip )
 :arp R@ run                                          → [C4/8. E4 G4/8]
-@( k:3 n:8 euclid '[60 64 67] [~] zip ) :arp2 R!    → :arp2
+@( onsets:3 pulses:8 euclid '[60 64 67] [~] zip ) :arp2 R!    → :arp2
 ```
 
 It is stored as its text, so all that is written inside comes along --
@@ -387,7 +387,7 @@ settings:
 
 ```
 | :arp R@ ->                                          the voice :arp
-@( arp: k:3 n:8 euclid '[67 71 74] [~] zip ) R!      :arp plays the new one
+@( arp: onsets:3 pulses:8 euclid '[67 71 74] [~] zip ) R!      :arp plays the new one
 ```
 
 ## 9. The GUI
@@ -412,7 +412,7 @@ two views of the same settings: a slider moves what `set` changes, and
 
   ```
   compose :tree ->          play the composed tree live, from nothing
-  :tree @^{ k:7 } set      … and set it from the prompt
+  :tree @^{ onsets:7 } set      … and set it from the prompt
   compose gui              its settings with a preview of what it gives,
                            and Play once / Live as / Stop
   ```

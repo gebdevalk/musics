@@ -74,9 +74,9 @@
 (deftest finalize-returns-tree-and-tctx
   (let [d (build :zip :pulses->durations :euclid :cycle :scale)
         s (b/settings-for d nil)
-        _ (t/setp! s :k 5)
+        _ (t/setp! s :onsets 5)
         [tree tctx] (b/finalize d s)]
-    (is (= 5 (:k (t/params tctx))) "settings made along the way are kept")
+    (is (= 5 (:onsets (t/params tctx))) "settings made along the way are kept")
     (is (seq (t/run tree tctx)))))
 
 (deftest undo-and-redo

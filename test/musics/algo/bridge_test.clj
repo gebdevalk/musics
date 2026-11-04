@@ -124,7 +124,7 @@
 (deftest a-tree-from-bridges-to-leaves
   (let [tr  (lib/zip (lib/pulses->durations lib/euclid) (lib/degrees->pitches (tools/cycle [0 2 4 7]))
                      (tools/cycle (lib/weights->volumes lib/indisp)))
-        out (t/run tr {:k 3 :n 8})]
+        out (t/run tr {:onsets 3 :pulses 8})]
     (is (= [3/16 3/16 1/8] (map :duration out)))
     (is (= [[60] [64] [67]] (map :pitches out)))
     (is (every? number? (map (comp :volume :overrides) out)))))

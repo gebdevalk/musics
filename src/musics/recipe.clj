@@ -2,8 +2,8 @@
   "Tree recipes: an algo tree written concatenatively, as mu is
    (doc/md/decisions.md, 2026-10-29).
 
-     @( riff: ^{ seed:7 }  k:3 n:8 euclid  len:8 pitch/walk  zip )   a generator, named
-     @^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run              settings given from outside
+     @( riff: ^{ seed:7 }  onsets:3 pulses:8 euclid  len:8 pitch/walk  zip )   a generator, named
+     @^{ onsets:3 pulses:8 len:8 } @( euclid pitch/walk zip ) run              settings given from outside
      [c8 d e f g a b c] @( dup duration/emi zip )                    music from the stack, changed
 
    Inside @( ) the words build the tree on a stack of their own: an algo

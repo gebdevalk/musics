@@ -263,7 +263,7 @@
   "Algos matching every given condition, as maps
    {:short :category :in :out :params :doc}:
      :category \"rhythmic\"   :out :pulse   :in :pitch (an input that
-     accepts it)   :param :k (a param of that name)   :short :euclid.
+     accepts it)   :param :onsets (a param of that name)   :short :euclid.
    (find-algos {:in :pulse :out :pitch}) -- what turns pulses into
    pitches in one step."
   [{:keys [category out in param short]}]

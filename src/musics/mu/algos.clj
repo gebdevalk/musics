@@ -16,7 +16,7 @@
    pitches (a chord's lowest, nil for a rest) or leaves -- and a stream
    is taken as it is; a repeat or loop around the inputs is run on what
    it repeats and put back around the result. Its settings, first found
-   wins: an @^{ k:5 n:16 } on top, its own; a live voice's (set); the
+   wins: an @^{ onsets:5 pulses:16 } on top, its own; a live voice's (set); the
    head of the recipe it runs in, the @^{ } it opens with
    (musics.mu.eval/*head*); for a param that names a music key (key,
    meter), the music's (a live voice's chain, :ROOT's: !key:); the
@@ -26,7 +26,7 @@
    parts as { }.
 
      duration/euclid                    ( -- durations )
-     @^{ k:5 n:16 } duration/euclid      ( settings -- durations )
+     @^{ onsets:5 pulses:16 } duration/euclid      ( settings -- durations )
      [c8 d e f g] durations duration/emi ( durations -- durations )"
   (:require [clojure.string :as str]
             [musics.algo.tree :as t]
@@ -109,7 +109,7 @@
   [word s]
   (case (when (seq s) (mt/kind (peek s)))
     :TCONTEXT [(pop s) (into {} (:params (v/node (peek s))))]
-    :CONTEXT  (e/mu-error (str word ":") "^{ } is the music's -- an algo's settings are @^{ k:5 }")
+    :CONTEXT  (e/mu-error (str word ":") "^{ } is the music's -- an algo's settings are @^{ onsets:5 }")
     [s nil]))
 
 (defn- around

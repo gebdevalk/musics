@@ -5,7 +5,7 @@
      (def riff (zip (pulses->durations euclid) (cycle scale)))
      (def tctx  (t/tctx riff))
      (t/live! :riff riff tctx)        ; an endless voice -- or (play :verse :algo :riff)
-     (t/setp! tctx :k 5)         ; heard on the next note
+     (t/setp! tctx :onsets 5)         ; heard on the next note
      (t/retree! :riff (zip (pulses->durations euclid) (shuffle scale)))   ; same tctx, fitted
      (t/stop! :riff)
 

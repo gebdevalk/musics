@@ -36,9 +36,9 @@
           :params {:x {:type :int :min 0 :max ##Inf :default ##NaN}}}}
   [x] [x])
 
-(defalgo clash "Another :k, with a different spec."
-  {:algo {:in [:pulse] :out :pulse :params {:k {:type :int :min 0 :max 4 :default 1}}}}
-  [g k] (when k g))
+(defalgo clash "Another :onsets, with a different spec."
+  {:algo {:in [:pulse] :out :pulse :params {:onsets {:type :int :min 0 :max 4 :default 1}}}}
+  [g onsets] (when onsets g))
 
 (defalgo boom "Throws."
   {:algo {:in [:any] :out :any}}
@@ -59,9 +59,9 @@
 (deftest introspection-reads-arglists-doc-and-metadata
   (let [e (reg/algo :euclid)]
     (is (= 'musics.algo.rhythmic.pattern/euclid (:full e)))
-    (is (= [:k :n] (map :name (:params e))))
+    (is (= [:onsets :pulses] (map :name (:params e))))
     (is (= :pulse (:out e)))
-    (is (str/starts-with? (:doc e) "Distribute k beats"))))
+    (is (str/starts-with? (:doc e) "Spread onsets beats"))))
 
 (deftest a-multi-arity-fn-names-the-arity-it-wraps
   (is (= [:syllables] (map :name (:params (reg/algo :konnakol))))))
@@ -90,7 +90,7 @@
 
 (deftest trees-print-and-show-as-their-expression
   (is (= "#node (zip (pulses->durations (euclid)) (cycle (scale)))" (pr-str riff)))
-  (is (= "#algo (euclid :k :n)" (pr-str euclid)))
+  (is (= "#algo (euclid :onsets :pulses)" (pr-str euclid)))
   (is (= '(zip (pulses->durations (euclid :as :bass)) [60 62])
          (t/show (zip (pulses->durations (euclid :as :bass)) [60 62])))))
 
@@ -113,17 +113,17 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest keys-are-bare-unless-different-algos-share-a-name
-  (is (= [:k :n :pulse :root :intervals] (map :key (t/param-keys riff))))
+  (is (= [:onsets :pulses :pulse :root :intervals] (map :key (t/param-keys riff))))
   (is (= [:subdivisions :adherence] (map :key (t/param-keys (power (tilt indisp)))))
       "identical specs share one key")
-  (is (= [:euclid.k :n :clash.k] (map :key (t/param-keys (clash euclid))))
+  (is (= [:euclid.onsets :pulses :clash.onsets] (map :key (t/param-keys (clash euclid))))
       "different specs under one name each get :<short>.<name>"))
 
 (deftest a-named-instance-gets-its-own-keys
-  (is (= [:bass/k :bass/n :k :n]
+  (is (= [:bass/onsets :bass/pulses :onsets :pulses]
          (map :key (t/param-keys (union (euclid :as :bass) euclid)))))
-  (is (= [1 0 1 1 1 1 1 0] (t/run (union (euclid :as :bass) euclid) {:bass/k 2 :k 5}))
-      "E(2,8) from :bass/k, E(5,8) from :k, merged"))
+  (is (= [1 0 1 1 1 1 1 0] (t/run (union (euclid :as :bass) euclid) {:bass/onsets 2 :onsets 5}))
+      "E(2,8) from :bass/onsets, E(5,8) from :onsets, merged"))
 
 (deftest a-keyword-child-is-a-required-param
   (is (= [{:key :ps :type :any :algo :read}]
@@ -138,26 +138,26 @@
   (let [tctx (t/tctx riff)]
     (is (= #{:params-atom} (set (keys tctx))) "its own shape, not a music context")
     (is (= {} @(:params-atom tctx)) "it sets nothing yet")
-    (is (= {:k 3 :n 8 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
+    (is (= {:onsets 3 :pulses 8 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
     (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
-    (t/setp! tctx :k 5)
-    (is (= {"k" 5} @(:params-atom tctx)) "a setting is the name an @^{ } writes")
-    (is (= {:k 5} (t/values tctx)))))
+    (t/setp! tctx :onsets 5)
+    (is (= {"onsets" 5} @(:params-atom tctx)) "a setting is the name an @^{ } writes")
+    (is (= {:onsets 5} (t/values tctx)))))
 
 (deftest settings-come-from-sources-nearest-first
   (let [tctx (t/tctx riff)]
-    (t/setp! tctx :k 2)
+    (t/setp! tctx :onsets 2)
     (is (= 2 (count (t/run riff [nil tctx]))) "the tctx")
-    (is (= 5 (count (t/run riff [{"k" 5} tctx]))) "a nearer source wins: a word's own @^{ } over the voice's")
-    (t/unsetp! tctx :k)
+    (is (= 5 (count (t/run riff [{"onsets" 5} tctx]))) "a nearer source wins: a word's own @^{ } over the voice's")
+    (t/unsetp! tctx :onsets)
     (is (= 3 (count (t/run riff [nil tctx]))) "unset again, the default"))
   (testing "the most specific name wins within a source; written values are coerced"
-    (is (= 4 (count (t/run riff {"k" 5 "euclid.k" 4}))))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) {"k" :x})))
+    (is (= 4 (count (t/run riff {"onsets" 5 "euclid.onsets" 4}))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) {"onsets" :x})))
     (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) {"key" :D.major}))) "a bare name read as a string"))
   (testing "a named instance reads its own name first"
     (let [two (zip (pulses->durations (euclid :as :a)) (tools/cycle scale))]
-      (is (= 2 (count (t/run two {"a.k" 2 "k" 7}))))))
+      (is (= 2 (count (t/run two {"a.onsets" 2 "onsets" 7}))))))
   (testing "the music gives only what names a music key"
     (let [music (c/context)]
       (c/ctx-append music :Key 0 (el/parse-key "D.major") :fixed)
@@ -165,19 +165,19 @@
       (is (= 3 (count (t/run riff nil [music]))) "everything else takes its default"))))
 
 (deftest one-tree-runs-against-several-tctxs
-  (let [a (t/tctx riff) b (t/tctx riff {:k 2})]
+  (let [a (t/tctx riff) b (t/tctx riff {:onsets 2})]
     (is (not= (t/run riff a) (t/run riff b)))
     (is (= 2 (count (t/run riff b))))))
 
 (deftest the-validator-guards-every-change
   (let [tctx (t/tctx riff)]
-    (is (= 5 (:k (t/setp! tctx :k 5))))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #":k 99 should be at most 32 \(euclid, onsets\)"
-                          (swap! (:params-atom tctx) assoc "k" 99)) "even a plain swap!")
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/setp! tctx :k 1.5)))
+    (is (= 5 (:onsets (t/setp! tctx :onsets 5))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #":onsets 99 should be at most 32 \(euclid, beats to place\)"
+                          (swap! (:params-atom tctx) assoc "onsets" 99)) "even a plain swap!")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/setp! tctx :onsets 1.5)))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #":nope is not a param" (t/setp! tctx :nope 1)))
-    (is (= 5 (:k (t/params tctx))) "a rejected change leaves the value as it was")
-    (is (thrown? clojure.lang.ExceptionInfo (t/tctx riff {:k -1})) "overrides are checked too")))
+    (is (= 5 (:onsets (t/params tctx))) "a rejected change leaves the value as it was")
+    (is (thrown? clojure.lang.ExceptionInfo (t/tctx riff {:onsets -1})) "overrides are checked too")))
 
 (deftest open-ranges-and-required-params
   (let [tctx (t/tctx (need))]
@@ -187,11 +187,11 @@
     (is (= [1000000] (t/run (need) tctx)) "a ##Inf max accepts any size")))
 
 (deftest fit!-prepares-a-tctx-for-another-tree
-  (let [tctx (t/tctx riff {:k 5})
+  (let [tctx (t/tctx riff {:onsets 5})
         other (transpose (tools/take (zip (tools/cycle [1/8]) (tools/cycle scale))))]
     (is (= 16 (count (t/run other tctx))) "keys a tctx doesn't know take their defaults")
     (t/fit! tctx other)
-    (is (= 5 (:k (t/params tctx))) "existing values stay")
+    (is (= 5 (:onsets (t/params tctx))) "existing values stay")
     (is (= 16 (:len (t/params tctx))) "new keys start at their defaults")
     (is (contains? (t/specs tctx) :semitones) "and can be set now")
     (is (= 16 (count (t/run other tctx))))))
@@ -207,7 +207,7 @@
 
 (deftest a-plain-map-fills-in-defaults
   (is (= [1 0 0 1 0 0 1 0] (t/run euclid {})))
-  (is (= [1 0 1 1 0 1 1 0] (t/run euclid {:k 5}))))
+  (is (= [1 0 1 1 0 1 1 0] (t/run euclid {:onsets 5}))))
 
 (deftest a-throwing-algo-names-its-node
   (let [e (try (t/run (boom scale) {}) (catch clojure.lang.ExceptionInfo e e))]
@@ -305,23 +305,23 @@
     (let [{:keys [name tree params]} (first (get-in @gs/*state [:wall :trees]))]
       (is (= :riff name))
       (is (= "(zip (pulses->durations (euclid)) (cycle (scale)))" tree))
-      (is (= [:k :n :pulse :root :intervals] (map :key params)))
+      (is (= [:onsets :pulses :pulse :root :intervals] (map :key params)))
       (is (= 3 (:value (first params)))))
-    (gs/set-tree-param! :riff :k 5)
-    (is (= 5 (:k (t/params tctx))) "a control writes through setp!")
+    (gs/set-tree-param! :riff :onsets 5)
+    (is (= 5 (:onsets (t/params tctx))) "a control writes through setp!")
     (gs/set-tree-param! :riff :intervals "[0 3 7]")
     (is (= [0 3 7] (:intervals (t/params tctx))) "a text field's EDN is read")
-    (gs/set-tree-param! :riff :k 99)
-    (is (= 5 (:k (t/params tctx))) "a rejected value isn't applied")
+    (gs/set-tree-param! :riff :onsets 99)
+    (is (= 5 (:onsets (t/params tctx))) "a rejected value isn't applied")
     (is (re-find #"at most 32" (get-in @gs/*state [:wall :message])) "and the window says why")))
 
 (deftest setp!-is-assoc-for-a-tctx
   (let [tctx (t/tctx (euclid))]
-    (is (= 5 (:k (t/setp! tctx :k 5))))
-    (is (= [2 16] ((juxt :k :n) (t/setp! tctx :k 2 :n 16))) "several key/value pairs, like assoc")
-    (is (= [3 8] ((juxt :k :n) (t/setp! tctx {:k 3 :n 8}))) "or a map")
-    (is (thrown? Exception (t/setp! tctx :k 4 :n 99)))
-    (is (= [3 8] ((juxt :k :n) (t/params tctx))) "one swap!: a bad value leaves every value as it was")))
+    (is (= 5 (:onsets (t/setp! tctx :onsets 5))))
+    (is (= [2 16] ((juxt :onsets :pulses) (t/setp! tctx :onsets 2 :pulses 16))) "several key/value pairs, like assoc")
+    (is (= [3 8] ((juxt :onsets :pulses) (t/setp! tctx {:onsets 3 :pulses 8}))) "or a map")
+    (is (thrown? Exception (t/setp! tctx :onsets 4 :pulses 99)))
+    (is (= [3 8] ((juxt :onsets :pulses) (t/params tctx))) "one swap!: a bad value leaves every value as it was")))
 
 (deftest a-param-can-follow-the-music
   (let [music (c/context)]
@@ -338,4 +338,4 @@
   (is (= '(zip (pulses->durations (euclid)) (points->pitches (lorenz))) (t/show (zip (pulses->durations euclid) lorenz)))
       "a join bridges to the part neither child gives yet")
   (is (= '(degrees->pitches (cycle [0 2])) (t/show (degrees->pitches (tools/cycle [0 2])))) "what fits stays as it is")
-  (is (= 3 (count (t/run (zip euclid scale) {:k 3 :n 8})))))
+  (is (= 3 (count (t/run (zip euclid scale) {:onsets 3 :pulses 8})))))

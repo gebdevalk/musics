@@ -3323,3 +3323,18 @@ what the file holds now. What they recorded:
   nearest allowed pitch, as the reference does (checked against the Python). The
   reference's own demo functions with 3 and 4 voices throw, because their density
   envelopes sum differently; the engine requires equal sub-note counts.
+
+## 2026-11-04 — opaque argument names in algo functions
+
+`see` and a word's stack effect come from the function's own argument names, and
+the registry takes the settings names from them too, so a clear name is a clear
+word everywhere at once. The opaque ones were renamed; names that are the letters
+of their formula or a standard quantity stay (`r`, `x`, `a`, `b`, `rho`, `mu`, `std`,
+`phi`, `dof`, `dt`, `x0` `y0` `z0`, `lo`, `hi`, `len`).
+
+- `euclid` and `necklaces`: `k` and `n` are `onsets` and `pulses`
+  (`@^{ onsets:5 pulses:8 }`, `5 8 r/euclid`, `see` shows `( onsets pulses -- … )`).
+- `noise`: `n` is `points`. `choose-n`: `n` is `how-many`. `row-form`: `n` is
+  `transposition`. `sputter`: `max` is `max-length` (it also shadowed `clojure.core/max`).
+- The settings text, tests, docs and cookbooks use the new names; the cookbook's
+  clashing-key recipe now clashes on `:onsets` (a `first-onsets` algo).

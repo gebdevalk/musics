@@ -50,15 +50,15 @@
 
 (defn row-form
   "One of a row's 48 forms: :P as written, :I inverted around its first
-   class, :R backwards, :RI both, each transposed by n semitones."
+   class, :R backwards, :RI both, each transposed by transposition semitones."
   {:algo {:category "tool" :works :whole :in [:number] :out :number
           :params {:form {:type :keyword :choices [:P :I :R :RI] :default :P :doc "prime, inversion, retrograde, both"}
-                   :n    {:type :int :min 0 :max 11 :default 0 :doc "transposition, semitones"}}}}
-  [xs form n]
+                   :transposition {:type :int :min 0 :max 11 :default 0 :doc "transposition, semitones"}}}}
+  [xs form transposition]
   (let [r (mapv pc xs)
         f (first r)
-        p (fn [x] (mod (+ x n) 12))
-        i (fn [x] (mod (+ (- (* 2 f) x) n) 12))]
+        p (fn [x] (mod (+ x transposition) 12))
+        i (fn [x] (mod (+ (- (* 2 f) x) transposition) 12))]
     (case form
       :P  (mapv p r)
       :I  (mapv i r)

@@ -165,14 +165,14 @@
   (nth-wrapping (rhythm-bracelet pattern) index))
 
 (defn necklaces
-  "The index-th rotation class of n pulses with k onsets
+  "The index-th rotation class of pulses pulses with onsets onsets
    (all-binary-necklaces), wrapping."
   {:algo {:in [] :out :pulse
-          :params {:n     {:type :int :min 1 :max 16 :default 8 :doc "pulses"}
-                   :k     {:type :int :min 0 :max 16 :default 3 :doc "onsets"}
-                   :index {:type :int :min 0 :max 1023 :default 0 :doc "which class"}}}}
-  [n k index]
-  (nth-wrapping (all-binary-necklaces n k) index))
+          :params {:pulses {:type :int :min 1 :max 16 :default 8 :doc "the grid"}
+                   :onsets {:type :int :min 0 :max 16 :default 3 :doc "beats to place"}
+                   :index  {:type :int :min 0 :max 1023 :default 0 :doc "which class"}}}}
+  [pulses onsets index]
+  (nth-wrapping (all-binary-necklaces pulses onsets) index))
 
 (defn- place-tiles
   "Lay pattern down repeatedly, starting at every multiple of its own

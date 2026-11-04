@@ -190,4 +190,4 @@
 
 (deftest a-plain-map-is-checked-like-a-tctx
   (is (thrown-with-msg? Exception #"should be one of" (t/run (lib/bell) {:pattern-name "polka"})))
-  (is (thrown-with-msg? Exception #"at most 32" (t/run (lib/euclid) {:k 99}))))
+  (is (thrown-with-msg? Exception #"at most 32" (t/run (lib/euclid) {:onsets 99}))))

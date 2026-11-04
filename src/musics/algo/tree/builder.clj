@@ -5,7 +5,7 @@
    A draft is plain data:
      {:root slot :active path :history [..] :future [..]}
      slot = nil (a hole) | {:algo :euclid :children [slot ..]}
-          | {:as-part :volume :children [slot]} | {:literal v} | {:param :k}
+          | {:as-part :volume :children [slot]} | {:literal v} | {:param :onsets}
    A join (zip) holds all its children in one slot -- (zip ① ② ③) --
    and widen gives it one more; ->tree folds them as the constructor does.
    A path is a vector of child indexes from the root ([] is the root).

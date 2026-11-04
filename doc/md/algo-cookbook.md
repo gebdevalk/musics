@@ -24,7 +24,7 @@ Trees are Clojure code, run from a namespace that requires them: `(require '[mus
 
 | Call | Also | Does |
 |---|---|---|
-| `(t/tctx tree)` | `(t/tctx tree overrides)` | {:params-atom}, its settings under the names an @^{ } writes ("k"); the tree isn't stored, its specs are |
+| `(t/tctx tree)` | `(t/tctx tree overrides)` | {:params-atom}, its settings under the names an @^{ } writes ("onsets"); the tree isn't stored, its specs are |
 | `(t/run tree src)` | `(t/run tree src chain)` | the tree's result; src a tctx, a map or a vector of them nearest first, then -- for key and meter -- the music's contexts in chain, then the defaults; every value checked |
 | `(t/setp! tctx k v)` | `(t/setp! tctx m) · (t/unsetp! tctx k)` | checked against the spec; unset falls through again |
 | `(t/params tctx)` | `(t/values tctx) · (t/specs tctx)` | every param's value / what it sets itself / the specs |
@@ -67,7 +67,7 @@ Generated from the registry by introspection, so it matches the code. `in → ou
 | `chain-rhythm` | `musics.algo.rhythmic.process/chain-rhythm` | ` → pulse` | `transitions map = {[1 0] {[0 1] 0.7, [1 1] 0.3}, [0 …, initial-state vector = [1 0], length 1..256 = 16` |
 | `chi-square` | `musics.algo.numeric.random/chi-square` | ` → number` | `dof 1..100 = 3, len 1..1024 = 16` |
 | `choose-from` | `musics.algo.numeric.random/choose-from` | `any → same` |  |
-| `choose-n` | `musics.algo.numeric.random/choose-n` | `any → same` | `n 0..256 = 4` |
+| `choose-n` | `musics.algo.numeric.random/choose-n` | `any → same` | `how-many 0..256 = 4` |
 | `classes->pitches` | `musics.algo.melodic.serial/classes->pitches` | `number → pitch` | `root 24..119 = 60` |
 | `cloud` | `musics.algo.rhythmic.process/cloud` | ` → onset` | `num-events 1..256 = 16, duration 0.0..##Inf = 4.0, time-std 0.0..1.0 = 0.1` |
 | `constrained` | `musics.algo.melodic.melody/constrained` | `pitch → pitch` | `length 1..256 = 16, constraints vector = [fn], start any = nil` |
@@ -85,7 +85,7 @@ Generated from the registry by introspection, so it matches the code. `in → ou
 | `drums` | `musics.algo.rhythmic.drums/drums` | ` → part` | `style keyword = :rock, bars 1..64 = 8, density 0.0..1.0 = 0.7, seed 0..1000000 = 1` |
 | `duet` | `musics.algo.rhythmic.sieve/duet` | `pulse → layer` | `phase 0..64 = 1` |
 | `emi` | `musics.algo.rhythmic.feel/emi` | `pulse → pulse` | `similarity 0.0..1.0 = 0.7` |
-| `euclid` | `musics.algo.rhythmic.pattern/euclid` | ` → pulse` | `k 0..32 = 3, n 1..32 = 8` |
+| `euclid` | `musics.algo.rhythmic.pattern/euclid` | ` → pulse` | `onsets 0..32 = 3, pulses 1..32 = 8` |
 | `exponential` | `musics.algo.numeric.random/exponential` | ` → number` | `mean 0.0..##Inf = 1.0, len 1..1024 = 16` |
 | `falling` | `musics.algo.numeric.random/falling` | ` → number` | `lo ##-Inf..##Inf = 0.0, hi ##-Inf..##Inf = 1.0, bias 0.0..1.0 = 0.5, len 1..1024 = 16` |
 | `fibonacci` | `musics.algo.rhythmic.pattern/fibonacci` | ` → pulse` | `length 1..256 = 16` |
@@ -127,7 +127,7 @@ Generated from the registry by introspection, so it matches the code. `in → ou
 | `modulating` | `musics.algo.melodic.melody/modulating` | ` → pitch` | `segments vector = [[[:C :major] 8] [[:A :minor] 8]], constraints vector = [fn]` |
 | `mutate` | `musics.algo.rhythmic.process/mutate` | `pulse → pulse` | `mutation-rate 0.0..1.0 = 0.1` |
 | `mute` | `musics.algo.tree.tools/mute*` | `leaf → leaf` | `fn fn = fn` |
-| `necklaces` | `musics.algo.rhythmic.sieve/necklaces` | ` → pulse` | `n 1..16 = 8, k 0..16 = 3, index 0..1023 = 0` |
+| `necklaces` | `musics.algo.rhythmic.sieve/necklaces` | ` → pulse` | `pulses 1..16 = 8, onsets 0..16 = 3, index 0..1023 = 0` |
 | `normal` | `musics.algo.numeric.random/normal` | ` → number` | `mean ##-Inf..##Inf = 0.0, stdev 0.0..##Inf = 1.0, len 1..1024 = 16` |
 | `numbers->durations` | `musics.algo.bridge/numbers->durations` | `number → duration` | `from-lo ##-Inf..##Inf = 0.0, from-hi ##-Inf..##Inf = 1.0, lo 1/64..4 = 1/16, hi 1/64..4 = 1/2, quantum 1/128..1 = 1/32` |
 | `numbers->instruments` | `musics.algo.bridge/numbers->instruments` | `number → instrument` | `from-lo ##-Inf..##Inf = 0.0, from-hi ##-Inf..##Inf = 1.0, palette vector = []` |
@@ -163,12 +163,12 @@ Generated from the registry by introspection, so it matches the code. `in → ou
 | `rnn` | `musics.algo.rhythmic.process/rnn` | `pulse → pulse` | `weights vector = [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0. …, iterations 0..256 = 8` |
 | `rotate` | `musics.algo.tree.tools/rotate*` | `any → same` | `steps -256..256 = 1` |
 | `row` | `musics.algo.melodic.serial/row` | ` → number` | `kind keyword = :random` |
-| `row-form` | `musics.algo.melodic.serial/row-form` | `number → number` | `form keyword = :P, n 0..11 = 0` |
+| `row-form` | `musics.algo.melodic.serial/row-form` | `number → number` | `form keyword = :P, transposition 0..11 = 0` |
 | `shuffle` | `musics.algo.tree.tools/shuffle*` | `any → same` |  |
 | `sieve` | `musics.algo.rhythmic.sieve/sieve` | ` → pulse` | `moduli vector = [3 4], residues vector = [[0 1] [2]], length 1..256 = 12` |
 | `species` | `musics.algo.counterpoint.jeppesen/species` | `pitch → part` | `voices 2..4 = 2, kind 1..5 = 1, cantus-in keyword = :auto, mode keyword = :auto, seed 0..1000000 = 1` |
 | `split` | `musics.algo.rhythmic.decompose/split` | ` → duration` | `duration 1/64..16 = 1, depth 1..32 = 4, ratio 1/16..15/16 = 1/2` |
-| `sputter` | `musics.algo.numeric.random/sputter` | `any → same` | `prob 0.0..1.0 = 0.25, max 1..1024 = 100` |
+| `sputter` | `musics.algo.numeric.random/sputter` | `any → same` | `prob 0.0..1.0 = 0.25, max-length 1..1024 = 100` |
 | `stochastic` | `musics.algo.rhythmic.process/stochastic` | ` → pulse` | `distribution string = "gaussian", length 1..256 = 16, density 0.0..1.0 = 0.5, mean any = nil, std any = nil, decay 0.0..100.0 = 2.0` |
 | `stretch` | `musics.algo.tree.tools/stretch*` | `any → same` | `factor 1/16..16 = 1` |
 | `strokes->durations` | `musics.algo.bridge/strokes->durations` | `stroke → duration` | `pulse 1/64..4 = 1/16` |
@@ -200,7 +200,7 @@ Generated from the registry by introspection, so it matches the code. `in → ou
 | `+part` | `part leaf → part` |  | One more stream of leaves, alongside the parts. |
 | `axis` | `point → number` | `axis 0..2 = 0` | One coordinate of each point. |
 | `layer` | `layer → pulse` | `index 0..63 = 0` | One of several pulse layers meant to sound together (wrapping) -- name each pick, (layer polyrhythm :as :top), so each has its own :index. |
-| `noise` | ` → number` | `n 2..64 = 8, lo ##-Inf..##Inf = 0.0, hi ##-Inf..##Inf = 1.0, len 1..1024 = 16` | Smooth value noise: n random points, blended, sampled :len times. |
+| `noise` | ` → number` | `points 2..64 = 8, lo ##-Inf..##Inf = 0.0, hi ##-Inf..##Inf = 1.0, len 1..1024 = 16` | Smooth value noise: random points, blended, sampled :len times. |
 | `part` | `part → leaf` | `index 0..63 = 0` | One of several parallel parts (wrapping): a stream of leaves. |
 | `parts` | `leaf leaf → part` |  | Two streams of leaves played together, as parallel parts. |
 | `pick` | `weight → index` |  | One index, drawn with the child's weights. |
@@ -318,7 +318,7 @@ Each recipe is plain Clojure in three parts. **Tree**: the code that builds it. 
 
 ```clojure
 (def tctx (t/tctx riff))   ;; an ordinary Context for its settings: it sets nothing yet, so every param is at its default
-;; values {:k 3, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+;; values {:onsets 3, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -341,9 +341,9 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(t/setp! tctx :k 5)   ;; five onsets
+(t/setp! tctx :onsets 5)   ;; five onsets
 (t/setp! tctx :intervals [0 3 7 10])   ;; a minor-seventh arpeggio
-;; values {:k 5, :n 8, :pulse 1/16, :root 60, :intervals [0 3 7 10]}
+;; values {:onsets 5, :pulses 8, :pulse 1/16, :root 60, :intervals [0 3 7 10]}
 ```
 
 **Result**
@@ -352,11 +352,11 @@ riff   ;; from recipe 1
 (t/run riff tctx)
 ;; => [!acc:explicit C4/8 D#4/16 G4/8 A#4/16 C4/8]
 ;; out of range
-;; => musics.algo.tree: :k 99 should be at most 32 (euclid, onsets)
+;; => musics.algo.tree: :onsets 99 should be at most 32 (euclid, beats to place)
 ;; wrong type
-;; => musics.algo.tree: :k 2.5 should be an integer (euclid, onsets)
+;; => musics.algo.tree: :onsets 2.5 should be an integer (euclid, beats to place)
 ;; what it holds
-;; => {"k" 5, "intervals" [0 3 7 10]}
+;; => {"onsets" 5, "intervals" [0 3 7 10]}
 ```
 
 #### 3. Wrong shapes fail when built
@@ -393,8 +393,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 3 :n 8})   ;; three onsets in eight
-;; values {:k 3, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p {:onsets 3 :pulses 8})   ;; three onsets in eight
+;; values {:onsets 3, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -420,8 +420,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 5 :n 16})   ;; lorenz at its defaults: the bridge's range defaults to what the source gives
-;; euclid × lorenz values {:k 5, :n 16, :duration-pulse 1/16, :sigma 10.0, :rho 28.0, :beta 2.6666666666666665, :x0 1.0, :y0 1.0, :z0 1.0, :dt 0.01, :len 16, :pitch-axis 0, :pitch-from-lo 0.9, :pitch-from-hi 9.0, :pitch-key "C.major", :pitch-octave 4, :pitch-octaves 2}
+(def p {:onsets 5 :pulses 16})   ;; lorenz at its defaults: the bridge's range defaults to what the source gives
+;; euclid × lorenz values {:onsets 5, :pulses 16, :duration-pulse 1/16, :sigma 10.0, :rho 28.0, :beta 2.6666666666666665, :x0 1.0, :y0 1.0, :z0 1.0, :dt 0.01, :len 16, :pitch-axis 0, :pitch-from-lo 0.9, :pitch-from-hi 9.0, :pitch-key "C.major", :pitch-octave 4, :pitch-octaves 2}
 ;; walk as pitch and volume values {:w/start 60.0, :w/step-bound 2.0, :w/clip-lo ##-Inf, :w/clip-hi ##Inf, :w/boundary :clamp, :w/len 16, :w/pitch-from-lo 46.0, :w/pitch-from-hi 66.0, :w/pitch-lo 48, :w/pitch-hi 84, :w/volume-from-lo 46.0, :w/volume-from-hi 66.0, :w/volume-lo 40.0, :w/volume-hi 80.0}
 ```
 
@@ -451,8 +451,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 5 :n 16 :steps 2 :pulse 1/16})   ;; a plain map: missing keys take their defaults
-;; values {:k 5, :n 16, :steps 2, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p {:onsets 5 :pulses 16 :steps 2 :pulse 1/16})   ;; a plain map: missing keys take their defaults
+;; values {:onsets 5, :pulses 16, :steps 2, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -473,8 +473,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 5})
-;; values {:k 5, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p {:onsets 5})
+;; values {:onsets 5, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -680,8 +680,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:order 1 :k 11 :n 16 :pulse 1/16})
-;; values {:k 11, :n 16, :pulse 1/16, :order 1, :length 16, :opening nil}
+(def p {:order 1 :onsets 11 :pulses 16 :pulse 1/16})
+;; values {:onsets 11, :pulses 16, :pulse 1/16, :order 1, :length 16, :opening nil}
 ```
 
 **Result**
@@ -1030,15 +1030,15 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:n 6 :len 16 :level 0.4 :pulse 1/16})
-;; values {:n 6, :lo 0.0, :hi 1.0, :len 16, :level 0.4, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p {:pulses 6 :len 16 :level 0.4 :pulse 1/16})
+;; values {:points 8, :lo 0.0, :hi 1.0, :len 16, :level 0.4, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
 
 ```clojure
 (t/run nz p)
-;; => [!acc:explicit r8 D4/16 E4/16 G4/16 A4/8 C4/16 D4/16 E4/16 G4/16 A4/16 C4/16 D4/8.]
+;; => [!acc:explicit r8 D4/16 E4/8 G4/16 A4/16 C4/16 D4/16 E4/8. G4/16 A4/16 C4/8]
 ```
 
 ### Rhythm generators
@@ -1210,8 +1210,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 8 :n 8 :swing-ratio 0.67 :unit 1/4})   ;; a beat = a quarter note
-;; values {:k 8, :n 8, :swing-ratio 0.67, :subdivision 2, :unit 1/4, :quantum 1/32, :root 60, :intervals [0 2 4 7 9]}
+(def p {:onsets 8 :pulses 8 :swing-ratio 0.67 :unit 1/4})   ;; a beat = a quarter note
+;; values {:onsets 8, :pulses 8, :swing-ratio 0.67, :subdivision 2, :unit 1/4, :quantum 1/32, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -1299,10 +1299,10 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p1 {:k 5 :n 16 :similarity 0.6 :pulse 1/16})
-(def p2 {:k 3 :n 8 :strategy "mirror" :pulse 1/16})
-;; emi values {:k 5, :n 16, :similarity 0.6, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
-;; mirror values {:k 3, :n 8, :strategy "mirror", :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p1 {:onsets 5 :pulses 16 :similarity 0.6 :pulse 1/16})
+(def p2 {:onsets 3 :pulses 8 :strategy "mirror" :pulse 1/16})
+;; emi values {:onsets 5, :pulses 16, :similarity 0.6, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+;; mirror values {:onsets 3, :pulses 8, :strategy "mirror", :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -1363,7 +1363,7 @@ riff   ;; from recipe 1
 
 ```clojure
 (def p {:by -12})
-;; values {:k 3, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9], :by -12}
+;; values {:onsets 3, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9], :by -12}
 ```
 
 **Result**
@@ -1417,14 +1417,14 @@ riff   ;; from recipe 1
 (defalgo union "Onset wherever either grid has one."
   {:algo {:in [:pulse :pulse] :out :pulse}}
   [a b] (mapv max a b))
-(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle scale)))   ;; keys :bass/k … and :k …
+(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle scale)))   ;; keys :bass/onsets … and :onsets …
 ```
 
 **Params**
 
 ```clojure
-(def p {:bass/k 2 :bass/n 16 :k 5 :n 16 :intervals [0 3 7 10] :pulse 1/16})
-;; values {:bass/k 2, :bass/n 16, :k 5, :n 16, :pulse 1/16, :root 60, :intervals [0 3 7 10]}
+(def p {:bass/onsets 2 :bass/pulses 16 :onsets 5 :pulses 16 :intervals [0 3 7 10] :pulse 1/16})
+;; values {:bass/onsets 2, :bass/pulses 16, :onsets 5, :pulses 16, :pulse 1/16, :root 60, :intervals [0 3 7 10]}
 ```
 
 **Result**
@@ -1439,25 +1439,25 @@ riff   ;; from recipe 1
 **Tree**
 
 ```clojure
-(defalgo accent "Keep every k-th onset."
+(defalgo first-onsets "Keep only the first onsets onsets."
   {:algo {:in [:pulse] :out :pulse
-          :params {:k {:type :int :min 1 :max 8 :default 2}}}}
-  [g k] (map-indexed (fn [i x] (if (zero? (mod i k)) x 0)) g))   ;; its :k means something else than euclid's
-(def ac (accent euclid))   ;; so both become :<short>.k
+          :params {:onsets {:type :int :min 1 :max 8 :default 2}}}}
+  [g onsets] (second (reduce (fn [[n out] x] (if (and (pos? x) (< n onsets)) [(inc n) (conj out x)] [n (conj out 0)])) [0 []] g)))   ;; its :onsets means something else than euclid's
+(def ac (first-onsets euclid))   ;; so both become :<short>.onsets
 ```
 
 **Params**
 
 ```clojure
-(def p {:euclid.k 5 :accent.k 2})
-;; values {:euclid.k 5, :n 8, :accent.k 2}
+(def p {:euclid.onsets 5 :first-onsets.onsets 2})
+;; values {:euclid.onsets 5, :pulses 8, :first-onsets.onsets 2}
 ```
 
 **Result**
 
 ```clojure
 (t/run ac p)
-;; => (1 0 1 0 0 0 1 0)
+;; => [1 0 1 0 0 0 0 0]
 ```
 
 ### Settings as data
@@ -1473,10 +1473,10 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def calm (t/tctx riff {:k 2}))
-(def busy (t/tctx riff {:k 7}))   ;; the tree is shared, the settings aren't
-;; calm values {:k 2, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
-;; busy values {:k 7, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def calm (t/tctx riff {:onsets 2}))
+(def busy (t/tctx riff {:onsets 7}))   ;; the tree is shared, the settings aren't
+;; calm values {:onsets 2, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+;; busy values {:onsets 7, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -1501,7 +1501,7 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(t/fit! calm other)   ;; adds their specs, keeps :k 2
+(t/fit! calm other)   ;; adds their specs, keeps :onsets 2
 ;; values {:root 60, :intervals [0 2 4 7 9], :len 16, :semitones 0}
 ```
 
@@ -1523,10 +1523,10 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def written (into {} (:params (v/node (mt/read-text "@^{ k:5 root:67 euclid.n:16 }")))))   ;; @^{ name:value } is an algo's settings, kept apart from the music's ^{ }
-(def mine (t/tctx riff {:k 2}))   ;; a tctx that sets k itself
-;; the written settings values {:k 5, :n 16, :pulse 1/16, :root 67, :intervals [0 2 4 7 9]}
-;; the tctx first, nearest first values {:k 2, :n 16, :pulse 1/16, :root 67, :intervals [0 2 4 7 9]}
+(def written (into {} (:params (v/node (mt/read-text "@^{ onsets:5 root:67 euclid.pulses:16 }")))))   ;; @^{ name:value } is an algo's settings, kept apart from the music's ^{ }
+(def mine (t/tctx riff {:onsets 2}))   ;; a tctx that sets onsets itself
+;; the written settings values {:onsets 5, :pulses 16, :pulse 1/16, :root 67, :intervals [0 2 4 7 9]}
+;; the tctx first, nearest first values {:onsets 2, :pulses 16, :pulse 1/16, :root 67, :intervals [0 2 4 7 9]}
 ```
 
 **Result**
@@ -1584,14 +1584,14 @@ riff   ;; from recipe 1
 
 ```clojure
 (def live-tctx (t/tctx riff {:pulse 1/16}))   ;; the values shown are those after the steps below
-;; values {:k 7, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9], :semitones 12}
+;; values {:onsets 7, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9], :semitones 12}
 ```
 
 **Result**
 
 ```clojure
 (t/live! :riff riff live-tctx)   ;; an endless voice follows :riff
-(t/setp! live-tctx :k 7)   ;; heard on the next note
+(t/setp! live-tctx :onsets 7)   ;; heard on the next note
 (t/retree! :riff riff2)   ;; same tctx, fitted: gains :semitones
 (t/setp! live-tctx :semitones 12)
 (t/stop! :riff)
@@ -1637,8 +1637,8 @@ riff   ;; from recipe 1
 **Params**
 
 ```clojure
-(def p {:k 3})
-;; values {:k 3, :n 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
+(def p {:onsets 3})
+;; values {:onsets 3, :pulses 8, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 
 **Result**

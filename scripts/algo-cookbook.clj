@@ -81,11 +81,11 @@
     :extra [["riff prints as" "riff"]]}
    {:title "Change a setting; the validator guards every change"
     :tree [["riff" "from recipe 1"]]
-    :params [["(t/setp! tctx :k 5)" "five onsets"]
+    :params [["(t/setp! tctx :onsets 5)" "five onsets"]
              ["(t/setp! tctx :intervals [0 3 7 10])" "a minor-seventh arpeggio"]]
     :runs [["result" "riff" "tctx"]]
-    :extra [["out of range" "(try (t/setp! tctx :k 99) (catch Exception e (ex-message e)))"]
-            ["wrong type" "(try (swap! (:params-atom tctx) assoc \"k\" 2.5) (catch Exception e (ex-message e)))"]
+    :extra [["out of range" "(try (t/setp! tctx :onsets 99) (catch Exception e (ex-message e)))"]
+            ["wrong type" "(try (swap! (:params-atom tctx) assoc \"onsets\" 2.5) (catch Exception e (ex-message e)))"]
             ["what it holds" "@(:params-atom tctx)"]]}
    {:title "Wrong shapes fail when built"
     :throws? true
@@ -98,25 +98,25 @@
    {:title "Raw material gets its bridges"
     :tree [["(def br (zip euclid scale))" "euclid gives pulses where durations go: the smallest chain of bridges goes around it"]
            ["(def br2 (zip (tilt indisp) scale))" "weights take two: weights->pulses, then pulses->durations"]]
-    :params [["(def p {:k 3 :n 8})" "three onsets in eight"]]
+    :params [["(def p {:onsets 3 :pulses 8})" "three onsets in eight"]]
     :runs [["bridged" "br" "p"]]
     :extra [["the tree as built" "(t/show br)"] ["two bridges" "(t/show br2)"]]}
 
    {:title "Algos as half products: what they deliver, not how"
     :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]
            ["(def same (zip (cycle [1/8]) (pitch/walk :as :w) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
-    :params [["(def p {:k 5 :n 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
+    :params [["(def p {:onsets 5 :pulses 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
     :runs [["euclid × lorenz" "hp" "p"] ["walk as pitch and volume" "same" "{}"]]
     :extra [["a bridge's params carry the half product" "(mapv :key (t/param-keys (pitch/walk)))"]]}
 
    {:group "Rhythm × melody"}
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
     :tree [["(def r2 (zip (pulses->durations (rotate euclid)) (shuffle scale)))" "rotate moves the onsets two places; every pitch once per pass"]]
-    :params [["(def p {:k 5 :n 16 :steps 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
+    :params [["(def p {:onsets 5 :pulses 16 :steps 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Legato by default, detached by articulation"
     :tree [["(def det (zip riff (as-part :articulation (cycle [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
-    :params [["(def p {:k 5})" ""]]
+    :params [["(def p {:onsets 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
     :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle scale)))" "musics.algo.rhythmic.pattern/fibonacci, by its short name"]]
@@ -160,7 +160,7 @@
    {:group "Melody generators"}
    {:title "A Markov melody trained on a motif"
     :tree [["(def mk (zip (pulses->durations euclid) (markov-gen (markov-train [60 62 64 62 60 67 65 64]))))" "train → a :model, generate → pitches"]]
-    :params [["(def p {:order 1 :k 11 :n 16 :pulse 1/16})" ""]]
+    :params [["(def p {:order 1 :onsets 11 :pulses 16 :pulse 1/16})" ""]]
     :runs [["result" "mk" "p"]]}
    {:title "Slonimsky: insertions before, between, after"
     :tree [["(def sl (zip (cycle [1/16]) (infra [60 64 67 72] [59 62])))" "two children: principal tones, insertion"]
@@ -233,7 +233,7 @@
     :runs [["result" "po" "p"]]}
    {:title "Smooth noise as a rhythm"
     :tree [["(def nz (zip (pulses->durations (threshold noise)) (cycle scale)))" "an onset where the curve is high"]]
-    :params [["(def p {:n 6 :len 16 :level 0.4 :pulse 1/16})" ""]]
+    :params [["(def p {:pulses 6 :len 16 :level 0.4 :pulse 1/16})" ""]]
     :runs [["result" "nz" "p"]]}
 
    {:group "Rhythm generators"}
@@ -270,7 +270,7 @@
     :runs [["result" "gn" "gn-tctx"]]}
    {:title "Swing: a grid becomes onset times, then durations"
     :tree [["(def sw (zip (onsets->durations (swing euclid)) (cycle scale)))" "pulses → swung onsets → durations → leaves"]]
-    :params [["(def p {:k 8 :n 8 :swing-ratio 0.67 :unit 1/4})" "a beat = a quarter note"]]
+    :params [["(def p {:onsets 8 :pulses 8 :swing-ratio 0.67 :unit 1/4})" "a beat = a quarter note"]]
     :runs [["result" "sw" "p"]]}
    {:title "A bouncing ball, in seconds"
     :tree [["(def bb (zip (onsets->durations bounce) (cycle [72 67])))" ""]]
@@ -287,8 +287,8 @@
    {:title "Vary a rhythm: EMI style, Oblique Strategies"
     :tree [["(def em (zip (pulses->durations (emi euclid)) (cycle scale)))" ""]
            ["(def ob (zip (pulses->durations (oblique euclid)) (cycle scale)))" ""]]
-    :params [["(def p1 {:k 5 :n 16 :similarity 0.6 :pulse 1/16})" ""]
-             ["(def p2 {:k 3 :n 8 :strategy \"mirror\" :pulse 1/16})" ""]]
+    :params [["(def p1 {:onsets 5 :pulses 16 :similarity 0.6 :pulse 1/16})" ""]
+             ["(def p2 {:onsets 3 :pulses 8 :strategy \"mirror\" :pulse 1/16})" ""]]
     :runs [["emi" "em" "p1"] ["mirror" "ob" "p2"]]}
    {:title "Vary durations: the same algos on the shop floor"
     :tree [["(def dv (zip (duration/emi [1/8 1/8 1/4 3/8 1/8]) (cycle scale)))" "durations laid on a grid of :duration-pulse, varied, read back"]
@@ -313,29 +313,29 @@
    {:group "Two of a kind"}
    {:title "Two instances of one algo: name one"
     :tree [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:pulse :pulse] :out :pulse}}\n  [a b] (mapv max a b))" ""]
-           ["(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle scale)))" "keys :bass/k … and :k …"]]
-    :params [["(def p {:bass/k 2 :bass/n 16 :k 5 :n 16 :intervals [0 3 7 10] :pulse 1/16})" ""]]
+           ["(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle scale)))" "keys :bass/onsets … and :onsets …"]]
+    :params [["(def p {:bass/onsets 2 :bass/pulses 16 :onsets 5 :pulses 16 :intervals [0 3 7 10] :pulse 1/16})" ""]]
     :runs [["result" "two" "p"]]}
    {:title "Different algos, same param name"
-    :tree [["(defalgo accent \"Keep every k-th onset.\"\n  {:algo {:in [:pulse] :out :pulse\n          :params {:k {:type :int :min 1 :max 8 :default 2}}}}\n  [g k] (map-indexed (fn [i x] (if (zero? (mod i k)) x 0)) g))" "its :k means something else than euclid's"]
-           ["(def ac (accent euclid))" "so both become :<short>.k"]]
-    :params [["(def p {:euclid.k 5 :accent.k 2})" ""]]
+    :tree [["(defalgo first-onsets \"Keep only the first onsets onsets.\"\n  {:algo {:in [:pulse] :out :pulse\n          :params {:onsets {:type :int :min 1 :max 8 :default 2}}}}\n  [g onsets] (second (reduce (fn [[n out] x] (if (and (pos? x) (< n onsets)) [(inc n) (conj out x)] [n (conj out 0)])) [0 []] g)))" "its :onsets means something else than euclid's"]
+           ["(def ac (first-onsets euclid))" "so both become :<short>.onsets"]]
+    :params [["(def p {:euclid.onsets 5 :first-onsets.onsets 2})" ""]]
     :runs [["result" "ac" "p"]]}
 
    {:group "Settings as data"}
    {:title "One tree, several tctxs"
     :tree [["riff" "from recipe 1"]]
-    :params [["(def calm (t/tctx riff {:k 2}))" ""]
-             ["(def busy (t/tctx riff {:k 7}))" "the tree is shared, the settings aren't"]]
+    :params [["(def calm (t/tctx riff {:onsets 2}))" ""]
+             ["(def busy (t/tctx riff {:onsets 7}))" "the tree is shared, the settings aren't"]]
     :runs [["calm" "riff" "calm"] ["busy" "riff" "busy"]]}
    {:title "Fit a tctx to another tree"
     :tree [["(def other (transpose (take (zip (cycle [1/8]) (cycle scale)))))" "reads :len and :semitones too"]]
-    :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
+    :params [["(t/fit! calm other)" "adds their specs, keeps :onsets 2"]]
     :runs [["other, with calm" "other" "calm"]]}
    {:title "Settings written as @^{ }, from several sources"
     :tree [["riff" "from recipe 1"]]
-    :params [["(def written (into {} (:params (v/node (mt/read-text \"@^{ k:5 root:67 euclid.n:16 }\")))))" "@^{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
-             ["(def mine (t/tctx riff {:k 2}))" "a tctx that sets k itself"]]
+    :params [["(def written (into {} (:params (v/node (mt/read-text \"@^{ onsets:5 root:67 euclid.pulses:16 }\")))))" "@^{ name:value } is an algo's settings, kept apart from the music's ^{ }"]
+             ["(def mine (t/tctx riff {:onsets 2}))" "a tctx that sets onsets itself"]]
     :runs [["the written settings" "riff" "written" "(t/run riff written)"]
            ["the tctx first, nearest first" "riff" "[mine written]" "(t/run riff [mine written])"]]}
    {:title "Look inside: describe and trace"
@@ -351,7 +351,7 @@
            ["(def riff2 (transpose riff))" "the tree swapped in later"]]
     :params [["(def live-tctx (t/tctx riff {:pulse 1/16}))" "the values shown are those after the steps below"]]
     :play [["(t/live! :riff riff live-tctx)" "an endless voice follows :riff"]
-           ["(t/setp! live-tctx :k 7)" "heard on the next note"]
+           ["(t/setp! live-tctx :onsets 7)" "heard on the next note"]
            ["(t/retree! :riff riff2)" "same tctx, fitted: gains :semitones"]
            ["(t/setp! live-tctx :semitones 12)" ""]
            ["(t/stop! :riff)" ""]]
@@ -367,12 +367,12 @@
    {:group "Material"}
    {:title "Generated notes become committed musics text"
     :tree [["riff" "from recipe 1"]]
-    :params [["(def p {:k 3})" ""]]
+    :params [["(def p {:onsets 3})" ""]]
     :runs [["text" "riff" "p" "(notes->mus (t/run riff p))"]]
     :extra [["committed" "(:ids (store/read! (notes->mus (t/run riff p))))"]]}])
 
 (def api
-  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @^{ } writes (\"k\"); the tree isn't stored, its specs are"]
+  [["(t/tctx tree)", "(t/tctx tree overrides)" "{:params-atom}, its settings under the names an @^{ } writes (\"onsets\"); the tree isn't stored, its specs are"]
    ["(t/run tree src)" "(t/run tree src chain)" "the tree's result; src a tctx, a map or a vector of them nearest first, then -- for key and meter -- the music's contexts in chain, then the defaults; every value checked"]
    ["(t/setp! tctx k v)" "(t/setp! tctx m) · (t/unsetp! tctx k)" "checked against the spec; unset falls through again"]
    ["(t/params tctx)" "(t/values tctx) · (t/specs tctx)" "every param's value / what it sets itself / the specs"]

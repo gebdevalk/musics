@@ -3,7 +3,7 @@
    constructor; (musics.algo.tree/algos) lists them all with their params.
 
      (def riff (zip (pulses->durations euclid) (cycle scale)))
-     (musics.algo.tree/run riff {:k 5})
+     (musics.algo.tree/run riff {:onsets 5})
 
    Exposed from musics/algo/ -- every fn carrying :algo metadata in these
    namespaces (the full list with params: (musics.algo.tree/algos)):
@@ -43,7 +43,7 @@
      threshold    :level               :number -> :pulse (onset above :level of the range)
      layer        :index               :layer -> one :pulse layer
      axis         :axis                :point -> :number (one coordinate)
-     noise        :n :lo :hi :len      smooth value noise -> :number
+     noise        :points :lo :hi :len      smooth value noise -> :number
 
    And one plain function: (notes->mus parts) renders Leaf/Rest maps as
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
@@ -241,15 +241,15 @@
           :params {:axis {:type :int :min 0 :max 2 :default 0 :doc "x = 0, y = 1, z = 2"}}}}
   [points axis] (mapv #(nth % axis) points))
 
-(defalgo noise "Smooth value noise: n random points, blended, sampled :len times."
+(defalgo noise "Smooth value noise: random points, blended, sampled :len times."
   {:algo {:category "sources" :in [] :out :number
-          :params {:n   {:type :int :min 2 :max 64 :default 8 :doc "random points blended"}
+          :params {:points {:type :int :min 2 :max 64 :default 8 :doc "random points blended"}
                    :lo  {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest value"}
                    :hi  {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest value"}
                    :len {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}}}}
-  [n lo hi len]
-  (let [f (walk/smooth-noise n lo hi)]
-    (mapv #(f (* % (/ (dec n) (double (max 1 (dec len)))))) (range len))))
+  [points lo hi len]
+  (let [f (walk/smooth-noise points lo hi)]
+    (mapv #(f (* % (/ (dec points) (double (max 1 (dec len)))))) (range len))))
 
 (defn notes->mus
   "Leaf/Rest maps -> one musics text Sequence: absolute pitches, explicit

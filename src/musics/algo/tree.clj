@@ -12,7 +12,7 @@
    count and types are checked right here, against the registry
    (musics.algo.tree.registry): `(zip (tilt ...) ...)` fails at once, naming
    both. `(euclid :as :bass)` names an instance, so its params get their
-   own keys (:bass/k).
+   own keys (:bass/onsets).
 
    A join (zip, :join in its :algo metadata) takes two children or more,
    folded from the left: (zip d p v) is (zip (zip d p) v), printed as
@@ -24,17 +24,17 @@
    it -- the model a GUI watches:
 
      (def tctx (t/tctx riff))       ; {:params-atom (atom {})}, the specs as its meta
-     (t/setp! tctx :k 5)            ; = (swap! (:params-atom tctx) assoc \"k\" 5)
-     (t/run riff tctx)              ; or (t/run riff {:k 5}), a plain map
+     (t/setp! tctx :onsets 5)            ; = (swap! (:params-atom tctx) assoc \"onsets\" 5)
+     (t/run riff tctx)              ; or (t/run riff {:onsets 5}), a plain map
 
    Every value is checked against its spec by the atom's validator, so a
    plain swap! can't store one out of range. A ##NaN value means unset: a
    required param. One tree can run against several tctxs; (fit! tctx
    tree) prepares a tctx for another tree, keeping its values.
 
-   Keys: a param keeps its bare name (:k) unless two different algos in
+   Keys: a param keeps its bare name (:onsets) unless two different algos in
    the tree read that name with different specs -- then each becomes
-   :<short>.<name> (:euclid.n). A named instance's are :<as>/<name>.
+   :<short>.<name> (:euclid.pulses). A named instance's are :<as>/<name>.
 
    Laziness is a property of each algo's value; params are fixed for
    one run, so a lazy value closed over them is safe to realize later.
@@ -290,7 +290,7 @@
 (defn- decide-keys
   "Occurrences -> the same, each with its :key (see the ns docstring) and
    :at, the names it is read under, most specific first: the
-   instance's (bass.k), the algo's (euclid.k), the plain one (k).
+   instance's (bass.onsets), the algo's (euclid.onsets), the plain one (onsets).
    A tctx writes a key under the name that matches it."
   [occs]
   (let [shared? (->> (remove #(or (:read %) (:as %)) occs)
@@ -395,7 +395,7 @@
   (:specs (meta (envs tctx))))
 
 (defn- at-of
-  "The name a key is written under: (at-of specs :bass/k) is \"bass.k\";
+  "The name a key is written under: (at-of specs :bass/onsets) is \"bass.onsets\";
    a string is taken as it is."
   [specs k]
   (cond (string? k) k
@@ -404,7 +404,7 @@
 
 (defn- validator
   "Checks every value against the spec of each param that reads its name
-   (bass.k, euclid.k, k); a name no param reads is refused, but for seed
+   (bass.onsets, euclid.onsets, onsets); a name no param reads is refused, but for seed
    (mu's: the random seed a run starts from)."
   [a]
   (fn [m]
@@ -421,7 +421,7 @@
 
 (defn values
   "What a tctx sets itself, key -> value: under the most specific name
-   the key is read by (bass.k, then euclid.k, then k). Keys it leaves to
+   the key is read by (bass.onsets, then euclid.onsets, then onsets). Keys it leaves to
    the chain or to their defaults are absent."
   [tctx]
   (let [m @(envs tctx)]
@@ -441,10 +441,10 @@
   {:params (params tctx) :specs (specs tctx)})
 
 (defn setp!
-  "Set params in a tctx, each checked against its spec: (setp! tctx :k
-   5), (setp! tctx :k 5 :n 16), or a map (setp! tctx {:k 5 :n 16}). A
-   key is a tree's key (:k, :euclid.n, :bass/k) or the name it is
-   written under (\"bass.k\"). All values land in one swap!, so a bad one leaves
+  "Set params in a tctx, each checked against its spec: (setp! tctx :onsets
+   5), (setp! tctx :onsets 5 :pulses 16), or a map (setp! tctx {:onsets 5 :pulses 16}). A
+   key is a tree's key (:onsets, :euclid.pulses, :bass/onsets) or the name it is
+   written under (\"bass.onsets\"). All values land in one swap!, so a bad one leaves
    every value as it was. Returns the params."
   ([tctx m]
    (let [ss   (specs tctx)
@@ -456,7 +456,7 @@
   ([tctx k v & kvs] (setp! tctx (apply hash-map k v kvs))))
 
 (defn unsetp!
-  "Leave params to the chain again (or their defaults): (unsetp! tctx :k)."
+  "Leave params to the chain again (or their defaults): (unsetp! tctx :onsets)."
   [tctx & ks]
   (let [ss (specs tctx)]
     (apply swap! (envs tctx) dissoc (map #(at-of ss %) ks))
@@ -464,7 +464,7 @@
 
 (defn tctx
   "A new tctx for `tree`: {:params-atom a}, a holding {name value} --
-   the names a param is written under in an @^{ } (\"k\", \"bass.k\") --
+   the names a param is written under in an @^{ } (\"onsets\", \"bass.onsets\") --
    set with setp!, each checked against its spec on every change. It
    holds only what is set (`overrides`, then setp!); the rest falls
    through to the other sources run is given, then to the defaults. The
@@ -550,8 +550,8 @@
 
 (defn- from-source
   "A param's value from one source of settings: a tctx, or a map keyed
-   by the tree's keys (:k, :bass/k) or by the names an @^{ } writes
-   (\"k\", \"bass.k\") -- the most specific name (:at) wins. [value] or nil."
+   by the tree's keys (:onsets, :bass/onsets) or by the names an @^{ } writes
+   (\"onsets\", \"bass.onsets\") -- the most specific name (:at) wins. [value] or nil."
   [src k {:keys [at]}]
   (let [m (if (tctx? src) @(envs src) src)]
     (cond (contains? m k) [(get m k)]
@@ -586,8 +586,8 @@
 (defn run
   "Run `tree` with the settings in `src` -- a tctx, a plain map, or a
    vector of them nearest first (keys one lacks fall through) -- where a
-   param is its key (:k, :bass/k) or the name an @^{ } writes (\"k\",
-   \"euclid.k\", \"bass.k\"); a param that names a music key (key,
+   param is its key (:onsets, :bass/onsets) or the name an @^{ } writes (\"onsets\",
+   \"euclid.onsets\", \"bass.onsets\"); a param that names a music key (key,
    meter) then reads `chain`, the music's contexts nearest first. What
    none of them sets takes its default. Every value is checked against
    its spec; throws, listing them, when a required param is unset."

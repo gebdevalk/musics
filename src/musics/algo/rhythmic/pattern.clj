@@ -11,19 +11,19 @@
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
 (defn euclid
-  "Distribute k beats evenly among n pulses (Bjorklund's algorithm, Toussaint's \"The Euclidean Algorithm Generates Traditional Musical Rhythms\"). Rotate the result with `rotate`.
+  "Spread onsets beats evenly over a grid of pulses (Bjorklund's algorithm, Toussaint's \"The Euclidean Algorithm Generates Traditional Musical Rhythms\"). Rotate the result with `rotate`.
      (euclid 3 8) ;=> [1 0 0 1 0 0 1 0]  the tresillo
      (euclid 2 5) ;=> [1 0 1 0 0]
      (euclid 5 8) ;=> [1 0 1 1 0 1 1 0]"
   {:algo {:in [] :out :pulse
-          :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
-                   :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}}}}
-  [k n]
-  {:pre [(<= k n) (>= k 0) (pos? n)]}
-  (if (zero? k)
-    (vec (repeat n 0))
-    (loop [a (vec (repeat k [1]))
-           b (vec (repeat (- n k) [0]))]
+          :params {:onsets {:type :int :min 0 :max 32 :default 3 :doc "beats to place"}
+                   :pulses {:type :int :min 1 :max 32 :default 8 :doc "the grid they are spread over"}}}}
+  [onsets pulses]
+  {:pre [(<= onsets pulses) (>= onsets 0) (pos? pulses)]}
+  (if (zero? onsets)
+    (vec (repeat pulses 0))
+    (loop [a (vec (repeat onsets [1]))
+           b (vec (repeat (- pulses onsets) [0]))]
       (if (<= (count b) 1)
         (vec (mapcat identity (concat a b)))
         (let [m         (min (count a) (count b))

@@ -223,7 +223,7 @@ note:
 
 ```
 | '( duration/euclid [c e g] pitches zip [~] ) :riff ->
-:riff @^{ k:5 } set         five beats instead of three, heard at once
+:riff @^{ onsets:5 } set         five beats instead of three, heard at once
 :riff settings              every setting and its range
 [c d e g] [~] '( 5 + ) :up ->   the loop, a fourth higher
 ```

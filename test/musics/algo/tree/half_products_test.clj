@@ -35,7 +35,7 @@
     (is (= (t/run explicit (assoc params :from-lo -20.0 :from-hi 20.0))
            (t/run (algo :pitch/lorenz) (assoc params :pitch-from-lo -20.0 :pitch-from-hi 20.0)))))
   (is (= '(zip (duration/euclid) (pitch/walk-degrees)) (t/show (lib/zip (algo :duration/euclid) (algo :pitch/walk-degrees)))))
-  (is (= [1/4 1/4 1/2] (t/run (algo :duration/euclid) {:k 3 :n 4 :duration-pulse 1/4}))))
+  (is (= [1/4 1/4 1/2] (t/run (algo :duration/euclid) {:onsets 3 :pulses 4 :duration-pulse 1/4}))))
 
 (deftest bridge-params-carry-the-half-product
   (let [ks (set (map :key (t/param-keys (algo :pitch/walk))))]
@@ -102,4 +102,4 @@
     (testing "the grid is the resolution: a duration rounds to whole pulses"
       (is (= [1/8 1/4] (t/run (algo :duration/bracelet [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
     (testing "on the shop floor, after a specialised source"
-      (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (tools/cycle lib/scale)) {:k 5 :n 16}))))))
+      (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (tools/cycle lib/scale)) {:onsets 5 :pulses 16}))))))

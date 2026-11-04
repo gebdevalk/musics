@@ -8,7 +8,7 @@ An algorithm of `musics/algo/` that makes or changes *raw material* (pulses, num
 
 Three things to keep in mind:
 
-- **Settings go before their word.** `@^{ k:5 n:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations`: each word reads only its own settings.
+- **Settings go before their word.** `@^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations`: each word reads only its own settings.
 - **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right (the table at the end says what each takes and gives), and give a bridge the range its input really has.
 - **`seed:N` repeats a word.** A word with no seed draws from the shared generator.
 
@@ -18,12 +18,12 @@ Three things to keep in mind:
 
 #### 1. A raw source
 
-A raw word gives raw material, not music: `raw/euclid` is a row of pulses, 1 for an onset and 0 for a rest. Settings go in an `@^{ }` just before the word, `name:value` each; the defaults are `k:3 n:8`.
+A raw word gives raw material, not music: `raw/euclid` is a row of pulses, 1 for an onset and 0 for a rest. Settings go in an `@^{ }` just before the word, `name:value` each; the defaults are `onsets:3 pulses:8`.
 
 ```
 mu> raw/euclid
 '[1 0 0 1 0 0 1 0]
-mu> @^{ k:5 n:16 } raw/euclid
+mu> @^{ onsets:5 pulses:16 } raw/euclid
 '[1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 0]
 ```
 
@@ -34,7 +34,7 @@ A bridge turns raw material into a half product. `raw/pulses->durations` lets ea
 ```
 mu> raw/euclid raw/pulses->durations
 '[3/16 3/16 1/8]
-mu> @^{ k:5 n:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations
+mu> @^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations
 '[1/4 1/8 1/4 1/8 1/4]
 ```
 
@@ -45,7 +45,7 @@ mu> @^{ k:5 n:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations
 ```
 mu> raw/euclid raw/pulses->durations '[60 62 64 67] zip
 [C4/8. D4 E4/8]
-mu> @^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] zip
+mu> @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] zip
 [C4/8 D4/16 E4/8 G4/16 C4/8]
 ```
 
@@ -114,11 +114,11 @@ mu> raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes
 `bracelet` picks the index-th pattern among a pattern's rotations and reversals; `phases` gives every rotation as a layer; `necklaces` picks a necklace class of n pulses and k onsets.
 
 ```
-mu> @^{ k:3 n:8 } raw/euclid @^{ index:3 } raw/bracelet
+mu> @^{ onsets:3 pulses:8 } raw/euclid @^{ index:3 } raw/bracelet
 '[1 0 1 0 0 1 0 0]
 mu> raw/euclid raw/phases
 '['[1 0 0 1 0 0 1 0] '[0 0 1 0 0 1 0 1] '[0 1 0 0 1 0 1 0] '[1 0 0 1 0 1 0 0] '[0 0 1 0 1 0 0 1] '[0 1 0 1 0 0 1 0] '[1 0 1 0 0 1 0 0] '[0 1 0 0 1 0 0 1] '[1 0 0 1 0 0 1 0] '[0 0 1 0 0 1 0 1] '[0 1  …
-mu> @^{ n:8 k:3 index:1 } raw/necklaces
+mu> @^{ pulses:8 onsets:3 index:1 } raw/necklaces
 '[1 1 0 1 0 0 0 0]
 ```
 
@@ -280,7 +280,7 @@ mu> @^{ seed:3 } raw/chain
 Above a `|` mark `zip` takes every stream with its part: durations, pitches and volumes (written on each note as `\volume:`). `[~]` loops a stream, so the shorter ones keep cycling.
 
 ```
-mu> | @^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes [~] zip
+mu> | @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes [~] zip
 [C4/8\volume:100 D4/16\volume:50 E4/8\volume:68 G4/16\volume:86 C4/8\volume:59]
 ```
 
@@ -289,7 +289,7 @@ mu> | @^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indi
 The rhythm is a looped Euclid, the pitches a random walk laid on the notes.
 
 ```
-mu> @^{ k:5 n:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:60 step-bound:2 } raw/walk @^{ from-lo:54 from-hi:66 lo:55 hi:79 } raw/numbers->pitches zip 8 take
+mu> @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:60 step-bound:2 } raw/walk @^{ from-lo:54 from-hi:66 lo:55 hi:79 } raw/numbers->pitches zip 8 take
 [D#4/8 C4/16 D#4/8 F4/16 F#4/8 F#4 D#4/16 C4/8]
 ```
 
@@ -298,7 +298,7 @@ mu> @^{ k:5 n:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:6
 A recipe that ends in music plays with `->`, a loop of it with `[~]` before. These are shown, not run here: nothing sounds when this page is made.
 
 ```
-mu> @^{ k:5 n:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] zip [~] ->
+mu> @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] zip [~] ->
 mu> stop
 ```
 
@@ -325,7 +325,7 @@ A stream carries what it is, but a word does not check it. A wrong pairing fails
 
 ```
 mu> @^{ len:4 } raw/lorenz raw/numbers->pitches
-error: ClassCastException: class clojure.lang.PersistentVector cannot be cast to class java.lang.Number (clojure.lang.PersistentVector is in unnamed module of loader 'app'; java.lang.Number is in mo …
+error: ClassCastException:
 mu> raw/euclid raw/pulses->durations @^{ len:3 } raw/lorenz zip
 '[:duration '[3/16 3/16 1/8] :point '['[1.0125671910736112 1.2599177989452743 0.9848909717916053] '[1.0488237097089568 1.5239971313226008 0.973114219876485] '[1.1072088542956613 1.7983098897421352 0 …
 ```
@@ -352,7 +352,7 @@ Generated from the registry, so it matches the code. *Takes* are the stack input
 | `raw/data-rhythm` | number | pulse | `threshold-type` "median", `smoothing` 1 | Binary pattern from any numerical data sequence: 1 where a value … |
 | `raw/dragon` | — | pulse | `iterations` 4 | The dragon-curve folding sequence as a binary rhythm: start with a … |
 | `raw/emi` | pulse | pulse | `similarity` 0.7 | Vary pattern in the style of David Cope's EMI: at each position, with probability (1 - similarity) … |
-| `raw/euclid` | — | pulse | `k` 3, `n` 8 | Distribute k beats evenly among n pulses (Bjorklund's algorithm, Toussaint's "The Euclidean Algori … |
+| `raw/euclid` | — | pulse | `onsets` 3, `pulses` 8 | Spread onsets beats evenly over a grid of pulses (Bjorklund's algorithm, Toussaint's "The Euclidea … |
 | `raw/fibonacci` | — | pulse | `length` 16 | An onset at every Fibonacci number below length. |
 | `raw/fifths-rhythm` | — | pulse | `notes` 12, `pattern-length` 24 | A beat every (pattern-length / notes) steps, at a position stepping … |
 | `raw/genetic` | — | pulse | `population-size` 20, `pattern-length` 16, `generations` 20, `fitness-fn` required, `mutation-rate` 0.1, `elitism` 0.1 | Evolve a rhythmic pattern of pattern-length over generations, scored … |
@@ -363,7 +363,7 @@ Generated from the registry, so it matches the code. *Takes* are the stack input
 | `raw/lsys-rhythm` | — | pulse | `axiom` "A", `rules` {"A" "AB", "B" "A"}, `iterations` 5, `length` 16 | Expand axiom through rules for iterations generations, each character a pulse (A is 1; B or anythi … |
 | `raw/modular` | — | pulse | `modulus` 7, `multiplier` 3, `length` 21, `offset` 0 | An onset wherever (i*multiplier + offset) is a multiple of modulus. |
 | `raw/mutate` | pulse | pulse | `mutation-rate` 0.1 | Flip each bit of pattern independently with probability mutation-rate. |
-| `raw/necklaces` | — | pulse | `n` 8, `k` 3, `index` 0 | The index-th rotation class of n pulses with k onsets … |
+| `raw/necklaces` | — | pulse | `pulses` 8, `onsets` 3, `index` 0 | The index-th rotation class of pulses pulses with onsets onsets … |
 | `raw/oblique` | pulse | pulse | `strategy` "random" | Apply one of the named oblique-strategies transforms to pattern. |
 | `raw/polygon` | — | pulse | `sides` 5, `rotations` 8, `offset` 0.0 | A beat wherever a rotating point comes close (within 0.1 of a full … |
 | `raw/primes` | — | pulse | `length` 16, `include-one?` true | An onset at every prime below length (and at 1, unless include-one? is false). |
@@ -411,12 +411,12 @@ Generated from the registry, so it matches the code. *Takes* are the stack input
 | `raw/log-normal` | — | number | `mu` 0.0, `sigma` 0.5 | Log-normal distribution: exp of a normal(mu, sigma) draw, so always positive and skewed right. |
 | `raw/logistic` | — | number | `r` 3.8, `x` 0.5 | The logistic map (Verhulst) x = r*x*(1-x), one step per call. |
 | `raw/mean-emph` | — | number | `lo` 0.0, `hi` 1.0 | Symmetric triangular distribution peaked at midpoint -- shorthand for … |
-| `raw/noise` | — | number | `n` 8, `lo` 0.0, `hi` 1.0, `len` 16 | Smooth value noise: n random points, blended, sampled :len times. |
+| `raw/noise` | — | number | `points` 8, `lo` 0.0, `hi` 1.0, `len` 16 | Smooth value noise: random points, blended, sampled :len times. |
 | `raw/normal` | — | number | `mean` 0.0, `stdev` 1.0 | Random sample from a normal (Gaussian) distribution, via Box-Muller. |
 | `raw/pink` | — | number | `dice` 5, `lo` 0.0, `hi` 1.0 | Pink (1/f) noise between lo and hi: returns a function (Voss's dice, Dodge & Jerse 8.1) that rolls … |
 | `raw/rising` | — | number | `lo` 0.0, `hi` 1.0, `bias` 0.5 | Returns random float between lo and hi with upward bias. |
 | `raw/row` | — | number | `kind` :random | A twelve-tone row as pitch classes 0-11: :random any order of the … |
-| `raw/row-form` | number | number | `form` :P, `n` 0 | One of a row's 48 forms: :P as written, :I inverted around its first … |
+| `raw/row-form` | number | number | `form` :P, `transposition` 0 | One of a row's 48 forms: :P as written, :I inverted around its first … |
 | `raw/student-t` | — | number | `dof` 5 | Knuth, Seminumerical Algorithms. |
 | `raw/tendency` | — | number | `len` 16, `lo-start` 48.0, `lo-end` 66.0, `hi-start` 84.0, `hi-end` 66.0 | Koenig's tendency mask: :len values, each drawn uniformly between a … |
 | `raw/triangular` | — | number | `lo` 0.0, `hi` 1.0, `mode` 0.5 | Triangular distribution with peak at `mode`. |

@@ -43,7 +43,7 @@ lein mu
 ```
 [verse: !mf c4 d e f] R!          store a part; its name, :verse, is left
 R@ ->                              fetch it and play it
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ->
+@^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ->
 stop
 help                              mu in a few lines ("chord" help searches the words)
 "song.mus" load                   read a file (.mus, .ly, .abc, .gmn)
