@@ -382,14 +382,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 - **Selection takes a quotation**, the test, run on each element:
   `[c e g c'] '( pitch 65 < ) filter` keeps the low notes, `remove`
   drops them (the later notes move earlier), `take-while`/`drop-while`
-  stop at the first refused. A bar line or a jump mark passes every
-  test. `mute` silences the notes its test keeps -- each becomes a rest
+  stop at the first refused. `mute` silences the notes its test keeps -- each becomes a rest
   of its length, so the rhythm stays. `distinct` and `dedupe` compare
   elements as mu prints them; `choose-n`, `choose-from` and `select`
   (`[c d e] '[3 1 1] select`, one drawn by the weights) draw at random.
 - **A chunk out and back**: `slice` takes the elements from a start up
-  to (not including) an end, counted from 0 as `nth` counts (a bar line
-  is an element too); `splice` puts something in their place (start =
+  to (not including) an end, counted from 0 as `nth` counts; `splice` puts something in their place (start =
   end inserts); `within` does both around a quotation --
   `[c d e f g] 1 4 '( [R] ) within` gives `[c f e d g]`, the chunk
   changed where it came from, its length free to change.
@@ -413,6 +411,15 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   settings. Those before the first element are the line's own and stay
   at its start. `[c d !mf e f] 1 3 slice` is `[D4/4 !mf E4]` and
   `[!mf c d e] tail` is `[!mf D4/4 E4]`. A line put in by `splice` or `within` brings its own settings: `[c d e f] 1 3 [!pp A4 B4] splice` is `[C4/4 !pp A4 B4 F4]`, those before the first element replaced staying in front of it, those between the replaced ones waiting for the next element that stays.
+- **Bar lines and jump marks are in a line but are not its elements.** They
+  are real and of no duration (the engine signals a `|` to the conductor),
+  but a word counts and fetches notes, lines and parallels only: `[c d | e f]
+  length` is `4`, `2 @` is `E4`. A word that selects, inserts, splits or
+  reorders (`take` `slice` `partition` `[/]` `insert` `filter` `rotate`
+  `shuffle` `retrograde` …) gives its result without them, since they would
+  sit where they mean nothing; a word that only changes each note (`+` `*`
+  `with`) or repeats the whole line (`times`) keeps the line as written.
+  `retrograde` refuses a line with jumps rather than drop them.
 - **`[]` is the empty line**, mu's own (musics text needs an element
   in its `[ ]`, so `[c [] d]` is not read). It is where a line is built
   up from (`[] x concat`), what `delete` leaves of a one-note line, and
@@ -528,8 +535,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   classes. The scores are exact ratios, which the number words read (`profile
   sum`), and the input of a key estimate.
 - **Searching**: `find` is the first element a quotation accepts and
-  `index-of` its place, counted from 0 as `nth` counts (a bar line is an
-  element, and never matches): `[c e g c'] '( pitch 65 > ) find` is
+  `index-of` its place, counted from 0 as `nth` counts: `[c e g c'] '( pitch 65 > ) find` is
   `G4/4`, `index-of` `2`. `index-of` also takes a value in place of the
   quotation, the first element equal to it as mu prints it
   (`[C4 E4 G4] E4 index-of` is `1`; a bare `e` after other notes in the

@@ -2912,3 +2912,18 @@ element and `tail` all after it (`[H]`, `[T]` the same); `take` is the first n,
 has no word of its own. `drop-last` and `drop-while` keep their names beside the
 stack word `drop`; `[/]` stays the twin of `parts` (n pieces), `partition` is
 chunks of size n.
+
+## 2026-11-04 — Bar lines and jump marks are in a line, not elements of it
+
+A `|` is a `Bar` record of no duration among a line's children (the engine reads
+it to signal `:mark` to the conductor), and mu counted it as an element:
+`[c d | e f] length` was `5`, `2 @` was the bar, `[/]` and `partition` counted
+it, and a dozen words (`filter`, `remove`, `map`, `spread` …) each special-cased
+it. Anchoring it to the note after it, as an instruction is, was considered and
+rejected: after a word selects, inserts, splits or reorders, a mark kept near
+the wrong notes means nothing. Now `musics.mu.material/elements` and `items`
+leave `marker?` things out, so every word counts notes only and a rebuilt line
+has none (`from-items`); a word that only changes each note (`map-nodes`:
+`+` `*` `with`) or wraps the whole line (`times`, `cycle`) keeps the line as
+written. `retrograde` also drops them, and refuses jumps instead of dropping
+them (it reads the node's own children). The special cases are gone.

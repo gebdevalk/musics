@@ -89,7 +89,7 @@
          (need s 1 "spread")
          (let [xs (try (mt/elements (peek s))
                        (catch clojure.lang.ExceptionInfo ex (e/mu-error "spread:" (ex-message ex))))]
-           (into (pop s) (remove mt/marker? (mt/finite! "spread" xs))))))
+           (into (pop s) (mt/finite! "spread" xs)))))
 
 (word! "kernel" "**" "( x -- elem... )  spread: x's elements on the stack (also spread)" (e/same-as "kernel" "spread"))
 

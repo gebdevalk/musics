@@ -93,11 +93,11 @@
 
 (defn- matching
   "A test of one element: the quotation q, or the value q is, compared as
-   mu prints it; a bar line or a jump mark never matches."
+   mu prints it."
   [word q]
   (if (v/quotation? q)
-    #(and (not (mt/marker? %)) (mt/result word q %))
-    (let [shown (p/show q)] #(and (not (mt/marker? %)) (= shown (p/show %))))))
+    #(mt/result word q %)
+    (let [shown (p/show q)] #(= shown (p/show %)))))
 
 (defn find
   "The first element a quotation accepts, else nil:
@@ -413,11 +413,10 @@
 ;; -- selection and map ------------------------------------------------------
 
 (defn- by-test
-  "f given a test of each element by q; a bar line or a jump mark passes
-   every test, so it stays where it is."
+  "f given a test of each element by q."
   [word f x q]
   (quotation! q)
-  (each x (partial f #(or (mt/marker? %) (mt/result word q %)))))
+  (each x (partial f #(mt/result word q %))))
 
 (defn filter
   "x with only the elements q keeps: [c e g c'] '( pitch 65 < ) filter"
@@ -425,7 +424,7 @@
 
 (defn remove
   "x without the elements q drops; on a line the later notes move earlier"
-  [x q] (by-test "remove" (fn [t xs] (core/remove #(and (not (mt/marker? %)) (t %)) xs)) x q))
+  [x q] (by-test "remove" (fn [t xs] (core/remove t xs)) x q))
 
 (defn take-while
   "x cut at the first element q refuses, keeping what comes before"
@@ -433,7 +432,7 @@
 
 (defn drop-while
   "x without the elements before the first q refuses"
-  [x q] (by-test "drop-while" (fn [t xs] (core/drop-while #(and (not (mt/marker? %)) (t %)) xs)) x q))
+  [x q] (by-test "drop-while" core/drop-while x q))
 
 (defn- by-print
   "f on xs, each element compared as mu prints it."
@@ -475,9 +474,9 @@
    stream -- [c e g] '( pitch ) map"
   [x q]
   (quotation! q)
-  (let [ys (core/map #(if (mt/marker? %) % (mt/result "map" q %)) (mt/elements x))]
+  (let [ys (core/map #(mt/result "map" q %) (mt/elements x))]
     (cond
       (mt/endless? x) (mt/endless ys)
-      (and (or (v/material? x) (mt/leaf? x)) (every? #(or (mt/leaf? %) (v/material? %) (mt/marker? %)) ys))
+      (and (or (v/material? x) (mt/leaf? x)) (every? #(or (mt/leaf? %) (v/material? %)) ys))
       (mt/reshape-keeping (if (mt/leaf? x) (mt/line [x]) x) (constantly ys))
-      :else (core/remove mt/marker? ys))))
+      :else ys)))

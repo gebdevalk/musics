@@ -102,7 +102,7 @@
    it out first ([!]). Exactly [R]: [ R ] is a line with a bar's rest."
   {:mu {:names ["[R]"]}}
   [x]
-  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (mt/elements x)))
+  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (:children (v/node x))))
     (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
   (cond
     (mt/repetition? x)                 (backwards x)
@@ -779,7 +779,7 @@
   [x d]
   (when-not (and (v/material? x) (= :PAR (mt/kind x))) (fail "needs a parallel { }, got" (p/show x) "-- for one line use delay"))
   (let [slots (mt/items x)
-        parts (vec (keep-indexed (fn [i [tag v]] (when (and (= tag :el) (not (mt/marker? v))) i)) slots))
+        parts (vec (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots))
         by    (if (or (v/material? d) (sequential? d))
                 (let [ds (mapv #(amount "delays" % false) (mt/finite! "delays" (mt/elements d)))]
                   (when-not (= (count ds) (count parts))

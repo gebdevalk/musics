@@ -47,10 +47,9 @@
 (deftest tool-is-in-use-by-default
   (is (= ["kernel" "tool" "music" "play" "soundfont" "mine"] (:use (e/fresh-state)))))
 
-(deftest bar-lines-are-elements
-  (is (= "[C4/4 D4 | E4]" (top "( [c d | e] '( ) each )")) "a group keeps a bar of a line's elements")
-  (is (= "[F4/4 E4 | D4 C4]" (top "[c d | e f] retrograde")) "a tool keeps it in a line")
-  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "and through * and [*]"))
+(deftest bar-lines-through-the-tools
+  (is (= "[C4/4 D4 E4]" (top "( [c d | e] '( ) each )")) "elements are notes: the bar is not one")
+  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the line whole"))
 
 (deftest times-and-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 times")) "3 times is the text's repeat 3 [a b]")
@@ -412,7 +411,7 @@
 (deftest selection-by-a-quotation
   (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 65 < ) filter")))
   (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 65 < ) remove")) "the later notes move earlier")
-  (is (= "[C4/4 E4 |]" (top "[c e | g c'] '( pitch 65 < ) filter")) "a bar line stays")
+  (is (= "[C4/4 E4]" (top "[c e | g c'] '( pitch 65 < ) filter")) "a bar line is no element: a selection has none")
   (is (= "[C4/4 E4]" (top "[c e g c'] '( pitch 66 < ) take-while")))
   (is (= "[G4/4 C6]" (top "[c e g c'] '( pitch 66 < ) drop-while")))
   (is (= "'[3 4]" (top "'[1 2 3 4] '( 2 > ) filter")) "numbers too")
@@ -784,6 +783,32 @@
       (is (not (re-find #"#\"" m)) "no grammar regexes"))))
 
 ;; a key the registry gives a range holds a number in it; volume is a whole number 0-100
+;; a bar line is real and of no duration, but it is no element: not counted, not fetched,
+;; and a word that selects, inserts, splits or reorders gives back a line without it
+(deftest bar-lines-are-no-elements
+  (is (= "4" (top "[c d | e f] length")))
+  (is (= "E4/4" (top "[c d | e f] 2 @")) "an index counts notes")
+  (is (= "C4/4 D4/4 E4/4 F4/4" (top "[c d | e f] spread")))
+  (testing "split"
+    (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d | e f] 2 [/]")))
+    (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d | e f] 2 partition")))
+    (is (= "[[C4/4] [D4] [E4]]" (top "[c d | e] 3 [/]"))))
+  (testing "select, insert, reorder: the line comes back without them"
+    (is (= "[D4/4 E4 F4]" (top "[c d | e f] tail")))
+    (is (= "[C4/4 D4 E4]" (top "[c d | e f] 3 take")))
+    (is (= "[D4/4 E4]" (top "[c d | e f] 1 3 slice")))
+    (is (= "[C4/4 D4 G4 E4 F4]" (top "[c d | e f] 2 g insert")))
+    (is (= "[C4/4 D4 F4]" (top "[c d | e f] 2 _")))
+    (is (= "[C4/4 D4]" (top "[c d | e f] '( pitch 63 < ) filter")) "a test sees notes only")
+    (is (= 4 (count (re-seq #"[A-G]" (top "[c d | e f] shuffle")))))
+    (is (not (re-find #"\|" (top "[c d | e f] 1 rotate"))))
+    (is (= "[F4/4 E4 D4 C4]" (top "[c d | e f] retrograde")) "turned round, the bar would sit between other notes"))
+  (testing "a word that only changes each note keeps the line whole, bars too"
+    (is (= "[!K:D.major D4/4 E4 | F#4 G4]" (top "[c d | e f] 2 +")))
+    (is (= "[C4/2 D4 | E4 F4]" (top "[c d | e f] 2 *")))
+    (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")) "a jump can't be turned round, and is not silently dropped")
+    (is (= "repeat 2 [C4/4 D4 | E4 F4]" (top "[c d | e f] 2 times")))))
+
 (deftest nothing-is-not-changed
   (is (= "[]" (top "[] 2 +")) "transposing an empty line writes no key")
   (is (= "[]" (top "[] 7 transpose")))
@@ -846,7 +871,7 @@
   (is (= "3" (top "[C4 E4 G4 C5] C5 index-of")))
   (is (= "nil" (top "[C4 E4 G4] D4 index-of")))
   (is (= "1" (top "'[3 5 1] 5 index-of")))
-  (is (= "3" (top "[C4 D4 | E4 F4] E4 index-of")) "a bar line is an element, and never matches")
+  (is (= "2" (top "[C4 D4 | E4 F4] E4 index-of")) "a bar line is no element: places count notes")
   (is (= "G4/4" (top "[C4 E4 G4 C5] dup '( pitch 65 > ) index-of nth")) "the place reads back with nth"))
 
 (deftest splice-and-within-bring-the-settings-of-what-they-put-in
@@ -864,7 +889,7 @@
 (deftest every-place-a-test-or-a-value-matches
   (is (= "'[2 3 4]" (top "[C4 E4 G4 C5 E5] '( pitch 65 > ) indexes")) "every element the test accepts")
   (is (= "'[0 2]" (top "[C4 E4 C4 E4] C4 indexes")) "a value: each equal, as mu prints it")
-  (is (= "'[3 4]" (top "[C4 D4 | E4 F4] '( pitch 63 > ) indexes")) "a bar line counts as an element, and never matches")
+  (is (= "'[2 3]" (top "[C4 D4 | E4 F4] '( pitch 63 > ) indexes")) "a bar line is no element: places count notes")
   (is (= "'[1 3]" (top "'[3 5 1 5] 5 indexes")) "data too")
   (is (= "'[]" (top "[C4 E4] D4 indexes")) "none: an empty list")
   (is (= "2" (top "[C4 E4 C4 E4] C4 indexes length")) "a list the number words read")

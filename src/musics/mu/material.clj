@@ -32,6 +32,12 @@
 
 (defn- instruction? [x] (and (map? x) (contains? #{:assignment :instruction} (:type x))))
 
+(defn marker?
+  "A bar line or a jump mark: real, of no duration, written in a line, but
+   not one of its elements -- not counted, not fetched, and left out of what
+   a word that selects, inserts, splits or reorders gives back."
+  [x] (or (d/bar? x) (d/jump? x)))
+
 (declare child-value finite!)
 
 (defn data-vector
@@ -99,7 +105,7 @@
                           (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
                                        (range n))))))
     (v/material? x) (let [data? (= :DATA (:type (v/node x)))]
-                      (mapv #(child-value x data? %) (remove instruction? (:children (v/node x)))))
+                      (mapv #(child-value x data? %) (remove #(or (instruction? %) (marker? %)) (:children (v/node x)))))
     (leaf? x)       [x]
     (v/pcset? x)    (:items x)
     (sequential? x) x
@@ -116,12 +122,13 @@
 
 (defn items
   "A line's or parallel's children in order, as slots: [:ins text] for an
-   instruction written there, [:el value] for an element. nil for
+   instruction written there, [:el value] for an element; bar lines and
+   jump marks are not slots, so what is rebuilt from them has none. nil for
    anything else (a leaf, data, a stream, a repeat)."
   [x]
   (when (and (v/material? x) (not (repetition? x)) (contains? #{:SEQ :PAR} (kind x)))
     (mapv (fn [k] (if (instruction? k) [:ins (:raw k)] [:el (child-value x false k)]))
-          (:children (v/node x)))))
+          (remove marker? (:children (v/node x))))))
 
 (defn from-items
   "A value of like's form (a line or a parallel) holding slots, as items
@@ -880,8 +887,6 @@
 
 (defn par-of [xs]
   (read-text (str "{" (apply str (interpose " " (map #(p/show (->material (sounding! "par" %))) xs))) "}")))
-
-(defn marker? [x] (or (d/bar? x) (d/jump? x)))
 
 ;; -- what play shares with the prompt ----------------------------------------
 

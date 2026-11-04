@@ -777,7 +777,7 @@ G4] =` is true, however each was written).
 ### Searching
 
 `find` is the first note a test accepts and `index-of` its place,
-counted from 0 as `@` counts (a bar line is an element too). `index-of`
+counted from 0 as `@` counts. `index-of`
 takes a value in place of the test. Nothing found is `nil`:
 
 ```
