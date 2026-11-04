@@ -42,6 +42,7 @@ musics
 │   │   ├── clam
 │   │   ├── farey
 │   │   ├── integer
+│   │   ├── lsystem
 │   │   ├── markov
 │   │   ├── random
 │   │   ├── rng
@@ -226,6 +227,7 @@ musics.algo.numeric.*                           numbers for any musical paramete
 ├── spec                                      47   param specs shared by the generators' :algo metadata
 ├── walk                                     148   random walks, pink noise, glide, tendencies
 ├── markov                                    24   a Markov chain over a transition table
+├── lsystem                                   13   L-system rewriting, shared by lsys-rhythm and lsys-melody
 ├── rng                                      156   the xorshift engine, seeding
 ├── chaos.logistic                            27   logistic map (Verhulst)
 ├── chaos.henon                               38   Hénon map

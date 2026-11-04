@@ -50,20 +50,19 @@
 
 (defn stochastic
   "A binary pattern of the given length, its onsets placed by distribution
-   (\"uniform\", \"gaussian\", \"poisson\" or \"exponential\") at roughly the given
+   (\"uniform\", \"gaussian\" or \"exponential\") at roughly the given
    density (0.0-1.0). gaussian reads mean and std (default length/2 and
-   length/6), poisson rate (default density*10), exponential decay (default 2.0);
-   the others ignore them."
+   length/6), exponential decay (default 2.0); the others ignore them. For a
+   Poisson process see poisson."
   {:algo {:in [] :out :pulse
           :params {:distribution {:type :string :default "gaussian" :doc "where onsets fall"
-                                  :choices ["uniform" "gaussian" "poisson" "exponential"]}
+                                  :choices ["uniform" "gaussian" "exponential"]}
                    :length       {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :density      {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "how many onsets"}
                    :mean         {:type :any :default nil :doc "gaussian centre, nil = length/2"}
                    :std          {:type :any :default nil :doc "gaussian spread, nil = length/6"}
-                   :rate         {:type :any :default nil :doc "poisson events per ten pulses, nil = density*10"}
                    :decay        {:type :double :min 0.0 :max 100.0 :default 2.0 :doc "exponential fall-off"}}}}
-  [distribution length density & {:keys [mean std rate decay] :or {decay 2.0}}]
+  [distribution length density & {:keys [mean std decay] :or {decay 2.0}}]
   (case distribution
     "uniform"
     (let [num-ones (int (* length density))]
@@ -76,17 +75,6 @@
           probs (mapv #(Math/exp (* -0.5 (Math/pow (/ (- % mean) std) 2))) (range length))
           max-p (apply max probs)]
       (mapv (fn [p] (if (weighted-coin (* (/ p max-p) density)) 1 0)) probs))
-
-    "poisson"
-    (let [rate (or rate (* density 10))]
-      (loop [pattern (vec (repeat length 0)) current 0]
-        (if (>= current length)
-          pattern
-          (let [wait (exponential (/ 1.0 rate))
-                current' (+ current (int (/ (* wait length) 10)))]
-            (if (< current' length)
-              (recur (assoc pattern current' 1) current')
-              pattern)))))
 
     "exponential"
     (mapv (fn [i]

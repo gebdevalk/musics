@@ -141,7 +141,6 @@ that did found their types:
 
 | algo | gives | how |
 |---|---|---|
-| `markov-rhythm` | `:pulse` | its 0/1 states |
 | `tiling` | `:pulse` | the laid grid (the plain `rhythmic-tiling` keeps the tiled? flag) |
 | `text-rhythm`, `trend-rhythm` | `:weight` | accent levels (2/1/0, -1 for a falling trend), for `weights->pulses`, `->volumes`, `->articulations` |
 | `tala` | `:weight` | the accent per matra (3 sam, 2 tali, 1 khali) |

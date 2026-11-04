@@ -3251,3 +3251,20 @@ Nothing changed.
   other function pads: `take` only cuts. And a generator that says `length`
   gives exactly that many pulses, as `euclid` does with `n`, so a grid of a fixed
   size stays one. Kept.
+
+## 2026-11-04 — step 7: one L-system expansion, no `markov-rhythm`, no Poisson mode in `stochastic`
+
+- `lsys-rhythm` and `lsys-melody` carried the same rewriting code. It is
+  `musics.algo.numeric.lsystem/expand` now, a plain function both call; they keep
+  their own mapping (A is 1, the rest 0, for pulses; `note-map` for pitches).
+  `grammar` is not an L-system (one random production per symbol), so it stays.
+- `markov-rhythm` is gone: a first-order walk, the order-1 case of `chain-rhythm`
+  (states `[0]` and `[1]`, output the first element), whose only extras were string
+  states and a `states` lookup. `chain-rhythm` keeps its tests for it (including
+  weights that do not sum to 1, which the old regression test covered). `chain`
+  (a lazy walk over numeric states) and `markov-train`/`markov-gen` (they learn
+  the table from a melody) do other jobs and stay.
+- `stochastic` lost its "poisson" mode and `rate` param: it was the `poisson`
+  algo's process squeezed onto a grid with an ad-hoc scale, and `poisson` already
+  reaches rhythms as `duration/poisson`. `random-onsets`, `cloud` and `poisson`
+  are different processes (a coin per tick, a jittered grid, exponential gaps) and stay.

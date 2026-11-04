@@ -4,8 +4,8 @@
 ;; Python/Kotlin sources: rule_based_melodic_algorithms.py
 
 (ns musics.algo.melodic.melody
-  (:require [clojure.string :as str]
-            [musics.algo.melodic.pitch :as pitch]
+  (:require [musics.algo.melodic.pitch :as pitch]
+            [musics.algo.numeric.lsystem :as lsystem]
             [musics.algo.numeric.random :as rand]))
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
@@ -96,10 +96,7 @@
                    :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}
                    :max-notes  {:type :int :min 1 :max 256 :default 16 :doc "notes kept"}}}}
   [axiom rules note-map iterations max-notes]
-  (let [expanded (nth (iterate (fn [s]
-                                 (str/join (map #(get rules (str %) (str %)) s)))
-                               axiom)
-                      iterations)]
+  (let [expanded (lsystem/expand axiom rules iterations)]
     (->> (keep (fn [c] (get note-map c)) expanded)
          (take max-notes) vec)))
 

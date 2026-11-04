@@ -74,7 +74,7 @@
 
 (def engine-nss
   "Not generators at all: the RNG engine, and helpers (maths, scales) that make no material."
-  #{'musics.algo.numeric.rng 'musics.algo.numeric.spec 'musics.algo.numeric.integer 'musics.algo.numeric.scaling
+  #{'musics.algo.numeric.rng 'musics.algo.numeric.spec 'musics.algo.numeric.lsystem 'musics.algo.numeric.integer 'musics.algo.numeric.scaling
     'musics.algo.numeric.trig 'musics.algo.numeric.farey 'musics.algo.numeric.clam
     'musics.algo.melodic.pitch
     'musics.algo.counterpoint.jeppesen 'musics.algo.counterpoint.jeppesen.intervals

@@ -489,7 +489,7 @@ The one dimension the signature can't tell you:
 |---|---|---|
 | **Construction** | euclid, sieve, fibonacci, primes, cantor, dragon, golden, necklaces, all-interval, cfrac, bits, modular, indisp, scale | constructive and serial composition |
 | **Chance** | normal, uniform, the `*-emph` and `int-*` samplers, poisson, shuffle, choose-n | aleatoric music |
-| **Process** | walk, glide, biased-walk, chain, markov-rhythm | process music |
+| **Process** | walk, glide, biased-walk, chain, chain-rhythm | process music |
 | **Chaos** | logistic, logistic-grid, henon, lorenz, noise | dynamical systems |
 | **Physical model** | bounce, pendulum, rain, heartbeat, birdsong, cloud | nature simulation |
 | **Rewriting** | lsys-rhythm, lsys-melody, grammar, tuplets | generative grammars |

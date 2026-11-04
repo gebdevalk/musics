@@ -2064,7 +2064,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `euclid`), the namespace saying the topic once:
   - `numeric/` -- numbers for any musical parameter: `random` (draws,
     distributions, picks), `walk` (random walks, pink noise, glide),
-    `markov`, `chaos/{logistic,henon,lorenz}` (deterministic maps, no PRNG),
+    `markov`, `lsystem` (the rewriting both L-system algos share), `chaos/{logistic,henon,lorenz}` (deterministic maps, no PRNG),
     `rng` (the pure xorshift32 engine, atom-backed seeding -- see its header
     comment), `spec` (the param specs the generators share), and small
     maths (`integer`, `scaling`, `trig`, `farey`, `clam`).

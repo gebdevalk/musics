@@ -1,7 +1,6 @@
 (ns musics.algo.rhythmic.pattern
-  "Rhythm patterns from number theory and geometry: Euclid, Fibonacci, primes, L-systems, Markov chains; modular, binary and continued-fraction grids; Cantor, golden ratio, dragon curve, polygons, circle of fifths."
-  (:require [clojure.string :as str]
-            [musics.algo.numeric.random :as rand]))
+  "Rhythm patterns from number theory and geometry: Euclid, Fibonacci, primes, L-systems; modular, binary and continued-fraction grids; Cantor, golden ratio, dragon curve, polygons, circle of fifths."
+  (:require [musics.algo.numeric.lsystem :as lsystem]))
 
 ;; ============================================================
 ;; pattern
@@ -74,29 +73,9 @@
                    :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}
                    :length     {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   [axiom rules iterations length]
-  (let [expanded (nth (iterate (fn [s]
-                                 (str/join (map #(get rules (str %) (str %)) s)))
-                               axiom)
-                      iterations)
+  (let [expanded (lsystem/expand axiom rules iterations)
         values   (for [c (take length expanded)] (case c \A 1 \B 0 0))]
     (vec (take length (concat values (repeat 0))))))
-
-;; ── Markov ───────────────────────────────────────────────────
-
-(defn markov-rhythm
-  "A pulse pattern from a Markov chain: length steps from initial-state through transition-matrix ({state {next-state probability}}, normalised, so any weights work), each state's output value looked up in states. Draws from musics.algo.numeric.random/markov, so a seed repeats it."
-  {:algo {:in [] :out :pulse
-          :params {:length            {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
-                   :transition-matrix {:type :map :default {"0" {"0" 0.3 "1" 0.7} "1" {"0" 0.6 "1" 0.4}} :doc "state -> {next prob}"}
-                   :initial-state     {:type :any :default "0" :doc "first state"}
-                   :states            {:type :map :default {"0" 0 "1" 1} :doc "state -> output value"}}}}
-  [length transition-matrix & {:keys [initial-state states]
-                               :or {initial-state "0" states {"0" 0 "1" 1}}}]
-  (loop [i 0 result [] state initial-state]
-    (if (= i length) result
-        (let [next-state (rand/markov transition-matrix state)]
-          (recur (inc i) (conj result (get states state))
-                 (or next-state state))))))
 
 (comment
   (euclid 3 8)        ;; => [1 0 0 1 0 0 1 0]

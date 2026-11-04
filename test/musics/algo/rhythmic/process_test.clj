@@ -58,11 +58,6 @@
     (is (> near-mean far-from-mean)
         "high density near the mean should dominate the sparse tails")))
 
-(deftest poisson-stochastic-rhythm-stays-in-bounds
-  (let [pattern (p/stochastic "poisson" 16 0.5)]
-    (is (= 16 (count pattern)))
-    (is (every? #{0 1} pattern))))
-
 (deftest exponential-stochastic-rhythm-front-loads
   (let [pattern (p/stochastic "exponential" 20 0.5 :decay 4.0)]
     (is (= 1 (first pattern)) "decay=4 at i=0 always fires (prob 1.0)")))
@@ -132,3 +127,11 @@
     (is (= 12 (count pattern)))
     (is (= 1 (first pattern)))
     (is (every? #{0 1} pattern))))
+
+(deftest chain-rhythm-with-one-beat-states-is-a-first-order-markov-rhythm
+  ;; what markov-rhythm was: states 0 and 1, normalised weights
+  (let [r (p/chain-rhythm {[0] {[0] 0.5 [1] 0.5} [1] {[0] 0.3 [1] 0.7}} [0] 30)]
+    (is (= 30 (count r)))
+    (is (every? #{0 1} r)))
+  (is (= 30 (count (p/chain-rhythm {[0] {[0] 0.3}} [0] 30)))
+      "weights that do not sum to 1 must not throw"))
