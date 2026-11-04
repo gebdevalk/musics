@@ -599,10 +599,10 @@
 
 (def tempo-markings
   {:larghissimo 24, :adagissimo 24, :grave 35, :largo 50, :lent 52, :lento 52,
-   :larghetto 63, :adagio 71, :adagietto 76, :marcia-moderato 84, :andante 92,
-   :andantino 94, :andante-moderato 102, :moderato 114, :allegretto 116,
-   :allegro-moderato 118, :allegro 138, :vivace 166, :vivacissimo 174,
-   :allegrissimo 174, :allegro-vivace 174, :presto 184, :prestissimo 200})
+   :larghetto 63, :adagio 71, :adagietto 76, :marciaModerato 84, :andante 92,
+   :andantino 94, :andanteModerato 102, :moderato 114, :allegretto 116,
+   :allegroModerato 118, :allegro 138, :vivace 166, :vivacissimo 174,
+   :allegrissimo 174, :allegroVivace 174, :presto 184, :prestissimo 200})
 
 (def tempo-categories
   {:largo [40 60], :lento [45 60], :adagio [60 70], :andante [70 85],
@@ -620,15 +620,6 @@
   (merge
    (into {} (for [[k v] dynamics]       [k [:volume v]]))
    (into {} (for [[k v] tempo-markings] [k [:Tempo v]]))
-   ;; Compound tempo-marking names, written camelCase -- BangConst's Name
-   ;; token (musics.ebnf) can't contain a hyphen, so the kebab-case keys
-   ;; tempo-markings uses natively (:marcia-moderato etc.) aren't directly
-   ;; reachable as !marcia-moderato; these are the same values, just under
-   ;; a spellable alias, same convention as :commonTime/:stageLeft below.
-   {:marciaModerato  [:Tempo (tempo-markings :marcia-moderato)]
-    :andanteModerato [:Tempo (tempo-markings :andante-moderato)]
-    :allegroModerato [:Tempo (tempo-markings :allegro-moderato)]
-    :allegroVivace   [:Tempo (tempo-markings :allegro-vivace)]}
    ;; Dynamic changes (TODO: replace with envelope ramps)
    {:cresc [:volume 80] :decresc [:volume 30] :dim [:volume 30]}
    ;; Meter
