@@ -117,7 +117,7 @@ with the lowest penalty is kept — the same one a run in turn would
 keep. A search hands its result out boxed (core.logic can't walk the
 Clojure sets in it).
 
-**Where it lives.** `src/musics/algo/logic/counterpoint.clj` (layout, rhythm,
+**Where it lives.** `src/musics/algo/counterpoint/jeppesen.clj` (layout, rhythm,
 search, `check`, `->mus`, `:species`), `counterpoint/rules.clj`,
 `counterpoint/intervals.clj`. `musics.algo.counterpoint.imitation` (motif
 imitation) is a different algo and stays.
@@ -228,7 +228,7 @@ penalty only chooses among solutions; it never rejects one.
 
 ## Tests
 
-`test/musics/algo/logic/counterpoint_test.clj`: intervals and ficta; each kind
+`test/musics/algo/counterpoint/jeppesen_test.clj`: intervals and ficta; each kind
 of rule both ways on hand-written examples (a passing tone and a
 cambiata accepted, a leap from a dissonance and a suspension resolving
 up reported); every voice count × kind solved for a D-dorian cantus and

@@ -440,7 +440,7 @@
    added one in :kind and the others in 1st species: one stream of leaves
    per voice, top to bottom -- or [] when no solution is found. See
    musics.algo.counterpoint.jeppesen/counterpoint for the [pitch dur] score."
-  {:algo {:short :species :category "melodic" :in [:pitch] :out :part
+  {:algo {:short :species :in [:pitch] :out :part
           :params {:voices    {:type :int :min 2 :max 4 :default 2 :doc "parts, the cantus included"}
                    :kind      {:type :int :min 1 :max 5 :default 1 :doc "species (1st to 5th) of the florid voice"}
                    :cantus-in {:type :keyword :default :auto :doc "the part holding the cantus"

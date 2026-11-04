@@ -642,7 +642,7 @@
 
 (defmacro expose
   "Register each annotated var and def its constructor under its short
-   name (its :short, else its own name): (expose rhythm/euclidean-rhythm)
+   name (its :short, else its own name): (expose pattern/euclid)
    defines `euclid`."
   [& syms]
   `(do ~@(for [s syms

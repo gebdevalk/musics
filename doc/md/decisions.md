@@ -3053,3 +3053,34 @@ Known cost, left for the next step: nothing checks a bridge against that type
 input range defaults to 0..1, where the derived `pitch/lorenz` probes the
 source. A type-directed `>pitches`-style converter (`lt/bridge`, the range read
 from the stream) is the weighed answer; not built yet.
+
+## 2026-11-04 — algo/ grouped by what it makes, functions named as their short names
+
+`musics.algo.rhythmic.rhythm/euclidean-rhythm` said "rhythm" three times, and
+the mu word was `euclid`. The directories mixed four criteria: what is made
+(`rhythmic`, `melodic`), how (`random`, `random/lorenz`), tradition
+(`rhythmic/world`) and theory (`metric`, `indispensability`). They are now by
+what is made, the method being a file inside, and each algo's function is named
+as its registry short name, so `:short` is dropped (77 functions; one exception:
+`polymeter-layers`, since a plain `polymeter` function already exists).
+
+- `numeric/` holds the number sources for any parameter: random draws, walks,
+  Markov, the chaotic maps, the xorshift engine and the small maths. Random and
+  chaotic are not separate -- both are number streams; seeded or deterministic is
+  a property of the file, not a directory.
+- `rhythmic/` is `pattern`, `sieve`, `meter`, `indispensability`, `process`,
+  `nature`, `data`, `world`, `feel`, `drums`, `decompose`: number-theory and
+  geometry grids, combinatorics, simulation, sonification, traditions and how
+  a rhythm is played. `metric` and `indispensability` moved in; `random.clj`'s
+  rhythm generators moved to `process`.
+- `counterpoint/` beside `harmonic/`: `jeppesen` (species, core.logic) and
+  `imitation`. The first was `logic/counterpoint`, the second `melodic/counterpoint`.
+- `random.clj` was split along its own section banners into `numeric/random`
+  (draws, distributions, picks), `walk`, `markov` and the shared param specs in
+  `numeric/spec`; every caller kept its alias.
+- A registry entry's `:category` is the namespace segment, so `random` is now
+  `numeric`, `metric` and `indispensability` `rhythmic`, and the species
+  counterpoint `counterpoint`. The registry itself (473 entries, shorts, shelves,
+  types) is unchanged, so no mu word, recipe or session file changes.
+- Kept in place, not moved: the tree machinery (`tree*`, `bridge`, `logic/tree`),
+  the dead modules (`clam`, `farey`, `split`, `trig`), `common/`.

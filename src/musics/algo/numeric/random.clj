@@ -485,7 +485,7 @@
 ;; way of giving rand-int a [lo hi] shape to match this fn, if that's
 ;; still wanted. Docstring deliberately kept ONE LINE, not folding this
 ;; explanation in -- show_algos_test.clj relies on int-range's own
-;; docstring staying short (the same role euclidean-rhythm's docstring
+;; docstring staying short (the same role euclid's docstring
 ;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"

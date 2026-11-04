@@ -49,7 +49,7 @@
 
 
 (defn biased-walk
-  "Like random-walk but with directional bias.
+  "Like walk but with directional bias.
    bias > 0.5 trends upward, < 0.5 trends downward.
    Use for melodic lines with intentional contour."
   {:algo {:pull {} :in [] :out :number
@@ -141,7 +141,7 @@
    (6t^5 - 15t^4 + 10t^3, zero first AND second derivative at each
    lattice point) so consecutive segments meet with no visible seam --
    value noise, not true gradient/Perlin noise, but plenty smooth for
-   parameter automation. Unlike random-walk/biased-walk, the result is
+   parameter automation. Unlike walk/biased-walk, the result is
    a pure function of t: call it with ANY real t in range, in any
    order, as many times as you like, and it always returns the same
    value -- the same way any other context envelope gets sampled at a

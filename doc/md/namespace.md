@@ -3,7 +3,7 @@
 Every namespace under `src/`, by directory, with its size in lines and its
 role. The program is used through **mu** (`musics.mu`, `lein mu`) and the
 **GUI** (`musics.gui.core`, mu's `gui`); *unreached* marks a namespace
-neither of them loads (only tests do). 109 namespaces, about 32,000 lines.
+neither of them loads (only tests do). about 109 namespaces, 32,000 lines.
 
 ## The tree
 
@@ -11,55 +11,55 @@ neither of them loads (only tests do). 109 namespaces, about 32,000 lines.
 musics
 ├── algo
 │   ├── bridge
-│   ├── clam
 │   ├── common
-│   │   ├── farey
 │   │   ├── gate
 │   │   ├── isorhythm
-│   │   ├── numeric
-│   │   ├── pitch
 │   │   ├── pulse
 │   │   ├── reshape
 │   │   ├── rotate
-│   │   ├── scaling
 │   │   ├── split
 │   │   ├── transient-ops
-│   │   ├── trig
 │   │   └── zfilter
+│   ├── counterpoint
+│   │   ├── imitation
+│   │   └── jeppesen
+│   │       ├── intervals
+│   │       └── rules
 │   ├── harmonic
 │   │   ├── progression
 │   │   └── walking-bass
-│   ├── indispensability
 │   ├── logic
-│   │   ├── counterpoint
-│   │   │   ├── intervals
-│   │   │   └── rules
 │   │   └── tree
 │   ├── melodic
-│   │   ├── counterpoint
 │   │   ├── melody
+│   │   ├── pitch
 │   │   └── serial
-│   ├── metric
-│   ├── random
-│   │   ├── core
-│   │   ├── henon
-│   │   ├── logistic
-│   │   └── lorenz
+│   ├── numeric
+│   │   ├── chaos
+│   │   │   ├── henon
+│   │   │   ├── logistic
+│   │   │   └── lorenz
+│   │   ├── clam
+│   │   ├── farey
+│   │   ├── integer
+│   │   ├── markov
+│   │   ├── random
+│   │   ├── rng
+│   │   ├── scaling
+│   │   ├── spec
+│   │   ├── trig
+│   │   └── walk
 │   ├── rhythmic
-│   │   ├── automaton
-│   │   ├── constraint
+│   │   ├── data
 │   │   ├── decompose
 │   │   ├── drums
-│   │   ├── fractal-geometric
-│   │   ├── micro
-│   │   ├── necklace
-│   │   ├── phase-sieve
-│   │   ├── physical
-│   │   ├── poly
-│   │   ├── rhythm
-│   │   ├── sonification
-│   │   ├── stochastic
-│   │   ├── transform
+│   │   ├── feel
+│   │   ├── indispensability
+│   │   ├── meter
+│   │   ├── nature
+│   │   ├── pattern
+│   │   ├── process
+│   │   ├── sieve
 │   │   └── world
 │   └── tree
 │       ├── builder
@@ -210,66 +210,66 @@ musics.midi.file              230   MIDI files (mu's render)
 ## Algorithms
 
 ```
-musics.algo.tree              696   trees of algos and their tctx: build, check, keys, run
-├── tree.registry             254   every algo, found by introspection; shelves
-├── tree.lib                  312   the tools (zip, cycle>, take> …) and every algo exposed
-├── tree.half-products        162   algos as the half products they deliver (duration/euclid …)
-├── tree.live                 229   a name bound to a tree or a recipe, followed live
-└── tree.builder              296   the composer's draft model
-musics.algo.bridge            364   raw material → half products, one way
-musics.algo.logic.tree        380   the registry as core.logic facts: how, why-not, fits
+musics.algo.tree                               0   trees of algos and their tctx: build, check, keys, run
+├── tree.registry                              0   every algo, found by introspection; shelves
+├── tree.lib                                   0   the tools (zip, cycle>, take> …) and every algo exposed
+├── tree.half-products                         0   algos as the half products they deliver (duration/euclid …)
+├── tree.live                                  0   a name bound to a tree or a recipe, followed live
+└── tree.builder                               0   the composer's draft model
+musics.algo.bridge                             0   raw material → half products, one way
+musics.algo.logic.tree                         0   the registry as core.logic facts: how, why-not, fits
 
-musics.algo.rhythmic.*              rhythm: pulses, onsets, layers
-├── rhythm                    145   euclid, fibonacci, primes, L-system, markov
-├── automaton                  30   cellular automata
-├── constraint                 86   all-interval, constraint satisfaction
-├── decompose                  80   bisect, split
-├── drums                     147   drum grooves by style
-├── fractal-geometric         110   cantor, dragon, golden, polygon
-├── micro                     101   swing, pocket
-├── necklace                  158   necklaces, bracelets, tiling
-├── phase-sieve                70   Reich phases, Xenakis sieves
-├── physical                  164   pendulum, bounce, rain, heartbeat, birdsong
-├── poly                      110   polyrhythm, polymeter, tuplets
-├── sonification              140   data, text, trends as rhythm
-├── stochastic                198   distributions, genetic, markov, RNN
-├── transform                  88   EMI variation, oblique strategies
-└── world                     219   tala, theka, bell patterns, djembe
-musics.algo.melodic.*               melody
-├── melody                    248   markov, L-system, grammar, constraints, modulation
-├── serial                    192   rows, set classes, polations
-└── counterpoint              254   motif imitation, best-effort species rules
-musics.algo.counterpoint.jeppesen 442  species counterpoint after Jeppesen, in core.logic
-├── counterpoint.intervals    150   notes, intervals, modes
-└── counterpoint.rules        431   the rules as checks
-musics.algo.harmonic.walking-bass 250  a walking bass under chords
-musics.algo.numeric.random            746   distributions, walks, pink noise, choice
-├── random.core               156   the xorshift engine, seeding
-├── random.logistic            54   logistic map
-├── random.henon               65   Hénon map
-└── random.lorenz              90   Lorenz attractor
-musics.algo.rhythmic.indispensability  227   Barlow's indispensability, adherence
-musics.algo.rhythmic.pattern             75   binary, modular, continued-fraction pulses
-musics.algo.melodic.pitch      108   scales from keys
-musics.algo.numeric.integer     34   gcd, lcm
-musics.algo.common.rotate      25   rotation
-musics.algo.numeric.scaling     89   clamp, scale, bound
+musics.algo.numeric.*                           numbers for any musical parameter
+├── random                                     0   draws, distributions, picks (uniform, normal, beta, int-*, choose …)
+├── spec                                       0   param specs shared by the generators' :algo metadata
+├── walk                                       0   random walks, pink noise, glide, tendencies
+├── markov                                     0   a Markov chain over a transition table
+├── rng                                        0   the xorshift engine, seeding
+├── chaos.logistic                             0   logistic map (Verhulst)
+├── chaos.henon                                0   Hénon map
+├── chaos.lorenz                               0   Lorenz attractor
+├── integer                                    0   gcd, lcm
+├── scaling                                    0   clamp, scale, bound
+├── trig                                       0   waves
+├── farey                                      0   rational approximation
+└── clam                                       0   (nothing requires it)
+musics.algo.rhythmic.*                          rhythm: pulses, onsets, layers
+├── pattern                                    0   euclid, fibonacci, primes, L-system, markov; modular, bits, cfrac; cantor, dragon, golden, polygon, fifths
+├── sieve                                      0   Xenakis sieves, Reich phases, cellular automata, necklaces, bracelets, tilings
+├── meter                                      0   polyrhythm, polymeter, tuplets, metric modulation
+├── indispensability                           0   Barlow's indispensability, tilt and power adherence
+├── process                                    0   random events, clouds, genetic, RNN, constraint satisfaction
+├── nature                                     0   pendulum, bounce, rain, heartbeat, birdsong
+├── data                                       0   data, text, trends as rhythm
+├── world                                      0   tala, theka, bell patterns, hemiola, djembe
+├── feel                                       0   swing, pocket, EMI variation, oblique strategies
+├── drums                                      0   drum grooves by style
+└── decompose                                  0   bisect, split
+musics.algo.melodic.*                           pitches
+├── melody                                     0   markov, L-system, grammar, constraints, modulation
+├── serial                                     0   rows, set classes, polations
+└── pitch                                      0   scales from keys
+musics.algo.harmonic.*                          chords
+├── progression                                0   roman-numeral progressions
+└── walking-bass                               0   a walking bass under chords
+musics.algo.counterpoint.*                      counterpoint
+├── jeppesen                                   0   species counterpoint after Jeppesen, in core.logic
+├── jeppesen.intervals                         0   notes, intervals, modes
+├── jeppesen.rules                             0   the rules as checks
+└── imitation                                  0   motif imitation, best-effort species rules
+musics.algo.common.*                            helpers shared by several algos
+├── rotate                                     0   rotation
+├── gate                                       0   gate criteria
+├── isorhythm                                  0   color-talea
+├── pulse                                      0   grid → pulses
+├── reshape                                    0   reshaping recipes
+├── split                                      0   voice splitting
+├── transient-ops                              0   times, tuplet, transpose on material
+└── zfilter                                    0   recurrence filters
 ```
 
 ## Unreached
 
-Loaded only by tests:
+Loaded only by tests: `musics.algo.numeric.{farey,trig,clam}`, `musics.algo.common.{split,gate,isorhythm,pulse,reshape,transient-ops,zfilter,rotate}`
+and `musics.algo.harmonic.progression`; nothing requires `numeric.clam` at all.
 
-```
-musics.algo.numeric.farey        38   rational approximation
-musics.algo.common.gate        130   gate criteria
-musics.algo.common.isorhythm    86   color-talea
-musics.algo.common.pulse        43   grid → pulses
-musics.algo.common.reshape     114   reshaping recipes
-musics.algo.common.split        92   voice splitting
-musics.algo.common.transient-ops 68  times, tuplet, transpose on material
-musics.algo.numeric.trig        124   waves
-musics.algo.common.zfilter     127   recurrence filters
-musics.algo.numeric.clam               136   (nothing requires it)
-musics.algo.harmonic.progression 153 roman-numeral progressions
-```

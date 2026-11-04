@@ -2056,39 +2056,36 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   same library directly for the opposite direction (`musics/input/midi.clj`/
   `musics/input/midi_record.clj`); everything else about `midi_live.clj`
   (auto-connect, byte clamping, its public API) is unchanged.
-- `musics/algo/` (renamed from `algorithm/`) — generative helpers, organized into
-  topics: `indispensability.clj` (Barlow indispensability); `metric.clj`
-  (modular/binary/continued-fraction pulse generators); `rhythmic/` (Euclidean/
-  Fibonacci/prime/L-system/Markov generators in `rhythm.clj`, plus ten
-  more files ported from `python-reference`'s `advanced_rhythm.py` --
-  `phase-sieve`/`poly`/`necklace`/`stochastic`/`physical`/`transform`/
-  `sonification`/`constraint`/`fractal-geometric`/`world`, covering
-  Reich phase music, Xenakis sieve theory, polyrhythm/polymeter, rhythm
-  necklaces and Vuza canons, genetic/Markov/RNN rhythm generation,
-  physical-simulation and natural-process rhythms, EMI-style/Oblique
-  Strategies transforms and groove/humanization, data/text sonification,
-  constraint satisfaction, fractal and geometric rhythms, and Indian
-  tala/West African timeline patterns -- and `drums.clj`, style drum-kit
-  grooves as a `par` group of Drum/Rest layers, each hit ghosted/plain/
-  accented/marcato -- the articulation a written drum takes, `x8\38->`,
-  stored as the Drum's `:dynamic`); `melodic/` (scales, generative
-  melody methods, and constraint-satisfaction walks in `melody.clj`,
-  plus `counterpoint.clj` -- a multi-voice motif-imitation + species-
-  counterpoint generator ported from the same source); `random/` --
-  split into `random/core.clj` (`musics.algo.numeric.rng`, the pure xorshift32
-  engine, mostly public, plus atom-backed seeding/state) and the parent
-  `random.clj` (`musics.algo.numeric.random`, the basic primitives and everything
-  built on them: distributions, chance/weighted-pick helpers), sitting
-  alongside `random/logistic.clj`/`random/lorenz.clj` (chaotic maps,
-  no PRNG, untouched by that split) -- see `musics/algo/numeric/rng.clj`'s own
-  header comment for why it's atom-backed rather than a dynamic var
-  (wall-algorithm safety, the same core.async concern as everywhere
-  else in this file); and `musics/common/` (`reshape.clj`'s sequence-reshaping
-  recipes, `isorhythm.clj`'s color-talea pairing, `split.clj`'s voice-
-  splitting, plus `farey.clj`/`trig.clj`/`scaling.clj`, small math
-  utilities also ported from the reference dirs). Mostly still
-  standalone/unwired into the grammar or engine, same as before the
-  reorg — `musics.algo.rhythmic.indispensability` is the one exception:
+- `musics/algo/` — generative material, grouped by what it makes (the
+  directory is the registry's `:category`); the method (random, chaos,
+  Markov, sieve, simulation) is a file inside, and an algo's function is
+  named as its registry short name (`rhythmic.pattern/euclid` is mu's
+  `euclid`), the namespace saying the topic once:
+  - `numeric/` -- numbers for any musical parameter: `random` (draws,
+    distributions, picks), `walk` (random walks, pink noise, glide),
+    `markov`, `chaos/{logistic,henon,lorenz}` (deterministic maps, no PRNG),
+    `rng` (the pure xorshift32 engine, atom-backed seeding -- see its header
+    comment), `spec` (the param specs the generators share), and small
+    maths (`integer`, `scaling`, `trig`, `farey`, `clam`).
+  - `rhythmic/` -- pulses, onsets, durations, layers: `pattern` (euclid,
+    fibonacci, primes, L-system; modular, bits, cfrac; cantor, dragon,
+    golden, polygon), `sieve` (Xenakis sieves, Reich phases, cellular
+    automata, necklaces, tilings), `meter` (polyrhythm, polymeter,
+    tuplets), `indispensability` (Barlow's, with tilt and power),
+    `process` (random events, genetic, RNN, constraint satisfaction),
+    `nature` (pendulum, rain, heartbeat), `data` (sonification), `world`
+    (tala, theka, bells, djembe), `feel` (swing, pocket, EMI, oblique),
+    `drums` (style grooves as a `par` of Drum/Rest layers, each hit
+    ghosted/plain/accented/marcato -- the articulation a written drum
+    takes, `x8\38->`, stored as the Drum's `:dynamic`), `decompose`.
+  - `melodic/` -- `melody`, `serial`, `pitch` (scales from keys).
+  - `harmonic/` -- `progression`, `walking-bass`.
+  - `counterpoint/` -- `jeppesen` (species counterpoint, core.logic) and
+    `imitation` (multi-voice motif imitation).
+  - `common/` -- helpers several algos share: `reshape`, `isorhythm`,
+    `split`, `gate`, `zfilter`, `pulse`, `rotate`, `transient_ops`.
+  Mostly standalone/unwired into the grammar or engine --
+  `musics.algo.rhythmic.indispensability` is the one exception:
   `musics.common.music-elements/meter-indispensability` requires it directly
   (see "Meter and indispensability" above), so that one namespace is a
   real, live dependency now, not just a kept-for-reference algorithm.

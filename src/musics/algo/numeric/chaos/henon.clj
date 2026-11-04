@@ -20,7 +20,7 @@
   "The classical Hénon map:
      x' = 1 - a*x^2 + y
      y' = b*x
-   A discrete 2D chaotic system -- unlike lorenz-attractor's own
+   A discrete 2D chaotic system -- unlike lorenz's own
    continuous ODEs, no numerical integration is needed here, :value
    just applies one algebraic step per call, same shape as musics.algo.numeric.random.
    logistic/logistic-function's own :value, but iterating a 2D point
@@ -35,7 +35,7 @@
    a/b default to 1.4/0.3 -- Hénon's own canonical parameters, the
    classic chaotic regime (other values readily converge to a fixed
    point or diverge -- these are the values actually worth using, same
-   caution logistic-function's own docstring already gives for its own
+   caution logistic's own docstring already gives for its own
    r parameter); x0/y0 default to 0.1/0.1. Confirmed live, not assumed:
    at these defaults, x stays bounded within roughly [-1.28, 1.27]
    (never NaN/Inf) and keeps visibly moving -- 100 distinct values

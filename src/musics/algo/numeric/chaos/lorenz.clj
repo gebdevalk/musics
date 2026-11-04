@@ -2,11 +2,11 @@
 ;; The real Edward Lorenz system -- the actual 3-equation chaotic
 ;; attractor "the butterfly effect" refers to. An earlier 1D map here
 ;; (lorenz-function, same closure shape as musics.algo.numeric.chaos.logistic/
-;; logistic-function but a different recurrence) was removed: confirmed
+;; logistic but a different recurrence) was removed: confirmed
 ;; empirically, not assumed, it wasn't a reliable chaos source at all --
 ;; its default converged to a fixed point rather than chaotic output,
 ;; and every other parameter combination tried diverged to ##Inf/##NaN
-;; within about 6-7 calls. lorenz-attractor below is a genuine, tested
+;; within about 6-7 calls. lorenz below is a genuine, tested
 ;; replacement -- verified live to stay bounded and keep moving (no
 ;; fixed point, no ##Inf/##NaN) over hundreds of steps at its own
 ;; defaults.
@@ -65,7 +65,7 @@
    Typical musical use: pick one axis per musical parameter, e.g.
    (let [[x y z] ((:value lz))] ...) -- x/y range roughly -20..20 and z
    roughly 0..50 at the classic parameters (not 0..1 the way
-   logistic-function's output is), so scale/clamp before using one
+   logistic's output is), so scale/clamp before using one
    directly as a pitch/velocity/duration."
   {:algo {:pull {:via :value} :in [] :out :point :arity 7
           :params {:sigma {:type :double :min 0.0 :max 50.0 :default 10.0 :doc "classic 10"}
