@@ -432,7 +432,9 @@
              "\na { } holds lines, one a voice: {[c] [d]}; <c d> is a chord, [c d] a line")
            (when (and (seq shown) (not (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))))
              (str "\nexpected " (str/join " " (map #(str "`" % "`") shown)) (when (> (count literals) 12) " …")
-                  ", or more music or a word"))))))
+                  ", or more music or a word"))
+           (when (re-find #"\[\s*-?\d+(?:[\s,]+-?\d+)*\s*\]" text)
+             "\nnumbers in a list are data: '[1 2 3]")))))
 
 (defn- parse-input
   "Parse text: {:items [...] :lits [...]} (each literal numbered by its
