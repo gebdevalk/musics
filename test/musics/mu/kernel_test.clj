@@ -208,6 +208,12 @@
     (out (str "\"" f "\" 'w require"))
     (is (= [8] (:ok (run "4 w/add4"))) "required again, reloaded")
     (is (re-find #"unknown word: w/add3" (:error (run "4 w/add3"))) "its old words gone"))
+  (testing "a keyword tail is written before the word, or left out"
+    (out "\"musics.algo.rhythmic.pattern\" 'r require")
+    (is (= [[1 0 1 1]] (:ok (run "13 r/bits"))) "without it")
+    (is (= [[1 0 1 1 0 0 0 0]] (:ok (run "13 :length 8 r/bits"))) "with a :key value pair")
+    (is (= [[1 0 1 1] 5] (:ok (run "13 r/bits 5"))) "what is under it stays")
+    (is (re-find #"\[:length v\]" (out "\"r/bits\" see")) "the stack effect shows the tail"))
   (is (re-find #"no namespace musics.nope" (:error (run "\"musics.nope\" require"))))
   (is (re-find #"'kernel is a namespace already" (:error (run "\"musics.algo.numeric.integer\" 'kernel require")))
       "mu's own namespaces are kept"))

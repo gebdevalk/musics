@@ -156,7 +156,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   `r/uniform`); a `.clj` file too (`"my/words.clj" require`, named by its
   `ns` form). Requiring again reloads it, a file afresh, so an edit is
   heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
-  an alias;
+  an alias. A function with a keyword tail (`& {:keys [length]}`) takes its
+  `:key value` pairs written just before the word, or none: `13 r/bits`,
+  `13 :length 8 r/bits`; `see` shows them as `[:length v]`;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel` (the stack, quotations, numbers,
   binding, the repo, help, files), `tool`, `music`, `play` (playback and

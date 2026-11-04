@@ -3268,3 +3268,14 @@ Nothing changed.
   algo's process squeezed onto a grid with an ad-hoc scale, and `poisson` already
   reaches rhythms as `duration/poisson`. `random-onsets`, `cloud` and `poisson`
   are different processes (a coin per tick, a jittered grid, exponential gaps) and stay.
+
+## 2026-11-04 — mu words with a keyword tail
+
+A function loaded by mu's `require` with `[k n & {:keys [rotation]}]` showed one
+arglist of four items, so `3 8 r/euclid` asked for four. The word runner
+(`musics.mu.eval/run-var`) now takes the arguments before the `&`, then the
+`:key value` pairs on top of the stack whose key the tail reads (pairs, so a
+fixed argument that happens to be a keyword stays put: a pair counts only while
+the arguments below it are enough), and `see` shows the tail as `[:rotation v]`.
+A symbol tail (`& more`) is not handled: its length is open, so mu cannot tell
+where it ends.

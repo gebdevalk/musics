@@ -78,7 +78,11 @@
   [v]
   (let [{:keys [arglists doc]} (meta v)
         optional (set (map name (keys (:optional (:mu (meta v))))))
-        args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
+        args     (loop [xs (last (sort-by count arglists)) out []]
+                   (cond (empty? xs) out
+                         (= '& (first xs)) (let [t (second xs)]
+                                             (into out (if (and (map? t) (:keys t)) (map #(str "[:" % " v]") (:keys t)) ["..."])))
+                         :else (recur (rest xs) (conj out (let [a (first xs)] (if (optional (str a)) (str "[" a "]") (str a)))))))
         out      (cond (str/ends-with? (str (:name (meta v))) "!") ""
                        (:out (:mu (meta v))) (:out (:mu (meta v)))
                        (changes-x (word-name v)) (str (first args) "'")

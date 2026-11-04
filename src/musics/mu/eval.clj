@@ -127,13 +127,37 @@
   [v]
   (str/ends-with? (str (:name (meta v))) "!"))
 
+(defn- split-tail
+  "[fixed tail] of an arglist: its arguments before a `&`, and the form after it
+   (a destructuring map such as {:keys [rotation]}, or a symbol), nil without one."
+  [al]
+  (let [[fixed more] (split-with #(not= '& %) al)]
+    [(vec fixed) (second more)]))
+
+(defn- tail-keys
+  "The keywords a `& {:keys [..]}` tail reads, nil for any other tail."
+  [tail]
+  (when (and (map? tail) (:keys tail)) (set (map keyword (:keys tail)))))
+
+(defn- keyword-pairs
+  "How many :key value pairs on top of stack belong to a keyword tail: pairs
+   whose key the tail reads (any keyword for a tail that names none), leaving
+   the nfixed arguments below them."
+  [stack tail nfixed]
+  (let [ks (tail-keys tail)]
+    (loop [n 0]
+      (let [i (- (count stack) (* 2 (inc n)))]
+        (if (and (>= i nfixed) (keyword? (stack i)) (or (nil? ks) (ks (stack i))))
+          (recur (inc n))
+          n)))))
+
 (defn- arity-for
-  "The arglist of v to call with what stack holds: the longest one whose
-   arguments past the shortest's all pass their :optional test (v's
-   :mu metadata, by argument name) on the values in their places; a
-   longer arity whose arguments have no test is never taken."
+  "The fixed arguments of v to call with what stack holds (an arglist up to
+   its `&`): the longest one whose arguments past the shortest's all pass
+   their :optional test (v's :mu metadata, by argument name) on the values in
+   their places; a longer arity whose arguments have no test is never taken."
   [v stack]
-  (let [lists    (sort-by count (:arglists (meta v)))
+  (let [lists    (sort-by count (map (comp first split-tail) (:arglists (meta v))))
         base     (count (first lists))
         optional (:optional (:mu (meta v)))
         choose   (:arity (:mu (meta v)))]
@@ -159,13 +183,16 @@
 (defn- run-var
   "Run the Clojure function v as the word name: its arguments taken from
    stack, music first; its value pushed, unless it is done for its effect.
-   An error it throws is a mu error, named by the word."
+   A keyword tail (& {:keys [..]}) takes the :key value pairs written just before the
+   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. An error it throws is a mu error,
+   named by the word."
   [stack name v]
   (let [al   (arity-for v stack)
         _    (try (need stack (count al) name)
                   (catch clojure.lang.ExceptionInfo ex
                     (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
-        n    (- (count stack) (count al))
+        tail (some (fn [a] (let [[f t] (split-tail a)] (when (and (= f al) (map? t)) t))) (:arglists (meta v)))
+        n    (- (count stack) (count al) (if tail (* 2 (keyword-pairs stack tail (count al))) 0))
         r    (try (apply @v (subvec stack n))
                   (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
