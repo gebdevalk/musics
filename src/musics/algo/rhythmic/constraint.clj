@@ -5,7 +5,7 @@
 ;; satisfaction.
 
 (ns musics.algo.rhythmic.constraint
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.numeric.random :as rand]))
 
 (defn all-interval-rhythm
   "A binary pattern of the given length where the intervals between

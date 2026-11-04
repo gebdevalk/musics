@@ -101,7 +101,7 @@
   "indispensability + normalize-weights in one step: subdivisions ->
    raw integer ranks -> normalized [0,1] floats. The natural starting
    point for chaining ordinary seq transforms on top -- reverse,
-   musics.algo.random/shuffle, musics.algo.common.rotate/rotate (a 'shift'), or
+   musics.algo.numeric.random/shuffle, musics.algo.common.rotate/rotate (a 'shift'), or
    anything else -- before finally handing the result to
    musics.algo.common.pulse/grid->pulses (any weighted range, not just 0/1) or
    density-grid (for a thinned binary grid). Plain data in, plain

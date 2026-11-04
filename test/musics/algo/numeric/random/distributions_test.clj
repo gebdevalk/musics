@@ -1,8 +1,8 @@
-(ns ^:algo musics.algo.random.distributions-test
+(ns ^:algo musics.algo.numeric.random.distributions-test
   "Tests for continuous-distribution random variate generators.
-   Run: lein test musics.algo.random.distributions-test"
+   Run: lein test musics.algo.numeric.random.distributions-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.random :as d]))
+            [musics.algo.numeric.random :as d]))
 
 (deftest uniform-stays-in-range
   (dotimes [_ 200]

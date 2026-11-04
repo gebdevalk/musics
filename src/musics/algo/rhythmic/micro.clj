@@ -11,7 +11,7 @@
 ;; different concern; see that feature's own micro_timing_test.clj.
 
 (ns musics.algo.rhythmic.micro
-  (:require [musics.algo.random :as rand]
+  (:require [musics.algo.numeric.random :as rand]
             [musics.domain :as d]))
 
 (defn swing-quantization

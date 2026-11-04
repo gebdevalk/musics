@@ -21,7 +21,7 @@
             [clojure.string :as str]
             [musics.algo.counterpoint.jeppesen.intervals :as iv]
             [musics.algo.counterpoint.jeppesen.rules :as r]
-            [musics.algo.random :as rand]
+            [musics.algo.numeric.random :as rand]
             [musics.algo.numeric.rng :as rcore]
             [musics.common.music-data :as data]
             [musics.domain :as d]

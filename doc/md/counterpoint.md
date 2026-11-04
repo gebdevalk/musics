@@ -105,7 +105,7 @@ dissonances are judged against everything else in its bar. Each choice
 core.logic goal, tried depth first (`firsto`: core.logic's own
 interleaving keeps a stream per alternative and runs out of stack on a
 long search). Candidates come steps first, then thirds, then larger
-leaps, shuffled within each by `musics.algo.random`; the last bar offers only
+leaps, shuffled within each by `musics.algo.numeric.random`; the last bar offers only
 the notes a part may end on, the penultimate's last note only those a
 step (or, for a bass of 3–4 voices, a fourth or fifth) from them — so
 the cadence can't become a dead end discovered at the end. `:tries`

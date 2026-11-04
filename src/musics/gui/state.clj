@@ -79,7 +79,7 @@
     [musics.domain :as d]
     [musics.persist :as persist]
     [musics.wall :as wall]
-    [musics.algo.random :as rnd]
+    [musics.algo.numeric.random :as rnd]
     [musics.algo.tree :as at]
     [musics.algo.tree.lib :as tree-lib]))
 

@@ -28,14 +28,14 @@
    'musics.algo.melodic.serial/combinatorial                "a check: which forms complete a row"
    'musics.algo.melodic.serial/prime-form                   "a set-class label, not material"
    'musics.algo.melodic.serial/interval-vector              "a set's description, not material"
-   'musics.algo.random/choose                               "one draw; choose-from/choose-n are the sequence forms"
-   'musics.algo.random/markov                               "one step; markov-chain (chain) walks it"
-   'musics.algo.random/rand-double                          "primitive; uniform covers it"
-   'musics.algo.random/rand-int                             "primitive; int-range covers it"
-   'musics.algo.random/shuffle                              "lib's shuffle> covers it"
-   'musics.algo.random/smooth-noise                         "returns a curve of t; lib's noise samples it"
-   'musics.algo.random/weighted-choose                      "one draw; lib's pick covers it"
-   'musics.algo.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
+   'musics.algo.numeric.random/choose                               "one draw; choose-from/choose-n are the sequence forms"
+   'musics.algo.numeric.random/markov                               "one step; markov-chain (chain) walks it"
+   'musics.algo.numeric.random/rand-double                          "primitive; uniform covers it"
+   'musics.algo.numeric.random/rand-int                             "primitive; int-range covers it"
+   'musics.algo.numeric.random/shuffle                              "lib's shuffle> covers it"
+   'musics.algo.numeric.walk/smooth-noise                           "returns a curve of t; lib's noise samples it"
+   'musics.algo.numeric.random/weighted-choose                      "one draw; lib's pick covers it"
+   'musics.algo.numeric.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
    'musics.algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
    'musics.algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
    'musics.algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
@@ -57,18 +57,18 @@
    'musics.algo.rhythmic.necklace/all-binary-necklaces      "every class; necklaces picks one"
    'musics.algo.rhythmic.stochastic/crossover-genomes       "both children; crossover picks one"
    'musics.algo.rhythmic.poly/polymeter                     "2/1 marks; the polymeter algo gives them as pulses"
-   'musics.algo.random/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
+   'musics.algo.numeric.walk/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
 
 (def engine-nss
   "Not generators at all: the RNG engine, and helpers (maths, scales) that make no material."
-  #{'musics.algo.numeric.rng 'musics.algo.numeric.integer 'musics.algo.numeric.scaling
+  #{'musics.algo.numeric.rng 'musics.algo.numeric.spec 'musics.algo.numeric.integer 'musics.algo.numeric.scaling
     'musics.algo.numeric.trig 'musics.algo.numeric.farey 'musics.algo.numeric.clam
     'musics.algo.melodic.pitch
     'musics.algo.counterpoint.jeppesen 'musics.algo.counterpoint.jeppesen.intervals
     'musics.algo.counterpoint.jeppesen.rules})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/musics/algo/random.clj") (io/file "src/musics/algo/bridge.clj")
+  (->> (concat [(io/file "src/musics/algo/bridge.clj")
                 (io/file "src/musics/algo/metric.clj")]
                (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "numeric" "counterpoint" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))

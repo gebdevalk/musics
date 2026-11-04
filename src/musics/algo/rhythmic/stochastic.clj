@@ -2,10 +2,10 @@
 ;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
 ;; 7-9 -- Xenakis-style stochastic rhythm, genetic-algorithm evolution,
 ;; and Markov/RNN-style generators. Every random draw goes through
-;; musics.algo.random (seedable, algo-safe) rather than raw clojure.core/rand.
+;; musics.algo.numeric.random (seedable, algo-safe) rather than raw clojure.core/rand.
 
 (ns musics.algo.rhythmic.stochastic
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.numeric.random :as rand]))
 
 (defn stochastic-rhythm
   "Binary pattern of the given length, placed according to distribution

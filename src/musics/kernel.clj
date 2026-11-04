@@ -175,8 +175,8 @@
 
 (defn require!
   "Load a Clojure namespace now, its public functions mu's words under
-   its last name or a short alias: \"musics.algo.random\" require gives
-   random/uniform, \"musics.algo.random\" 'r require r/uniform; a .clj
+   its last name or a short alias: \"musics.algo.numeric.random\" require gives
+   random/uniform, \"musics.algo.numeric.random\" 'r require r/uniform; a .clj
    file too (\"my/words.clj\" require). Requiring again reloads it, a
    file afresh."
   {:mu {:optional {:alias short-name?}}}

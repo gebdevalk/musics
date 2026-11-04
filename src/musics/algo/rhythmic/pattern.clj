@@ -5,7 +5,7 @@
 
 (ns musics.algo.rhythmic.pattern
   (:require [clojure.string :as str]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
@@ -108,9 +108,9 @@
 ;; ── Markov ───────────────────────────────────────────────────
 
 (defn markov-rhythm
-  "(2026-09-05: picks its own next-state via musics.algo.random/markov now,
+  "(2026-09-05: picks its own next-state via musics.algo.numeric.random/markov now,
    not a hand-rolled cumulative-sum-then-compare loop -- a real,
-   confirmed duplicate of what musics.algo.random/markov (backed by algo.
+   confirmed duplicate of what musics.algo.numeric.random/markov (backed by algo.
    random.core/rnd-markov) already does for the exact same {state
    {next-state prob}} transition-table shape, found by a second
    duplication audit. Genuinely different in one respect, not just
@@ -119,11 +119,11 @@
    so a state whose own outgoing probs didn't sum to exactly 1.0 (float
    rounding, or intentionally unnormalized weights) could walk off the
    end of the transition list and throw a NullPointerException trying
-   to add nil -- confirmed live. musics.algo.random/markov normalizes by the
+   to add nil -- confirmed live. musics.algo.numeric.random/markov normalizes by the
    total first (like weighted-choose), so this is strictly safer, not
    just shorter, for any transition-matrix that isn't already a perfect
    probability table -- this was the last unreproducible-randomness site
-   in this file too (draws from musics.algo.random now, not bare clojure.core
+   in this file too (draws from musics.algo.numeric.random now, not bare clojure.core
    rand)."
   {:algo {:in [] :out :pulse
           :params {:length            {:type :int :min 1 :max 256 :default 16 :doc "pulses"}

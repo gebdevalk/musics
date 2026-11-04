@@ -19,7 +19,7 @@
    musics.engine requires this ns (for the Form grammar its own
    play-form* family needs); this ns requires only musics.domain.* (and
    musics.input.reader.leaf-parser, to spell notes for display, and
-   musics.algo.random, to order a shuffle [ … ] as it plays) -- never
+   musics.algo.numeric.random, to order a shuffle [ … ] as it plays) -- never
    musics.repo, never musics.engine -- so the dependency runs
    exactly one way. Moved out of musics.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
@@ -27,7 +27,7 @@
    layer, which needed none of it -- see doc/md/decisions.md for the
    fuller reasoning."
   (:require [clojure.string :as str]
-            [musics.algo.random :as rnd]
+            [musics.algo.numeric.random :as rnd]
             [musics.domain :as d]
             [musics.domain.resolve :as r]
             [musics.domain.context :as c]
@@ -76,7 +76,7 @@
 (defn play-order
   "children (resolved nodes) in the order part plays them, entered for
    the n-th time (0 the first): as written; for a shuffle [ … ] its
-   notes, lines and repeats in a new random order (musics.algo.random,
+   notes, lines and repeats in a new random order (musics.algo.numeric.random,
    so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
    choose [ … ] one of them, picked at random (as often as its :weights
    say, if it has them); for an alternate [ … ] the

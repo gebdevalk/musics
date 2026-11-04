@@ -5,13 +5,13 @@
    step of the scale, or its fifth), and the beats between walking
    from the one towards the other on the chord's scale, chord tones
    preferred on the strong beats. Rests stay rests. Drawn from
-   musics.algo.random, so a seed repeats a line.
+   musics.algo.numeric.random, so a seed repeats a line.
 
    A chord is {:pitches [...] :duration d}, as a leaf holds them; its
    lowest pitch is the root, so an inversion (C4:M/E) walks
    from its bass note."
   (:require [clojure.string :as str]
-            [musics.algo.random :as random]
+            [musics.algo.numeric.random :as random]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]
             [musics.repo :as repo]))

@@ -150,9 +150,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - a word is qualified as `ns/word` (`music/cycle`, `duration/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
-- `"musics.algo.random" require` loads a Clojure namespace while mu runs,
+- `"musics.algo.numeric.random" require` loads a Clojure namespace while mu runs,
   its public functions words under its last name (`random/uniform`), or
-  under a short alias given after it (`"musics.algo.random" 'r require`,
+  under a short alias given after it (`"musics.algo.numeric.random" 'r require`,
   `r/uniform`); a `.clj` file too (`"my/words.clj" require`, named by its
   `ns` form). Requiring again reloads it, a file afresh, so an edit is
   heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be

@@ -243,7 +243,7 @@ musics.algo.counterpoint.jeppesen 442  species counterpoint after Jeppesen, in c
 ├── counterpoint.intervals    150   notes, intervals, modes
 └── counterpoint.rules        431   the rules as checks
 musics.algo.harmonic.walking-bass 250  a walking bass under chords
-musics.algo.random            746   distributions, walks, pink noise, choice
+musics.algo.numeric.random            746   distributions, walks, pink noise, choice
 ├── random.core               156   the xorshift engine, seeding
 ├── random.logistic            54   logistic map
 ├── random.henon               65   Hénon map

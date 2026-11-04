@@ -10,7 +10,7 @@
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
             [clojure.string :as str]
-            [musics.algo.random :as random]
+            [musics.algo.numeric.random :as random]
             [musics.common.music-elements :as el]
             [musics.mu.eval :as e]
             [musics.mu.material :as mt]

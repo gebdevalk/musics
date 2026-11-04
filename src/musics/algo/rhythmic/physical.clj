@@ -3,10 +3,10 @@
 ;; 10 and 12 -- rhythms derived from simulated physical/natural
 ;; processes (pendulum swing, bouncing ball, the logistic map as a
 ;; chaotic rhythm source, heartbeat, rainfall, birdsong). Random draws
-;; go through musics.algo.random, same as musics.algo.rhythmic.stochastic.
+;; go through musics.algo.numeric.random, same as musics.algo.rhythmic.stochastic.
 
 (ns musics.algo.rhythmic.physical
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.numeric.random :as rand]))
 
 (defn pendulum-rhythm
   "Onset timings (seconds) of a simplified pendulum's downward

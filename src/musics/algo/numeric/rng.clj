@@ -13,7 +13,7 @@
 ;; inside a musics.wall algorithm (running per-voice, inside a
 ;; go-block).
 ;;
-;; musics.algo.random builds its own basic primitives (rand-double, rand-int,
+;; musics.algo.numeric.random builds its own basic primitives (rand-double, rand-int,
 ;; choose, weighted-choose, shuffle, markov) and everything on top of
 ;; them directly on this namespace's public rnd-*/step!/default-rng --
 ;; nothing here is private to make room for that; only rnd-new/rnd-step

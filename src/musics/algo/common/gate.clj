@@ -10,7 +10,7 @@
    as one whole unit); and 'what happens to a rejected part' is now a
    genuine choice (:remove/:rest/:hold/custom), not hardcoded."
   (:require [musics.domain :as d]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 ;; ============================================================
 ;; gate -- the general engine
@@ -122,7 +122,7 @@
 
 (defn probability-criterion
   "Keep each note with probability p (a Bernoulli coin flip per note,
-   independent of pitch and of raw-prev). Draws from musics.algo.random now
+   independent of pitch and of raw-prev). Draws from musics.algo.numeric.random now
    (2026-09-05), not bare clojure.core rand -- the
    last non-reproducible randomness site in this file, against every
    OTHER criterion here already being pure (no randomness at all)."

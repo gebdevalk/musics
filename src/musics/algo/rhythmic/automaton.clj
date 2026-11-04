@@ -3,7 +3,7 @@
    generation the next from each cell and its two neighbours by the
    rule's bits, the rows one after another as pulses -- a bar per
    generation."
-  (:require [musics.algo.random :as random]))
+  (:require [musics.algo.numeric.random :as random]))
 
 (defn- step
   "The next generation of `cells` under `rule`, the row's ends wrapping."

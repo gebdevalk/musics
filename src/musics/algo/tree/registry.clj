@@ -103,7 +103,7 @@
 
 (defn- category-of
   "The category of an algo without its own :category: the namespace
-   segment after algo. (musics.algo.rhythmic.world -> \"rhythmic\", musics.algo.random
+   segment after algo. (musics.algo.rhythmic.world -> \"rhythmic\", musics.algo.numeric.random
    -> \"random\"), or \"yours\" for one defined outside musics/algo/."
   [full]
   (let [[_ top sub] (str/split (namespace full) #"\.")]

@@ -71,7 +71,7 @@ it:
   randomness for reproducibility (`seed_test`).
 
 So either borrow the ideas, or wrap only its noise functions and drive
-them from `musics.algo.random`.
+them from `musics.algo.numeric.random`.
 
 ### 5. malli
 

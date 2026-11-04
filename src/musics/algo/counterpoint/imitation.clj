@@ -25,7 +25,7 @@
 ;; output either way.
 
 (ns musics.algo.counterpoint.imitation
-  (:require [musics.algo.random :as rand]
+  (:require [musics.algo.numeric.random :as rand]
             [musics.domain :as d]))
 
 (def default-rules

@@ -33,7 +33,7 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.leaf-parser :as leaf]
             [musics.input.reader.builder :as flat]
-            [musics.algo.random :as rnd]
+            [musics.algo.numeric.random :as rnd]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -1471,7 +1471,7 @@
 
 (defn- walk-shuffle-now
   "shuffle ( … ) -- its notes, lines and repeats in a random order, now
-   (musics.algo.random, so a seed repeats it)."
+   (musics.algo.numeric.random, so a seed repeats it)."
   [state children]
   (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
         idx (dec (count (:stack s)))]

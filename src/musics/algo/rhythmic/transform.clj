@@ -9,7 +9,7 @@
 ;; two genuinely distinct concerns (2026-09-05).
 
 (ns musics.algo.rhythmic.transform
-  (:require [musics.algo.random :as rand]))
+  (:require [musics.algo.numeric.random :as rand]))
 
 (defn emi-style-variation
   "Vary pattern in the style of David Cope's EMI: independently, for

@@ -19,7 +19,7 @@
      (ultrapolate p ins)            ins after each tone
      (interpolate p ins)            ins between neighbouring tones
      (mixed-polations p infra inter ultra)  all three at once"
-  (:require [musics.algo.random :as random]
+  (:require [musics.algo.numeric.random :as random]
             [musics.common.music-data :refer [quantity]]))
 
 (defn- pc [x] (mod (long (Math/round (double x))) 12))

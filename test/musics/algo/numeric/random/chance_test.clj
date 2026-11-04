@@ -1,8 +1,8 @@
-(ns ^:algo musics.algo.random.chance-test
+(ns ^:algo musics.algo.numeric.random.chance-test
   "Tests for discrete/collection probability helpers.
-   Run: lein test musics.algo.random.chance-test"
+   Run: lein test musics.algo.numeric.random.chance-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.random :as c]
+            [musics.algo.numeric.random :as c]
             [musics.algo.numeric.rng :as seed]))
 
 (deftest choose-picks-a-member

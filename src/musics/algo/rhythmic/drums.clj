@@ -4,7 +4,7 @@
 ;; keeping (hats/ride), ghost notes, and a fill every 4th bar.
 
 (ns musics.algo.rhythmic.drums
-  (:require [musics.algo.random :as random]
+  (:require [musics.algo.numeric.random :as random]
             [musics.algo.numeric.rng :as rcore]
             [musics.common.music-data :as data]
             [musics.compose :as compose]

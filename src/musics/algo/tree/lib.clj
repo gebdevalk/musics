@@ -13,7 +13,7 @@
      musics.algo.melodic.*    infra inter ultra polations markov-train
                        markov-gen lsys-melody grammar constrained
                        modulating counterpoint row row-form (serial)
-     musics.algo.random.*     samplers (normal uniform triangular ... -- :len
+     musics.algo.numeric.random.*     samplers (normal uniform triangular ... -- :len
                        draws), walks (walk glide cyclic chain), pink, tendency, logistic
                        henon lorenz, poisson sputter choose-n ...
      musics.algo.indispensability  indisp tilt power
@@ -56,7 +56,8 @@
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
   (:require [musics.algo.tree :as t :refer [defalgo expose-ns]]
             [musics.algo.tree.half-products :as hp]
-            [musics.algo.random :as random]
+            [musics.algo.numeric.random :as random]
+            [musics.algo.numeric.walk :as walk]
             [musics.common.music-data :as data :refer [quantity]]
             [musics.compose :as compose]
             [musics.domain :as d]
@@ -70,7 +71,9 @@
            musics.algo.counterpoint.imitation
            musics.algo.melodic.melody
            musics.algo.melodic.serial
-           musics.algo.random
+           musics.algo.numeric.random
+           musics.algo.numeric.walk
+           musics.algo.numeric.markov
            musics.algo.numeric.chaos.henon
            musics.algo.numeric.chaos.logistic
            musics.algo.numeric.chaos.lorenz
@@ -83,6 +86,7 @@
            musics.algo.rhythmic.necklace
            musics.algo.rhythmic.phase-sieve
            musics.algo.rhythmic.physical
+           musics.algo.rhythmic.process
            musics.algo.rhythmic.poly
            musics.algo.rhythmic.pattern
            musics.algo.rhythmic.sonification
@@ -311,7 +315,7 @@
                    :hi  {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest value"}
                    :len {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}}}}
   [n lo hi len]
-  (let [f (random/smooth-noise n lo hi)]
+  (let [f (walk/smooth-noise n lo hi)]
     (mapv #(f (* % (/ (dec n) (double (max 1 (dec len)))))) (range len))))
 
 (defn notes->mus

@@ -53,7 +53,7 @@
   ;; via a hand-rolled cumulative-sum loop that assumed a state's own
   ;; outgoing probabilities summed to exactly 1.0 -- an under-summing
   ;; table threw a NullPointerException walking off the end of the
-  ;; list (confirmed live before this fix). Now built on musics.algo.random/
+  ;; list (confirmed live before this fix). Now built on musics.algo.numeric.random/
   ;; markov, which normalizes by the total first, so this must not
   ;; throw even when the given weights don't sum to 1.
   (is (= 30 (count (a/markov-rhythm 30 {"0" {"0" 0.3}}

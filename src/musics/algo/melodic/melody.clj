@@ -6,7 +6,7 @@
 (ns musics.algo.melodic.melody
   (:require [clojure.string :as str]
             [musics.algo.melodic.pitch :as pitch]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
 ;; strings -- see musics.algo.melodic.pitch/build-scale's own docstring, and
@@ -35,13 +35,13 @@
 (def a-minor      (pitch/from-key :A :minor))
 (def c-pentatonic (pitch/from-key :C :pentatonic-major))
 
-;; Every function below draws from musics.algo.random now, not bare
+;; Every function below draws from musics.algo.numeric.random now, not bare
 ;; clojure.core rand-nth/shuffle -- this whole file was, until
 ;; 2026-09-05, the largest unreproducible-randomness site (the ONLY
 ;; melodic/rhythmic namespace in musics/algo/ using unreproducible randomness
 ;; while its own neighbors -- counterpoint.clj, and every rhythmic/*
 ;; file except rhythm.clj itself -- already drew consistently from
-;; musics.algo.random). Composing generators from different musics/algo/ files no
+;; musics.algo.numeric.random). Composing generators from different musics/algo/ files no
 ;; longer risks silently mixing a reproducible stream with an
 ;; unreproducible one.
 

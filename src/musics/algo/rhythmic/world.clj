@@ -8,7 +8,7 @@
 ;; data table plus plain functions taking a tala name, not a class.
 
 (ns musics.algo.rhythmic.world
-  (:require [musics.algo.random :as rand]
+  (:require [musics.algo.numeric.random :as rand]
             [musics.common.music-data :as data]
             [musics.domain :as d]))
 

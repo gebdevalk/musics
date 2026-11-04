@@ -22,7 +22,7 @@
      y' = b*x
    A discrete 2D chaotic system -- unlike lorenz-attractor's own
    continuous ODEs, no numerical integration is needed here, :value
-   just applies one algebraic step per call, same shape as musics.algo.random.
+   just applies one algebraic step per call, same shape as musics.algo.numeric.random.
    logistic/logistic-function's own :value, but iterating a 2D point
    instead of a 1D one.
 

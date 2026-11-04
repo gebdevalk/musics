@@ -39,7 +39,7 @@
      dx/dt = sigma*(y - x)
      dy/dt = x*(rho - z) - y
      dz/dt = x*y - beta*z
-   These are continuous ODEs, not a discrete map like musics.algo.random.
+   These are continuous ODEs, not a discrete map like musics.algo.numeric.random.
    logistic/logistic-function -- :value has to numerically integrate
    forward by dt each call, not just apply one algebraic step, so this
    uses classical 4th-order Runge-Kutta at a fixed dt (default 0.01,

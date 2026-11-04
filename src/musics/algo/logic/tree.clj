@@ -16,14 +16,14 @@
    :any, so with them every slot could always be filled.
 
    Search order is the registry's, sorted by name, so answers are the
-   same every time; surprise shuffles with musics.algo.random's seed."
+   same every time; surprise shuffles with musics.algo.numeric.random's seed."
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== all and* conde conso emptyo fresh
                                         lvar membero or* run succeed fail]]
             [clojure.string :as str]
             [musics.algo.tree :as t]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 ;; ---------------------------------------------------------------------------
 ;; Facts
@@ -374,7 +374,7 @@
 
 (defn surprise
   "A random complete tree giving `ty`, at most depth levels deep --
-   candidates shuffled with musics.algo.random, so it follows its seed."
+   candidates shuffled with musics.algo.numeric.random, so it follows its seed."
   ([ty] (surprise ty 3))
   ([ty depth]
    (first (run 1 [tr] (treeo (rand/shuffle (vec (entries))) depth tr ty nil)))))

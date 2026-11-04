@@ -76,16 +76,16 @@
    independent draw per element' silently makes dist-fn's own shape
    irrelevant to the result -- confirmed with a live probe (a 20000-
    trial average-displacement comparison) before writing this, not
-   just reasoned about; uniform and musics.algo.random/lo-emph came back
+   just reasoned about; uniform and musics.algo.numeric.random/lo-emph came back
    statistically indistinguishable (1.9456 vs 1.9395) under that
    construction.
 
    This one actually responds to dist-fn's shape, confirmed the same
-   way: with dist-fn = musics.algo.random/uniform, draws are unbiased over the
+   way: with dist-fn = musics.algo.numeric.random/uniform, draws are unbiased over the
    remaining pool at every step -- pick-random-without-replacement,
    which reduces to the SAME permutation distribution plain Fisher-
    Yates/clojure.core/shuffle produces (1.9422 vs 1.9449 in the same
-   probe -- confirmed, not assumed). With musics.algo.random/lo-emph (peaked
+   probe -- confirmed, not assumed). With musics.algo.numeric.random/lo-emph (peaked
    toward the LOW end of a range), draws cluster near 0 -- i.e. near
    the FRONT of whatever's still remaining -- so elements tend to keep
    close to their ORIGINAL relative order: a weaker, order-preserving
@@ -110,5 +110,5 @@
 ;; bespoke functions. See that ns's own docstring for the full
 ;; rationale, including why this refactor was deliberately scoped to
 ;; just the filters and not applied to the other, superficially similar
-;; cases found across musics/algo/ (musics.algo.random's own lo-emph/mean-emph/
+;; cases found across musics/algo/ (musics.algo.numeric.random's own lo-emph/mean-emph/
 ;; hi-emph, musics.algo.common.zfilter's own smooth/momentum/memory, etc.).

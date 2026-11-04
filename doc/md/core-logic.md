@@ -259,7 +259,7 @@ can't satisfy the constraints. This is the "Markov constraints" idea
   "n states after start (order 1), each one a transition seen in
    training, with (ok? i state) true for every step and the last state
    in finals. nil when no such walk exists. Candidates are shuffled with
-   musics.algo.random (duplicates in a transition list act as weights), so the
+   musics.algo.numeric.random (duplicates in a transition list act as weights), so the
    result is varied but reproducible from the seed."
   [transitions start n ok? finals]
   (letfn [(walko [state i out]
@@ -448,7 +448,7 @@ answers four questions the current check can't.
    `degrees->pitches`, `threshold`, ...). The builder could offer
    these as suggestions.
 4. **Random valid trees.** `run k` over the same relation, with
-   candidates shuffled by `musics.algo.random`, gives "surprise me" trees that
+   candidates shuffled by `musics.algo.numeric.random`, gives "surprise me" trees that
    always type-check and are reproducible from the seed.
 
 ### The relation
@@ -458,7 +458,7 @@ answers four questions the current check can't.
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 (defn- type-term [t] (if (= t :any) (lvar) t))      ; :any = unconstrained
 
@@ -576,7 +576,7 @@ and annotates the good ones.
 
 **A guided exercise mode.** Take a random valid tree, remove one node,
 and ask for the missing piece. `fill` checks the answer and gives the
-`why-not` hint when it's wrong. Seeded through `musics.algo.random`, so a
+`why-not` hint when it's wrong. Seeded through `musics.algo.numeric.random`, so a
 lesson is the same every time.
 
 **Where it surfaces.** In code as `lt/how` and friends, and in the
@@ -607,7 +607,7 @@ actions instead of algos.
 - **Randomness.** core.logic searches in a fixed order, so `run 1` always
   returns the same answer. To get variety while keeping seeds
   reproducible, shuffle candidate lists (the `membero` arguments) with
-  `musics.algo.random`'s seeded generator before the search. That way
+  `musics.algo.numeric.random`'s seeded generator before the search. That way
   `seed_test` still holds.
 - **Cost.** Search time is unbounded. Use `run k`, never `run*`, on
   anything open-ended. Generate before playback, never inside

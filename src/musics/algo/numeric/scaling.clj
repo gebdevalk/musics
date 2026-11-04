@@ -22,7 +22,7 @@
 (defn clamp-optional
   "Clamp v into [clip-lo clip-hi], where EITHER bound may be nil (no
    limit on that side) -- unlike clamp above, which requires both.
-   Previously duplicated identically in musics.algo.random/random-walk and
+   Previously duplicated identically in musics.algo.numeric.random/random-walk and
    biased-walk -- a real, confirmed duplication found by a code-reuse
    audit (2026-09-05, same pattern as this file's own clamp extraction).
 

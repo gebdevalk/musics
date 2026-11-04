@@ -321,7 +321,7 @@ gathered by its first value: music into a line, numbers and data lists into a `'
 functions, one namespace per mu namespace: `musics.kernel` (numbers,
 the repo, help, files), `musics.compare` (comparison, flags), `musics.arith` (`+ - * /`), `musics.tool`, `musics.music`,
 `musics.play`, `musics.rate` and `musics.soundfont` (and any namespace mu's `require`
-loads while it runs, `"musics.algo.random" 'r require`, a `.clj` file
+loads while it runs, `"musics.algo.numeric.random" 'r require`, a `.clj` file
 too) -- `musics.mu.library` registers each
 public function under its name, a trailing `!` left off, and its
 `:mu :names`, signs like `[R]` and `+`, and
@@ -1000,7 +1000,7 @@ repeat walked anew: with n as long as the chords n times, each walked
 anew, the last chord held (`x 4 times x 4 walking-bass {2} ->`); without,
 an ostinato leading back into its own start, to loop (`x dup
 walking-bass {2} [~] >`). Both draw from
-`musics.algo.random`, so a seed repeats them.
+`musics.algo.numeric.random`, so a seed repeats them.
 
 ### Species counterpoint: `musics.algo.counterpoint.jeppesen`
 
@@ -1074,7 +1074,7 @@ their own, calling INTO these functions at every node/group they
 visit; neither hands the other a pre-computed result.
 
 `musics.events` and `musics.engine` require `musics.compose`; `musics.compose`
-requires only `musics.domain.*` (and `musics.algo.random` for `play-order`,
+requires only `musics.domain.*` (and `musics.algo.numeric.random` for `play-order`,
 `musics.input.reader.leaf-parser`, to spell
 notes) — never the engine — so the dependency runs exactly one way.
 A purely-functional grammar+preview layer has no business in the
@@ -1520,7 +1520,7 @@ same thing whether the meter has 4 pulses or 12.
 `normalized-indispensability` is `indispensability` +
 `normalize-weights` in one call, a plain `[0,1]`-float vector meant as
 a chainable starting point for ordinary seq transforms (`reverse`,
-`musics.algo.random/shuffle`, `musics.algo.common.rotate/rotate`) before finally
+`musics.algo.numeric.random/shuffle`, `musics.algo.common.rotate/rotate`) before finally
 handing the result to `musics.algo.common.pulse/grid->pulses` or
 `density-grid` — no dedicated pipeline mechanism needed, since a
 normalized weight vector is just a plain vector. Two distinct
@@ -1656,7 +1656,7 @@ in turn, one each time it is entered, counted per voice like `rotate`.
 and repeats play in a new random order each time it is entered, so
 `repeat 4 [ shuffle [c d e] ]` shuffles every pass; instructions, bar
 lines and jumps keep their places (`musics.compose/play-order`, used by
-`musics.events` and `display-timed`; `musics.algo.random`, so a seed
+`musics.events` and `display-timed`; `musics.algo.numeric.random`, so a seed
 repeats it). mu's `[?]` makes one.
 `[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
@@ -1899,7 +1899,7 @@ the entry point, `lein mu`), the domain and the store (`musics.domain`,
 `musics.common.*`, `musics.input.*`, `musics.gui.*`, `musics.midi.*`.
 Tests mirror it under `test/musics/`: a source ns's tests are
 `<ns>-test` (`musics.algo.bridge-test`), extra test files for one ns
-sit beside it under a descriptive name (`musics.algo.random.seed-test`),
+sit beside it under a descriptive name (`musics.algo.numeric.random.seed-test`),
 and `musics.test-support` holds the shared fixtures.
 The grammar is a classpath resource (`resources/musics/input/musics.ebnf`);
 test fixture files are in `dev-resources/fixtures/` (read with
@@ -2077,7 +2077,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   counterpoint generator ported from the same source); `random/` --
   split into `random/core.clj` (`musics.algo.numeric.rng`, the pure xorshift32
   engine, mostly public, plus atom-backed seeding/state) and the parent
-  `random.clj` (`musics.algo.random`, the basic primitives and everything
+  `random.clj` (`musics.algo.numeric.random`, the basic primitives and everything
   built on them: distributions, chance/weighted-pick helpers), sitting
   alongside `random/logistic.clj`/`random/lorenz.clj` (chaotic maps,
   no PRNG, untouched by that split) -- see `musics/algo/numeric/rng.clj`'s own
