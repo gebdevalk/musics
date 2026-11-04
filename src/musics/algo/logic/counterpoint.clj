@@ -219,6 +219,18 @@
                      "counterpoint" stack-bytes))
     (delay (let [{:keys [ok err]} @p] (if err (throw err) ok)))))
 
+(defn- complete!
+  "st, a finished search's score, after a check that every part has all n
+   bars placed (8 eighths each). A search either places every task or finds
+   nothing, so a score with less is a bug, said with what is known."
+  [ctx st i steps seed]
+  (let [lens (mapv (fn [p] (reduce + 0 (map :len (get st p)))) (range (:nv ctx)))]
+    (when-not (every? #(= (* 8 (:n ctx)) %) lens)
+      (throw (ex-info (str "counterpoint: search " i " (seed " (+ seed i) ") returned an incomplete score: "
+                           lens " eighths placed in its parts, " (* 8 (:n ctx)) " expected, after " steps " steps")
+                      {:search i :seed (+ seed i) :steps steps :lens lens :n (:n ctx)})))
+    st))
+
 (defn- in-parallel
   "(f i) for every i in is, at most as many at a time as there are
    cores; the results in the order of is."
@@ -300,7 +312,8 @@
         ;; one a run in turn would keep
         search (fn [i]
                  (let [ctx (assoc ctx0 :steps (atom 0) :rng (doto (atom nil) (rcore/seed! (+ seed i))))]
-                   (some-> (first (run 1 [q] (searcho ctx st0 tasks q))) deref)))
+                   (when-let [st (some-> (first (run 1 [q] (searcho ctx st0 tasks q))) deref)]
+                     (complete! ctx0 st i @(:steps ctx) seed))))
         sols  (for [sol (in-parallel search (range tries)) :when sol]
                 [(r/penalty ctx0 sol) sol])]
     (when-let [[pen st] (first (sort-by first sols))]

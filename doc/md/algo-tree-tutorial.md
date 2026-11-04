@@ -167,12 +167,13 @@ riff                  → [C4/4. E4 G4/4]
 riff dup 7 + {2}      → {[C4/4. E4 G4/4] [!K:G.major G4/4. B4 D5/4]}
 ```
 
-The stack effect names the inputs: inside the body `$name` is that
-input, so a value can be used twice without `dup` and `swap`. The swell
+An input of the stack effect written with a `$` is taken off the stack
+and bound: inside the body `$name` is that input, so a value can be used
+twice without `dup` and `swap`. The swell
 of section 3, as a word:
 
 ```
-: swell ( durs ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk zip ;
+: swell ( $durs $ctx -- line ) $durs $ctx pitch/walk zip $ctx volume/walk zip ;
 [c8 c c c c c c c] durations @^{ seed:7 len:8 pitch-lo:60 pitch-hi:72 volume-lo:40 volume-hi:90 } swell
 ```
 
@@ -182,7 +183,7 @@ gives the same. A word can leave its settings open, to be given each
 time:
 
 ```
-: line-of ( ctx -- line ) $ctx duration/euclid [c e g a] pitches [~] zip ;
+: line-of ( $ctx -- line ) $ctx duration/euclid [c e g a] pitches [~] zip ;
 @^{ k:5 n:8 duration-pulse:1/8 } line-of     → [C4/4 E4/8 G4/4 A4/8 C4/4]
 ```
 
@@ -217,7 +218,7 @@ style (`rock pop funk hiphop trap jazz house techno metal`).
 
 ## 7. Playing it live
 
-Every example so far makes music once: `.>` plays the result, and to hear
+Every example so far makes music once: `->` plays the result, and to hear
 another setting you change the line and play again. A play word given
 the **recipe** instead of its result plays it live: each note the voice
 reaches is the next note of what the recipe gives *now*, and a change of
@@ -225,7 +226,7 @@ its settings is heard on the next note, the voice going on where it is.
 
 ```
 : riff ( -- line ) duration/euclid [c e g a] pitches [~] zip [~] ;
-| '( riff ) :riff .>
+| '( riff ) :riff ->
 ```
 
 (`riff` again, now without settings of its own: they come from `set`.)
@@ -256,7 +257,7 @@ and `unset` goes back to it. An `@^{ }` right before one word is that
 word's alone, winning over the head:
 
 ```
-| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell .>
+| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell ->
 ```
 
 `seed` and `len` reach all three words; `volume/walk` alone reads `len:8`.
@@ -280,16 +281,16 @@ With **music under the recipe**, the recipe runs on that music, and the
 voice plays its notes as the recipe changes them:
 
 ```
-[c d e g] [~] '( 5 + ) :up .>                   the loop a fourth higher
+[c d e g] [~] '( 5 + ) :up ->                   the loop a fourth higher
 '( [R] ) :up retree                            … now backwards
-[c8 d e f g a b c] [~] '( durations duration/emi [c8 d e f g a b c] pitches zip ) :v .>
+[c8 d e f g a b c] [~] '( durations duration/emi [c8 d e f g a b c] pitches zip ) :v ->
 :v @^{ similarity:0.3 } set                    vary it more
 ```
 
 `voices` lists what plays, `:riff stop` stops one voice, `stop` all of
 them; the settings belong to the name, so playing `:riff` again later
-starts with them. Every play word takes a recipe: `.>>` starts it at the next
-boundary (`| '( riff ) || :riff .>>`), `.>+` and `.>>+` join what plays.
+starts with them. Every play word takes a recipe: `->>` starts it at the next
+boundary (`| '( riff ) || :riff ->>`), `->+` and `->>+` join what plays.
 A recipe that fails is refused when played, with the reason, and
 nothing starts.
 
@@ -326,9 +327,9 @@ name, most specific first: its alias's (`bass.k`), its algo's
 (`duration/euclid.k`), the plain one (`k`), then the default:
 
 ```
-@( ^{ k:5 } duration/euclid '[60] [~] zip ) run count                → 5
-@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run count            → 2
-@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run count → 6
+@( ^{ k:5 } duration/euclid '[60] [~] zip ) run length               → 5
+@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run length           → 2
+@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length → 6
 ```
 
 The settings can also come from outside, an `@^{ }` right under the
@@ -358,9 +359,9 @@ A recipe that takes nothing plays from nothing, one that takes music
 plays on the music under it:
 
 ```
-| @( '[1/8] [~] scale [~] zip ) :sc .>
+| @( '[1/8] [~] scale [~] zip ) :sc ->
 :sc @^{ root:62 } set
-[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol .>
+[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol ->
 ```
 
 ### Keeping a recipe
@@ -385,7 +386,7 @@ and the voice plays it from its next note, with the new recipe's
 settings:
 
 ```
-| :arp R@ .>                                          the voice :arp
+| :arp R@ ->                                          the voice :arp
 @( arp: k:3 n:8 euclid '[67 71 74] [~] zip ) R!      :arp plays the new one
 ```
 
@@ -410,7 +411,7 @@ two views of the same settings: a slider moves what `set` changes, and
   stack -- a recipe like a quotation:
 
   ```
-  compose :tree .>          play the composed tree live, from nothing
+  compose :tree ->          play the composed tree live, from nothing
   :tree @^{ k:7 } set      … and set it from the prompt
   compose gui              its settings with a preview of what it gives,
                            and Play once / Live as / Stop
@@ -430,10 +431,10 @@ tuned by hand (`set`, a slider), and one voice plays it all the while.
 | `durations` `pitches` | `( line -- stream )` a line taken apart |
 | `zip` | `( durations pitches -- line )` notes of them; `( line stream -- line )` the stream's part written on each note |
 | `dup` `swap` `over` `rot` | arrange the stack |
-| `: name ( a -- b ) … ;` `$a` | a definition, its inputs as locals |
+| `: name ( $a -- b ) … ;` `$a` | a definition, its `$` inputs as locals |
 | `'( … )` `call` | a recipe kept, run |
 | `[~]` `times` `[n]` `{n}` | loop, repeat, one after another, side by side |
-| `x recipe [voice] .>` (`.>>` `.>+` `.>>+`) | play x through the recipe, live; `\|` or nothing under it: from nothing |
+| `x recipe [voice] ->` (`->>` `->+` `->>+`) | play x through the recipe, live; `\|` or nothing under it: from nothing |
 | `set` `unset` `settings` | `( voice @^{ } -- )` `( voice 'k -- )` `( voice -- )` |
 | `retree` | `( recipe voice -- )` a new recipe, same settings and place |
 | `compose` `gui` | the composer window; the GUI, or a voice's or a tree's settings |

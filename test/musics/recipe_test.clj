@@ -50,21 +50,21 @@
 
 (deftest settings-resolve-by-the-naming-rule
   (testing "the default"
-    (is (= "3" (top "@( duration/euclid '[60] [~] zip ) run count"))))
+    (is (= "3" (top "@( duration/euclid '[60] [~] zip ) run length"))))
   (testing "the head's plain name reaches every node"
-    (is (= "5" (top "@( ^{ k:5 } duration/euclid '[60] [~] zip ) run count"))))
+    (is (= "5" (top "@( ^{ k:5 } duration/euclid '[60] [~] zip ) run length"))))
   (testing "the algo's name before the plain one"
-    (is (= "4" (top "@( ^{ k:5 duration/euclid.k:4 } duration/euclid '[60] [~] zip ) run count"))))
+    (is (= "4" (top "@( ^{ k:5 duration/euclid.k:4 } duration/euclid '[60] [~] zip ) run length"))))
   (testing "a node's own param, written right before it: a local override"
-    (is (= "2" (top "@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run count"))))
+    (is (= "2" (top "@( ^{ k:5 } k:2 duration/euclid '[60] [~] zip ) run length"))))
   (testing "an alias: its own value, its own name"
-    (is (= "3" (top "@( ^{ k:5 } 'bass k:3 duration/euclid '[60] [~] zip ) run count")))
-    (is (= "6" (top "@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run count")))))
+    (is (= "3" (top "@( ^{ k:5 } 'bass k:3 duration/euclid '[60] [~] zip ) run length")))
+    (is (= "6" (top "@( ^{ k:5 bass.k:6 } 'bass duration/euclid '[60] [~] zip ) run length")))))
 
 (deftest settings-given-from-outside
-  (is (= "3" (top "@^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run count"))
+  (is (= "3" (top "@^{ k:3 n:8 len:8 } @( euclid pitch/walk zip ) run length"))
       "a recipe without values, given its settings at use")
-  (is (= "2" (top "@^{ k:5 } @( k:2 duration/euclid '[60] [~] zip ) run count")) "a node's own value still wins")
+  (is (= "2" (top "@^{ k:5 } @( k:2 duration/euclid '[60] [~] zip ) run length")) "a node's own value still wins")
   (is (re-find #"kk is not a param" (top "@^{ kk:3 } @( euclid ) run")) "checked like the head"))
 
 (deftest a-short-name-is-read-as-the-long-one
@@ -120,15 +120,15 @@
     (is (= {:type :RECIPE :id :riff :text "^{ seed:7 } 'bass k:2 duration/euclid len:8 pitch/walk zip"}
            (repo/current :riff)))
     (is (= "@( riff: ^{ seed:7 } 'bass k:2 duration/euclid len:8 pitch/walk zip )" (top ":riff R@")) "R@ rebuilds it")
-    (is (= "2" (top ":riff R@ run count")) "the local override came along"))
+    (is (= "2" (top ":riff R@ run length")) "the local override came along"))
   (testing "under an id given, or an auto one"
     (is (= ":beat" (top "@( k:3 euclid '[60] [~] zip ) :beat R!")))
     (is (= "@( beat: k:3 euclid '[60] [~] zip )" (top ":beat R@")))
     (is (re-matches #":r\d+" (top "@( k:3 euclid '[60] [~] zip ) R!"))))
   (testing "settings given at use don't reach what is stored"
     (top "@( beat: duration/euclid '[60] [~] zip ) R!")
-    (is (= "5" (top "@^{ k:5 } :beat R@ run count")))
-    (is (= "3" (top ":beat R@ run count"))))
+    (is (= "5" (top "@^{ k:5 } :beat R@ run length")))
+    (is (= "3" (top ":beat R@ run length"))))
   (testing "a stored part of the repo, not of :ROOT's music"
     (is (some #{:beat} (repo/ids)))
     (is (not (some #{:beat} (:children (repo/current :ROOT)))))))

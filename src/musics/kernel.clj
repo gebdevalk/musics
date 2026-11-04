@@ -61,16 +61,26 @@
 
 ;; -- the repo -------------------------------------------------------------
 
+(defn- store-as [word refuse? value id]
+  (let [stored (mt/store! value id word refuse?)]
+    (when (v/recipe? value) (live/follow! stored (recipe/stored (repo/current stored))))
+    stored))
+
 (defn store
   "Store, silently, under the id on top if given; leaves the id it
-   stored under. A recipe is stored as its text; a live voice playing
-   the recipe stored under that id plays the new one from its next note"
+   stored under. Refused when it would redefine an id that other stored
+   parts use (R!! does that). A recipe is stored as its text; a live voice
+   playing the recipe stored under that id plays the new one from its next note"
   {:mu {:names ["R!"] :optional {:id keyword?}}}
   ([value] (store value nil))
-  ([value id]
-   (let [stored (mt/store! value id)]
-     (when (v/recipe? value) (live/follow! stored (recipe/stored (repo/current stored))))
-     stored)))
+  ([value id] (store-as "R!" true value id)))
+
+(defn overwrite
+  "Store as R! does, but redefine an id other stored parts use, saying which
+   they are: [a: c d] R! [b: :a e] R! [a: e f] R!! changes b too"
+  {:mu {:names ["R!!"] :optional {:id keyword?}}}
+  ([value] (overwrite value nil))
+  ([value id] (store-as "R!!" false value id)))
 
 (defn fetch
   "What the repo holds under :id: music, or a recipe rebuilt from its text"
@@ -231,8 +241,8 @@
    ""
    "  [c d e f]            a line, now on the stack (a note alone is a value too)"
    "  7 +   2 *   [R]      up a fifth, twice as long, backwards: a word takes what lies under it"
-   "  .>   .>>   .>+       play now, at the next boundary, joining what plays;  stop  pause"
-   "  [bass: c2 g] [~] .>  a named line is a voice of that name;  :bass stop,  :bass .< is what it plays"
+   "  ->   ->>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
+   "  [bass: c2 g] [~] ->  a named line is a voice of that name;  :bass stop,  :bass <- is what it plays"
    "  dup drop swap over   the stack is Forth's;  .s shows it,  clear empties it"
    "  see  words  help     \"dup\" see explains a word, words lists them, \"chord\" help searches"
    "  Tab                  completes words, ids, instruments and keys;  bye leaves (Ctrl+D too)"

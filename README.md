@@ -8,13 +8,13 @@ mu, the musical REPL, and a GUI beside it.
 - **Text** — a compact notation (LilyPond- and GUIDO-flavoured) for
   addressable parts: `[verse: !mf c4 d e f]`.
 - **mu** — a stack-based musical REPL (`lein mu`) in which that text is
-  a literal: `[c4 d e] 2 + [R] .>` transposes, reverses and plays. A
+  a literal: `[c4 d e] 2 + [R] ->` transposes, reverses and plays. A
   `.mus` file is mu input too.
 - **Edit and analyse** — a line is a list you can address:
   `[c d e] 1 g !` puts a note at an index (or down a path `'[1 2]`),
   `insert`, `_` and `[_]` delete, `concat` joins, `x 1/4 delay` starts
   it late, settings written in the middle of a line stay with their
-  notes. Ask it things: `length`, `at`, `bar`, `find`, `indexes`, `pulses`
+  notes. Ask it things: `duration`, `at`, `bar`, `find`, `indexes`, `pulses`
   (its rhythm as a grid), `classes` and `prime-form` (`$[047]` `$(037)`,
   pitch-class sets), `key-of`, `chord-name` (`<c e g>1` is `"C:M"`),
   and `x :volume setting` for what a note plays with.
@@ -42,8 +42,8 @@ lein mu
 
 ```
 [verse: !mf c4 d e f] R!          store a part; its name, :verse, is left
-R@ .>                              fetch it and play it
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip .>
+R@ ->                              fetch it and play it
+@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ->
 stop
 help                              mu in a few lines ("chord" help searches the words)
 "song.mus" load                   read a file (.mus, .ly, .abc, .gmn)

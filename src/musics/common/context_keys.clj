@@ -105,7 +105,7 @@
       :quantity :semitones :aliases [:t :transpose])
 (reg! :durScale :float "Duration scaling multiplier"
       :quantity :ratio :aliases [:u])
-(reg! :volume :float "Volume 0-100 scale"
+(reg! :volume :int "Volume, a whole number 0-100"
       :quantity :volume :aliases [:v :vol])
 (reg! :window :int "Algorithmic window size"
       :quantity :window :aliases [:w])
@@ -150,6 +150,29 @@
        distinct
        (map (fn [ck] [(keyword (:name ck)) ck]))
        (into {})))
+
+(defn whole
+  "v, a decimal number of an :int key (50.0, an interpolated 72.5), as the
+   whole number it is (50, 73); anything else as it is."
+  [kw v]
+  (let [ck (get @context-keys-registry (name kw))]
+    (if (and ck (= :int (:type ck)) (float? v)) (Math/round (double v)) v)))
+
+(defn conform
+  "v as the registry has key hold it: a whole number for an :int key, and a
+   number outside the range of a linear key (volume, panning …) refused with
+   the range. A log-scale key's range is only where its slider goes (a swing
+   unit may be written 16 for a sixteenth); anything else, a custom key, a
+   ratio, a name, as it is."
+  [kw v]
+  (let [ck (get @context-keys-registry (name kw))]
+    (if (and ck (number? v) (not (ratio? v)))
+      (let [v'      (whole kw v)
+            [lo hi] (:range ck)]
+        (when (and lo hi (= :linear (:scale ck)) (not (<= lo v' hi)))
+          (throw (ex-info (str (:name ck) " is " lo ".." hi ", got " v) {:key kw :value v})))
+        v')
+      v)))
 
 (defn volume->midi [vol]
   (-> vol (* 1.27) double Math/round (max 0) (min 127) int))

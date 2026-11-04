@@ -5,7 +5,7 @@
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
-  (:refer-clojure :exclude [last nth count take take-last drop-last partition shuffle
+  (:refer-clojure :exclude [last nth take take-last drop-last partition shuffle
                             interleave filter remove take-while drop-while distinct dedupe map
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
@@ -93,11 +93,11 @@
 
 (defn- matching
   "A test of one element: the quotation q, or the value q is, compared as
-   mu prints it; a bar line or a jump mark never matches."
+   mu prints it."
   [word q]
   (if (v/quotation? q)
-    #(and (not (mt/marker? %)) (mt/result word q %))
-    (let [shown (p/show q)] #(and (not (mt/marker? %)) (= shown (p/show %))))))
+    #(mt/result word q %)
+    (let [shown (p/show q)] #(= shown (p/show %)))))
 
 (defn find
   "The first element a quotation accepts, else nil:
@@ -136,9 +136,21 @@
     (/ (reduce + ns) (core/count ns))))
 
 (defn sort
-  "A stream's numbers, the smallest first: '[3 1 2] sort gives '[1 2 3]"
-  [x]
-  (each x (fn [_] (core/sort (mt/numbers-of "sort" x)))))
+  "A stream's numbers, the smallest first: '[3 1 2] sort gives '[1 2 3]; with
+   a key q on top, any elements by the number it reads from each, the first
+   of equals first: [g c e] '( pitch ) sort gives [c e g]"
+  {:mu {:optional {:q v/quotation?}}}
+  ([x]
+   (when (or (v/material? x) (mt/leaf? x))
+     (fail "needs numbers, got" (p/show x) "-- to sort music, give a key: x '( pitch ) sort"))
+   (each x (fn [_] (core/sort (mt/numbers-of "sort" x)))))
+  ([x q]
+   (quotation! q)
+   (each x (fn [els]
+             (let [keyed (mapv (fn [el] [(mt/result "sort" q el) el]) (mt/finite! "sort" els))]
+               (when-let [bad (first (core/remove (comp number? first) keyed))]
+                 (fail "the key must read a number from each element, got" (p/show (first bad))))
+               (core/map second (core/sort-by first keyed)))))))
 
 (defn intervals
   "The steps between a stream's numbers, each minus the one before:
@@ -146,10 +158,10 @@
   [x]
   (each x (fn [_] (let [ns (mt/numbers-of "intervals" x)] (core/map - (core/rest ns) ns)))))
 
-(defn count
-  "How many elements"
+(defn length
+  "How many elements (duration is the time a line takes)"
   [x]
-  (core/count (mt/finite! "count" (mt/elements x))))
+  (core/count (mt/finite! "length" (mt/elements x))))
 
 ;; -- form -------------------------------------------------------------------
 
@@ -170,22 +182,19 @@
   (each x #(core/drop-last (count! n) (mt/finite! "drop-last" %))))
 
 (defn head
-  "The first element; with a count n, x cut to its first n elements:
-   [c d e f] head gives C4/4, [c d e f] 2 head gives [C4/4 D4]; n head and
-   n tail split x in two"
-  {:mu {:names ["[H]"] :optional {:n integer?}}}
-  ([x]
-   (let [els (mt/elements x)]
-     (when (empty? els) (fail "nothing in" (p/show x)))
-     (core/first els)))
-  ([x n] (take x n)))
+  "The first element: [c d e f] head gives C4/4 (n take is the first n)"
+  {:mu {:names ["[H]"]}}
+  [x]
+  (let [els (mt/elements x)]
+    (when (empty? els) (fail "nothing in" (p/show x)))
+    (core/first els)))
 
 (defn tail
-  "x without its first n elements, 1 without a count: [c d e f] [T] gives
-   [d e f]; n head and n tail split x in two"
-  {:mu {:names ["[T]"] :optional {:n integer?}}}
-  ([x] (tail x 1))
-  ([x n] (each x (partial core/drop (count! n)))))
+  "x without its first element: [c d e f] tail gives [d e f] (split-at cuts
+   at any n)"
+  {:mu {:names ["[T]"]}}
+  [x]
+  (each x (partial core/drop 1)))
 
 (defn rotate
   "x rotated by n, wrapping around, now ([%] rotates music anew as it plays)"
@@ -204,10 +213,12 @@
     (rotate x n)))
 
 (defn- grouped
-  "The groups of x's elements as x's form gives them: a line of lines
-   for music, else the groups."
+  "The groups of x's elements as x's form gives them: data of data for
+   data, a line of lines for music, else the groups."
   [x groups]
-  (if (or (v/material? x) (mt/leaf? x)) (mt/line (core/map mt/line groups)) groups))
+  (cond (vector? x)                         (with-meta (mapv #(with-meta (vec %) (meta x)) groups) {:data-type nil})
+        (or (v/material? x) (mt/leaf? x))   (mt/line (core/map mt/line groups))
+        :else                               groups))
 
 (defn partition
   "In groups of n elements"
@@ -264,13 +275,18 @@
 
 (defn flatten
   "x with the lines inside it opened into it, one level: a b [2] flatten is a
-   b concat"
+   b concat; data opens the data inside it: '[1 '[2 3]] flatten is '[1 2 3]"
   [x]
-  (if-let [slots (mt/items x)]
-    (mt/from-items x (vec (mapcat (fn [[tag v :as slot]]
-                                    (or (and (= tag :el) (= :SEQ (mt/kind v)) (mt/items v)) [slot]))
-                                  slots)))
-    (each x #(core/mapcat (fn [e] (if (and (v/material? e) (= :SEQ (mt/kind e))) (mt/elements e) [e])) %))))
+  (let [data? (sequential? x)
+        ;; a list inside data is a sequence, a line inside music a :SEQ
+        open? #(if data?
+                 (and (sequential? %) (not (v/material? %)))
+                 (and (v/material? %) (= :SEQ (mt/kind %))))]
+    (if-let [slots (mt/items x)]
+      (mt/from-items x (vec (mapcat (fn [[tag v :as slot]]
+                                      (or (and (= tag :el) (open? v) (mt/items v)) [slot]))
+                                    slots)))
+      (each x #(core/mapcat (fn [e] (if (open? e) (mt/elements e) [e])) %)))))
 
 (defn interleave
   "The elements of a and b, alternating"
@@ -409,11 +425,10 @@
 ;; -- selection and map ------------------------------------------------------
 
 (defn- by-test
-  "f given a test of each element by q; a bar line or a jump mark passes
-   every test, so it stays where it is."
+  "f given a test of each element by q."
   [word f x q]
   (quotation! q)
-  (each x (partial f #(or (mt/marker? %) (mt/result word q %)))))
+  (each x (partial f #(mt/result word q %))))
 
 (defn filter
   "x with only the elements q keeps: [c e g c'] '( pitch 65 < ) filter"
@@ -421,7 +436,7 @@
 
 (defn remove
   "x without the elements q drops; on a line the later notes move earlier"
-  [x q] (by-test "remove" (fn [t xs] (core/remove #(and (not (mt/marker? %)) (t %)) xs)) x q))
+  [x q] (by-test "remove" (fn [t xs] (core/remove t xs)) x q))
 
 (defn take-while
   "x cut at the first element q refuses, keeping what comes before"
@@ -429,7 +444,7 @@
 
 (defn drop-while
   "x without the elements before the first q refuses"
-  [x q] (by-test "drop-while" (fn [t xs] (core/drop-while #(and (not (mt/marker? %)) (t %)) xs)) x q))
+  [x q] (by-test "drop-while" core/drop-while x q))
 
 (defn- by-print
   "f on xs, each element compared as mu prints it."
@@ -471,9 +486,9 @@
    stream -- [c e g] '( pitch ) map"
   [x q]
   (quotation! q)
-  (let [ys (core/map #(if (mt/marker? %) % (mt/result "map" q %)) (mt/elements x))]
+  (let [ys (core/map #(mt/result "map" q %) (mt/elements x))]
     (cond
       (mt/endless? x) (mt/endless ys)
-      (and (or (v/material? x) (mt/leaf? x)) (every? #(or (mt/leaf? %) (v/material? %) (mt/marker? %)) ys))
+      (and (or (v/material? x) (mt/leaf? x)) (every? #(or (mt/leaf? %) (v/material? %)) ys))
       (mt/reshape-keeping (if (mt/leaf? x) (mt/line [x]) x) (constantly ys))
-      :else (core/remove mt/marker? ys))))
+      :else ys)))

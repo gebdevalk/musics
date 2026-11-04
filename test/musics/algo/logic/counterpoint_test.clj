@@ -89,8 +89,21 @@
         (is (every? #(= 11 (reduce + (map second %))) (:voices r)) "every voice lasts 11 bars")))))
 
 (deftest seeds-reproduce
-  (let [opts {:cantus dorian :voices 3 :kind 2 :seed 7}]
-    (is (= (:voices (cp/counterpoint opts)) (:voices (cp/counterpoint opts))))))
+  (let [opts {:cantus dorian :voices 3 :kind 2 :seed 7}
+        a (cp/counterpoint opts) b (cp/counterpoint opts)]
+    (is (= (:penalty a) (:penalty b)))
+    (is (= (mapv count (:voices a)) (mapv count (:voices b))) "the same notes in each voice")
+    (is (= (:voices a) (:voices b)))))
+
+(deftest a-search-returning-less-than-all-bars-is-said
+  (let [complete! @#'cp/complete!
+        ctx {:nv 2 :n 2}
+        whole (fn [lens] {0 [{:len (first lens)}] 1 [{:len (second lens)}]})]
+    (is (= (whole [16 16]) (complete! ctx (whole [16 16]) 0 10 7)) "all bars placed: as it is")
+    (let [e (try (complete! ctx (whole [16 8]) 3 42 7) (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (re-find #"search 3 \(seed 10\) returned an incomplete score: \[16 8\] eighths placed in its parts, 16 expected, after 42 steps"
+                   (ex-message e)))
+      (is (= {:search 3 :seed 10 :steps 42 :lens [16 8] :n 2} (ex-data e))))))
 
 (deftest per-voice-kinds
   (let [r (cp/counterpoint {:cantus dorian :voices 3 :kinds [2 3]})]

@@ -102,7 +102,7 @@
    it out first ([!]). Exactly [R]: [ R ] is a line with a bar's rest."
   {:mu {:names ["[R]"]}}
   [x]
-  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (mt/elements x)))
+  (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (:children (v/node x))))
     (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
   (cond
     (mt/repetition? x)                 (backwards x)
@@ -199,6 +199,7 @@
    an error."
   [word x n]
   (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
+  (when (and (mt/music? x) (empty? (mt/elements x))) (e/mu-error (str word ":") "an empty line has nothing to repeat"))
   (if (mt/music? x)
     (mt/repetition x n [])
     (let [x (mt/finite! word x)]
@@ -242,7 +243,7 @@
 ;; -- forms -----------------------------------------------------------------
 
 (defn cycle
-  "x endlessly, repeat ~ [ x ]: [c d] [~] .> plays until stop; data or a
+  "x endlessly, repeat ~ [ x ]: [c d] [~] -> plays until stop; data or a
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
@@ -255,6 +256,7 @@
   "x in repeat signs, played twice."
   {:mu {:names ["[:]"]}}
   [x]
+  (when (empty? (mt/elements x)) (fail "an empty line has nothing to repeat"))
   (mt/repetition x 2 [] true))
 
 (defn unfold
@@ -279,9 +281,7 @@
              (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
                                   (:items x))
              (mt/leaf? x)     (:pitches x)
-             (v/material? x)  (if (= :DATA (mt/kind x))
-                                (mt/numbers-of word x)
-                                (mapcat :pitches (mt/played-leaves (mt/finite! word x))))
+             (v/material? x)  (mapcat :pitches (mt/played-leaves (mt/finite! word x)))
              (sequential? x)  (mt/numbers-of word x)
              :else            (fail "needs a line, a chord or pitch numbers, got" (p/show x)))]
     (when-not (every? integer? ps) (fail "needs whole pitch numbers, got" (p/show (first (remove integer? ps)))))
@@ -317,7 +317,6 @@
   [x]
   (cond
     (v/pcset? x) (mt/read-text (str "'[" (str/join " " (:items x)) "]"))
-    (and (v/material? x) (= :DATA (mt/kind x))) x
     (sequential? x) (mt/read-text (str "'[" (str/join " " (map p/show (mt/finite! ">list" x))) "]"))
     :else (fail "needs a set or a list, got" (p/show x))))
 
@@ -325,8 +324,8 @@
   "The time each pitch class sounds in a line or a chord, a vector of
    twelve ratios, C first: a chord's time shared among its pitches."
   [word x]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line or a chord, got" (p/show x)))
-  (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data -- for pitch numbers use classes"))
+  (when-not (or (mt/leaf? x) (v/material? x))
+    (fail (if (sequential? x) "needs music with durations, not data -- for pitch numbers use classes" "needs a line or a chord, got") (p/show x)))
   (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! word x)))]
     (reduce (fn [w leaf]
               (let [ps (seq (:pitches leaf))]
@@ -380,7 +379,7 @@
   (let [w (cond
             (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
                                  (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (:items x)))
-            (or (sequential? x) (and (v/material? x) (= :DATA (mt/kind x))))
+            (sequential? x)
             (reduce #(update %1 (mod %2 12) inc) (vec (clojure.core/repeat 12 0)) (pitch-numbers "key-of" x))
             :else            (class-weights "key-of" x))
         w (mapv double w)]
@@ -461,8 +460,8 @@
   {:mu {:optional {:pulse number?}}}
   ([x] (pulses x nil))
   ([x pulse]
-   (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
-   (when (and (v/material? x) (= :DATA (mt/kind x))) (fail "needs music with durations, not data"))
+   (when-not (or (mt/leaf? x) (v/material? x))
+     (fail (if (sequential? x) "needs music with durations, not data, got" "needs a line, got") (p/show x)))
    (when (par-inside? x) (fail "needs one line, not parallel parts: take a part with nth first"))
    (let [leaves (filterv #(pos? (or (:duration %) 0))
                          (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "pulses" x))))
@@ -485,16 +484,9 @@
   [x]
   (cond (mt/leaf? x)   (:duration x)
         (mt/marker? x) 0
-        (v/material? x) (let [parts (map length-of (mt/finite! "length" (mt/elements x)))]
+        (v/material? x) (let [parts (map length-of (mt/finite! "duration" (mt/elements x)))]
                           (if (= :PAR (mt/kind x)) (reduce max 0 parts) (reduce + 0 parts)))
         :else 0))
-
-(defn length
-  "The length in whole notes, as written (jumps not followed, [!] first
-   writes them out): [c4 d4 e2] length gives 1; a { } is its longest part"
-  [x]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs music, got" (p/show x)))
-  (let [n (length-of x)] (if (integer? n) (long n) n)))
 
 (defn- note-at
   "[leaf nil] for the note sounding t whole notes into x, else [nil what
@@ -575,6 +567,8 @@
    stays -- [c e g c'] '( pitch 65 > ) mute."
   [x q]
   (when-not (v/quotation? q) (fail "needs a quotation '( … ) on top"))
+  (when (and (sequential? x) (seq x) (not-every? #(or (mt/leaf? %) (v/material? %)) (take 1 x)))
+    (fail "needs music: a data list has no notes to make rests"))
   (mt/map-leaves #(if (and (not= :REST (:type %)) (mt/result "mute" q %))
                     (merge (d/rest* nil nil (:duration %)) (select-keys % [:ratio]))
                     %)
@@ -621,8 +615,14 @@
   "Each note's pitch, as a stream, a rest's too: x durations x pitches zip is x again"
   [line] (mt/as-part :pitch (each-note "pitches" note-pitch true line)))
 (defn duration
-  "The length, in whole notes; for a line, durations"
-  [note] (one-note "duration" "durations" :duration note))
+  "How long it is, in whole notes: a note's; a line's as written (jumps not
+   followed, [!] first writes them out), a { } its longest part: [c4 d4 e2]
+   duration gives 1. durations gives every note's."
+  [x]
+  (cond
+    (mt/leaf? x)    (one-note "duration" "durations" :duration x)
+    (v/material? x) (let [n (length-of x)] (if (integer? n) (long n) n))
+    :else           (fail "needs a note or a line, got" (p/show x))))
 (defn durations
   "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
   [line] (mt/as-part :duration (each-note "durations" :duration true line)))
@@ -734,7 +734,8 @@
    x8\\38: 38); a line: its context at its start."
   [x k]
   (let [k (ck/canonical-key (keyword k))
-        whole (fn [v] (if (and (integer? v) (not (instance? Long v))) (long v) v))] ; an interpolated 60, not 60N
+        whole (fn [v] (let [v (ck/whole k v)] ; an :int key a whole number, an interpolated 60, not 60N
+                        (if (and (integer? v) (not (instance? Long v))) (long v) v)))]
     (whole
      (cond
       (mt/leaf? x) (cond
@@ -778,7 +779,7 @@
   [x d]
   (when-not (and (v/material? x) (= :PAR (mt/kind x))) (fail "needs a parallel { }, got" (p/show x) "-- for one line use delay"))
   (let [slots (mt/items x)
-        parts (vec (keep-indexed (fn [i [tag v]] (when (and (= tag :el) (not (mt/marker? v))) i)) slots))
+        parts (vec (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots))
         by    (if (or (v/material? d) (sequential? d))
                 (let [ds (mapv #(amount "delays" % false) (mt/finite! "delays" (mt/elements d)))]
                   (when-not (= (count ds) (count parts))
@@ -820,6 +821,8 @@
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx))
       (fail "needs a context ^{ … } or a key (D.major) on top -- or a key and its value, :volume 70 with"))
+    (when (= :CONTEXT (mt/kind x))
+      (fail "needs music under the context, got" (p/show x) "-- a context goes on top of what it is laid under"))
     (let [settings (str/join " " (map :raw (:children (v/node ctx))))
           shown    (p/show (mt/->material x))]
       ;; at the start of a line (or a note made a line); a { } or a

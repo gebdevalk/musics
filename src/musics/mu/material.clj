@@ -32,13 +32,45 @@
 
 (defn- instruction? [x] (and (map? x) (contains? #{:assignment :instruction} (:type x))))
 
+(defn marker?
+  "A bar line or a jump mark: real, of no duration, written in a line, but
+   not one of its elements -- not counted, not fetched, and left out of what
+   a word that selects, inserts, splits or reorders gives back."
+  [x] (or (d/bar? x) (d/jump? x)))
+
+(declare child-value finite!)
+
+(defn data-vector
+  "The data list a :DATA material holds, as a vector of its values; its
+   type (:int :pitch :name …) rides on the vector's metadata as :data-type."
+  [m]
+  (let [n (v/node m)]
+    (with-meta (mapv #(child-value m true %) (:children n)) {:data-type (:data-type n)})))
+
+(defn as-value
+  "x as mu holds it: a data list read from text (a :DATA material) is a
+   vector, as any list of values is; everything else as it is."
+  [x]
+  (if (and (v/material? x) (= :DATA (:type (v/node x)))) (data-vector x) x))
+
+(defn- read-material
+  "The literal written as text, as the walker builds it (a data list a
+   :DATA material), read against the current repo -- not stored. With
+   keep? the auto id it is read under is spent, for a value about to be
+   stored under it."
+  ([text] (read-material text false))
+  ([text keep?]
+   (let [nodes (filterv v/literal? (rest (g/parse text)))]
+     (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
+     (let [{:keys [values auto-ids]} (v/read-literals nodes text (e/current-repo) (:auto-ids @reg/session))]
+       (when keep? (swap! reg/session assoc :auto-ids auto-ids))
+       (first values)))))
+
 (defn read-text
   "The value of one literal written as text, read against the current
    repo -- not stored."
   [text]
-  (let [nodes (filterv v/literal? (rest (g/parse text)))]
-    (when (not= 1 (count nodes)) (e/mu-error "can't build a value from" (pr-str text)))
-    (first (:values (v/read-literals nodes text (e/current-repo) (:auto-ids @reg/session))))))
+  (as-value (read-material text)))
 
 (defn- node-value
   "A child node as a value of its own: an id read in repo, or a node held
@@ -73,11 +105,13 @@
                           (vec (mapcat #(concat b (when (pos? k) (elements (nth ends (d/ending-for k n %)))))
                                        (range n))))))
     (v/material? x) (let [data? (= :DATA (:type (v/node x)))]
-                      (mapv #(child-value x data? %) (remove instruction? (:children (v/node x)))))
+                      (mapv #(child-value x data? %) (remove #(or (instruction? %) (marker? %)) (:children (v/node x)))))
     (leaf? x)       [x]
     (v/pcset? x)    (:items x)
     (sequential? x) x
-    :else (e/mu-error "has no elements:" (p/show x))))
+    :else (e/mu-error (str "needs a line, a list or a stream, got " (p/show x)
+                           (cond (keyword? x) (str " -- " (p/show x) " is a stored name: " (p/show x) " R@ reads it")
+                                 (number? x)  " -- numbers gather into a list with ( 1 2 )")))))
 
 (defn- leading-instructions
   "The instructions written before a container's first element: its
@@ -88,12 +122,13 @@
 
 (defn items
   "A line's or parallel's children in order, as slots: [:ins text] for an
-   instruction written there, [:el value] for an element. nil for
+   instruction written there, [:el value] for an element; bar lines and
+   jump marks are not slots, so what is rebuilt from them has none. nil for
    anything else (a leaf, data, a stream, a repeat)."
   [x]
   (when (and (v/material? x) (not (repetition? x)) (contains? #{:SEQ :PAR} (kind x)))
     (mapv (fn [k] (if (instruction? k) [:ins (:raw k)] [:el (child-value x false k)]))
-          (:children (v/node x)))))
+          (remove marker? (:children (v/node x))))))
 
 (defn from-items
   "A value of like's form (a line or a parallel) holding slots, as items
@@ -110,7 +145,6 @@
     (read-text
      (case (kind like)
        :PAR  (str "{" shown "}")
-       :DATA (str "'[" (str/join " " (map p/show elements)) "]")
        (str "[" shown "]")))))
 
 (defn line
@@ -146,9 +180,14 @@
   (cond
     (v/material? x) x
     (leaf? x)       (line [x])
-    (sequential? x) (if (:mu/endless (meta x))
-                      (e/mu-error "an endless stream can't become material -- take some first")
-                      (line x))
+    (sequential? x) (cond (:mu/endless (meta x))
+                          (e/mu-error "an endless stream can't become material -- take some first")
+                          ;; a data list is stored as data, a stream of notes as a line
+                          (or (contains? (meta x) :data-type) (not-every? #(or (leaf? %) (v/material? %)) x))
+                          (read-material (str "'[" (let [t (:data-type (meta x))] (when (#{:pitch :name :articulation} t) (str (name t) " ")))
+                                              (str/join " " (map p/show (finite! "store" x))) "]")
+                                         true)
+                          :else (line x))
     :else (e/mu-error "not material:" (p/show x))))
 
 (defn bundle-columns
@@ -156,8 +195,8 @@
    before each stream, '[:pitch '[60 62] :volume '[90 70]], what zip
    gives without what a note needs -- else nil."
   [x]
-  (when (and (v/material? x) (= :DATA (kind x)))
-    (let [els (elements x)]
+  (when (vector? x)
+    (let [els x]
       (when (and (seq els) (even? (count els))
                  (every? keyword? (take-nth 2 els))
                  (every? sequential? (take-nth 2 (rest els))))
@@ -259,7 +298,6 @@
   (cond
     (leaf? x) [x]
     (and (map? x) (or (d/bar? x) (d/jump? x))) nil
-    (and (v/material? x) (= :DATA (kind x))) nil
     (loop? x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
     (or (v/material? x) (sequential? x)) (mapcat played-leaves (elements x))))
 
@@ -358,7 +396,8 @@
                  (if-let [k (and (= :Key (:key i)) (el/parse-key (str (:val i))))]
                    (let [k' (el/key->str (shift k))] (assoc i :val k' :raw (str "!K:" k')))
                    i))
-               (if (and (v/material? x) (not (zero? (mod n 12)))) (with-key x) x))))
+               ;; the key is written for the notes that follow it: an empty line has none
+               (if (and (v/material? x) (not (zero? (mod n 12))) (seq (elements x))) (with-key x) x))))
 
 ;; -- the repo -------------------------------------------------------------
 
@@ -372,9 +411,11 @@
 
 (defn store-all!
   "Store each [x name] of pairs at once, as store! does one; returns the
-   ids, in order. Warns (without refusing) when an id it redefines is
-   also used by a part it doesn't store."
-  [pairs]
+   ids, in order. An id it redefines that a part it doesn't store also
+   uses is said so in word's name: refused when refuse? (R!, before
+   anything is stored), else stored and said (R!!, load)."
+  ([pairs] (store-all! pairs "load" false))
+  ([pairs word refuse?]
   (let [parts (for [[x name] pairs]
                 (if (v/recipe? x)
                   ;; a recipe is stored as its text, rebuilt when read (musics.recipe/stored)
@@ -387,11 +428,14 @@
         parts (doall parts)
         edits (apply merge (map :edits parts))
         ours  (conj (set (keys edits)) :ROOT)]
-    (doseq [k (keys edits)
-            :let [affected (remove ours (repo/usages k))]
-            :when (and (repo/current k) (seq affected))]
-      (println "[musics] Redefining" k "also affects" (vec affected)
-               "-- give it a new id instead if that's not intended."))
+    (let [used (for [k (keys edits)
+                     :let [affected (remove ours (repo/usages k))]
+                     :when (and (repo/current k) (seq affected))]
+                 (str (pr-str k) " is used by " (str/join " " (map pr-str affected))))]
+      (when (seq used)
+        (if refuse?
+          (e/mu-error (str word ":") (str/join "; " used) "-- R!! stores it anyway, changing them too; or give it a new id")
+          (println (str word ":") (str (str/join "; " used) ", so storing it changes them too")))))
     (repo/commit-many! edits)
     (let [root (or (repo/current :ROOT) (get (:repo (builder/empty-session)) :ROOT))
           new  (for [{:keys [id top]} parts
@@ -400,20 +444,20 @@
       (when (seq new)
         (repo/commit-node! :ROOT (update root :children (fnil into []) (distinct new)))))
     (reg/log! :parse)
-    (mapv :id parts)))
+    (mapv :id parts))))
 
 (defn store!
   "Store x in the repo under name if given, else its own id or an auto
    one; returns the id (see store-all!)."
-  [x name]
-  (first (store-all! [[x name]])))
+  ([x name] (store! x name "load" false))
+  ([x name word refuse?] (first (store-all! [[x name]] word refuse?))))
 
 (defn fetch
   "The value stored as id."
   [id]
   (when-not (repo/current id) (e/mu-error "R@: nothing is stored as" (pr-str id)))
   (let [now (into {} @(repo/registry))]
-    (assoc (v/->Material id now) :base now)))
+    (as-value (assoc (v/->Material id now) :base now))))
 
 (def ^:private voices
   "Voice id -> {:x :ctx :ends}: what each voice mu started plays (as
@@ -427,7 +471,7 @@
   (atom {}))
 
 (defn cancel-staged!
-  "Forget a .>> still waiting for its boundary: one target's, or all."
+  "Forget a ->> still waiting for its boundary: one target's, or all."
   ([] (doseq [t (keys @staged)] (cancel-staged! t)))
   ([target]
    (when-let [{:keys [keys action]} (get @staged target)]
@@ -563,7 +607,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
-  "Stop what plays, a staged .>> and whatever stoppers hold."
+  "Stop what plays, a staged ->> and whatever stoppers hold."
   []
   (cancel-staged!)
   (reset! voices {})
@@ -762,6 +806,11 @@
     (cond
       (or (v/material? x) (leaf? x)) (rebuild (if (leaf? x) (line [x]) x) els)
       (endless? x) (endless els)
+      (and (vector? x) (not (endless? els)))
+      (do (when (contains? (meta x) :data-type)
+            (when-let [bad (first (filter #(or (leaf? %) (v/material? %)) els))]
+              (e/mu-error "a data list holds numbers, names and lists, not music:" (p/show bad))))
+          (with-meta (vec els) (meta x)))
       :else els)))
 
 (defn- tagged
@@ -810,10 +859,7 @@
    arithmetic works through, element by element, rather than music?"
   [x]
   (let [x (streamed x)]
-    (cond (v/material? x) (let [els (elements x)]
-                            (if (empty? els)
-                              (= :DATA (:type (v/node x)))
-                              (number? (first els))))
+    (cond (v/material? x) false
           (sequential? x) (or (empty? x) (number? (first x)))
           :else false)))
 
@@ -827,7 +873,7 @@
                   "-- for a line's pitches or durations, read them first with pitches or durations"))
     els))
 
-(defn music? [x] (or (leaf? x) (and (v/material? x) (not= :DATA (kind x)))))
+(defn music? [x] (or (leaf? x) (v/material? x)))
 
 (defn result
   "What quotation q leaves for x: exactly one value."
@@ -846,8 +892,6 @@
 
 (defn par-of [xs]
   (read-text (str "{" (apply str (interpose " " (map #(p/show (->material (sounding! "par" %))) xs))) "}")))
-
-(defn marker? [x] (or (d/bar? x) (d/jump? x)))
 
 ;; -- what play shares with the prompt ----------------------------------------
 

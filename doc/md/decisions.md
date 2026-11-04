@@ -2807,3 +2807,167 @@ Three closing choices from the REPL audit (M6, M10, M11).
   definition of one silently replaced the rating word. `"rate" use` (or
   `rate/like`) brings them; Alt+j, k, l, J, K, L call the functions directly
   and work either way.
+
+## 2026-11-03 — A stack effect is Forth's comment, with `$` for the inputs that bind
+
+Every input of `: name ( a b -- c ) … ;` used to be taken off the stack and
+bound as a local, so the textbook `: sq ( n -- n' ) dup * ;` failed with
+`dup: needs 1 item, has 0`, and the output side promised what nothing
+checked. Now:
+
+- an input is bound only when written with a `$` (`( $a $b -- c )`); a plain
+  one stays on the stack, so Forth's own comment style works as it reads, and
+  the two mix (`( $m n -- m' )`);
+- the names after `--` are kept: the count must match what the body leaves
+  (`musics.mu.eval/check-effect!`, at the call) and a name without a prime that
+  is also an input must come back equal to it. Names ending in `...` are
+  any number and skip both checks. Types in names (`n m l q t id flag`) and
+  `x'` for a changed one are documentation, not checked: that would need a
+  type system;
+- mu's own words follow the same reading (`musics.mu.library/stack-effects`
+  for the ones better named than their arglists say; the rest are generated:
+  a changed first argument is primed, a transformer algo word primes its
+  input's name). `library-test` ties the table to the functions' arities.
+
+Rejected: Gforth's `{: a b :}` / `{ a b -- }` locals (ugly, and `{ }` is the
+parallel bracket); making the comment pure documentation (it would lose the
+locals, which `[$m $m r4 $m]` needs); `…` in comments (hard to type: `...` is
+written, `…` still read).
+
+## 2026-11-03 — A data list is a vector, not a material
+
+`'[ ]` was a `Material` of kind `:DATA` while every other list a word handed
+back (`pitches`, `map`, `take` on a stream, `range`, `cycle`) was a plain
+sequence; a list nested in data was a plain list. Words had to know both
+(`grouped` took data for music and failed on `'[1 2 3 4] 2 partition`,
+`flatten` and `mute` silently did nothing on data). "Always a material" could
+not be done: a material holds its children finite in a repo map, and the
+streams are lazy or endless.
+
+Now a data list is a vector of its values, its type (`:data-type`) on the
+vector's metadata, nested lists vectors too. One conversion where text is
+read (`musics.mu.material/as-value`, from `read-text` and the input's
+literals) and one where the repo is read (`fetch`); the walker builds the
+`:DATA` node as before, and `->material` builds it again when `R!` stores a
+vector, spending an auto id (`read-material` with keep?). Words take any
+sequential, give a vector back when they were given one (`reshape`,
+`grouped`), and `mt/kind` of data is nil. `:SEQ`/`:PAR` stay nodes in the flat
+repo: they carry ids, contexts and the addresses a voice's snapshot reads,
+none of which survives on metadata, and the engine never sees data.
+
+A vector was preferred over a seq for the canonical form: `count` and `nth`
+are cheap, `conj` appends (on a list it would prepend, silently reversing a
+result), and a stored vector is evidently finite. Lost metadata costs only the
+type in a print (`'[60 62]` for `'[pitch C4 D4]`), never a sound.
+
+## 2026-11-03 — Errors say what was wanted
+
+- A word given a value that has no elements says what it takes: `sum: needs a
+  line, a list or a stream, got 3`, with the way on for a number (`( 1 2 )`)
+  and for a stored name (`:a R@`). It used to say `has no elements: 3`.
+- Every error is named by its word, those of words written with `word!` too
+  (`musics.mu.eval/named`, used by both kinds), so `reduce` no longer fails
+  nameless.
+- `times` and `[:]` of an empty line say so, instead of the rebuilt text that
+  could not be read back; the generic rebuild failure names the text it could
+  not read as one value.
+- A data list refuses what it can't hold when a word rebuilds it (`'[1 2 3] 1 c
+  !`: "a data list holds numbers, names and lists, not music"), as the reader
+  already did when it was a material.
+- A parse error shows the line with a caret and the literal symbols that could
+  follow, no grammar regexes: `c/4` points at the `/`, `{c d}` at the space
+  after `c`.
+
+## 2026-11-03 — length counts, duration measures
+
+`count` was the number of elements and `length` the time a line takes in whole
+notes, the reverse of what the names say elsewhere (`'[1 2 3] length` was `0`,
+a duration data doesn't have). Now `length` is how many elements (any line,
+list or stream) and `duration` is how long: a note's own, a line's as
+written, a `{ }`'s longest part, so `x duration` and `x durations sum` agree.
+`count`, `size` and `len` answer `it is now written length`. A line typed as
+`[c d e] length` now gives `3`, not `3/4`.
+
+## 2026-11-03 — A key with a range holds a number in it; volume is a whole number
+
+`:volume 700 with` and `!volume:700` were accepted and played, and a default
+volume read back as `50.0` where one set was `70`. The registry already knows
+each key's range and type (`musics.common.context-keys`, from
+`music-data/quantities`); now `volume` is an `:int` 0..100 (the default 50, not
+50.0), and the walker passes every number it stores (`!key:n`, `\key:n`, a ramp's
+target) through `ck/conform`: a decimal of an `:int` key becomes the whole
+number it is (70.0 is 70, an interpolated 72.5 is 73, `setting` reads it so),
+and a number outside the range of a linear key is refused with the range
+(`volume is 0..100, got 700`). A log-scale key's range (tempo, a swing unit
+written 16 for a sixteenth) is only where its slider goes, so it is not
+enforced; a custom key (`!bogus:70`) has none and stays legal.
+
+## 2026-11-03 — head and tail take no count
+
+`head` was the first element, or with a count the first n elements, and `tail`
+all after the first n (1 without a count): one word with two result shapes (an
+element, then a list), and `n head` was `n take` again. Now `head` is the first
+element and `tail` all after it (`[H]`, `[T]` the same); `take` is the first n,
+`take-last` the last n, `split-at` cuts at any n. Dropping the first n elements
+has no word of its own. `drop-last` and `drop-while` keep their names beside the
+stack word `drop`; `[/]` stays the twin of `parts` (n pieces), `partition` is
+chunks of size n.
+
+## 2026-11-04 — Bar lines and jump marks are in a line, not elements of it
+
+A `|` is a `Bar` record of no duration among a line's children (the engine reads
+it to signal `:mark` to the conductor), and mu counted it as an element:
+`[c d | e f] length` was `5`, `2 @` was the bar, `[/]` and `partition` counted
+it, and a dozen words (`filter`, `remove`, `map`, `spread` …) each special-cased
+it. Anchoring it to the note after it, as an instruction is, was considered and
+rejected: after a word selects, inserts, splits or reorders, a mark kept near
+the wrong notes means nothing. Now `musics.mu.material/elements` and `items`
+leave `marker?` things out, so every word counts notes only and a rebuilt line
+has none (`from-items`); a word that only changes each note (`map-nodes`:
+`+` `*` `with`) or wraps the whole line (`times`, `cycle`) keeps the line as
+written. `retrograde` also drops them, and refuses jumps instead of dropping
+them (it reads the node's own children). The special cases are gone.
+
+## 2026-11-04 — A key orders anything
+
+`<` `>` `<=` `>=` took numbers only, `=` any two values, and music had no order
+at all (`sort` refused a line). An order of music depends on the question: a
+line has a first note, a highest note, a duration and a length. So the question
+is asked: a quotation on top is a key, read from each side
+(`c d '( pitch ) <`, `[c d] [e f g] '( duration ) <`, `x y '( length ) >`),
+the numbers it gives compared; `=` and `<>` take a key too, comparing whatever
+it reads (`c C5 '( pitch 12 mod ) =`); `sort` takes it and orders any elements,
+the first of equals first, a setting staying in front of its note. The key form
+is the optional third argument (`:mu :optional {:q quotation?}`, as `with`
+picks its shape), the two-value forms are as they were; without a key, music
+is refused with the way to give one. Rejected: ordering notes by pitch and lines
+by duration with no key (the right order is the question's, not the type's).
+
+## 2026-11-04 — The play signs are arrows: ->, ->>, ->+, ->>+, <-, <<-
+
+`.>` `.>>` `.>+` `.>>+` `.<` `.<<` borrowed the dot of Forth's print words (`.`
+and `.s`), so one prefix meant print and play. The play family is now arrows:
+`->` plays, `->>` at the next boundary, `->+` and `->>+` join, `<-` is what a
+voice plays and `<<-` the voices; `-` and `>` alone stay subtract and
+greater-than. The arrow is what the first `>` was, sending to the player,
+without the clash with comparison; `<-` reads from a voice, and a doubled sign
+widens it, as before. Every sign keeps its named twin (`play`, `play-next`,
+`play+`, `play-next+`, `playing`, `voices`). `->` and `->>` are Clojure's
+threading macros, which mu does not use. The dotted forms and the earliest
+signs (`>>`, `>+`, `<<` …) are not words and answer with the arrow
+(`.>: isn't a word; write ->`); `<` and `>` as comparisons say
+`to play, write ->`.
+
+## 2026-11-04 — R! refuses to redefine what other parts use; R!! does it and says so
+
+Storing under an id that other stored parts use printed
+`[musics] Redefining :a also affects [:b]` and went ahead: a warning in a style
+no other word has, easy to miss at a prompt, and a change that reaches `:b`
+by surprise. `R!` now refuses before anything is stored, in the error style
+(`R!: :a is used by :b -- R!! stores it anyway, changing them too; or give it a
+new id`); `R!!` (`overwrite`) stores and says which parts change with it
+(`R!!: :a is used by :b, so storing it changes them too`). An id nothing else
+uses is replaced silently, as before; parts stored in the same call count as
+covered. Reading a file or the editor's text (`load`, `read!`) behaves as `R!!`,
+labelled `load:`, since re-reading a file is how a piece is edited. The check
+is `musics.mu.material/store-all!`'s, with the word's name and a refuse flag.

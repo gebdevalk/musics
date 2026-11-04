@@ -141,9 +141,9 @@
     ;; data: a leaf of material
     (if-let [i (:mu/index (meta n))]
       (let [x (nth (:values env) i)]
-        (when-not (and (v/material? x) (= :DATA (mt/kind x)))
+        (when-not (sequential? x)
           (fail "holds no music -- music comes from the stack under the recipe, got" (pr-str tag)))
-        (update st :stack conj (vec (mt/elements x))))
+        (update st :stack conj (vec x)))
       (fail "can't hold" (pr-str tag)))))
 
 (defn- algo-error [ex]
@@ -198,7 +198,7 @@
   "An input from below the recipe as the leaves it is: a line's notes, a
    note, or a stream as it is."
   [x]
-  (cond (v/material? x) (if (= :DATA (mt/kind x)) (vec (mt/elements x)) (vec (mt/played-leaves x)))
+  (cond (v/material? x) (vec (mt/played-leaves x))
         (mt/leaf? x)    [x]
         :else           x))
 

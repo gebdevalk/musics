@@ -81,7 +81,6 @@
    taken apart, data as its values, a stream as it is."
   [type x]
   (cond
-    (and (v/material? x) (= :DATA (mt/kind x))) (mt/elements x)
     (or (v/material? x) (mt/leaf? x))
     (let [ls (mt/played-leaves x)]
       (case type
@@ -148,10 +147,12 @@
    :leaf "line" :part "parallel"})
 
 (defn- effect
-  "The stack effect and what the word is: ( durations [@^{ … }] --
-   durations )  its doc  @^{ its params }."
+  "The stack effect and what the word is: ( durations [@^{ ... }] --
+   durations' )  its doc  @^{ its params }. A result named like an input is
+   that input changed, so it carries the prime."
   [{:keys [in out doc params]}]
-  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[@^{ … }] -- " (plural out (name out)) " )  "
+  (str "( " (str/join " " (map #(plural % (name %)) in)) (when (seq in) " ") "[@^{ ... }] -- "
+       (plural out (name out)) (when (some #{out} in) "'") " )  "
        doc "  @^{ " (str/join " " (map #(name (:name %)) params)) " }"))
 
 (defn register-all!
