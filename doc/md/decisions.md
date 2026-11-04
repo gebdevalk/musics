@@ -3029,3 +3029,14 @@ the Python data) that `!name` could not spell, with camelCase aliases added in
 camelCase now (`:marciaModerato`, `:andanteModerato`, `:allegroModerato`,
 `:allegroVivace`) and the aliases are gone. Scale names (`harmonic-minor`) keep
 their hyphen: `KeyValue` allows one, as in `!key:D.harmonic-minor`.
+
+## 2026-11-04 — about, settings and marks after a probe
+
+A bare letter after `about`, `help` or `see` (`about c`, `about e`) reads as a
+note, so the word saw no name and printed its usage; the prefix reading now
+takes a literal whose text is only letters as the name. `marks T` looked at
+one of the two parameters called `T` (transposition, not Tempo); it now
+gathers the marks of every parameter the name reaches. `settings Key` and
+`settings Meter` printed the record (`#musics…Key{…}`); a key is written as
+`C.major` and a meter as `4/4`. `marks` of a line says it takes a name. The
+stack effect of `settings` shows both forms, `( voice -- ) or ( 'name -- )`.

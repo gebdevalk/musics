@@ -331,8 +331,11 @@
              (or (#{"help" "see" "about" "marks"} (node-name node))
                  (and (= "settings" (node-name node))
                       (not (let [t (peek stack)] (or (keyword? t) (integer? t))))))
-             (vector? following) (= :Word (first following)))
-    (node-name following)))
+             (vector? following))
+    (cond
+      (= :Word (first following)) (node-name following)
+      ;; a bare letter reads as a note (about c, about e): its text is the name
+      (:mu/index (meta following)) (re-matches #"[A-Za-z]+" (str (:source (meta following)))))))
 
 (defn run-items [stack nodes env]
   (loop [s stack nodes (seq nodes)]

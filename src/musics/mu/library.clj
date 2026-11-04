@@ -39,7 +39,8 @@
 ;; word is here: where its arguments or its result are better named, or it has
 ;; two shapes. library_test checks each against the function's arities.
 (def stack-effects
-  {"R!" "( x [id] -- id )", "store" "( x [id] -- id )", "overwrite" "( x [id] -- id )", "R!!" "( x [id] -- id )"
+  {"settings" "( voice -- ) or ( 'name -- )", "marks" "( 'name -- )"
+   "R!" "( x [id] -- id )", "store" "( x [id] -- id )", "overwrite" "( x [id] -- id )", "R!!" "( x [id] -- id )"
    "R@" "( id -- x )", "fetch" "( id -- x )"
    "abs" "( n -- n' )", "negate" "( n -- n' )", "round" "( n -- n' )", "int" "( n -- n' )"
    "float" "( n -- n' )", "rational" "( n -- n' )", "mod" "( n1 n2 -- n3 )"

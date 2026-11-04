@@ -642,6 +642,10 @@
       (is (= "30..300, default 100, Beats per minute. Written !tempo:100, or set on a line with x :tempo 100 with"
              (run-out "settings tempo")))
       (is (re-find #"^!adagissimo " (run-out "marks tempo")))
+      (is (re-find #"!adagissimo" (run-out "marks T")) "T is Tempo and transposition")
+      (is (re-find #"default C\.major," (run-out "settings Key")) "a key as it is written")
+      (is (re-find #"default 4/4," (run-out "settings Meter")))
+      (is (re-find #"^c is a" (run-out "about c")) "a bare letter reads as a name, not a note")
       (is (not (re-find #"\d" (run-out "marks tempo"))) "names only"))
     (testing "where it can appear is the grammar's: notes are in [ ] only"
       (is (re-find #"^Leaf is a rule of the grammar and can appear in \[ \]\." (run-out "about Leaf")))
