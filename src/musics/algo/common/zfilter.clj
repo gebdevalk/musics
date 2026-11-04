@@ -21,15 +21,7 @@
 ;; ============================================================
 
 (defn z-filter
-  "The generic recurrence filter -- b (feedforward coefficients) and a
-   (feedback coefficients, a[0] must be 1, matching the source email's
-   own convention) define:
-     y[n] = sum(b[k] * x[n-k] for k in 0..) - sum(a[k] * y[n-k] for k in 1..)
-   over xs (a plain seq of numbers), returning y as a vector, same
-   length as xs. b/a index past the start of the sequence are simply
-   skipped (treated as 0), matching the source's own 'if n-k >= 0'
-   guard -- no wraparound, no assumed history before the sequence
-   starts."
+  "Recurrence filter over xs (numbers): y[n] = sum(b[k]·x[n-k]) - sum(a[k]·y[n-k], k >= 1), with a[0] = 1. Indexes before the start are skipped (read as 0). Returns a vector as long as xs."
   [b a xs]
   (when (not= 1 (first a))
     (throw (ex-info "z-filter: (first a) must be 1" {:a a})))
@@ -81,15 +73,7 @@
 ;; ============================================================
 
 (defn- interval-transform
-  "Shared skeleton behind smooth-intervals/interval-gain below: guard a
-   sequence of fewer than 2 values (nothing to take an interval between,
-   pass through unchanged), otherwise diff xs into consecutive
-   intervals, run xform over them, then reconstruct a sequence from the
-   transformed intervals starting back at xs's own first value. xform
-   is the one thing that actually differs between the two callers --
-   this fn owns everything else (the guard, the diff, the reconstruct),
-   found duplicated verbatim between them by a code-reuse audit
-   (2026-09-05)."
+  "Shared skeleton of smooth-intervals and interval-gain: fewer than 2 values pass through; otherwise xs is diffed into intervals, xform runs over them, and the sequence is rebuilt from xs's first value."
   [xform xs]
   (let [xs (vec xs)]
     (if (< (count xs) 2)

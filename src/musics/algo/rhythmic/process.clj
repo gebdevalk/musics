@@ -26,17 +26,8 @@
 
 
 (defn poisson
-  "Event onset times within [0, duration), Poisson-process style: keeps
-   drawing inter-arrival gaps from an exponential distribution with the
-   given rate (expected events per unit duration -- the same rate
-   parameter Xenakis used to control event density in Achorripsis, via
-   exponential's own mean = 1/rate) and accumulating them, until
-   the running total would exceed duration -- genuine stochastic
-   clustering/spacing, rather than random-rhythm's per-tick coin-flip
-   approximation of the same idea.
-
-   (poisson 4 8) → a handful of onsets across an 8-beat phrase,
-   averaging 4 per beat"
+  "Event onset times in [0, duration) of a Poisson process: inter-arrival gaps are drawn from an exponential distribution with the given rate (expected events per unit duration, as Xenakis used for event density in Achorripsis) and accumulated until the total would exceed duration. Real stochastic clustering, where random-onsets flips a coin per tick.
+     (poisson 4 8) ;; a handful of onsets across 8 beats, about 4 per beat"
   {:algo {:in [] :out :onset
           :params {:rate     (assoc pos-spec :min 0.01 :default 2.0 :doc "events per unit")
                    :duration (assoc pos-spec :default 4.0 :doc "span")}}}
@@ -216,11 +207,7 @@
         (recur (conj pattern (first next-state)) next-state)))))
 
 (defn rnn
-  "Deterministic toy-RNN rhythm continuation: seed-pattern is extended
-   for iterations steps by repeatedly running a tiny sigmoid-thresholded
-   recurrent network (weights, a square matrix -- default a fixed
-   3-neuron example) over its own previous state, appending the first
-   neuron's binary output each step."
+  "A deterministic toy-RNN continuation: seed-pattern is extended for iterations steps by running a small sigmoid-thresholded recurrent network (weights, a square matrix; default a fixed 3-neuron example) over its own previous state, appending the first neuron's binary output each step."
   {:algo {:in [:pulse] :out :pulse :arity 3
           :params {:weights    {:type :vector :default [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] :doc "square matrix"}
                    :iterations {:type :int :min 0 :max 256 :default 8 :doc "pulses added"}}}}
@@ -307,16 +294,7 @@
                    (range repetitions))))))
 
 (defn csp
-  "A binary pattern of the given length satisfying every predicate in
-   constraints (each a fn from a full-length pattern to a boolean), via
-   exhaustive depth-first backtracking (try 0, then 1, at each position
-   in turn). Returns nil if no satisfying pattern exists.
-
-   The reference this ports also draws a random initial pattern and
-   retries up to max-attempts times -- confirmed live, neither has any
-   effect on the result: the backtracking search overwrites every
-   position unconditionally before it's ever read, so the outcome is
-   fully determined by the constraints alone. This port skips both."
+  "A binary pattern of the given length that satisfies every predicate in constraints (each a fn from a full-length pattern to a boolean), by exhaustive depth-first backtracking (0 then 1 at each position). nil if none exists."
   {:algo {:in [] :out :pulse
           :params {:constraints {:type :vector :default [#(= 3 (reduce + %)) #(= 1 (first %))] :doc "fns pattern -> bool, all must hold"}
                    :length      {:type :int :min 1 :max 16 :default 8 :doc "pulses"}}}}

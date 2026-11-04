@@ -154,33 +154,9 @@
           (recur (conj melody (rand/choose candidates))))))))
 
 (defn modulating
-  "Generate a melody across several scale segments in sequence -- each
-   [scale-spec length] pair in segments gets its own constraint-melody
-   run of exactly length notes, constraints shared across every
-   segment. scale-spec is anything musics.algo.melodic.pitch/resolve-scale
-   accepts -- an already-built scale vector, a [key-kw scale-kw] pair,
-   or a \"F#.major\"-style spec string -- so segments can freely mix
-   pre-built scales with spec shorthand.
-
-   Every segment after the first tries to continue smoothly from the
-   previous segment's own last note (used as constraint-melody's own
-   :start) IF that pitch is actually a member of the new segment's
-   scale -- a genuine melodic pivot tone, the same idea a real
-   modulation uses -- otherwise falls back to constraint-melody's own
-   default (a fresh random note in the new scale), since forcing
-   continuity onto a pitch the new scale doesn't even contain isn't a
-   real modulation, it's just a wrong note. A pivot note is never
-   dropped/de-duplicated at the seam -- each segment always contributes
-   exactly its own declared length, so (count result) always equals the
-   sum of every segment's length, and a pivot simply repeats that one
-   note once at the boundary (a held tone), rather than making length
-   mean something fuzzier. A thin sequencing layer over constraint-
-   melody, not a different generator -- its own scale/length/
-   constraints/:start contract is otherwise unchanged.
-
-   (modulating [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
-   ;; => a 16-note melody, first 8 in C major, next 8 in A minor,
-   ;;    pivoting on the hand-off note if it happens to fit both"
+  "A melody across several scale segments: each [scale-spec length] pair in segments gets a constrained run of exactly length notes, the constraints shared. scale-spec is anything resolve-scale accepts (a scale vector, a [key-kw scale-kw] pair, a \"F#.major\" string). A segment starts on the previous segment's last note when the new scale contains it (a pivot tone, repeated once at the seam), else on constrained's own default start; so (count result) is the sum of the lengths.
+     (modulating [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
+     ;; => 16 notes, 8 in C major then 8 in A minor"
   {:algo {:in [] :out :pitch
           :params {:segments {:type :vector :default [[[:C :major] 8] [[:A :minor] 8]]
                               :doc "[scale-spec length] pairs; pitch classes 0-11"}
@@ -209,15 +185,7 @@
   (or (empty? melody) (not= (last melody) note)))
 
 (defn direction-limit-constraint
-  "Reject note after melody if it would extend a run of max-consecutive
-   (or more) melodic steps already moving in the SAME direction, walked
-   backward from the end of melody. (Fixed 2026-09-03: the inner loop's
-   own termination check was (< i 0), but its body reads (nth melody
-   (dec i)) -- once i reached 0, that's (nth melody -1), a confirmed-
-   live IndexOutOfBoundsException on ordinary input. Every existing
-   pair in melody is (i-1, i) for i from (dec (count melody)) down to
-   1, so the loop must stop once i reaches 0, before the body ever
-   computes (dec i) again -- (< i 1), not (< i 0)."
+  "Reject note after melody if it would extend a run of max-consecutive (or more) melodic steps in the same direction, counted backward from the end of melody."
   [scale max-consecutive]
   (let [sv (vec scale)]
     (fn [melody note]

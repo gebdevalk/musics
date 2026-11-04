@@ -59,11 +59,7 @@
             (recur (conj timings time') height' time')))))))
 
 (defn logistic-grid
-  "Binary pattern of the given length from the logistic map (x_{n+1} = r
-   * x_n * (1 - x_n)), thresholded to 1/0 each step. r in [3.57, 4.0]
-   gives a chaotic (aperiodic) sequence -- see musics.algo.numeric.chaos.logistic for
-   the same map as a live, stateful generator instead of a fixed-length
-   pattern."
+  "A binary pattern of the given length from the logistic map (x_{n+1} = r * x_n * (1 - x_n)), thresholded to 1/0 at each step. r in [3.57, 4.0] is chaotic. musics.algo.numeric.chaos.logistic is the same map as a stateful generator."
   {:algo {:in [] :out :pulse :arity 4
           :params {:r         {:type :double :min 0.0 :max 4.0 :default 3.9 :doc "chaotic above ~3.57"}
                    :x0        {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "starting value"}

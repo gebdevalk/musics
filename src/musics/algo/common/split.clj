@@ -80,13 +80,7 @@
   (splits* leaf-step leafs n))
 
 (defn split-leaf-voice
-  "n: how many times to split a new voice off the current highest one.
-   voice-index (optional, 0..n, defaulting to n itself -- the final,
-   fastest, highest split-off): which layer to return. leafs: a seq of
-   real Leaf/Rest/Drum content forming the original line. Returns ONE
-   layer's worth of real Leaf-shaped records -- call once per
-   voice-index 0..n and play them together (each in its own parallel
-   branch) for the whole texture."
+  "Split a new voice off the highest one n times and return one layer of leafs (the original line's Leaf/Rest/Drum content): voice-index 0..n, default n, the final and fastest. Call once per voice-index and play the layers in parallel."
   ([n leafs] (split-leaf-voice n n leafs))
   ([n voice-index leafs]
    (nth (split-leafs leafs n) voice-index)))

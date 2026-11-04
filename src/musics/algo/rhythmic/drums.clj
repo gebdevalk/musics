@@ -111,18 +111,8 @@
                       hits (concat (rest onsets) [total]))))))
 
 (defn drums
-  "A drum-kit groove of :bars bars of 4/4 in :style, as parallel layers,
-   one per kit piece that plays (kick, snare, rim, clap, hats, toms,
-   crash, ride -- in that order): each a vector of Drum/Rest maps, the
-   whole a par group ready for play. :density thins the hip-hop hats and
-   the ghost notes; :swing delays the off-beat 16ths by up to a 32nd.
-   Every 4th bar ends in a fill whose crash lands on the next downbeat
-   (bar 1's, after the last bar, so the pattern loops). Each hit is
-   ghosted, plain, accented or marcato -- the Drum's :dynamic, an offset
-   on the context's volume; timing and velocity spread come from the
-   :humanization context key.
-
-   (drums :funk 8 0.75 0.2 1)"
+  "A drum-kit groove of :bars bars of 4/4 in :style, as parallel layers, one per kit piece that plays (kick, snare, rim, clap, hats, toms, crash, ride, in that order), each a vector of Drum/Rest maps; the whole is a par group ready for play. :density thins the hip-hop hats and the ghost notes; :swing delays the off-beat 16ths by up to a 32nd. Every 4th bar ends in a fill whose crash lands on the next downbeat (bar 1's after the last bar, so it loops). Each hit is ghosted, plain, accented or marcato (the Drum's :dynamic, an offset on the context's volume); timing and velocity spread come from :humanization.
+     (drums :funk 8 0.75 0.2 1)"
   {:algo {:in [] :out :part
           :params {:style   {:type :keyword :default :rock :choices styles :doc "the groove's style"}
                    :bars    {:type :int :min 1 :max 64 :default 8 :doc "bars of 4/4"}

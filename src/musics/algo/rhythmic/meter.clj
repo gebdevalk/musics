@@ -27,13 +27,8 @@
         layers))
 
 (defn polymeter
-  "Multiple simultaneous meters. meters is a seq of [numerator
-   denominator] time signatures; length is in beats, against a common
-   grid (the LCM of all the denominators). Each output pattern marks 2
-   on the strong (first) beat of its own measure, 1 on other downbeats
-   for compound meters (numerator > 3), 0 elsewhere.
-
-   (polymeter [[3 4] [4 4]] 12)  ;; 3/4 against 4/4"
+  "Simultaneous meters: meters is a seq of [numerator denominator] time signatures, length is in beats on a common grid (the LCM of the denominators). Each pattern marks 2 on the first beat of its own measure, 1 on other downbeats for compound meters (numerator > 3), 0 elsewhere.
+     (polymeter [[3 4] [4 4]] 12)  ;; 3/4 against 4/4"
   [meters length]
   (let [common-denom (num/lcm-multiple (map second meters))]
     (mapv (fn [[num denom]]

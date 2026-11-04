@@ -14,27 +14,10 @@
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
 (defn euclid
-  "Distribute k beats evenly among n pulses (Bjorklund's algorithm).
-
-   (Fixed 2026-09-14: the previous bucket-merging loop's own stopping
-   condition -- 'do ALL remaining buckets already share the minimum
-   length' -- was trivially true on its very first check, since every
-   bucket starts as a length-1 [1] or [0] vector: the loop always
-   exited before a single merge happened, so this silently degenerated
-   to k 1s followed by (n-k) 0s for EVERY input, never actually
-   distributing anything evenly. A real, pre-existing bug, not
-   hypothetical: rhythm_test.clj's own euclidean-test had baked the
-   buggy output straight into its own hardcoded expectations
-   ([1 1 1 0 0 0 0 0] for (euclid 3 8)), so it silently
-   confirmed the bug instead of catching it. Replaced with the
-   standard Bjorklund sequence-merging construction (Toussaint, 'The
-   Euclidean Algorithm Generates Traditional Musical Rhythms'):
-   repeatedly zip the two bucket sequences together pairwise, carrying
-   forward whichever one has leftovers, until the remainder sequence
-   has at most one bucket left. Confirmed live against the canonical
-   tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
-   E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
-   rhythms, not just internally self-consistent."
+  "Distribute k beats evenly among n pulses (Bjorklund's algorithm, Toussaint's \"The Euclidean Algorithm Generates Traditional Musical Rhythms\"). :rotation rotates the onsets.
+     (euclid 3 8) ;=> [1 0 0 1 0 0 1 0]  the tresillo
+     (euclid 2 5) ;=> [1 0 1 0 0]
+     (euclid 5 8) ;=> [1 0 1 1 0 1 1 0]"
   {:algo {:in [] :out :pulse
           :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
                    :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}
@@ -89,13 +72,7 @@
 ;; ── L-System ─────────────────────────────────────────────────
 
 (defn lsys-rhythm
-  "Expand axiom through rules for iterations generations, mapping each
-   character to a 1 (A) or 0 (B, or anything else) pulse, up to length
-   pulses -- zero-padded at the END if the expanded string comes up
-   shorter than length. (Fixed 2026-09-03: the zero-padding used to be
-   concatenated BEFORE the real values, so the final take only ever
-   returned zeros regardless of axiom/rules/iterations -- confirmed
-   live, a real bug, not a hypothetical one.)"
+  "Expand axiom through rules for iterations generations, each character a pulse (A is 1; B or anything else is 0), up to length pulses, zero-padded at the end when the expansion is shorter."
   {:algo {:in [] :out :pulse
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "A"} :doc "character -> replacement; A = onset"}
@@ -112,23 +89,7 @@
 ;; ── Markov ───────────────────────────────────────────────────
 
 (defn markov-rhythm
-  "(2026-09-05: picks its own next-state via musics.algo.numeric.random/markov now,
-   not a hand-rolled cumulative-sum-then-compare loop -- a real,
-   confirmed duplicate of what musics.algo.numeric.random/markov (backed by algo.
-   random.core/rnd-markov) already does for the exact same {state
-   {next-state prob}} transition-table shape, found by a second
-   duplication audit. Genuinely different in one respect, not just
-   textually: the old inline loop compared a raw [0,1) draw directly
-   against transition-matrix's own probabilities with NO normalization,
-   so a state whose own outgoing probs didn't sum to exactly 1.0 (float
-   rounding, or intentionally unnormalized weights) could walk off the
-   end of the transition list and throw a NullPointerException trying
-   to add nil -- confirmed live. musics.algo.numeric.random/markov normalizes by the
-   total first (like weighted-choose), so this is strictly safer, not
-   just shorter, for any transition-matrix that isn't already a perfect
-   probability table -- this was the last unreproducible-randomness site
-   in this file too (draws from musics.algo.numeric.random now, not bare clojure.core
-   rand)."
+  "A pulse pattern from a Markov chain: length steps from initial-state through transition-matrix ({state {next-state probability}}, normalised, so any weights work), each state's output value looked up in states. Draws from musics.algo.numeric.random/markov, so a seed repeats it."
   {:algo {:in [] :out :pulse
           :params {:length            {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :transition-matrix {:type :map :default {"0" {"0" 0.3 "1" 0.7} "1" {"0" 0.6 "1" 0.4}} :doc "state -> {next prob}"}
@@ -161,15 +122,7 @@
 ;; ── Binary Decomposition ────────────────────────────────────
 
 (defn bits
-  "number's own binary digits as a 0/1 onset grid, LSB first (pulse 0 =
-   the 2^0 bit -- Long/toBinaryString's own MSB-first digits, reversed)
-   -- so 13 (binary 1101) becomes [1 0 1 1]. With no length, the grid's
-   own size tracks number directly (as many bits as number needs,
-   unpadded) rather than a fixed width. With length: a SHORT expansion
-   is zero-padded at the end (extra high-order zero bits -- a genuine
-   zero-extension); a LONG one is truncated via (subvec bits 0 length),
-   which keeps the length LOW-order bits and discards the
-   more-significant ones, not the other way around."
+  "A number's binary digits as a 0/1 onset grid, least significant bit first: 13 (1101) is [1 0 1 1]. Without length the grid has as many bits as the number needs. With length, a short expansion is zero-padded at the end and a long one keeps the length low-order bits."
   {:algo {:in [] :out :pulse
           :params {:number {:type :int :min 0 :max ##Inf :default 13 :doc "its bits are the onsets"}
                    :length {:type :int :min 1 :max 64 :default 8 :doc "pulses (zero-padded or cut)"}}}}
@@ -185,13 +138,7 @@
 ;; ── Continued Fraction ──────────────────────────────────────
 
 (defn cfrac
-  "Continued-fraction expansion of fraction, each term contributing (min
-   term 3) pulses of (mod term 2), up to length pulses -- zero-padded
-   at the END if the expansion comes up shorter than length. (Fixed
-   2026-09-03: the zero-padding used to be concatenated BEFORE the real
-   values -- (repeat 0), unbounded -- so the final take only ever
-   returned zeros regardless of fraction/length -- confirmed live, a
-   real bug, not a hypothetical one.)"
+  "The continued-fraction expansion of fraction: each term contributes (min term 3) pulses of value (mod term 2), up to length pulses, zero-padded at the end when the expansion is shorter."
   {:algo {:in [] :out :pulse
           :params {:fraction {:type :double :min 0.0 :max ##Inf :default 3.141592653589793
                               :doc "expanded as a continued fraction"}

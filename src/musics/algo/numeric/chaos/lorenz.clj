@@ -35,38 +35,10 @@
     (add state (scale (add (add k1 (scale k2 2)) (add (scale k3 2) k4)) (/ dt 6)))))
 
 (defn lorenz
-  "The real Edward Lorenz system:
-     dx/dt = sigma*(y - x)
-     dy/dt = x*(rho - z) - y
-     dz/dt = x*y - beta*z
-   These are continuous ODEs, not a discrete map like musics.algo.numeric.random.
-   logistic/logistic-function -- :value has to numerically integrate
-   forward by dt each call, not just apply one algebraic step, so this
-   uses classical 4th-order Runge-Kutta at a fixed dt (default 0.01,
-   matching a typical from-scratch setup for this system -- e.g. 5000
-   steps to cover t in [0, 50]).
-
-   Returns a map of three closures sharing private params/state atoms:
-   :value (0-arg -- advances one RK4 step of dt and returns the new
-   [x y z] -- a 3-vector, NOT a single scalar the way logistic-
-   function's own :value is), :params! (merges into {:sigma :rho
-   :beta} -- pass a partial map to change only some of them), :state!
-   (resets [x y z] directly, without advancing).
-
-   sigma/rho/beta default to 10.0/28.0/(8.0/3.0) -- Lorenz's own
-   canonical parameters, the classic two-winged 'butterfly' attractor;
-   x0/y0/z0 default to [1.0 1.0 1.0]. Confirmed live, not assumed: RK4
-   at these defaults stays bounded and keeps visibly moving (no fixed
-   point, no ##Inf/##NaN) over hundreds of steps.
-
-   (def lz (lorenz))
-   ((:value lz))  ;; advance one integration step, get the next [x y z]
-
-   Typical musical use: pick one axis per musical parameter, e.g.
-   (let [[x y z] ((:value lz))] ...) -- x/y range roughly -20..20 and z
-   roughly 0..50 at the classic parameters (not 0..1 the way
-   logistic's output is), so scale/clamp before using one
-   directly as a pitch/velocity/duration."
+  "The Lorenz system, dx/dt = sigma*(y - x), dy/dt = x*(rho - z) - y, dz/dt = x*y - beta*z, integrated by fourth-order Runge-Kutta at a fixed dt (default 0.01). sigma, rho and beta default to 10, 28 and 8/3 (the two-winged butterfly); x0, y0, z0 to [1 1 1].
+   Returns {:value :params! :state!}: :value advances one step and returns the new [x y z] (a 3-vector), :params! merges a partial {:sigma :rho :beta}, :state! resets [x y z] without advancing. At the defaults x and y range about -20..20 and z 0..50, so scale before using one as a pitch, velocity or duration.
+     (def lz (lorenz))
+     ((:value lz))  ;; the next [x y z]"
   {:algo {:pull {:via :value} :in [] :out :point :arity 7
           :params {:sigma {:type :double :min 0.0 :max 50.0 :default 10.0 :doc "classic 10"}
                    :rho   {:type :double :min 0.0 :max 100.0 :default 28.0 :doc "classic 28"}

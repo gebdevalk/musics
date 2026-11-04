@@ -32,16 +32,7 @@
 (defn- type-term [ty] (if (= :any ty) (lvar) ty))
 
 (defn- fresh-types
-  "[ins out] for one use of entry: fresh variables for :any inputs,
-   :same tied to the first input -- so two uses of one algo are typed
-   apart. An :any output is a variable too (musics.algo.tree/fits? lets it
-   fill any slot), except when strict: then it stays :any and fills
-   only an open slot -- searches use that, or every answer would be
-   'an algo that gives anything'.
-
-   A join (zip) takes n children of any part and gives what they make
-   (musics.algo.tree checks it when built); a search, strict, takes it
-   as registered, durations and pitches into leaves."
+  "[ins out] for one use of entry, with fresh type variables for :any inputs and :same tied to the first input, so two uses of one algo are typed apart. An :any output is a variable too (musics.algo.tree/fits? lets it fill any slot); strict, it stays :any and fills only an open slot -- searches use that. A join (zip) takes n children of any part; strict, it is taken as registered, durations and pitches into leaves."
   ([e] (fresh-types e false))
   ([e strict?] (fresh-types e strict? nil))
   ([{:keys [in out join]} strict? n]

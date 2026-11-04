@@ -79,10 +79,7 @@
        (mapv #(if (even? %) 1 0) (range matras))))))
 
 (defn konnakol
-  "South Indian vocal-percussion syllables for pattern (a binary rhythm,
-   default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\"
-   \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the ON beats, in order;
-   OFF beats become \"-\"."
+  "South Indian vocal-percussion syllables for pattern (a binary rhythm; default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\" \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the on beats in order, off beats are \"-\"."
   {:algo {:in [:pulse] :out :stroke :arity 2 :children [:pattern]
           :params {:syllables {:type :vector :default ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] :doc "sung on the onsets, in turn"}}}}
   ([] (konnakol ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] [1 0 1 0 1 1 0 1]))
@@ -135,12 +132,7 @@
     (mapv #(if (zero? (mod % (quot length 2))) 1 0) (range length))]))
 
 (defn african
-  "layers interlocking rhythmic patterns of base-length pulses each: the
-   first four layers use the classic African polyrhythm ratios 3:2,
-   4:3, 5:4, 7:4 (num beats evenly spaced across base-length); any
-   further layer gets a random ratio (2-7 : 2-7). Each layer also has a
-   ~50% chance, independently at each of its own secondary beat
-   positions, of adding an extra beat halfway to the next primary one."
+  "layers interlocking patterns of base-length pulses each: the first four layers use the classic ratios 3:2, 4:3, 5:4 and 7:4 (that many beats evenly spaced over base-length), any further layer a random ratio (2-7 : 2-7). At each secondary beat position a layer has a 50% chance of an extra beat halfway to the next primary beat."
   {:algo {:in [] :out :layer :arity 2
           :params {:layers      {:type :int :min 1 :max 8 :default 3 :doc "layers (3:2 4:3 5:4 7:4, then random)"}
                    :base-length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
@@ -161,11 +153,7 @@
            (range layers)))))
 
 (defn djembe-pattern
-  "Djembe stroke sequence for technique \"basic\" (a fixed 8-stroke
-   bass/tone/slap pattern, 0.5s apart), \"solo\" (length random strokes
-   at 0.25s apart with a 4-beat accent cycle), or \"accompaniment\" (the
-   default fallback -- a steady bass/tone alternation, 0.5s apart).
-   Each event is {:time :stroke :accent}."
+  "A djembe stroke sequence for technique \"basic\" (a fixed 8-stroke bass/tone/slap pattern, 0.5 s apart), \"solo\" (length random strokes 0.25 s apart with a 4-beat accent cycle) or \"accompaniment\" (the default: a steady bass/tone alternation, 0.5 s apart). Each event is {:time :stroke :accent}."
   ([] (djembe-pattern "basic" 8))
   ([technique length]
    (case technique

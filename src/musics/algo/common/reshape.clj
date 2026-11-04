@@ -16,14 +16,7 @@
   (:require [musics.domain :as d]))
 
 (defn invert
-  "Sequence-level convenience over musics.domain/invert: mirrors
-   every part in parts around one shared axis pitch, rather than each part
-   inverting around its own individual mean. With axis given, this is
-   exactly (mapv (d/invert axis) parts). With no axis, the axis used is
-   the rounded mean of every pitch across the WHOLE sequence, so the
-   sequence folds around its own overall center as one shape -- distinct
-   from d/invert's own no-arg form, which means each part around only its
-   own pitches."
+  "Mirror every part around one shared axis pitch: axis if given, else the rounded mean of all pitches in the sequence. With axis this is (mapv (d/invert axis) parts); d/invert without one inverts each part around its own mean."
   ([parts]
    (let [pitches (mapcat :pitches parts)
          mean    (Math/round (double (/ (reduce + pitches) (count pitches))))]
@@ -32,21 +25,12 @@
    (mapv (d/invert axis) parts)))
 
 (defn retrograde
-  "Reverse a sequence of parts -- the classical retrograde transform, same
-   idea as musics.domain.context/env-reverse but applied to a sequence of
-   parts rather than a single envelope. Doesn't adjust :tied flags -- a
-   tie into what's now the previous note isn't un-tied or re-anchored,
-   so a phrase with ties may not retrograde cleanly on its own."
+  "Reverse a sequence of parts. :tied flags are not adjusted, so a phrase with ties may not retrograde cleanly."
   [parts]
   (vec (reverse parts)))
 
 (defn arpeggiate
-  "Split a chord leaf's simultaneous pitches into a sequence of single-
-   note leaves, splitting the original duration evenly across them --
-   turns a chord into a run. Pitches are sorted ascending by default;
-   pass order-fn (e.g. (comp reverse sort) for descending) to change the
-   order. A no-op (returns [leaf]) for a leaf with fewer than 2 pitches,
-   or any part with no :pitches at all (rest/drum/container)."
+  "Split a chord leaf into single-note leaves, its duration divided evenly: a chord becomes a run. Pitches are sorted ascending; order-fn (e.g. (comp reverse sort)) changes that. A leaf with fewer than 2 pitches, or any part without :pitches, comes back as [part]."
   ([leaf] (arpeggiate leaf sort))
   ([leaf order-fn]
    (let [pitches (order-fn (:pitches leaf))
@@ -66,33 +50,7 @@
   (apply interleave parts-seqs))
 
 (defn weighted-shuffle
-  "Shuffle parts by repeatedly drawing the NEXT output element from
-   whatever's still remaining, at index (dist-fn 0 n) -- n the CURRENT
-   remaining count, floored and clamped into [0, n-1] -- rather than
-   assigning each element an independent sort key. That more obvious-
-   looking construction was tried first and rejected once actually
-   checked: ranks of i.i.d. continuous draws are uniform over
-   permutations no matter their marginal distribution, so 'sort by an
-   independent draw per element' silently makes dist-fn's own shape
-   irrelevant to the result -- confirmed with a live probe (a 20000-
-   trial average-displacement comparison) before writing this, not
-   just reasoned about; uniform and musics.algo.numeric.random/lo-emph came back
-   statistically indistinguishable (1.9456 vs 1.9395) under that
-   construction.
-
-   This one actually responds to dist-fn's shape, confirmed the same
-   way: with dist-fn = musics.algo.numeric.random/uniform, draws are unbiased over the
-   remaining pool at every step -- pick-random-without-replacement,
-   which reduces to the SAME permutation distribution plain Fisher-
-   Yates/clojure.core/shuffle produces (1.9422 vs 1.9449 in the same
-   probe -- confirmed, not assumed). With musics.algo.numeric.random/lo-emph (peaked
-   toward the LOW end of a range), draws cluster near 0 -- i.e. near
-   the FRONT of whatever's still remaining -- so elements tend to keep
-   close to their ORIGINAL relative order: a weaker, order-preserving
-   shuffle (1.2626 average displacement vs uniform's 1.9422 in the same
-   n=6 probe). hi-emph is the mirror image, biased toward picking from
-   near the END of what's remaining each step -- a stronger, more
-   reversal-leaning reorder."
+  "Shuffle parts by repeatedly drawing the next element from those remaining, at index (dist-fn 0 n) floored into [0, n-1], n the remaining count. dist-fn's shape matters: uniform gives the plain permutation distribution, lo-emph keeps elements near their original order (a weaker shuffle), hi-emph leans towards reversal."
   [parts dist-fn]
   (loop [remaining (vec parts) result []]
     (if (empty? remaining)

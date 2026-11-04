@@ -135,13 +135,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn polations
-  "The fully general form -- infra/inter/ultra are each independently
-   optional (nil or empty disables that layer): for each principal tone
-   p, in order, emit infra (if any), then p itself, then ultra (if any,
-   unless p is the LAST tone and ultra-after-last? is false), then inter
-   (if any, but never after the last tone -- there's nothing left to
-   interpolate TOWARD). Slonimsky's own 'most flexible general function,'
-   ported verbatim from the source email's own mixed_polations."
+  "The general form of infra, inter and ultra, each optional (nil or empty switches it off): for each principal tone p in order, emit infra, then p, then ultra (after the last tone only when ultra-after-last? is true), then inter (never after the last tone). Slonimsky's most flexible general function."
   {:algo {:in [:pitch] :out :pitch :arity 5
           :params {:infra {:type :vector :default [] :doc "before each tone"}
                    :inter {:type :vector :default [] :doc "between tones"}

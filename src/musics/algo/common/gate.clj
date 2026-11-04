@@ -36,34 +36,9 @@
                            {:given on-reject}))))
 
 (defn gate
-  "Gate parts (a seq of Leaf/Rest/Drum/container/etc -- the same shape
-   a wall-fn always receives) by select-fn, deciding per-Leaf what
-   happens to a rejected one via on-reject. Non-Leaf parts (Rest/Drum/
-   container/Bar/:assignment/etc.) always pass through untouched and
-   never affect raw-prev/last-sounding.
-
-   select-fn: (part raw-prev) -> boolean. raw-prev is the immediately
-   PRECEDING Leaf in the ORIGINAL sequence -- kept or not, nil at the
-   very start -- matching the classic isorhythmic-style 'interval from
-   the previous note' semantics: a rejected note still counts as 'the
-   previous one' for the NEXT note's own check, same zip-over-raw-
-   sequence idea musics.algo.common.isorhythm/color-talea's own docstring
-   describes for a different pairing.
-
-   on-reject: :remove (drop -- the result can be shorter than parts),
-   :rest (replace with a Rest of the same :id/:context/:duration),
-   :hold (replace with a NEW Leaf at whatever part actually SOUNDS
-   immediately before this one in the OUTPUT -- last-sounding, itself
-   possibly an earlier :hold-tied note, so a run of rejected notes
-   chains correctly back to the same real pitch -- :tied true, same
-   duration; falls back to :rest if nothing has sounded yet), or a
-   custom (part last-sounding) -> replacement-or-nil fn for anything
-   else. last-sounding is DELIBERATELY a separate notion from raw-prev:
-   raw-prev tracks the ORIGINAL sequence for select-fn's own criterion
-   (unaffected by what gets kept/replaced), last-sounding tracks
-   what an OUTPUT consumer would actually hear right before this note
-   (needed for :hold to tie to the right pitch, and correctly chain
-   through consecutive rejections)."
+  "Pass each Leaf of parts through select-fn; on-reject says what becomes of a rejected one. Non-Leaf parts (Rest, Drum, container, Bar, :assignment) pass untouched.
+   select-fn: (part raw-prev) -> boolean. raw-prev is the Leaf just before in the original sequence, kept or not (nil at the start).
+   on-reject: :remove (drop it), :rest (a Rest of the same duration), :hold (a tied Leaf on the pitch last heard in the output, a Rest if none has sounded), or a custom (part last-sounding) -> replacement-or-nil fn."
   [select-fn on-reject parts]
   (let [act (on-reject-fn on-reject)]
     (loop [remaining (seq parts) raw-prev nil last-sounding nil out []]
@@ -121,10 +96,6 @@
       (or (nil? raw-prev) (contains? allowed (- (pitch-of part) (pitch-of raw-prev)))))))
 
 (defn probability-criterion
-  "Keep each note with probability p (a Bernoulli coin flip per note,
-   independent of pitch and of raw-prev). Draws from musics.algo.numeric.random now
-   (2026-09-05), not bare clojure.core rand -- the
-   last non-reproducible randomness site in this file, against every
-   OTHER criterion here already being pure (no randomness at all)."
+  "Keep each note with probability p, independently of pitch and of raw-prev. Draws from musics.algo.numeric.random, so a seed repeats it."
   [p]
   (fn [_part _raw-prev] (< (rand/rand-double) p)))

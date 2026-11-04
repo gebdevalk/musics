@@ -50,12 +50,7 @@
   (reduce * 1 (subvec (vec subdivisions) start stop)))
 
 (defn- indispensability-at
-  "Indispensability of pulse n (any integer, reduced mod Q) in a cycle
-   built from subdivisions (an ordered factor sequence, e.g. [2 2 3]),
-   Q = product of subdivisions. Recombines each level's own base-table
-   rank (via indispensability-digit-fn) using the same place-value
-   structure as the pulse index itself, so the result is guaranteed a
-   permutation of 0..Q-1 with the downbeat (n=0) always mapping to Q-1."
+  "The indispensability of pulse n (any integer, reduced mod Q) in a cycle of subdivisions (an ordered factor sequence, e.g. [2 2 3]), Q their product. Each level's base-table rank (indispensability-digit-fn) is recombined by the place values of the pulse index, so the ranks are a permutation of 0..Q-1 with the downbeat (n=0) at Q-1."
   [n Q subdivisions]
   (let [n (rem n Q)
         q (count subdivisions)
@@ -98,17 +93,7 @@
     (mapv #(/ % mx) weights)))
 
 (defn normalized-indispensability
-  "indispensability + normalize-weights in one step: subdivisions ->
-   raw integer ranks -> normalized [0,1] floats. The natural starting
-   point for chaining ordinary seq transforms on top -- reverse,
-   musics.algo.numeric.random/shuffle, musics.algo.common.rotate/rotate (a 'shift'), or
-   anything else -- before finally handing the result to
-   musics.algo.common.pulse/grid->pulses (any weighted range, not just 0/1) or
-   density-grid (for a thinned binary grid). Plain data in, plain
-   vector out -- normalize-weights doesn't care whether its input came
-   straight from indispensability or was already reshaped by something
-   else first, so this is just the common case pre-wired, not a new
-   mechanism of its own.
+  "indispensability and normalize-weights in one step: subdivisions -> ranks as [0,1] floats. The starting point for chaining ordinary seq transforms (reverse, shuffle, rotate) before grid->pulses (any weighted range) or density-grid (a thinned binary grid).
      (-> (normalized-indispensability [2 2 3])
          reverse
          (musics.algo.common.rotate/rotate 3)
@@ -123,24 +108,7 @@
 (def ^:private tie-break-phi (* 1e-6 (/ (+ 1 (Math/sqrt 5)) 2)))
 
 (defn tilt
-  "Softmax over a vector of indispensability ranks (or any weights),
-   temperature-scaled by adherence -- higher adherence pushes probability
-   mass toward the more indispensable (higher-ranked) pulses more
-   sharply. Never produces an exact tie, even at adherence=0 (where a
-   plain softmax would collapse every pulse to identical probability,
-   since every exponent becomes exp(0)=1): a tiny, IRRATIONAL,
-   POSITION-based term (tie-break-phi * i, i the pulse's own index) is
-   added INSIDE the exponent, deliberately outside adherence's own
-   scaling, so it survives no matter what adherence is. At adherence=0
-   only that term is left, still strictly increasing in position --
-   never flat. Being irrational, two pulses can only ever tie at an
-   irrational value of adherence, practically unreachable by any real
-   input -- see doc/md/decisions.md's 2026-09-06 entry. Weights are
-   normalized to [0,1] by their own max first (not indispensability's
-   own job -- see its docstring -- since its raw ranks must stay an
-   exact, reference-table-verified 0..N-1 permutation), so the same
-   adherence value means the same thing regardless of how many pulses
-   the meter has."
+  "Softmax over indispensability ranks (or any weights), temperature-scaled by adherence: higher adherence pushes probability towards the more indispensable pulses. Weights are first normalised to [0,1] by their max, so an adherence means the same for any meter. No two pulses tie, even at adherence 0: a tiny irrational position term (tie-break-phi * i) is added inside the exponent, outside adherence's scaling, so at 0 the probabilities still rise with position."
   {:algo {:in [:weight] :out :weight
           :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
                                :doc "how strongly rank predicts sounding (negative inverts)"}}}}
@@ -159,32 +127,7 @@
 (def ^:private power-law-max-exponent 8.0)
 
 (defn power
-  "Power-law reshaping over a vector of indispensability ranks (or any
-   weights): raises normalized weights to an exponent driven by
-   adherence, always ORDER-PRESERVING (or, for negative adherence,
-   order-REVERSING) -- unlike tilt-probabilities' softmax, this never
-   re-ranks anything by blending; it only changes how steeply
-   probability mass falls off between the existing strong/weak
-   positions.
-
-   adherence >= 0 exponentiates the normalized weight directly (steepens
-   toward the MORE indispensable positions as adherence -> 1);
-   adherence < 0 exponentiates its COMPLEMENT, (1 - normalized weight),
-   instead (steepens toward the LESS indispensable positions as
-   adherence -> -1 -- a genuine continuous inversion, not just a flatten-
-   toward-uniform). Both branches agree exactly at adherence=0 (exponent
-   1, so weight = the raw normalized rank itself, distinct for every
-   pulse -- no collapse, and no irrational tie-break hack needed here,
-   unlike tilt-probabilities: an exponent of exactly 0 is the only value
-   that could ever tie two distinct positive bases together, and this
-   fn's exponent never goes below 1).
-
-   A genuinely different consequence from tilt-probabilities, not just a
-   different curve shape: exp(anything) is always > 0, so softmax never
-   assigns a pulse literal zero probability, however extreme adherence
-   gets -- power-law does, for whichever position's own base is exactly
-   0 (the least-indispensable pulse when adherence >= 0, the downbeat
-   itself when adherence < 0), at every adherence including 0."
+  "Power-law reshaping of indispensability ranks (or any weights): the normalised weight raised to an exponent driven by adherence. It never re-ranks: adherence >= 0 steepens towards the more indispensable positions as it approaches 1; adherence < 0 raises the complement (1 - weight) and steepens towards the less indispensable ones, a continuous inversion. At 0 the weight is the normalised rank itself, distinct for every pulse. Unlike tilt, which never gives a probability of exactly 0, power gives 0 to the position whose base is 0: the least indispensable pulse when adherence >= 0, the downbeat when < 0."
   {:algo {:in [:weight] :out :weight
           :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
                                :doc "how strongly rank predicts sounding (negative inverts)"}}}}
@@ -197,15 +140,7 @@
     (mapv #(/ % total) weights)))
 
 (defn density-grid
-  "Binary onset grid (1=keep, 0=silent), retaining exactly the
-   (Math/round (* (count ranks) density)) most indispensable positions
-   -- deterministic, the SAME subset every call for a given ranks/
-   density pair (a fixed metric 'skeleton' thinning, not a per-call
-   random draw -- ties broken by original position order, via a stable
-   sort). The tree algo is musics.algo.bridge/weights->pulses. ranks: indispensability ranks (or any weights, same
-   generality as tilt-probabilities); density: 0.0-1.0, fraction of
-   pulses to keep. Feeds musics.algo.common.pulse/grid->pulses directly, same
-   as any other binary rhythm-generator grid."
+  "A binary onset grid (1 keep, 0 silent) keeping exactly (Math/round (* (count ranks) density)) of the most indispensable positions: deterministic, the same subset on every call, ties broken by position. ranks: indispensability ranks or any weights; density: 0.0-1.0, the fraction of pulses kept. Feeds grid->pulses like any binary grid. The tree algo is musics.algo.bridge/weights->pulses."
   [ranks density]
   (let [n    (count ranks)
         k    (Math/round (* n (double density)))

@@ -56,11 +56,7 @@
            (mapv #(if (> % threshold) 1 0) data)))))))
 
 (defn trend-rhythm
-  "Rhythm from price trends: for each price at or past lookback, compare
-   it to the simple moving average of the previous lookback prices --
-   2 (strong beat) if more than 2% above the SMA, 1 (weak beat) if
-   above it, -1 (a rest/silence marker) if more than 2% below it, 0
-   otherwise. The first lookback positions are always 0 (no SMA yet)."
+  "Rhythm from price trends: each price at or past lookback is compared with the simple moving average of the previous lookback prices: 2 (strong beat) when more than 2% above it, 1 (weak beat) when above, -1 (a rest) when more than 2% below, 0 otherwise. The first lookback positions are 0."
   {:algo {:in [:number] :out :weight :arity 2
           :params {:lookback {:type :int :min 1 :max 64 :default 5 :doc "moving-average window"}}}}
   ([prices] (trend-rhythm prices 5))
@@ -95,14 +91,7 @@
     (if (zero? total) 1 total)))
 
 (defn text-rhythm
-  "Rhythmic pattern from text's own linguistic structure. mode
-   \"syllables\" (default): each word contributes a beat on its first
-   syllable, rests for the rest. \"words\": each word contributes one
-   beat, strong (2) if longer than 7 characters, weak (1) otherwise.
-   \"stress\": single-syllable words get a beat; multi-syllable words
-   alternate stressed/unstressed starting on the stress. Any sentence-
-   ending punctuation (. ! ?) anywhere in text appends one trailing
-   rest."
+  "A rhythm from the structure of text. mode \"syllables\" (default): each word beats on its first syllable and rests for the rest. \"words\": one beat per word, strong (2) if longer than 7 characters, else weak (1). \"stress\": single-syllable words beat; longer words alternate stressed and unstressed, starting on the stress. Sentence-ending punctuation (. ! ?) anywhere in text adds one trailing rest."
   {:algo {:in [] :out :weight :arity 2
           :params {:text {:type :string :default "Hello world this is rhythm." :doc "the text"}
                    :mode {:type :string :default "syllables" :choices ["syllables" "words" "stress"] :doc "what makes an onset"}}}}

@@ -209,12 +209,7 @@
             combined positions)))
 
 (defn rhythmic-tiling
-  "Try to tile length positions with copies of pattern-a and pattern-b
-   laid end-to-end (each repeated from position 0 as many times as
-   fits). Returns [combined tiling?] -- combined is the resulting
-   binary pattern (0 wherever nothing landed, regardless of whether a
-   real overlap-free tiling was achieved), tiling? is true only if the
-   two patterns cover every position exactly once with no overlap."
+  "Try to tile length positions with pattern-a and pattern-b, each repeated from position 0 as often as fits. Returns [combined tiling?]: combined is the binary pattern (0 where nothing landed), tiling? is true only when the two cover every position exactly once without overlap."
   [pattern-a pattern-b length]
   (let [after-a (place-tiles (vec (repeat length 0)) pattern-a length)]
     (if (= after-a ::overlap)
@@ -233,11 +228,7 @@
   (first (rhythmic-tiling pattern-a pattern-b length)))
 
 (defn vuza-canon
-  "Candidate Vuza canon pairs for length n: for every divisor pair
-   (a-len, b-len = n/a-len), a simple single-beat pattern of each
-   length that tiles n with no overlap. A simplified search (real Vuza
-   canon generation is a much harder combinatorial problem) -- may
-   return an empty list for many n, same as the reference this ports."
+  "Candidate Vuza canon pairs for length n: for each divisor pair (a-len, b-len = n/a-len), a single-beat pattern of each length that tiles n without overlap. A simplified search (real Vuza canons are a much harder combinatorial problem), so it may return an empty list for many n."
   [n]
   (let [divisors (filter #(zero? (mod n %)) (range 1 n))]
     (reduce (fn [candidates a-len]

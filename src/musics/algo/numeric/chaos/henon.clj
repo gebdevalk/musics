@@ -17,36 +17,10 @@
   [(+ 1 (- (* a x x)) y) (* b x)])
 
 (defn henon
-  "The classical Hénon map:
-     x' = 1 - a*x^2 + y
-     y' = b*x
-   A discrete 2D chaotic system -- unlike lorenz's own
-   continuous ODEs, no numerical integration is needed here, :value
-   just applies one algebraic step per call, same shape as musics.algo.numeric.random.
-   logistic/logistic-function's own :value, but iterating a 2D point
-   instead of a 1D one.
-
-   Returns a map of three closures sharing private params/state atoms:
-   :value (0-arg -- advances one step and returns the new [x y] --
-   a 2-vector, NOT a single scalar), :params! (merges into {:a :b} --
-   pass a partial map to change only one), :state! (resets [x y]
-   directly, without advancing).
-
-   a/b default to 1.4/0.3 -- Hénon's own canonical parameters, the
-   classic chaotic regime (other values readily converge to a fixed
-   point or diverge -- these are the values actually worth using, same
-   caution logistic's own docstring already gives for its own
-   r parameter); x0/y0 default to 0.1/0.1. Confirmed live, not assumed:
-   at these defaults, x stays bounded within roughly [-1.28, 1.27]
-   (never NaN/Inf) and keeps visibly moving -- 100 distinct values
-   across 100 consecutive steps, no fixed point -- over 500 steps.
-
-   (def hn (henon))
-   ((:value hn))  ;; advance one step, get the next [x y]
-
-   Typical musical use: x is the one usually mapped to a musical
-   parameter (y is a simple scaled memory of x's own previous value,
-   b*x, less independently interesting on its own)."
+  "The Hénon map: x' = 1 - a*x^2 + y, y' = b*x, one algebraic step per call. a and b default to 1.4 and 0.3, the classic chaotic regime (other values often settle to a fixed point or diverge); x0 and y0 to 0.1.
+   Returns {:value :params! :state!}: :value advances one step and returns the new [x y] (a 2-vector), :params! merges a partial {:a :b}, :state! resets [x y] without advancing. x is the one usually mapped to a musical parameter.
+     (def hn (henon))
+     ((:value hn))  ;; the next [x y]"
   {:algo {:pull {:via :value} :in [] :out :point :arity 4
           :params {:a  {:type :double :min 0.0 :max 2.0 :default 1.4 :doc "chaotic at 1.4"}
                    :b  {:type :double :min 0.0 :max 1.0 :default 0.3 :doc "chaotic at 0.3"}

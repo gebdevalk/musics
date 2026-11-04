@@ -10,16 +10,7 @@
 
 
 (defn cyclic
-  "Returns a function that yields random items from coll, reshuffling
-   after exhausting all items. Perfect for arpeggios or drum fills.
-
-   (Fixed 2026-09-12: the exhaustion check and reset used to run against
-   locals destructured BEFORE the reset, so at the exhaustion boundary
-   the actual item lookup used the stale, pre-reset pool at an
-   out-of-bounds index -- silently returning nil instead of a real item.
-   The reset, lookup, and index increment now all happen inside one
-   atomic swap!, so the item is always read from whichever pool is
-   actually current.)"
+  "A function that yields random items from coll, reshuffling after all have been used. For arpeggios or drum fills."
   {:algo {:pull {} :in [:any] :out :same}}
   [coll]
   (let [state (atom {:pool (shuffle coll) :idx 0})]
@@ -69,12 +60,7 @@
 
 
 (defn pink
-  "Pink (1/f) noise between lo and hi, by Voss's dice.
-   Returns a function, Voss's algorithm as Dodge & Jerse give it (8.1): `dice` dice, the
-   k-th rolled again whenever bit k of a counter changes, the value
-   their sum scaled to [lo hi). The first die changes every call, the
-   last seldom, so it wanders like a walk yet stays in its range:
-   between white noise (uniform) and brown (walk)."
+  "Pink (1/f) noise between lo and hi: returns a function (Voss's dice, Dodge & Jerse 8.1) that rolls `dice` dice, the k-th again whenever bit k of a counter changes, and gives their sum scaled to [lo hi). It wanders like a walk yet stays in range: between white noise (uniform) and brown (a walk)."
   {:algo {:pull {} :in [] :out :number
           :params {:dice {:type :int :min 1 :max 16 :default 5 :doc "dice: more is slower to change"}
                    :lo   lo
@@ -109,17 +95,7 @@
 
 
 (defn glide
-  "Returns a function that moves toward a target each call with inertia.
-   inertia=0 → snaps to target, inertia=1 → ignores target.
-   Perfect for portamento or filter envelope following.
-   (Fixed 2026-09-03: the step-toward-target multiplier used to be
-   `inertia` directly, which inverted the documented meaning -- at
-   inertia=0 it stayed put (ignoring the target), at inertia=1 it
-   jumped straight to the target (snapping) -- exactly backwards from
-   both this docstring and the conventional physical sense of
-   'inertia' (high inertia resists change, moves slowly). Confirmed
-   live before fixing: (glide 0.0 0 0.0) toward target 10 stayed
-   at 0.0; (glide 0.0 1 0.0) toward target 10 jumped to 10.0."
+  "A function that moves towards a target on each call, with inertia: inertia 0 snaps to the target, 1 ignores it. For portamento or following a filter envelope."
   {:algo {:pull {:args [:target]} :in [] :out :number
           :params {:initial (assoc num-spec :default 60.0 :doc "first value")
                    :inertia (assoc unit-spec :default 0.8 :doc "0 = snaps to target, 1 = ignores it")
@@ -136,24 +112,9 @@
 
 
 (defn smooth-noise
-  "Build a smooth, continuous noise curve over [0, n-1] from n randomly
-   seeded lattice points, blended with Perlin's own quintic ease
-   (6t^5 - 15t^4 + 10t^3, zero first AND second derivative at each
-   lattice point) so consecutive segments meet with no visible seam --
-   value noise, not true gradient/Perlin noise, but plenty smooth for
-   parameter automation. Unlike walk/biased-walk, the result is
-   a pure function of t: call it with ANY real t in range, in any
-   order, as many times as you like, and it always returns the same
-   value -- the same way any other context envelope gets sampled at a
-   structural time, not \"give me the next tick.\" t outside [0, n-1]
-   clamps to the nearest end rather than extrapolating or wrapping.
-
-   ((smooth-noise 8) 3.5)        ;; this curve's value 3.5 steps in
-   ((smooth-noise 8 20 80) 0)    ;; ranged to e.g. MIDI velocity 20-80
-
-   To turn it into a \"just give me the next value\" generator instead
-   of tracking t yourself, wrap it: (let [t (atom 0.0) curve (smooth-noise 8)]
-   (fn [] (let [v (curve @t)] (swap! t + 0.1) v)))."
+  "A smooth continuous noise curve over [0, n-1] from n random lattice points, blended with Perlin's quintic ease (6t^5 - 15t^4 + 10t^3) so segments meet without a seam: value noise, smooth enough for parameter automation. Unlike walk and biased-walk the curve is a pure function of t: any real t in range, in any order, gives the same value; t outside clamps to the nearest end.
+     ((smooth-noise 8) 3.5)        ;; the curve 3.5 steps in
+     ((smooth-noise 8 20 80) 0)    ;; ranged to e.g. MIDI velocity 20-80"
   ([n] (smooth-noise n 0.0 1.0))
   ([n lo hi]
    {:pre [(pos? n)]}

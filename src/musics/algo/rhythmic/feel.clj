@@ -61,12 +61,7 @@
         vec)))
 
 (defn pocket-groove
-  "A \"pocket\" (laid-back) groove from base-pattern: each 1 becomes an
-   event delayed by pocket-depth seconds, scaled up progressively for
-   later beats within each 4-beat bar (pocket-factor = 1 + 0.2*beat-in-
-   bar), carrying an accent value from accent-pattern (default: 1 on
-   every 4th beat, 0.5 elsewhere). Assumes 16th notes at 120 BPM (0.25s
-   grid). Returns a seq of {:time :accent :beat-position} maps."
+  "A laid-back \"pocket\" groove from base-pattern: each 1 becomes an event delayed by pocket-depth seconds, scaled up for later beats in each 4-beat bar (factor 1 + 0.2*beat-in-bar), with an accent from accent-pattern (default 1 on every 4th beat, 0.5 elsewhere). Assumes 16th notes at 120 BPM (a 0.25 s grid). Returns {:time :accent :beat-position} maps."
   ([base-pattern] (pocket-groove base-pattern 0.05 nil))
   ([base-pattern pocket-depth accent-pattern]
    (let [n (count base-pattern)
@@ -118,21 +113,7 @@
 ;; two genuinely distinct concerns (2026-09-05).
 
 (defn emi
-  "Vary pattern in the style of David Cope's EMI: independently, for
-   each position, with probability (1 - similarity) apply a random
-   mutation (flip this bit, swap it with the next, insert a random bit
-   here, or delete this position). similarity close to 1.0 stays close
-   to the original; close to 0.0 varies heavily. The result is then
-   clamped back to within [half, double] the original length.
-
-   The reference this ports iterates a FIXED number of times (the
-   ORIGINAL pattern length, captured once via Python's `range(len(...))`
-   before the loop starts) while insert/delete keep resizing the
-   working list underneath it -- confirmed live, this throws IndexError
-   in ~27% of runs at similarity=0.3, a genuine bug, not a quirk worth
-   reproducing. This port instead re-checks the CURRENT length before
-   every step, so it always terminates cleanly regardless of how many
-   inserts/deletes have happened so far."
+  "Vary pattern in the style of David Cope's EMI: at each position, with probability (1 - similarity), apply a random mutation (flip this bit, swap it with the next, insert a random bit, or delete this position). similarity near 1.0 stays close to the original, near 0.0 varies heavily. The result is clamped to [half, double] the original length."
   {:algo {:in [:pulse] :out :pulse :arity 2
           :params {:similarity {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "1 = unchanged"}}}}
   ([pattern] (emi pattern 0.7))

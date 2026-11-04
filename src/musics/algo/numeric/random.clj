@@ -49,15 +49,9 @@
 
 
 (defn weighted-choose
-  "Returns an element from vals with probability proportional to its
-   corresponding weight in weights. Weights need not sum to 1 -- they're
-   normalized against their own total, so raw/unnormalized weights (e.g.
-   Markov transition counts) work directly. It's also possible to pass a
-   single map of val -> weight as a param. Drawn from an RNG atom
-   (default-rng if omitted).
-
-   (weighted-choose [1 2 3 4] [3 2 1 1])
-   (weighted-choose {1 3, 2 2, 3 1, 4 1})"
+  "An element of vals chosen with probability proportional to its weight in weights; weights need not sum to 1 (raw Markov counts work). Also takes one map of val -> weight. Drawn from an RNG atom (default-rng if omitted).
+     (weighted-choose [1 2 3 4] [3 2 1 1])
+     (weighted-choose {1 3, 2 2, 3 1, 4 1})"
   ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
   ([vals weights] (weighted-choose default-rng vals weights))
   ([rng-atom vals weights] (step! rng-atom rnd-weighted (vec vals) (vec weights))))
@@ -141,13 +135,7 @@
 
 
 (defn chi-square
-  "Chi-square distribution with dof degrees of freedom -- a special case
-   of gamma (shape = dof/2, scale = 2). Always positive, skewed
-   right, with the spread growing as dof grows. Mainly a building block
-   here (student-t is defined in terms of it) rather than something
-   reached for directly, but usable on its own for a value that should
-   skew toward small/positive with a long right tail. dof must be
-   positive."
+  "Chi-square distribution with dof degrees of freedom, a gamma with shape dof/2 and scale 2: positive, skewed right, the spread growing with dof. student-t is built on it. dof must be positive."
   {:algo (sampler {:dof dof})}
   [dof]
   {:pre [(pos? dof)]}
@@ -163,14 +151,7 @@
 
 
 (defn weibull
-  "Weibull distribution -- a generalized exponential where shape
-   controls the skew: shape = 1 reduces to exactly exponential's
-   own shape (front-loaded, most mass near zero); shape > 1 pulls the
-   mode away from zero into a soft peak (values cluster around a
-   typical size but occasionally run long -- note/rest durations, say);
-   shape < 1 front-loads even harder than the exponential case, mostly
-   very small values with a long thin tail of rare large ones. scale
-   stretches the whole distribution. Both args must be positive."
+  "Weibull distribution: a generalised exponential whose shape sets the skew. shape 1 is the exponential (most mass near zero); above 1 the mode leaves zero for a soft peak (note or rest durations, say); below 1 it is more front-loaded still, with a long thin tail. scale stretches it. Both must be positive."
   {:algo (sampler {:shape (assoc shape :default 1.5) :scale scale-p})}
   [shape scale]
   {:pre [(pos? shape) (pos? scale)]}
@@ -178,15 +159,7 @@
 
 
 (defn cauchy
-  "Cauchy distribution centered at median, spread by scale -- most
-   values cluster near median the way a normal distribution's peak
-   does, but the tails are so heavy the distribution has no finite
-   mean or variance: occasional extreme outliers, arbitrarily far from
-   median, are a real and expected part of its output, not a rare edge
-   case the way normal's own thin tail makes them. Useful for an
-   otherwise-centered value (a pitch, a panning position) that should
-   occasionally leap wildly rather than taper off smoothly. scale must
-   be positive."
+  "Cauchy distribution centred at median, spread by scale: values cluster near median like a normal's peak, but the tails are so heavy that outliers far from median are a normal part of the output. For a centred value (a pitch, a pan position) that should now and then leap wildly. scale must be positive."
   {:algo (sampler {:median (assoc num-spec :default 0.0 :doc "centre") :scale scale-p})}
   [median scale]
   {:pre [(pos? scale)]}
@@ -216,28 +189,14 @@
 
 
 (defn log-normal
-  "Log-normal distribution: exp of a normal(mu, sigma) sample, so
-   the result is always positive and right-skewed (a long tail toward
-   large values, most mass bunched toward zero) -- useful for a
-   duration/amplitude-like value that can't go negative and shouldn't
-   have normal's own symmetric tail. mu/sigma are the UNDERLYING
-   normal distribution's mean/stdev, not the log-normal output's own
-   (which are different, and less intuitive to reason about directly)."
+  "Log-normal distribution: exp of a normal(mu, sigma) draw, so always positive and skewed right. For duration- or amplitude-like values. mu and sigma are the underlying normal's mean and standard deviation, not the output's."
   {:algo (sampler {:mu (assoc num-spec :default 0.0 :doc "mean of the log") :sigma (assoc pos-spec :default 0.5 :doc "spread of the log")})}
   [mu sigma]
   (Math/exp (normal mu sigma)))
 
 
 (defn beta
-  "Beta distribution on (0, 1) -- shaped by a and b: a = b = 1 is
-   uniform, larger equal a/b peaks in the middle (values cluster around
-   0.5), a > b skews toward 1, a < b skews toward 0, and either shape
-   parameter dropping below 1 pulls extra mass toward its own end (0
-   for a < 1, 1 for b < 1). Useful directly as a controllable-shape
-   random value already in 0-1 range -- a note's own probability of
-   firing (weighted-coin's input), a normalized velocity/panning value
-   -- without clamping an unbounded distribution into range afterward.
-   a/b must be positive."
+  "Beta distribution on (0, 1), shaped by a and b: a = b = 1 is uniform, larger equal values peak at 0.5, a > b skews towards 1, a < b towards 0, and a shape below 1 pulls extra mass to its own end. A controllable random value already in 0-1 (a probability for weighted-coin, a velocity, a pan). a and b must be positive."
   {:algo (sampler {:a (assoc pos-spec :min 0.01 :default 2.0 :doc "pull toward 1") :b (assoc pos-spec :min 0.01 :default 2.0 :doc "pull toward 0")})}
   [a b]
   {:pre [(pos? a) (pos? b)]}
@@ -259,24 +218,9 @@
 
 
 (defn deep-shuffle
-  "Shuffle coll's own top-level order, then recurse into every element
-   that's itself a sequential collection and shuffle IT too, down to
-   depth levels total -- depth omitted (or nil) means every level, all
-   the way down to the leaves. A leaf (anything sequential? says no to
-   -- a number, a string, a domain Leaf record, ...) is left as-is;
-   nothing to shuffle once you're not looking at a collection anymore.
-
-   depth 1 shuffles only coll's own order and stops there -- every
-   nested collection inside it keeps its original order untouched, not
-   just its own top level but everything inside it too. depth 0 (or a
-   negative depth) is a no-op, returning coll unchanged.
-
-   For \"a seq of seqs of leafs\":
-   (deep-shuffle [[1 2] [3 4 5] [6]])    ;; every level shuffled
-   (deep-shuffle [[1 2] [3 4 5] [6]] 1)  ;; only which seq comes first/
-                                         ;; second/third changes -- each
-                                         ;; seq's own [1 2]/[3 4 5]/[6]
-                                         ;; order is untouched"
+  "Shuffle coll's order, then each element that is itself sequential, down to depth levels (omitted or nil: every level). Anything not sequential (a number, a string, a Leaf) stays as it is. depth 1 shuffles only coll; depth 0 or negative returns coll unchanged.
+     (deep-shuffle [[1 2] [3 4 5] [6]])    ;; every level shuffled
+     (deep-shuffle [[1 2] [3 4 5] [6]] 1)  ;; only the order of the three seqs changes"
   {:algo {:in [:any] :out :same :arity 2
           :params {:depth {:type :int :min 0 :max 16 :default 16 :doc "levels shuffled"}}}}
   ([coll] (deep-shuffle coll nil))
@@ -321,19 +265,11 @@
 
 
 (defn sputter
-  "Returns a list where some elements may have been repeated.
-
-   Repetition is based on probability (defaulting to 0.25), therefore,
-   for each element in the original list, there's a chance that it will
-   be repeated. (The repetitions themselves are also subject to further
-   repetition). The size of the resulting list can be constrained to max
-   elements (defaulting to 100).
-
-  (sputter [1 2 3 4])        ;=> [1 1 2 3 3 4]
-  (sputter [1 2 3 4] 0.7 5)  ;=> [1 1 1 2 3]
-  (sputter [1 2 3 4] 0.8 10) ;=> [1 2 2 2 2 2 2 2 3 3]
-  (sputter [1 2 3 4] 1 10)   ;=> [1 1 1 1 1 1 1 1 1 1]
-  "
+  "A list where some elements are repeated: each element, with probability p (default 0.25), repeats, and repetitions may repeat in turn. The result has at most max elements (default 100).
+     (sputter [1 2 3 4])        ;=> [1 1 2 3 3 4]
+     (sputter [1 2 3 4] 0.7 5)  ;=> [1 1 1 2 3]
+     (sputter [1 2 3 4] 0.8 10) ;=> [1 2 2 2 2 2 2 2 3 3]
+     (sputter [1 2 3 4] 1 10)   ;=> [1 1 1 1 1 1 1 1 1 1]"
   {:algo {:in [:any] :out :same :arity 3
           :params {:prob (assoc unit-spec :default 0.25 :doc "chance of a repeat")
                    :max  {:type :int :min 1 :max 1024 :default 100 :doc "longest result"}}}}
@@ -366,13 +302,7 @@
 
 
 (defn linear
-  "Linear-density distribution over [lo, hi]: probability density ramps
-   monotonically from one bound to the other, rather than peaking at a
-   single mode (triangular) -- Xenakis's own \"linear distribution,\"
-   used alongside uniform/exponential/Cauchy in his own stochastic
-   pieces (see Roads, The Computer Music Tutorial). rising? true
-   (the default) means density increases toward hi -- values near hi
-   are more likely; false means density increases toward lo instead."
+  "Linear-density distribution over [lo, hi] (Xenakis): the density ramps from one bound to the other instead of peaking at a mode. rising? true (default): density grows towards hi; false: towards lo."
   {:algo (assoc (sampler {:lo lo :hi hi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
   ([lo hi] (linear lo hi true))
   ([lo hi rising?]

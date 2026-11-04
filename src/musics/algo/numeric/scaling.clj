@@ -20,15 +20,10 @@
   (max lo (min hi v)))
 
 (defn clamp-optional
-  "Clamp v into [clip-lo clip-hi], where EITHER bound may be nil (no
-   limit on that side) -- unlike clamp above, which requires both.
-   Previously duplicated identically in musics.algo.numeric.random/random-walk and
-   biased-walk -- a real, confirmed duplication found by a code-reuse
-   audit (2026-09-05, same pattern as this file's own clamp extraction).
-
-   (clamp-optional 5 nil 15)  ;=> 15
-   (clamp-optional nil 5 3)   ;=> 3
-   (clamp-optional nil nil 7) ;=> 7"
+  "Clamp v into [clip-lo clip-hi], either bound may be nil (no limit on that side); clamp needs both.
+     (clamp-optional 5 nil 15)  ;=> 15
+     (clamp-optional nil 5 3)   ;=> 3
+     (clamp-optional nil nil 7) ;=> 7"
   [clip-lo clip-hi v]
   (cond
     (and clip-lo clip-hi) (-> v (max clip-lo) (min clip-hi))

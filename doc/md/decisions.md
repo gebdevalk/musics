@@ -3084,3 +3084,63 @@ as its registry short name, so `:short` is dropped (77 functions; one exception:
   types) is unchanged, so no mu word, recipe or session file changes.
 - Kept in place, not moved: the tree machinery (`tree*`, `bridge`, `logic/tree`),
   the dead modules (`clam`, `farey`, `split`, `trig`), `common/`.
+
+## 2026-11-04 — algo docstrings describe, history lives here
+
+A docstring now says what a function does and how to call it; what it used to
+do, the bug it once had and how it was found are here instead. What the old
+docstrings recorded (dates 2026):
+
+- `euclid` (09-14): a bucket-merging loop whose stopping test was true at once
+  gave k ones then zeros for every input, and the test had baked that output in
+  (`[1 1 1 0 0 0 0 0]` for `(euclid 3 8)`). Bjorklund's pairwise merging replaced
+  it, checked on E(3,8) the tresillo, E(2,5) and E(5,8).
+- `lsys-rhythm`, `cfrac` (09-03): the zero padding was put before the real
+  values, so the final `take` returned zeros only.
+- `glide` (09-03): the step multiplier was `inertia` itself, which inverted its
+  meaning (0 stayed put, 1 snapped).
+- `cyclic` (09-12): the exhaustion check read locals from before the reset, so
+  the lookup at the boundary used the stale pool and returned nil; reset, lookup
+  and increment are one `swap!` now.
+- `direction-limit-constraint` (09-03): the loop ended at `(< i 0)` while its
+  body read `(nth melody (dec i))`, an `IndexOutOfBoundsException`; it ends at
+  `(< i 1)`.
+- `markov-rhythm` (09-05): its own cumulative-sum loop did not normalise, so
+  probabilities not summing to 1 could run off the list (a NullPointerException);
+  it uses `numeric.random/markov`, which normalises and is seedable.
+  `probability-criterion` was the last non-seedable draw in `gate`.
+- `interval-transform`, `clamp-optional` (09-05): duplicated code found by the
+  reuse audit (`zfilter`'s two interval functions; `walk` and `biased-walk`).
+- `emi`: the Python reference loops a fixed count while inserts and deletes
+  resize the list, an `IndexError` in about 27% of runs at similarity 0.3; this
+  port checks the current length each step. `csp`: the reference's random
+  initial pattern and `max-attempts` change nothing (the search overwrites every
+  position), so both were left out.
+- `weighted-shuffle`: sorting by an independent draw per element was tried first
+  and is blind to the distribution (ranks of i.i.d. draws are uniform over
+  permutations); live probe, average displacement over 20000 trials: uniform
+  1.9456 vs `lo-emph` 1.9395 that way; with draw-from-remaining, uniform 1.9422
+  equals Fisher-Yates 1.9449 and `lo-emph` gives 1.2626 on n=6.
+- `logistic`: its default r = 3.0 is the first bifurcation (a slow two-value
+  oscillation, about 0.649 and 0.684), not chaos; r = 3.8 and 3.9 were checked
+  as aperiodic. `henon` at 1.4/0.3 stays within about [-1.28, 1.27] over 500
+  steps; `lorenz` at the classic parameters with RK4 at dt 0.01 stays bounded.
+- `squarr`/`sawr`/`trianglr`: `Math/sin` of exactly pi is a tiny positive and of
+  2*pi a tiny negative number, so a square wave's value on an exact
+  zero-crossing is noise; the composed arcsin(sin) triangle is off by about
+  1e-15 between idxs a period apart.
+- `from-key-spec "G.dorian"`: `music-elements/key` once added an extra
+  transposition to every mode but major/ionian (`(key :D :dorian)` built E
+  dorian); fixed there, and `melody`'s test checks it.
+- `from-key`: `key`'s `:pitches` are not wrapped into 0-11 (an ascending run from
+  a non-C tonic must keep ascending, A minor is `[9 11 12 14 …]`), so it wraps.
+- `modulating`: a pivot note is never merged at the seam, so each segment adds
+  exactly its length and the pivot is repeated once.
+- `gate`: `last-sounding` (what the output last played, for `:hold`) is separate
+  from `raw-prev` (the original sequence, for `select-fn`) on purpose, so a
+  rejected note still counts as the previous one for the next note's test.
+- `zip-parts` generalises `color-talea` but does not replace it: the
+  `[pitch duration]` pair return shape is what `color-talea` commits to.
+- `power` vs `tilt`: softmax never gives a probability of 0, a power law does
+  (for the base-0 position); `power` needs no tie-break term because its
+  exponent never goes below 1.
