@@ -67,12 +67,27 @@
            musics.algo.indispensability
            musics.algo.logic.counterpoint
            musics.algo.metric
-           musics.algo.melodic.counterpoint musics.algo.melodic.melody musics.algo.melodic.serial
-           musics.algo.random musics.algo.random.henon musics.algo.random.logistic musics.algo.random.lorenz
-           musics.algo.rhythmic.automaton musics.algo.rhythmic.constraint musics.algo.rhythmic.decompose musics.algo.rhythmic.drums musics.algo.rhythmic.fractal-geometric
-           musics.algo.rhythmic.micro musics.algo.rhythmic.necklace musics.algo.rhythmic.phase-sieve
-           musics.algo.rhythmic.physical musics.algo.rhythmic.poly musics.algo.rhythmic.rhythm
-           musics.algo.rhythmic.sonification musics.algo.rhythmic.stochastic musics.algo.rhythmic.transform
+           musics.algo.melodic.counterpoint
+           musics.algo.melodic.melody
+           musics.algo.melodic.serial
+           musics.algo.random
+           musics.algo.random.henon
+           musics.algo.random.logistic
+           musics.algo.random.lorenz
+           musics.algo.rhythmic.automaton
+           musics.algo.rhythmic.constraint
+           musics.algo.rhythmic.decompose
+           musics.algo.rhythmic.drums
+           musics.algo.rhythmic.fractal-geometric
+           musics.algo.rhythmic.micro
+           musics.algo.rhythmic.necklace
+           musics.algo.rhythmic.phase-sieve
+           musics.algo.rhythmic.physical
+           musics.algo.rhythmic.poly
+           musics.algo.rhythmic.rhythm
+           musics.algo.rhythmic.sonification
+           musics.algo.rhythmic.stochastic
+           musics.algo.rhythmic.transform
            musics.algo.rhythmic.world)
 
 (defn ->part
