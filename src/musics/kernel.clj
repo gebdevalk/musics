@@ -221,8 +221,8 @@
       (println "also, qualified (pitch/lorenz) or after \"pitch\" use:" (str/join " " others)))))
 
 (defn see!
-  "Show a word: its stack effect and what it does -- \"dup\" see, or
-   'dup see, '[R] see; a tree recipe: the tree it builds, bridges put in"
+  "Show a word: its stack effect and what it does -- see dup, or
+   \"dup\" see, 'dup see, '[R] see; a tree recipe: the tree it builds, bridges put in"
   [word]
   (if (v/recipe? word)
     ;; a tree recipe: as written, and the tree it builds, bridges put in
@@ -261,7 +261,7 @@
 
 (defn help!
   "mu in a few lines; with a word, as see explains it; with other text,
-   the words that mention it: help, 'dup help, \"chord\" help, \"transpose\" help"
+   the words that mention it: help, help dup, \"chord\" help, \"transpose\" help"
   {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
   ([] (run! println guide))
   ([topic]

@@ -322,8 +322,22 @@
       (conj stack (nth (:values env) i))
       (mu-error "can't run" (pr-str (first node))))))
 
+(defn- name-asked-for
+  "When node is help or see and the next item is a plain word, that word's
+   name: help dup and see dup read the word as Forth's see does, not run it
+   ('dup help and \"dup\" help are the same). Else nil."
+  [node following]
+  (when (and (vector? node) (= :Word (first node)) (#{"help" "see"} (node-name node))
+             (vector? following) (= :Word (first following)))
+    (node-name following)))
+
 (defn run-items [stack nodes env]
-  (reduce (fn [s node] (run-item s node env)) stack nodes))
+  (loop [s stack nodes (seq nodes)]
+    (if-let [[node & more] nodes]
+      (if-let [asked (name-asked-for node (first more))]
+        (recur (run-item (conj s (symbol asked)) node env) (rest more))
+        (recur (run-item s node env) more))
+      s)))
 
 ;; ------------------------------------------------------------------
 ;; One input

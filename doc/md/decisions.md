@@ -2982,3 +2982,16 @@ the reason, and nothing is added to the evaluator (`eval-input` stays silent, so
 the GUI and the tests that read it are unchanged). Showing the top of the stack
 instead was considered and left out: a value is read with `.` and the stack
 with `.s`, and the prompt's depth says that something was pushed.
+
+## 2026-11-04 — help and see read the word after them
+
+`help dup` ran `help` (the general help) and then `dup`, which failed on an
+empty stack; the working spellings were `'dup help` and `"dup" see`. In
+postfix a word cannot see what follows it, but Forth's `see dup` works because
+`see` reads the next token. `musics.mu.eval/run-items` now does that for `help`
+and `see` only: when the next item in the same input is a plain word, it is
+pushed as the quoted name and not run. A sign, a literal or the end of the
+input is as before (`help` alone is the general help, `help 3` is the general
+help and a 3). The rule holds inside quotations and definitions, since they run
+through the same loop. Rejected: only improving the error (the Forth habit
+would still fail), and a general "next word" form for other words.

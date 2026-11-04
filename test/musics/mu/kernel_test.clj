@@ -595,3 +595,21 @@
   (testing "the named twins"
     (is (re-find #"^store: |^R!: " (:error (run "[motif: c] store"))))
     (is (= [:motif] (:ok (run "[motif: d] overwrite"))))))
+
+;; help and see read the word after them, as Forth's see does
+(deftest help-and-see-read-the-next-word
+  (doseq [in ["help dup" "see dup" "'dup help" "\"dup\" see"]]
+    (let [out (atom nil)]
+      (swap! e/state assoc :stack [])
+      (reset! out (with-out-str (e/eval-input in)))
+      (is (str/starts-with? @out "dup ( x -- x x )") in)
+      (is (= [] (:stack @e/state)) "dup was looked up, not run")))
+  (testing "a sign or a literal after them is not read as the name"
+    (swap! e/state assoc :stack [])
+    (is (str/starts-with? (with-out-str (e/eval-input "help")) "mu: music is written as text") "help alone is the general help")
+    (is (re-find #"^mu: music is written" (with-out-str (e/eval-input "help 3"))) "a number after it is a number"))
+  (testing "it follows through a quotation and a definition"
+    (swap! e/state assoc :stack [])
+    (is (str/starts-with? (with-out-str (e/eval-input "'( see swap ) call")) "swap ( x1 x2 -- x2 x1 )"))
+    (e/eval-input ": what see over ;")
+    (is (str/starts-with? (with-out-str (e/eval-input "what")) "over ( x1 x2 -- x1 x2 x1 )"))))

@@ -30,8 +30,8 @@ around on it, and you'll need them throughout:
 | `-rot` | `( a b c -- c a b )` | the top goes third: `rot` the other way |
 | `pick` `roll` | `( … n -- … )` | copy or move the n-th item to the top, the top being 0 |
 | `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
-| `see` | `( "word" -- )` | what a word does: `"dup" see` |
-| `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help` |
+| `see` | `( "word" -- )` | what a word does: `see dup`, or `"dup" see` |
+| `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside

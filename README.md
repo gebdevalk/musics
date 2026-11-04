@@ -95,7 +95,7 @@ To get playing:
 Keep at hand: [parsing.md](doc/md/parsing.md) (the notation),
 [instruments.md](doc/md/instruments.md) (instrument, drum and kit
 names), [lilypond.md](doc/md/lilypond.md) (coming from LilyPond), and in
-mu itself `words`, `"dup" see` and Tab completion.
+mu itself `words`, `see dup` and Tab completion.
 
 To understand how it works: [walk-through.md](doc/md/walk-through.md),
 [CLAUDE.md](CLAUDE.md), [domain.md](doc/md/domain.md),
