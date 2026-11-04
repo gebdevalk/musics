@@ -98,3 +98,7 @@
   ;; :ROOT would hide its absence)
   (let [ns-form (read-string (slurp (io/resource "musics/mu.clj")))]
     (is (some #{'musics.mu.store} (flatten (seq ns-form))))))
+
+(deftest the-banner-says-how-to-see-the-stack
+  (is (str/includes? (mu/header) "'.s' shows the stack") "a value stays on the stack until it is shown")
+  (is (str/includes? (mu/header) "says ok")))
