@@ -31,6 +31,9 @@ around on it, and you'll need them throughout:
 | `pick` `roll` | `( … n -- … )` | copy or move the n-th item to the top, the top being 0 |
 | `clear` | `( … -- )` | clear the stack (`cls` clears the screen) |
 | `see` | `( "word" -- )` | what a word does: `see dup`, or `"dup" see` |
+| `about` | `( ["name"] -- )` | what a name is and where it can appear, one sentence: `about tempo`, `about violin`, `about allegro` |
+| `settings` | `( "name" -- )` | a parameter's range, default and how it is written: `settings tempo` (a voice on top: its live settings) |
+| `marks` | `( "name" -- )` | the marks that set a parameter, by value: `marks tempo` |
 | `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the

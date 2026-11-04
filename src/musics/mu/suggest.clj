@@ -70,4 +70,6 @@
     (let [close (close-words st name 3)]
       (if (seq close)
         (str "did you mean " (str/join ", " close) "?")
-        "words lists them, help shows the way"))))
+        (if (re-matches #"[a-zA-Z][a-zA-Z0-9_-]*" name)
+          (str "about " name " looks for it; words lists them")
+          "words lists them, help shows the way")))))

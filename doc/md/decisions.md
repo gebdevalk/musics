@@ -2995,3 +2995,28 @@ input is as before (`help` alone is the general help, `help 3` is the general
 help and a 3). The rule holds inside quotations and definitions, since they run
 through the same loop. Rejected: only improving the error (the Forth habit
 would still fail), and a general "next word" form for other words.
+
+## 2026-11-04 — about says what a name is and where it can appear
+
+A guessed word (`tempo`, `louder`, `save`) failed with the nearest spelling, and
+`help` explains only words. `about` (read like `help dup`: `about tempo`,
+`'tempo about`, `"tempo" about`) answers in one sentence for each thing the
+name is: a musical parameter (a context key, with its aliases: `tempo is a
+musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ]`), a mark, a
+word of mu, an instrument, a drum, a kit, a scale, a chord quality, an
+articulation, a rule of the grammar; `pitch`, `duration` and `articulation`
+are properties of a note (a duration also of a line; not something written in a bracket), read by the words of the same name. Only that first sentence: the detail is two more
+words, `settings tempo` (`30..300, default 100, Beats per minute. Written
+!tempo:100, or set on a line with x :tempo 100 with`; with a voice on top,
+`:riff settings` is still the live voice's) and `marks tempo` (the marks that
+set it, by value, names only). Where it can appear is
+read from the grammar, not written down: `musics.mu.about/homes` follows the
+rules each bracket (`^{ }`, `{ }`, `[ ]`) allows directly, not entering another
+bracket or a command's body, until it reaches the rule that stands for the
+thing (`Assignment` for a parameter, `BangConst` for a mark, `Drum`,
+`ChordSymbol`, `Leaf`), so a note is `[ ]` only while an instruction is all
+three. A name that is nothing lists the parameters, marks and words that start
+with it. An unknown word's error ends `about <name> looks for it`. A search
+over words, settings, marks and grammar with examples (`howto`), a table of
+guesses, and a core.logic planner were tried or weighed and set aside: the
+question is "what is this and where does it go", and one sentence answers it.
