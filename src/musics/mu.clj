@@ -146,8 +146,8 @@
             [(str "mu " @version " -- a concatenative, real-time, interactive REPL for musics")
              ""
              "Write music and it goes on the stack; words after it change it, combine it"
-             "and play it, while it plays. Tab completes names, 'see' explains a word"
-             "(\"dup\" see), 'words' lists them, 'help' shows the way in."
+             "and play it, while it plays. Tab completes names, 'see dup' explains a word,"
+             "'words' lists them, 'help' shows the way in."
              ""
              "stack    each input that runs says ok; '.s' shows the stack, '.' prints the top and drops it"
              "start    gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
