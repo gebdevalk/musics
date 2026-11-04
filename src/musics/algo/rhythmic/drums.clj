@@ -83,12 +83,6 @@
     :jazz [(hit :snare 1/2 80) (hit :tom-hi 5/8 75) (hit :tom-lo 3/4 85)]
     nil))
 
-(defn- swung
-  "Delay every hit on an off-beat 16th by swing x a 32nd."
-  [swing at]
-  (let [x (* at 16)]
-    (if (and (integer? x) (odd? x)) (+ at (* (rationalize swing) 1/32)) at)))
-
 (defn- accent
   "A hit's 1-127 velocity as one of a drum's four accents -- ghost,
    plain, accent (->) or marcato (-^) -- given as the :dynamic its
@@ -111,22 +105,21 @@
                       hits (concat (rest onsets) [total]))))))
 
 (defn drums
-  "A drum-kit groove of :bars bars of 4/4 in :style, as parallel layers, one per kit piece that plays (kick, snare, rim, clap, hats, toms, crash, ride, in that order), each a vector of Drum/Rest maps; the whole is a par group ready for play. :density thins the hip-hop hats and the ghost notes; :swing delays the off-beat 16ths by up to a 32nd. Every 4th bar ends in a fill whose crash lands on the next downbeat (bar 1's after the last bar, so it loops). Each hit is ghosted, plain, accented or marcato (the Drum's :dynamic, an offset on the context's volume); timing and velocity spread come from :humanization.
-     (drums :funk 8 0.75 0.2 1)"
+  "A drum-kit groove of :bars bars of 4/4 in :style, as parallel layers, one per kit piece that plays (kick, snare, rim, clap, hats, toms, crash, ride, in that order), each a vector of Drum/Rest maps; the whole is a par group ready for play. :density thins the hip-hop hats and the ghost notes; Every 4th bar ends in a fill whose crash lands on the next downbeat (bar 1's after the last bar, so it loops). Each hit is ghosted, plain, accented or marcato (the Drum's :dynamic, an offset on the context's volume); timing and velocity spread come from :humanization.
+     (drums :funk 8 0.75 1)"
   {:algo {:in [] :out :part
           :params {:style   {:type :keyword :default :rock :choices styles :doc "the groove's style"}
                    :bars    {:type :int :min 1 :max 64 :default 8 :doc "bars of 4/4"}
                    :density {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "how many hats and ghost notes"}
-                   :swing   {:type :double :min 0.0 :max 1.0 :default 0.0 :doc "off-beat 16ths late by this x a 32nd"}
                    :seed    {:type :int :min 0 :max 1000000 :default 1 :doc "the random choices (reproducible)"}}}}
-  [style bars density swing seed]
+  [style bars density seed]
   (let [rng      (doto (atom nil) (rcore/seed! seed))
         hits     (for [bar (range bars)
                        h   (concat (backbone style rng)
                                    (time-keeping style density rng)
                                    (ghosts style density rng)
                                    (when (zero? (mod (inc bar) 4)) (fill style 1)))]
-                   (update h :at #(mod (+ bar (swung swing %)) bars)))
+                   (update h :at #(mod (+ bar %) bars)))
         by-piece (group-by :drum hits)]
     (apply compose/par
            (for [[piece name] kit

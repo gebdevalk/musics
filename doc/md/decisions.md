@@ -3239,3 +3239,15 @@ a coin per tick; `stochastic` scales its distribution's onset profile (an exact
 count for "uniform"); `drums` thins only the hi-hats and ghost notes. The name
 is shared, the meaning is not, and no existing function does any of the four.
 Nothing changed.
+
+## 2026-11-04 — step 6: `drums` loses `:swing`; the padding in `bits`, `lsys-rhythm`, `cfrac` stays
+
+- `drums :swing` moved every off-beat 16th hit late by a share of a 32nd, written
+  into the pattern. The music's `!swing` with `!swingUnit:16` does that as it
+  plays, for any notes and drums too (`events_test`, "drums swing too"), so the
+  param repeated another layer, and its delays made odd written durations.
+  `drums` takes `style bars density seed` now; swing is the context's.
+- `bits`, `lsys-rhythm` and `cfrac` pad with zeros (and cut) to `length`. No
+  other function pads: `take` only cuts. And a generator that says `length`
+  gives exactly that many pulses, as `euclid` does with `n`, so a grid of a fixed
+  size stays one. Kept.

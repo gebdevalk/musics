@@ -334,13 +334,13 @@ puts a walk between 55 and 65 onto one octave of steps.
 `:hiphop` `:trap` `:jazz` `:house` `:techno` `:metal`. Each groove has a
 backbone, time-keeping, ghost notes, and a fill every 4th bar whose
 crash lands on the next downbeat. The pattern loops: after the last bar,
-that next downbeat is bar 1's. `:density` thins the hats and ghost notes,
-`:swing` delays the off-beat 16ths by up to a 32nd, and `:seed` makes it
-reproducible. The result is a `par` group with one layer per kit piece,
+that next downbeat is bar 1's. `:density` thins the hats and ghost notes and `:seed` makes it
+reproducible. Swing is the music's: `!swing` with `!swingUnit:16` swings its
+sixteenths, as it does any notes. The result is a `par` group with one layer per kit piece,
 each layer a vector of Drum/Rest maps, so it plays as a whole:
 
 ```
-@^{ style:funk swing:0.2 } parallel/drums ->
+@^{ style:funk } parallel/drums ->
 @^{ style:jazz bars:4 } parallel/drums [~] ->
 ```
 
