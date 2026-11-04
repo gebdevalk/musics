@@ -111,7 +111,7 @@ In the registry on 2026-10-14, 92 of 149 algos deliver raw material,
 second bridge), `duration/euclid`; the catalogue groups by what an algo
 delivers, raw material in a workshop shelf. The number → volume gap
 closed with `numbers->volumes` and `points->volumes`; the leaf filters
-are `remove>` and `mute>` in trees, `remove` and `mute` in mu.
+are `remove` and `mute` in trees, `remove` and `mute` in mu.
 
 Consequences for the aspects, decided the same day:
 

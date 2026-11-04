@@ -64,7 +64,7 @@ is kept as `name*`):
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
 
-(def riff (zip (pulses->durations euclid) (up (cycle> scale))))   ; #node (zip (pulses->durations (euclid)) ...)
+(def riff (zip (pulses->durations euclid) (up (cycle scale))))   ; #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))       ; its settings, {:params-atom a}: empty, so every param at its default
 (t/describe tctx)               ; key, value, range, default, algo, doc
 (t/setp! tctx :k 5)        ; checked against 0..32
@@ -122,7 +122,7 @@ In code, the same steps are `musics.algo.tree`'s:
 (t/play! riff tctx)                         ; once
 (t/live! :riff riff tctx)                   ; an endless voice; the name is bound in musics.wall
 (t/setp! tctx :k 3)                         ; heard on the next note
-(t/retree! :riff (zip (pulses->durations euclid) (shuffle> scale)))  ; same tctx, fitted
+(t/retree! :riff (zip (pulses->durations euclid) (shuffle scale)))  ; same tctx, fitted
 (t/stop! :riff)
 ```
 
@@ -202,9 +202,9 @@ any more parts written on them:
 
 ```clojure
 (def mel (zip (pulses->durations euclid)
-              (degrees->pitches (cycle> [0 2 4 7]))
-              (cycle> (weights->articulations indisp))
-              (cycle> (weights->volumes indisp))))
+              (degrees->pitches (cycle [0 2 4 7]))
+              (cycle (weights->articulations indisp))
+              (cycle (weights->volumes indisp))))
 (notes->mus (t/run mel {:k 5 :n 8 :key "D.major"}))
 ;; "[ !acc:explicit D4/8-^\\volume:80.0 F#4/16\\ghost\\volume:40.0 A4/8\\volume:54.5… D5/16->\\volume:69.0… D4/8\\ghost\\volume:47.2… ]"
 ```
@@ -225,7 +225,7 @@ any more parts written on them:
 - **How a bridge works** is in its metadata (`:works`) and in
   `(show-algos :pulses->durations)`:
   - **value by value** and **by shape** are lazy, so an endless stream
-    (a `cycle>` source, a walk) can feed them;
+    (a `cycle` source, a walk) can feed them;
   - **whole stream** reads everything first, so give it a finite one and
     cycle its result.
 - **Value bridges** convert one value and are named in the singular:
@@ -250,7 +250,7 @@ any more parts written on them:
     (`[:bundle :pitch :volume]`), for a later zip to join.
   - A child's part is its type (`weights->volumes` gives volumes); a
     literal gives durations, then pitches, and `(as-part :articulation
-    (cycle> [:staccato]))` names another -- `:leaf` for notes, or any
+    (cycle [:staccato]))` names another -- `:leaf` for notes, or any
     key above.
 - These are the note's own overrides, the same thing a written
   `\name:value` holds. `notes->mus` writes them back, so generated
@@ -269,7 +269,7 @@ each half product a bridge makes of it, a **specialised algo**
 ```clojure
 (def riff (zip (duration/euclid) (pitch/lorenz)))     ; euclid as durations, lorenz as pitches
 (t/run riff {:k 5 :n 16})
-(def coupled (zip (cycle> [1/8]) (pitch/walk :as :w)
+(def coupled (zip (cycle [1/8]) (pitch/walk :as :w)
                   (volume/walk :as :w)))             ; one :as, one run: higher is louder
 ```
 
@@ -291,7 +291,7 @@ each half product a bridge makes of it, a **specialised algo**
   `duration/tuplets`, `duration/bracelet`,
   `duration/crossover`, `duration/tiling`. Its durations are laid on a
   grid of `:duration-pulse` (each rounds to whole pulses), varied, and
-  read back as durations: `(zip (duration/emi (duration/euclid)) (cycle>
+  read back as durations: `(zip (duration/emi (duration/euclid)) (cycle
   scale))`. It reads the whole stream, so give it a finite one.
 - **The catalogue** (mu's `words`, `compose`'s pane, `show-algos` in code) shows algos
   by shelf: what they deliver (`pitch`, `duration`, `volume`,
@@ -301,26 +301,29 @@ each half product a bridge makes of it, a **specialised algo**
 
 ### Tools
 
-Tools work within one type, on any material, and are marked `>` so they
-never shadow `clojure.core`:
+Tools (`musics.algo.tree.tools`) work within one type, on any material. They
+are named plainly, `take` and `map` included: that namespace excludes the
+`clojure.core` names, so call them as `tools/take` or refer them where that
+is wanted:
 
 | Tool | Does |
 |---|---|
-| `cycle>`, `shuffle>` | repeat forever / reshuffle every pass (lazy) |
-| `take>` | the first `:len` items |
-| `map>`, `filter>` | each item through `:fn` / the items `:fn` keeps (`:fn` set in code; in mu, `map` and `filter` take a quotation) |
-| `remove>` | the items `:fn` doesn't drop; on leaves the line gets shorter |
-| `mute>` | leaves: each note `:fn` is true for becomes a rest of its duration, the rhythm stays |
-| `scale>` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
-| `stretch>` | every duration times `:factor` |
+| `cycle`, `shuffle` | repeat forever / reshuffle every pass (lazy) |
+| `take` | the first `:len` items |
+| `rotate` | the front `:steps` items round to the back |
+| `map`, `filter` | each item through `:fn` / the items `:fn` keeps (`:fn` set in code; in mu, `map` and `filter` take a quotation) |
+| `remove` | the items `:fn` doesn't drop; on leaves the line gets shorter |
+| `mute` | leaves: each note `:fn` is true for becomes a rest of its duration, the rhythm stays |
+| `rescale` | numbers from `:from-lo..:from-hi` onto `:to-lo..:to-hi` (lazy) |
+| `stretch` | every duration times `:factor` |
 
 A test reads one material (`#(< % 70)` on pitches) or the whole leaf
 (`#(and (:pitches %) (< (:duration %) 1/8) (< 72 (first (:pitches %))))`,
-short high notes): `(mute> riff)` with that `:fn` thins a melody and
+short high notes): `(mute riff)` with that `:fn` thins a melody and
 keeps its pulse.
 
-A number range onto a scale is `scale>` then `degrees->pitches`:
-`(degrees->pitches (scale> walk))` with `:from-lo 55 :from-hi 65 :to-hi 7`
+A number range onto a scale is `rescale` then `degrees->pitches`:
+`(degrees->pitches (rescale walk))` with `:from-lo 55 :from-hi 65 :to-hi 7`
 puts a walk between 55 and 65 onto one octave of steps.
 
 ### Drum grooves
@@ -368,7 +371,7 @@ asked in code:
 ```
 
 The tree builder uses the same facts: a hole under a `:same` node (say
-`cycle>`) takes the type that node's own slot wants, so only fitting
+`cycle`) takes the type that node's own slot wants, so only fitting
 algos are offered there. `lt/steps` gives the fewest algos between two
 types; [bridge-table.md](bridge-table.md) (and `bridge-table.pdf`)
 tabulates it for every pair, with the gaps and what would close them.

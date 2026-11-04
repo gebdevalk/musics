@@ -32,6 +32,7 @@
             [musics.algo.numeric.rng :as rc]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.algo.tree.registry :as reg]
             [musics.input.reader.walker :as walker]
             [musics.mu.eval :as e]
@@ -130,7 +131,7 @@
     :Setting    (update st :stack conj {::kind ::param :value (setting n)})
     :QuotedName (update st :stack conj {::kind ::alias :value (second v)})
     :Mark       (update st :stack conj {::kind ::mark})
-    :TreeLoop   (let [[x st] (pop1 st)] (update st :stack conj (lib/cycle> x)))
+    :TreeLoop   (let [[x st] (pop1 st)] (update st :stack conj (tools/cycle x)))
     (:SignedInt :SignedFloat :SignedRatio) (update st :stack conj (edn/read-string v))
     :StringLit  (update st :stack conj v)
     :TreeWord   (cond (#{"zip" "par"} v)                 (join-word st v)

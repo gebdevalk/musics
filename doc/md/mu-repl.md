@@ -688,7 +688,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`!volume:70@1`, `@3/8`); `./.` in data is idem, the value before once
   more (`'[1/1 ./. 2/1]` is `'[1 1 2]`).
 - **Shared with the trees, not yet one implementation**: mu's tools and
-  the trees' tools (`musics.algo.tree.lib`, `cycle>` …) are written
+  the trees' tools (`musics.algo.tree.lib`, `cycle` …) are written
   separately; `musics.algo.tool`, one set of plain-named tools for both
   (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position

@@ -5,7 +5,7 @@
    The tree is an immutable value: what is computed. Build it by calling
    an algo's constructor with its children:
 
-     (def riff (zip (pulses->durations euclid) (cycle> scale)))   ; musics.algo.tree.lib
+     (def riff (zip (pulses->durations euclid) (cycle scale)))   ; musics.algo.tree.lib
 
    A child may be a node, a bare constructor (`scale` = `(scale)`), a
    keyword (reads that param at run time) or a literal value. The child

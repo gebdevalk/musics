@@ -5,6 +5,7 @@
             [clojure.test :refer [deftest is testing use-fixtures]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.engine :as engine]
             [musics.events :as ev]
             [musics.mu.eval :as e]
@@ -93,7 +94,7 @@
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"leaves music" (run "| '( 7 ) :n ->"))))
 
 (deftest a-composed-tree-is-a-recipe
-  (let [tree (lib/zip (lib/pulses->durations lib/euclid) (lib/cycle> lib/scale))]
+  (let [tree (lib/zip (lib/pulses->durations lib/euclid) (tools/cycle lib/scale))]
     (live/play! nil tree nil false :tr nil)
     (is (= :tr (:algo (engine/voice-at :tr))))
     (run ":tr @^{ k:5 } set")

@@ -133,7 +133,7 @@
   [r x]
   (let [out (t/out-type (:tree r))
         cut (fn [xs] (let [h (vec (take 10001 xs))]
-                       (when (> (count h) 10000) (e/mu-error "run: the recipe is endless -- play it, or take some (take> in it)"))
+                       (when (> (count h) 10000) (e/mu-error "run: the recipe is endless -- play it, or take some (take in it)"))
                        h))]
     (cond (= :leaf out)        (mt/line (cut x))
           (= :part out)        (mt/par-of (map #(mt/line (cut %)) x))

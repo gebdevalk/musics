@@ -37,9 +37,10 @@
 
 (create-ns 'cookbook)
 (binding [*ns* (the-ns 'cookbook)]
-  (eval '(do (clojure.core/refer-clojure)
+  (eval '(do (clojure.core/refer-clojure :exclude '[map filter remove take cycle shuffle])
              (require '[musics.algo.tree :as t :refer [defalgo]]
                       '[musics.algo.tree.lib :refer :all]
+                      '[musics.algo.tree.tools :refer :all]
                       '[musics.mu.store :as store]
                       '[musics.mu.material :as mt]
                       '[musics.mu.value :as v]
@@ -74,7 +75,7 @@
 (def recipes
   [{:group "First steps"}
    {:title "A tree, and a tctx for its settings"
-    :tree [["(def riff (zip (pulses->durations euclid) (cycle> scale)))" "an immutable value: what is computed -- each onset lasts until the next"]]
+    :tree [["(def riff (zip (pulses->durations euclid) (cycle scale)))" "an immutable value: what is computed -- each onset lasts until the next"]]
     :params [["(def tctx (t/tctx riff))" "an ordinary Context for its settings: it sets nothing yet, so every param is at its default"]]
     :runs [["result" "riff" "tctx"]]
     :extra [["riff prints as" "riff"]]}
@@ -103,52 +104,52 @@
 
    {:title "Algos as half products: what they deliver, not how"
     :tree [["(def hp (zip (duration/euclid) (pitch/lorenz)))" "euclid as durations, lorenz as pitches: each a specialised algo, its source and bridge in one"]
-           ["(def same (zip (cycle> [1/8]) (pitch/walk :as :w) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
+           ["(def same (zip (cycle [1/8]) (pitch/walk :as :w) (volume/walk :as :w)))" "one :as, one run: the higher note is the louder"]]
     :params [["(def p {:k 5 :n 16})" "lorenz at its defaults: the bridge's range defaults to what the source gives"]]
     :runs [["euclid × lorenz" "hp" "p"] ["walk as pitch and volume" "same" "{}"]]
     :extra [["a bridge's params carry the half product" "(mapv :key (t/param-keys (pitch/walk)))"]]}
 
    {:group "Rhythm × melody"}
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
-    :tree [["(def r2 (zip (pulses->durations (rotate euclid)) (shuffle> scale)))" "rotate moves the onsets two places; every pitch once per pass"]]
+    :tree [["(def r2 (zip (pulses->durations (rotate euclid)) (shuffle scale)))" "rotate moves the onsets two places; every pitch once per pass"]]
     :params [["(def p {:k 5 :n 16 :steps 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Legato by default, detached by articulation"
-    :tree [["(def det (zip riff (as-part :articulation (cycle> [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
+    :tree [["(def det (zip riff (as-part :articulation (cycle [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
-    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.pattern/fibonacci, by its short name"]]
+    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle scale)))" "musics.algo.rhythmic.pattern/fibonacci, by its short name"]]
     :params [["(def p {:length 16 :intervals [0 2 4 5 7 9 11] :pulse 1/16})" ""]]
     :runs [["result" "r3" "p"]]
     :extra [["full name" "(t/full-name :fibonacci)"]]}
    {:title "A Xenakis sieve as the rhythm"
-    :tree [["(def r4 (zip (pulses->durations sieve) (cycle> scale)))" ""]]
+    :tree [["(def r4 (zip (pulses->durations sieve) (cycle scale)))" ""]]
     :params [["(def p {:moduli [3 4] :residues [[0 1] [2]] :pulse 1/16})" "vector params: moduli and their residues"]]
     :runs [["result" "r4" "p"]]}
    {:title "A clave timeline carrying an arpeggio"
-    :tree [["(def r5 (zip (pulses->durations (world/named-bell-patterns \"clave\")) (cycle> [60 64 67 72])))" "literal children: their own data"]]
+    :tree [["(def r5 (zip (pulses->durations (world/named-bell-patterns \"clave\")) (cycle [60 64 67 72])))" "literal children: their own data"]]
     :params [["(def p {:pulse 1/16})" ""]]
     :runs [["result" "r5" "p"]]}
 
    {:group "Isorhythm & durations"}
    {:title "Isorhythm: a 5-note color against a 3-value talea"
-    :tree [["(def iso (take> (zip (cycle> [1/4 1/8 1/8]) (cycle> [60 62 64 65 67]))))" "two cycles of different length, zipped: the period is lcm(5,3) = 15"]]
+    :tree [["(def iso (take (zip (cycle [1/4 1/8 1/8]) (cycle [60 62 64 65 67]))))" "two cycles of different length, zipped: the period is lcm(5,3) = 15"]]
     :params [["(def p {:len 15})" "one period"]]
     :runs [["result" "iso" "p"]]}
    {:title "Stretch the durations, transpose the pitches"
-    :tree [["(def iso2 (transpose (stretch> iso)))" "both work on leaves"]]
+    :tree [["(def iso2 (transpose (stretch iso)))" "both work on leaves"]]
     :params [["(def p {:len 15 :factor 1/2 :semitones 7})" ""]]
     :runs [["result" "iso2" "p"]]}
 
    {:group "Metre & indispensability"}
    {:title "Indispensability thins a 12/8 bar"
     :tree [["(def grid (weights->pulses (tilt indisp)))" "ranks → probabilities → the strongest half"]
-           ["(def bar (zip (pulses->durations grid) (cycle> [67 64 60])))" "an arpeggio on the kept pulses"]]
+           ["(def bar (zip (pulses->durations grid) (cycle [67 64 60])))" "an arpeggio on the kept pulses"]]
     :params [["(def p {:adherence 0.8 :density 0.5})" ""]]
     :runs [["result" "bar" "p"]]}
    {:title "Swap one stage: strong beats silent"
-    :tree [["(def bar2 (zip (pulses->durations (weights->pulses (power indisp))) (cycle> [67 64 60])))" "power reads the same :adherence as tilt"]]
+    :tree [["(def bar2 (zip (pulses->durations (weights->pulses (power indisp))) (cycle [67 64 60])))" "power reads the same :adherence as tilt"]]
     :params [["(def p {:adherence -0.8 :density 0.5})" "negative: the weak pulses win"]]
     :runs [["result" "bar2" "p"]]}
    {:title "One weighted choice"
@@ -162,24 +163,24 @@
     :params [["(def p {:order 1 :k 11 :n 16 :pulse 1/16})" ""]]
     :runs [["result" "mk" "p"]]}
    {:title "Slonimsky: insertions before, between, after"
-    :tree [["(def sl (zip (cycle> [1/16]) (infra [60 64 67 72] [59 62])))" "two children: principal tones, insertion"]
-           ["(def pol (zip (cycle> [1/16]) (polations [60 64 67 72])))" "all three layers at once, as params"]]
+    :tree [["(def sl (zip (cycle [1/16]) (infra [60 64 67 72] [59 62])))" "two children: principal tones, insertion"]
+           ["(def pol (zip (cycle [1/16]) (polations [60 64 67 72])))" "all three layers at once, as params"]]
     :params [["(def p1 {})" ""]
              ["(def p2 {:inter [65] :ultra [62]})" ""]]
     :runs [["infra" "sl" "p1"] ["polations" "pol" "p2"]]}
    {:title "An L-system melody, its rules in the tctx"
-    :tree [["(def ls (zip (cycle> [1/16]) lsys-melody))" "axiom, rules, note-map: all params"]]
+    :tree [["(def ls (zip (cycle [1/16]) lsys-melody))" "axiom, rules, note-map: all params"]]
     :params [["(def ls-tctx (t/tctx ls))" ""]
              ["(t/setp! ls-tctx {:rules {\"A\" \"ABA\" \"B\" \"CB\" \"C\" \"A\"} :note-map {\\A 67 \\B 64 \\C 60}})" "a map param: checked to be a map"]]
     :runs [["result" "ls" "ls-tctx"]]}
    {:title "A constrained walk: constraints are a param"
     :tree [["(def sc [60 62 64 65 67 69 71 72])" ""]
-           ["(def cw (zip (cycle> [1/16]) (constrained sc)))" ""]]
+           ["(def cw (zip (cycle [1/16]) (constrained sc)))" ""]]
     :params [["(def cw-tctx (t/tctx cw {:length 12}))" "default constraint: no repeated note"]
              ["(t/setp! cw-tctx :constraints [(melody/max-leap-constraint sc 1) melody/no-repeat-constraint])" "steps only"]]
     :runs [["result" "cw" "cw-tctx"]]}
    {:title "A melody that modulates"
-    :tree [["(def mo (zip (cycle> [1/16]) (transpose modulating)))" "pitch classes 0–11, lifted 60 semitones"]]
+    :tree [["(def mo (zip (cycle [1/16]) (transpose modulating)))" "pitch classes 0–11, lifted 60 semitones"]]
     :params [["(def p {:segments [[[:C :major] 6] [[:E :minor] 6]] :semitones 60})" ""]]
     :runs [["result" "mo" "p"]]}
    {:title "Two-voice counterpoint, one part at a time"
@@ -191,114 +192,114 @@
 
    {:group "Metric generators"}
    {:title "A number's bits, a fraction's expansion"
-    :tree [["(def bt (zip (pulses->durations bits) (cycle> scale)))" "45 = 101101: onsets on bits 0, 2, 3, 5"]
-           ["(def cf (zip (pulses->durations cfrac) (cycle> scale)))" "π = [3; 7, 15, 1, …]"]]
+    :tree [["(def bt (zip (pulses->durations bits) (cycle scale)))" "45 = 101101: onsets on bits 0, 2, 3, 5"]
+           ["(def cf (zip (pulses->durations cfrac) (cycle scale)))" "π = [3; 7, 15, 1, …]"]]
     :params [["(def p1 {:number 45 :length 8 :pulse 1/16})" ""]
              ["(def p2 {:pulse 1/16})" ""]]
     :runs [["bits" "bt" "p1"] ["cfrac" "cf" "p2"]]}
    {:title "Modular arithmetic as a rhythm"
-    :tree [["(def md (zip (pulses->durations modular) (cycle> scale)))" "onset where multiplier·i + offset ≡ 0 (mod modulus)"]]
+    :tree [["(def md (zip (pulses->durations modular) (cycle scale)))" "onset where multiplier·i + offset ≡ 0 (mod modulus)"]]
     :params [["(def p {:modulus 5 :multiplier 2 :length 15 :pulse 1/16})" ""]]
     :runs [["result" "md" "p"]]}
 
    {:group "Random sources"}
    {:title "A sampler is a sequence: :len draws"
-    :tree [["(def tri (zip (cycle> [1/16]) int-triangular))" "one value per call, called :len times"]]
+    :tree [["(def tri (zip (cycle [1/16]) int-triangular))" "one value per call, called :len times"]]
     :params [["(def p {:lo 60 :hi 73 :mode 67 :len 12})" ""]]
     :runs [["result" "tri" "p"]]}
    {:title "Any numbers, rescaled onto a scale"
-    :tree [["(def nd (zip (cycle> [1/16]) (degrees->pitches (scale> normal))))" "scale> puts the draws onto scale steps, degrees->pitches spells them in a key"]]
+    :tree [["(def nd (zip (cycle [1/16]) (degrees->pitches (rescale normal))))" "rescale puts the draws onto scale steps, degrees->pitches spells them in a key"]]
     :params [["(def p {:len 12 :from-lo -2.0 :from-hi 2.0 :to-lo 0.0 :to-hi 9.0 :key \"C.pentatonic-major\"})" ""]]
     :runs [["result" "nd" "p"]]}
    {:title "A random walk, and a glide toward a target"
-    :tree [["(def wk (zip (cycle> [1/16]) (degrees->pitches (scale> walk))))" "a closure, pulled :len times"]
-           ["(def gl (zip (cycle> [1/16]) (degrees->pitches (scale> glide))))" ":target is passed on every pull"]]
+    :tree [["(def wk (zip (cycle [1/16]) (degrees->pitches (rescale walk))))" "a closure, pulled :len times"]
+           ["(def gl (zip (cycle [1/16]) (degrees->pitches (rescale glide))))" ":target is passed on every pull"]]
     :params [["(def p1 {:len 16 :step-bound 3.0 :from-lo 52.0 :from-hi 68.0 :to-lo 0.0 :to-hi 9.0 :key \"C.pentatonic-major\"})" "it starts at 60 and wanders: its range is a guess"]
              ["(def p2 {:len 16 :initial 0.0 :target 10.0 :inertia 0.7 :from-lo 0.0 :from-hi 10.0 :to-lo 0.0 :to-hi 9.0 :key \"C.pentatonic-major\"})" ""]]
     :runs [["walk" "wk" "p1"] ["glide" "gl" "p2"]]}
    {:title "Chaos: the logistic map, the Lorenz attractor"
-    :tree [["(def lg (zip (cycle> [1/16]) (degrees->pitches (scale> logistic))))" ""]
-           ["(def lz (zip (cycle> [1/16]) (degrees->pitches (scale> (axis lorenz)))))" "x of each [x y z] point"]]
+    :tree [["(def lg (zip (cycle [1/16]) (degrees->pitches (rescale logistic))))" ""]
+           ["(def lz (zip (cycle [1/16]) (degrees->pitches (rescale (axis lorenz)))))" "x of each [x y z] point"]]
     :params [["(def p1 {:r 3.9 :len 12 :to-hi 9.0 :key \"C.pentatonic-major\"})" "r = 3.9: chaotic, between 0 and 1"]
              ["(def p2 {:len 24 :dt 0.03 :from-lo -20.0 :from-hi 20.0 :to-lo 0.0 :to-hi 9.0 :key \"C.pentatonic-major\"})" ""]]
     :runs [["logistic" "lg" "p1"] ["lorenz" "lz" "p2"]]}
    {:title "A Markov chain over scale degrees, its table in the tctx"
-    :tree [["(def ch (zip (cycle> [1/16]) (degrees->pitches chain)))" "degrees, then pitches in the key"]]
+    :tree [["(def ch (zip (cycle [1/16]) (degrees->pitches chain)))" "degrees, then pitches in the key"]]
     :params [["(def p {:transitions {0 {2 1 4 1} 2 {0 1 3 2} 3 {4 1} 4 {0 2 2 1}} :start-state 0 :len 12 :key \"D.dorian\"})" "state → {next weight}"]]
     :runs [["result" "ch" "p"]]}
    {:title "Poisson onsets become durations"
-    :tree [["(def po (zip (onsets->durations poisson) (cycle> scale)))" "onsets → the time between them"]]
+    :tree [["(def po (zip (onsets->durations poisson) (cycle scale)))" "onsets → the time between them"]]
     :params [["(def p {:rate 3.0 :duration 4.0 :unit 1/4})" "a time unit = a quarter note"]]
     :runs [["result" "po" "p"]]}
    {:title "Smooth noise as a rhythm"
-    :tree [["(def nz (zip (pulses->durations (threshold noise)) (cycle> scale)))" "an onset where the curve is high"]]
+    :tree [["(def nz (zip (pulses->durations (threshold noise)) (cycle scale)))" "an onset where the curve is high"]]
     :params [["(def p {:n 6 :len 16 :level 0.4 :pulse 1/16})" ""]]
     :runs [["result" "nz" "p"]]}
 
    {:group "Rhythm generators"}
    {:title "A tala's theka, a named bell pattern"
-    :tree [["(def tk (zip (pulses->durations theka) (cycle> scale)))" ""]
-           ["(def bl (zip (pulses->durations bell) (cycle> [60 64 67])))" ":pattern-name is one of its :choices"]]
+    :tree [["(def tk (zip (pulses->durations theka) (cycle scale)))" ""]
+           ["(def bl (zip (pulses->durations bell) (cycle [60 64 67])))" ":pattern-name is one of its :choices"]]
     :params [["(def p1 {:tala-name \"jhaptal\" :pulse 1/16})" ""]
              ["(def p2 {:meter [16 8] :pattern-name \"bossanova\" :pulse 1/16})" ""]]
     :runs [["jhaptal" "tk" "p1"] ["bossanova" "bl" "p2"]]
     :extra [["not a choice" "(try (t/run bl {:pattern-name \"polka\"}) (catch Exception e (ex-message e)))"]]}
    {:title "Fractal rhythms: Cantor set, dragon curve"
-    :tree [["(def ct (zip (pulses->durations cantor) (cycle> scale)))" ""]
-           ["(def dg (zip (pulses->durations dragon) (cycle> scale)))" ""]]
+    :tree [["(def ct (zip (pulses->durations cantor) (cycle scale)))" ""]
+           ["(def dg (zip (pulses->durations dragon) (cycle scale)))" ""]]
     :params [["(def p1 {:iterations 2 :length 9 :pulse 1/16})" ""]
              ["(def p2 {:iterations 3 :pulse 1/16})" "2^(n+1) − 1 = 15 pulses"]]
     :runs [["cantor" "ct" "p1"] ["dragon" "dg" "p2"]]}
    {:title "A polyrhythm, one layer per voice"
-    :tree [["(def pr (zip (pulses->durations (layer polyrhythm)) (cycle> [48 55])))" "3 against 2, 24 pulses"]]
+    :tree [["(def pr (zip (pulses->durations (layer polyrhythm)) (cycle [48 55])))" "3 against 2, 24 pulses"]]
     :params [["(def p1 {:index 0 :pulse 1/16})" ""]
              ["(def p2 {:index 1 :pulse 1/16})" ""]]
     :runs [["three" "pr" "p1"] ["two" "pr" "p2"]]}
    {:title "A polyrhythm as two parts: each layer its own voice"
-    :tree [["(def pp (parts (zip (pulses->durations (layer polyrhythm :as :low)) (cycle> [48]))\n               (zip (pulses->durations (layer polyrhythm :as :high)) (cycle> [55]))))" "each layer picked by its own name, then joined"]]
+    :tree [["(def pp (parts (zip (pulses->durations (layer polyrhythm :as :low)) (cycle [48]))\n               (zip (pulses->durations (layer polyrhythm :as :high)) (cycle [55]))))" "each layer picked by its own name, then joined"]]
     :params [["(def p {:low/index 0 :high/index 1 :pulse 1/16})" "play it: (t/play! pp p)"]]
     :runs [["both parts" "pp" "p"]]}
    {:title "Clapping Music: the pattern against itself, shifted"
-    :tree [["(def cm (zip (pulses->durations (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0]))) (cycle> [72])))" ""]]
+    :tree [["(def cm (zip (pulses->durations (layer (duet [1 1 1 0 1 1 0 1 0 1 1 0]))) (cycle [72])))" ""]]
     :params [["(def p {:phase 3 :index 1 :pulse 1/16})" "layer 1: the shifted part"]]
     :runs [["shifted by 3" "cm" "p"]]}
    {:title "A genetic rhythm: the fitness fn is a param"
-    :tree [["(def gn (zip (pulses->durations genetic) (cycle> scale)))" ""]]
+    :tree [["(def gn (zip (pulses->durations genetic) (cycle scale)))" ""]]
     :params [["(def gn-tctx (t/tctx gn {:pulse 1/16}))" ":fitness-fn has no default: required"]
              ["(t/setp! gn-tctx :fitness-fn (fn [p] (- (+ (abs (- 5 (reduce + p))) (if (= 1 (first p)) 0 3)))))" "five onsets, one on the downbeat"]]
     :runs [["result" "gn" "gn-tctx"]]}
    {:title "Swing: a grid becomes onset times, then durations"
-    :tree [["(def sw (zip (onsets->durations (swing euclid)) (cycle> scale)))" "pulses → swung onsets → durations → leaves"]]
+    :tree [["(def sw (zip (onsets->durations (swing euclid)) (cycle scale)))" "pulses → swung onsets → durations → leaves"]]
     :params [["(def p {:k 8 :n 8 :swing-ratio 0.67 :unit 1/4})" "a beat = a quarter note"]]
     :runs [["result" "sw" "p"]]}
    {:title "A bouncing ball, in seconds"
-    :tree [["(def bb (zip (onsets->durations bounce) (cycle> [72 67])))" ""]]
+    :tree [["(def bb (zip (onsets->durations bounce) (cycle [72 67])))" ""]]
     :params [["(def p {:initial-height 1.0 :restitution 0.8 :unit 1/4 :quantum 1/64})" "one second = a quarter note"]]
     :runs [["result" "bb" "p"]]}
    {:title "Tuplet-like durations by repeated splitting"
-    :tree [["(def sp (zip split (cycle> scale)))" "each piece a :ratio of what remains"]]
+    :tree [["(def sp (zip split (cycle scale)))" "each piece a :ratio of what remains"]]
     :params [["(def p {:duration 1 :depth 5 :ratio 2/3})" ""]]
     :runs [["result" "sp" "p"]]}
    {:title "Text as rhythm"
-    :tree [["(def tx (zip (pulses->durations (weights->pulses text-rhythm)) (cycle> scale)))" "a beat on each word's first syllable"]]
+    :tree [["(def tx (zip (pulses->durations (weights->pulses text-rhythm)) (cycle scale)))" "a beat on each word's first syllable"]]
     :params [["(def p {:text \"Composing trees of algorithms is plain Clojure.\" :density 1.0 :pulse 1/16})" "density 1.0: every accent sounds"]]
     :runs [["result" "tx" "p"]]}
    {:title "Vary a rhythm: EMI style, Oblique Strategies"
-    :tree [["(def em (zip (pulses->durations (emi euclid)) (cycle> scale)))" ""]
-           ["(def ob (zip (pulses->durations (oblique euclid)) (cycle> scale)))" ""]]
+    :tree [["(def em (zip (pulses->durations (emi euclid)) (cycle scale)))" ""]
+           ["(def ob (zip (pulses->durations (oblique euclid)) (cycle scale)))" ""]]
     :params [["(def p1 {:k 5 :n 16 :similarity 0.6 :pulse 1/16})" ""]
              ["(def p2 {:k 3 :n 8 :strategy \"mirror\" :pulse 1/16})" ""]]
     :runs [["emi" "em" "p1"] ["mirror" "ob" "p2"]]}
    {:title "Vary durations: the same algos on the shop floor"
-    :tree [["(def dv (zip (duration/emi [1/8 1/8 1/4 3/8 1/8]) (cycle> scale)))" "durations laid on a grid of :duration-pulse, varied, read back"]
-           ["(def dx (zip (duration/crossover [1/8 1/8 1/4 3/8 1/8] [1/4 1/4 1/4 1/4]) (cycle> scale)))" "two rhythms crossed"]]
+    :tree [["(def dv (zip (duration/emi [1/8 1/8 1/4 3/8 1/8]) (cycle scale)))" "durations laid on a grid of :duration-pulse, varied, read back"]
+           ["(def dx (zip (duration/crossover [1/8 1/8 1/4 3/8 1/8] [1/4 1/4 1/4 1/4]) (cycle scale)))" "two rhythms crossed"]]
     :params [["(def p1 {:similarity 0.6})" ""] ["(def p2 {:crossover-point 4})" "the first half of one, the rest of the other"]]
     :runs [["emi" "dv" "p1"] ["crossover" "dx" "p2"]]}
 
    {:group "Algorithms of your own"}
    {:title "A pitch transform"
-    :tree [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitch] :out :pitch\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
-           ["(def r6 (zip (pulses->durations euclid) (up (cycle> scale))))" "up works on pitches, before zip"]]
+    :tree [["(defalgo up \"Shift every pitch; rests stay.\"\n  {:algo {:in [:pitch] :out :pitch\n          :params {:by {:type :int :min -48 :max 48 :default 12}}}}\n  [pitches by] (clojure.core/map #(some-> % (+ by)) pitches))" "defalgo = defn + register; up* is the raw fn"]
+           ["(def r6 (zip (pulses->durations euclid) (up (cycle scale))))" "up works on pitches, before zip"]]
     :params [["(def p {:by -12})" ""]]
     :runs [["result" "r6" "p"]]
     :extra [["raw fn" "(up* [60 nil 64] 5)"]]}
@@ -312,7 +313,7 @@
    {:group "Two of a kind"}
    {:title "Two instances of one algo: name one"
     :tree [["(defalgo union \"Onset wherever either grid has one.\"\n  {:algo {:in [:pulse :pulse] :out :pulse}}\n  [a b] (mapv max a b))" ""]
-           ["(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle> scale)))" "keys :bass/k … and :k …"]]
+           ["(def two (zip (pulses->durations (union (euclid :as :bass) euclid)) (cycle scale)))" "keys :bass/k … and :k …"]]
     :params [["(def p {:bass/k 2 :bass/n 16 :k 5 :n 16 :intervals [0 3 7 10] :pulse 1/16})" ""]]
     :runs [["result" "two" "p"]]}
    {:title "Different algos, same param name"
@@ -328,7 +329,7 @@
              ["(def busy (t/tctx riff {:k 7}))" "the tree is shared, the settings aren't"]]
     :runs [["calm" "riff" "calm"] ["busy" "riff" "busy"]]}
    {:title "Fit a tctx to another tree"
-    :tree [["(def other (transpose (take> (zip (cycle> [1/8]) (cycle> scale)))))" "reads :len and :semitones too"]]
+    :tree [["(def other (transpose (take (zip (cycle [1/8]) (cycle scale)))))" "reads :len and :semitones too"]]
     :params [["(t/fit! calm other)" "adds their specs, keeps :k 2"]]
     :runs [["other, with calm" "other" "calm"]]}
    {:title "Settings written as @^{ }, from several sources"
@@ -361,7 +362,7 @@
     :play [["(t/live! :up5 up5 up5-tctx)" "a transform only binds the name"]
            ["(store/read! \"[verse: c4 e4 g4]\")" ""]
            ["(engine/play-connected :verse :algo :up5)" "the verse, a fourth higher"]]
-    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (take 3 (compose/sq :verse)) nil {:path [:TA]})"]]}
+    :runs [["applied" "up5" "up5-tctx" "((wall/algo :up5) (clojure.core/take 3 (compose/sq :verse)) nil {:path [:TA]})"]]}
 
    {:group "Material"}
    {:title "Generated notes become committed musics text"
@@ -498,24 +499,24 @@
 
 (def post
   "What must follow an algo before its result is leaves: [type-or-names label steps then note]."
-  [[:pulse nil "pulses->durations → :duration, then zip with pitches" "each onset lasts until the next; a nonzero value (2 = accent) is an onset" "(zip (pulses->durations euclid) (cycle> scale))"]
+  [[:pulse nil "pulses->durations → :duration, then zip with pitches" "each onset lasts until the next; a nonzero value (2 = accent) is an onset" "(zip (pulses->durations euclid) (cycle scale))"]
    [:weight nil "weights->pulses → :pulse, weights->volumes / weights->articulations → zip onto leaves, or pick → one :index" "tilt / power only reshape weights: something else must follow" "(zip (pulses->durations (weights->pulses (tilt indisp))) …)"]
-   [:pitch nil "zip with durations" "modulating gives pitch classes 0–11: transpose (+60) first" "(zip (cycle> [1/16]) (transpose modulating))"]
-   [:number nil "numbers->pitches / numbers->durations, scale> then degrees->pitches, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; give its range as :from-lo/:from-hi" "(zip (cycle> [1/16]) (degrees->pitches (scale> walk)))"]
-   [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle> scale))"]
-   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses its pitch unwritten" "(zip split (cycle> scale))"]
-   [:point nil "points->pitches / points->durations, or axis → :number" "henon/lorenz give a point per step" "(zip (cycle> [1/16]) (degrees->pitches (scale> (axis lorenz))))"]
+   [:pitch nil "zip with durations" "modulating gives pitch classes 0–11: transpose (+60) first" "(zip (cycle [1/16]) (transpose modulating))"]
+   [:number nil "numbers->pitches / numbers->durations, rescale then degrees->pitches, or threshold → :pulse" "a sampler/walk/chaos value is not a pitch; give its range as :from-lo/:from-hi" "(zip (cycle [1/16]) (degrees->pitches (rescale walk)))"]
+   [:onset nil "onsets->durations → :duration, then zip" "set :unit to the note value of one time unit (seconds for bounce/rain/heartbeat, beats for swing/cloud); n onsets give n−1 durations" "(zip (onsets->durations poisson) (cycle scale))"]
+   [:duration nil "zip with pitches" "note values: 1/4 is a quarter; a Rest in the stream uses its pitch unwritten" "(zip split (cycle scale))"]
+   [:point nil "points->pitches / points->durations, or axis → :number" "henon/lorenz give a point per step" "(zip (cycle [1/16]) (degrees->pitches (rescale (axis lorenz))))"]
    [:layer nil "layer (:index) → one :pulse layer, then as pulses; parts joins the voices" "name each layer you pick (:as) so each has its own :index" "(parts (zip (pulses->durations (layer polyrhythm :as :a)) …) (zip (pulses->durations (layer polyrhythm :as :b)) …))"]
    [:part nil "already leaves, in parallel: play it; part (:index) → one part's leaves" "drums, counterpoint, species, parts and +part give parts" "(part (counterpoint …))"]
    [:model nil "markov-gen → :pitch" "" "(markov-gen (markov-train motif))"]
    [:index nil "none — one value, not a sequence" "use it to choose, e.g. in your own algo" "(pick (tilt indisp))"]
    [:stroke nil "strokes->durations → :duration, then zip" "a syllable starts a note, \"-\" lengthens it" "(zip (strokes->durations (konnakol euclid)) …)"]
-   [:volume nil "zip onto leaves" "the note's own volume, 0–100" "(zip riff (cycle> (weights->volumes indisp)))"]
-   [:articulation nil "zip onto leaves" "staccato, accent, ghost …" "(zip riff (as-part :articulation (cycle> [:staccato])))"]
-   [:instrument nil "zip onto leaves" "a MIDI program, a General MIDI name or its short name" "(zip riff (as-part :instrument (cycle> [\"violin\"])))"]
-   [:drum nil "zip onto leaves" "each note made a drum: a key of the kit or a drum's name" "(zip riff (as-part :drum (cycle> [\"kick\" \"hhc\"])))"]
+   [:volume nil "zip onto leaves" "the note's own volume, 0–100" "(zip riff (cycle (weights->volumes indisp)))"]
+   [:articulation nil "zip onto leaves" "staccato, accent, ghost …" "(zip riff (as-part :articulation (cycle [:staccato])))"]
+   [:instrument nil "zip onto leaves" "a MIDI program, a General MIDI name or its short name" "(zip riff (as-part :instrument (cycle [\"violin\"])))"]
+   [:drum nil "zip onto leaves" "each note made a drum: a key of the kit or a drum's name" "(zip riff (as-part :drum (cycle [\"kick\" \"hhc\"])))"]
    [nil ["tala" "djembe" "humanize" "pocket" "patch" "tiling" "trend-rhythm" "text-rhythm"] "none in the lib (maps or mixed values)" "text-rhythm and trend-rhythm give 0/1/2: pulses->durations takes them; the map-valued ones need your own defalgo, e.g. mapping :time" ""]
-   [:leaf nil "none — t/play!, t/live!, or notes->mus → store/read!" "an infinite tree (cycle>/shuffle> with no finite rhythm) needs take> before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
+   [:leaf nil "none — t/play!, t/live!, or notes->mus → store/read!" "an infinite tree (cycle/shuffle with no finite rhythm) needs take before t/play! or printing" "(notes->mus (t/run riff tctx))"]])
 
 (defn post-rows []
   (let [lib (remove #(or (:via (val %)) (str/starts-with? (namespace (:full (val %))) "cookbook")) (reg/algos))]
@@ -599,7 +600,7 @@
 
        "<h2>1. The idea</h2>\n"
        "<p>Two separate things. A <b>tree</b> says <i>what</i> is computed: algorithms nested as ordinary Clojure calls. A <b>tctx</b> holds the <i>settings</i> it runs with: an atom of params, derived from a tree but never holding it.</p>\n<ul>\n"
-       "<li><b>Composition is nesting.</b> <code>(zip (pulses->durations euclid) (cycle> scale))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>\n"
+       "<li><b>Composition is nesting.</b> <code>(zip (pulses->durations euclid) (cycle scale))</code>: each algo takes its children and returns a node. A bare algo name is a leaf, <code>euclid</code> = <code>(euclid)</code>.</li>\n"
        "<li><b>Algorithms describe themselves.</b> Each carries <code>:algo</code> metadata: what its children must be (<code>:in</code>), what it makes (<code>:out</code>), and a spec per param: type, range, default. Nothing else about the function changes.</li>\n"
        "<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>\n"
        "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
@@ -645,7 +646,7 @@
        "<p>The tctx is the GUI's model. The Wall window lists every live name with its tree, and one control per param: a slider when the spec has a finite range, a dropdown for <code>:choices</code>, a note for a function (set it at the REPL), a text field otherwise. A value the spec rejects isn't applied; the window says why.</p>\n"
        "<div class=\"mock\"><div class=\"bar\">Musics — Wall Algorithms</div><div class=\"body\">"
        "<div class=\"panel\"><b>Live trees (t/live!) — each change heard on the next note</b>"
-       "<div>riff  (zip (pulses->durations (euclid)) (cycle> (scale)))</div>"
+       "<div>riff  (zip (pulses->durations (euclid)) (cycle (scale)))</div>"
        "<div class=\"sl\"><span class=\"lab\">k</span><span class=\"v\">7</span><span>0</span><span class=\"track\"><i style=\"left:22%\"></i></span><span>32</span></div>"
        "<div class=\"sl\"><span class=\"lab\">n</span><span class=\"v\">8</span><span>1</span><span class=\"track\"><i style=\"left:22%\"></i></span><span>32</span></div>"
        "<div class=\"sl\"><span class=\"lab\">root</span><span class=\"v\">60</span><span>24</span><span class=\"track\"><i style=\"left:50%\"></i></span><span>96</span></div>"
@@ -657,7 +658,7 @@
        "<h2>9. Limits worth knowing</h2>\n<ul>\n"
        "<li>Generated leaves carry what the tree gives them: duration and pitch, and with zip their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
-       "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
+       "<li>An infinite tree (<code>cycle</code>, <code>shuffle</code> without a <code>take</code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
        "<li>All random algos share one RNG (<code>musics.algo.numeric.rng/default-rng</code>). <code>(musics.algo.numeric.rng/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
        "<li>A <code>defalgo</code> lives in the namespace that defines it: re-run it (keep it in a source file) in a fresh session. A tctx is live state, not saved by <code>persist-session</code>.</li>\n"
        "<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>\n</ul>\n"

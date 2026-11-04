@@ -6,7 +6,8 @@
             [musics.test-support :refer [with-fresh-registries]]
             [musics.algo.tree :as t :refer [defalgo]]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.tree.lib :refer [lorenz euclid scale cycle> shuffle> take> transpose zip pulses->durations
+            [musics.algo.tree.tools :as tools]
+            [musics.algo.tree.lib :refer [lorenz euclid scale transpose zip pulses->durations
                                            indisp tilt power weights->pulses pick degrees->pitches]]
             [musics.algo.tree.live :as live]
             [musics.algo.rhythmic.indispensability :as indisp]
@@ -48,8 +49,8 @@
 (defn- no-default {:algo {:in [] :params {:y {:type :vector}}}} [y] y)
 (defn- bare [y] y)
 
-(def riff (zip (pulses->durations euclid) (cycle> scale)))
-(def melody (zip (cycle> [1/8]) (cycle> scale)))
+(def riff (zip (pulses->durations euclid) (tools/cycle scale)))
+(def melody (zip (tools/cycle [1/8]) (tools/cycle scale)))
 
 ;; ---------------------------------------------------------------------------
 ;; Introspection and the registry
@@ -88,7 +89,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest trees-print-and-show-as-their-expression
-  (is (= "#node (zip (pulses->durations (euclid)) (cycle> (scale)))" (pr-str riff)))
+  (is (= "#node (zip (pulses->durations (euclid)) (cycle (scale)))" (pr-str riff)))
   (is (= "#algo (euclid :k :n)" (pr-str euclid)))
   (is (= '(zip (pulses->durations (euclid :as :bass)) [60 62])
          (t/show (zip (pulses->durations (euclid :as :bass)) [60 62])))))
@@ -101,11 +102,11 @@
                         (zip [1/4] (pick indisp))))
   (is (some? (zip (pulses->durations (weights->pulses (tilt indisp))) scale)) "durations from pulses fit")
   (is (some? (zip [1/4 1/8] :ps)) "a literal and a param read fit any slot")
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (cycle> inc))))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"plain fn as a child" (tools/cycle inc))))
 
 (deftest a-same-typed-algo-passes-its-childs-type-on
-  (is (= :pitch (t/out-type (cycle> scale))))
-  (is (thrown? clojure.lang.ExceptionInfo (zip (cycle> scale) scale))))
+  (is (= :pitch (t/out-type (tools/cycle scale))))
+  (is (thrown? clojure.lang.ExceptionInfo (zip (tools/cycle scale) scale))))
 
 ;; ---------------------------------------------------------------------------
 ;; Keys
@@ -155,7 +156,7 @@
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"should be an integer" (t/run (euclid) {"k" :x})))
     (is (= [62 64] (take 2 (t/run (degrees->pitches [0 1]) {"key" :D.major}))) "a bare name read as a string"))
   (testing "a named instance reads its own name first"
-    (let [two (zip (pulses->durations (euclid :as :a)) (cycle> scale))]
+    (let [two (zip (pulses->durations (euclid :as :a)) (tools/cycle scale))]
       (is (= 2 (count (t/run two {"a.k" 2 "k" 7}))))))
   (testing "the music gives only what names a music key"
     (let [music (c/context)]
@@ -187,7 +188,7 @@
 
 (deftest fit!-prepares-a-tctx-for-another-tree
   (let [tctx (t/tctx riff {:k 5})
-        other (transpose (take> (zip (cycle> [1/8]) (cycle> scale))))]
+        other (transpose (tools/take (zip (tools/cycle [1/8]) (tools/cycle scale))))]
     (is (= 16 (count (t/run other tctx))) "keys a tctx doesn't know take their defaults")
     (t/fit! tctx other)
     (is (= 5 (:k (t/params tctx))) "existing values stay")
@@ -217,7 +218,7 @@
     (is (= ['(indisp) '(tilt (indisp)) '(weights->pulses (tilt (indisp)))] (map :node tr)))
     (is (= (indisp/indisp [2 2 3]) (:data (first tr)))))
   (is (= (conj (vec (repeat 16 60)) '...)
-         (:data (first (t/trace (cycle> [60]) {}))))
+         (:data (first (t/trace (tools/cycle [60]) {}))))
       "an infinite lazy seq is previewed, not walked"))
 
 (deftest the-lib-matches-the-plain-functions
@@ -229,16 +230,16 @@
   (is (= [[60] [64] [67]] (map :pitches (t/run riff {:intervals [0 4 7]}))))
   (is (= [62 [62 66] nil] (t/run (transpose [60 [60 64] nil]) {:semitones 2})))
   (is (= [[60 1/4] [62 1/8] [64 1/4] [60 1/8] [62 1/4] [64 1/8]]
-         (map (juxt (comp first :pitches) :duration) (t/run (take> (zip (cycle> [1/4 1/8]) (cycle> [60 62 64]))) {:len 6})))
+         (map (juxt (comp first :pitches) :duration) (t/run (tools/take (zip (tools/cycle [1/4 1/8]) (tools/cycle [60 62 64]))) {:len 6})))
       "an isorhythm: two cycles of different length, zipped")
   (is (< -1 (t/run (pick (tilt indisp)) {}) 12))
   (seed/seed! 42)
-  (is (every? #(= #{1 2 3 4} (set %)) (partition 4 (take 12 (t/run (shuffle> [1 2 3 4]) {}))))))
+  (is (every? #(= #{1 2 3 4} (set %)) (partition 4 (take 12 (t/run (tools/shuffle [1 2 3 4]) {}))))))
 
 (deftest zip-makes-leaves-each-onset-lasting-until-the-next
   (is (= [[:LEAF 3/16] [:LEAF 3/16] [:LEAF 1/8]] (map (juxt :type :duration) (t/run riff {}))))
   (is (= [[:REST 1/8] [:LEAF 3/16] [:LEAF 1/16]]
-         (map (juxt :type :duration) (t/run (zip (pulses->durations [0 0 1 0 0 1]) (cycle> scale)) {})))
+         (map (juxt :type :duration) (t/run (zip (pulses->durations [0 0 1 0 0 1]) (tools/cycle scale)) {})))
       "0s before the first onset are one rest"))
 
 ;; ---------------------------------------------------------------------------
@@ -276,7 +277,7 @@
 (deftest live-refuses-a-tree-that-gives-no-leaves
   (binding [engine/*engine* (fast-engine)]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"a live tree ends in leaves"
-                          (t/live! :y (cycle> scale) (t/tctx (cycle> scale)))))
+                          (t/live! :y (tools/cycle scale) (t/tctx (tools/cycle scale)))))
     (is (empty? @(:voices engine/*engine*)))))
 
 (deftest a-transform-tree-rewrites-a-voices-own-notes
@@ -289,7 +290,7 @@
 
 (deftest a-live-tree-reads-the-music-it-plays-in
   (let [music (doto (c/context) (c/ctx-append :Key 0 (el/parse-key "D.major") :fixed))
-        degs  (zip (cycle> [1/4]) (degrees->pitches (cycle> [0 1 2])))]
+        degs  (zip (tools/cycle [1/4]) (degrees->pitches (tools/cycle [0 1 2])))]
     (t/live! :up7 (transpose :nodes) (t/tctx (transpose :nodes) {:semitones 7}))
     (is (= [[67]] (map :pitches ((wall/algo :up7) [(d/leaf :n1 nil 1/4 [60])] [[music 0]] {:path [:TA]})))
         "what the tctx sets (a voice's chain holds [ctx offset] links)")
@@ -303,7 +304,7 @@
     (#'gs/refresh-wall!)
     (let [{:keys [name tree params]} (first (get-in @gs/*state [:wall :trees]))]
       (is (= :riff name))
-      (is (= "(zip (pulses->durations (euclid)) (cycle> (scale)))" tree))
+      (is (= "(zip (pulses->durations (euclid)) (cycle (scale)))" tree))
       (is (= [:k :n :pulse :root :intervals] (map :key params)))
       (is (= 3 (:value (first params)))))
     (gs/set-tree-param! :riff :k 5)
@@ -336,5 +337,5 @@
       "two bridges when one doesn't reach")
   (is (= '(zip (pulses->durations (euclid)) (points->pitches (lorenz))) (t/show (zip (pulses->durations euclid) lorenz)))
       "a join bridges to the part neither child gives yet")
-  (is (= '(degrees->pitches (cycle> [0 2])) (t/show (degrees->pitches (cycle> [0 2])))) "what fits stays as it is")
+  (is (= '(degrees->pitches (cycle [0 2])) (t/show (degrees->pitches (tools/cycle [0 2])))) "what fits stays as it is")
   (is (= 3 (count (t/run (zip euclid scale) {:k 3 :n 8})))))

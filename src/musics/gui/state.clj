@@ -81,7 +81,8 @@
     [musics.wall :as wall]
     [musics.algo.numeric.random :as rnd]
     [musics.algo.tree :as at]
-    [musics.algo.tree.lib :as tree-lib]))
+    [musics.algo.tree.lib :as tree-lib]
+            [musics.algo.tree.tools :as tools]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
@@ -1666,7 +1667,7 @@
     "invert"          (if (contains? params :axis)
                          (map (d/invert (get params :axis)) material)
                          (map (d/invert) material))
-    "stretch"         (at/run (tree-lib/stretch> :material) {:material material :factor (get params :factor 1)})
+    "stretch"         (at/run (tools/stretch :material) {:material material :factor (get params :factor 1)})
     "reverse"         (clojure.core/reverse material)
     "shuffle"         (seq (rnd/shuffle material))
     "tonal-transpose" (map (d/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1)) material)

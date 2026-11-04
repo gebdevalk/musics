@@ -160,7 +160,7 @@
        (take n)))
 
 (defn show
-  "A tree term as text: (zip (pulses->durations (euclid)) (cycle> (scale)))."
+  "A tree term as text: (zip (pulses->durations (euclid)) (cycle (scale)))."
   [term]
   (if (seq? term)
     (str "(" (str/join " " (cons (str (symbol (first term))) (map show (rest term)))) ")")

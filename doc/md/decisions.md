@@ -3168,3 +3168,25 @@ rotation:
   :total-phases` (how many layers), and `duet`: it builds a `:layer` from a
   pattern and its rotation, and no tool joins pulse patterns into a layer
   (`parts` joins note streams).
+
+## 2026-11-04 — the tree tools lose their `>` suffix
+
+The tools were `cycle>`, `shuffle>`, `take>`, `map>`, `filter>`, `remove>`, `mute>`,
+`scale>`, `stretch>` so that referring every constructor into the REPL's `user`
+namespace would not shadow `clojure.core`. With no Clojure REPL API that
+reason is gone, and mu's own words are `take`, `cycle`, `shuffle` and the rest, so
+the same tool had two names. They are `cycle shuffle take map filter remove mute
+stretch rotate` now.
+
+- They live in `musics.algo.tree.tools`, which excludes the six `clojure.core`
+  names and says `clojure.core/take` where it means the real one; `lib.clj` keeps
+  its own use of `map`, `take` and `filter` untouched. `lib` loads `tools`, so the
+  registry has them. Clojure code that builds trees calls `tools/take`, or refers
+  them in a namespace that excludes the core names (the cookbook does).
+- `scale>` is `rescale`, not `scale`: `scale` is the tree's pitch scale (root plus
+  intervals), kept by the 2026-09 decision that `scale` and `transpose` are the
+  tree's names. `rescale` maps a number range onto another.
+- Registry short names changed, so a saved `@( … )` recipe or session that names
+  `take>`, `cycle>` and the others stops reading; they take the new names.
+- Kept as they were: `catalog_test`'s rule that `lib`'s public names never shadow
+  `clojure.core`, which still holds for `lib` itself.

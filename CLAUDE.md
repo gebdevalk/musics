@@ -684,7 +684,7 @@ holding values by name, also the GUI's model):
 
 ```clojure
 (require '[musics.algo.tree :as t] '[musics.algo.tree.lib :refer :all])
-(def riff (zip (pulses->durations euclid) (cycle> scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
+(def riff (zip (pulses->durations euclid) (cycle scale)))   ; prints #node (zip (pulses->durations (euclid)) ...)
 (def tctx (t/tctx riff))                          ; {:params-atom (atom {})}, the specs as its meta
 (t/setp! tctx :k 5)                           ; = (swap! (:params-atom tctx) assoc "k" 5), validated
 (t/run riff tctx)                                  ; or (t/run riff {:k 5}), a plain map
@@ -721,10 +721,11 @@ classes as raw numbers, so the bridges serialise any parameter --
 `classes->pitches`, `time-points->durations` (Babbitt), `numbers->durations` --
 with `row-form`, and `matrix`/`combinatorial`/`prime-form`/`interval-vector`
 as plain fns) — and
-`defalgo`s the tools -- within one type, any material, marked `>` so
-they never shadow `clojure.core` (`cycle>`, `shuffle>`, `take>`,
-`map>`/`filter>` with a `:fn` param, `scale>` a range onto another,
-`stretch>` durations) -- the helpers (`scale`, `transpose`, `pick`) and
+`defalgo`s the tools (`musics.algo.tree.tools`: within one type, any
+material, plain names -- `cycle`, `shuffle`, `take`, `rotate`,
+`map`/`filter` with a `:fn` param, `rescale` a range onto another,
+`stretch` durations; that namespace excludes the `clojure.core` names it
+takes) -- the helpers (`scale`, `transpose`, `pick`) and
 the raw-to-raw steps (`threshold`: numbers → pulses, `layer`, `axis`,
 `noise`). Trees end in
 leaves (`doc/md/algo-audit.md`, the leaf principle): `musics.algo.bridge`'s
@@ -775,9 +776,9 @@ trees is an algo or listed with the reason it isn't (data tables, the
 RNG engine, single draws, constraint builders), every algo runs with
 its own defaults and gives its declared `:out`, and no lib name shadows
 `clojure.core`.
-`remove>`/`mute>` (with `filter>`) select by a `:fn` test: on a stream
-of one material, or on leaves, where `remove>` drops a note (later
-ones move earlier) and `mute>` makes it a rest of its duration.
+`remove`/`mute` (with `filter`) select by a `:fn` test: on a stream
+of one material, or on leaves, where `remove` drops a note (later
+ones move earlier) and `mute` makes it a rest of its duration.
 
 **Algos deliver half products** (`musics.algo.tree.half-products`,
 `doc/md/algo-space.md`). Pitch, duration, volume, articulation and
@@ -880,8 +881,8 @@ a canvas showing the tree with its brackets and numbered holes, and a
 pane of shelves -> algos on the right (`musics.algo.tree.registry/
 shelf`: half products first, the workshop last); what doesn't fit the active slot is dimmed and refused as a
 drop target — decided over the whole draft by `musics.algo.logic.tree`, which
-types the draft in core.logic, so a hole under a `:same` node (`cycle>`,
-`take>`, ...) takes the type that node's own slot wants, and an algo
+types the draft in core.logic, so a hole under a `:same` node (`cycle`,
+`take`, ...) takes the type that node's own slot wants, and an algo
 whose own holes nothing could fill is dimmed too — a drop on a hole fills it, on a node replaces it, and the
 active slot moves on to the next hole, so a tree grows root to leaves.
 It runs on `musics.algo.tree.builder`, a pure draft model
@@ -1235,8 +1236,8 @@ pitch is `(nth color (mod i (count color)))`, its duration `(nth talea
 splits a melody into `n` faster, octave-shifted voices, each built from
 the previous split so every voice's total duration matches the
 original's. Call either directly; in an `musics.algo.tree` tree the same
-isorhythm is `zip` over two `cycle>`d streams, `(take> (zip (cycle> talea)
-(cycle> color)))`.
+isorhythm is `zip` over two `cycle`d streams, `(take (zip (cycle talea)
+(cycle color)))`.
 
 ### Domain model — flat repo, not a tree of pointers
 

@@ -4,6 +4,7 @@
             [musics.algo.bridge :as b]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.domain :as d]
             [musics.events :as ev]
             [musics.mu.value :as v]
@@ -121,8 +122,8 @@
     (is (= [40 102] ((juxt :program :velocity) e)) "volume 80 -> velocity 102, over the context's")))
 
 (deftest a-tree-from-bridges-to-leaves
-  (let [tr  (lib/zip (lib/pulses->durations lib/euclid) (lib/degrees->pitches (lib/cycle> [0 2 4 7]))
-                     (lib/cycle> (lib/weights->volumes lib/indisp)))
+  (let [tr  (lib/zip (lib/pulses->durations lib/euclid) (lib/degrees->pitches (tools/cycle [0 2 4 7]))
+                     (tools/cycle (lib/weights->volumes lib/indisp)))
         out (t/run tr {:k 3 :n 8})]
     (is (= [3/16 3/16 1/8] (map :duration out)))
     (is (= [[60] [64] [67]] (map :pitches out)))

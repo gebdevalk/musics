@@ -9,6 +9,7 @@
             [clojure.test :refer [deftest is testing]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.algo.numeric.rng :as rc]
             [musics.algo.melodic.melody :as melody]
             [musics.domain :as d]))
@@ -35,7 +36,7 @@
    'musics.algo.numeric.random/markov                               "one step; markov-chain (chain) walks it"
    'musics.algo.numeric.random/rand-double                          "primitive; uniform covers it"
    'musics.algo.numeric.random/rand-int                             "primitive; int-range covers it"
-   'musics.algo.numeric.random/shuffle                              "lib's shuffle> covers it"
+   'musics.algo.numeric.random/shuffle                              "lib's shuffle covers it"
    'musics.algo.numeric.walk/smooth-noise                           "returns a curve of t; lib's noise samples it"
    'musics.algo.numeric.random/weighted-choose                      "one draw; lib's pick covers it"
    'musics.algo.numeric.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
@@ -170,8 +171,8 @@
 
 (deftest bridges
   (is (= [60 62 64 67 69] (t/run (lib/degrees->pitches [0 1 2 3 4]) {:key "C.pentatonic-major"})))
-  (is (= [60 72 81] (t/run (lib/degrees->pitches (lib/scale> [0 0.5 1])) {:key "C.pentatonic-major" :to-hi 9.0}))
-      "numbers onto two octaves of a scale: scale> then degrees->pitches")
+  (is (= [60 72 81] (t/run (lib/degrees->pitches (tools/rescale [0 0.5 1])) {:key "C.pentatonic-major" :to-hi 9.0}))
+      "numbers onto two octaves of a scale: rescale then degrees->pitches")
   (is (= [0 1 1] (t/run (lib/threshold [1 5 9]) {:level 0.4})))
   (is (= [1/4 1/8] (t/run (lib/onsets->durations [0 1 1.5]) {})) "a time unit is a quarter")
   (is (= [0 1 1] (t/run (lib/layer [[1 0] [0 1 1]]) {:index 1})))

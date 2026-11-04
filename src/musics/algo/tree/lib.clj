@@ -2,7 +2,7 @@
   "Ready-made algos for musics.algo.tree trees. Each name here is a node
    constructor; (musics.algo.tree/algos) lists them all with their params.
 
-     (def riff (zip (pulses->durations euclid) (cycle> scale)))
+     (def riff (zip (pulses->durations euclid) (cycle scale)))
      (musics.algo.tree/run riff {:k 5})
 
    Exposed from musics/algo/ -- every fn carrying :algo metadata in these
@@ -19,16 +19,8 @@
      musics.algo.rhythmic.indispensability  indisp tilt power
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
-   Tools, within one type, any material (marked > so they never shadow
-   clojure.core):
-     cycle> shuffle>                   repeat forever / reshuffle every pass
-     take>        :len                 first :len items
-     rotate       :steps               the front items round to the back
-     map> filter> :fn                  each item through a fn / the items a fn keeps
-     remove>      :fn                  the items a fn doesn't drop
-     mute>        :fn                  leaves: the notes a fn is true for become rests
-     scale>       :from-lo .. :to-hi   numbers from one range onto another
-     stretch>     :factor              durations or notes, each duration times :factor
+   Tools (take, map, rotate, stretch ... -- any material, the type stays) are in
+   musics.algo.tree.tools, loaded with this namespace.
      transpose    :semitones           pitches, chords, rests or notes; (transpose :nodes) is a live transform
      pick                              :weight -> one weighted :index
    Leaves, the product, assembled from half products (musics.algo.bridge
@@ -57,7 +49,7 @@
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
   (:require [musics.algo.tree :as t :refer [defalgo expose-ns]]
             [musics.algo.tree.half-products :as hp]
-            [musics.algo.common.rotate :as rot]
+            [musics.algo.tree.tools]
             [musics.algo.numeric.random :as random]
             [musics.algo.numeric.walk :as walk]
             [musics.common.music-data :as data :refer [quantity]]
@@ -111,71 +103,12 @@
                    :intervals {:type :vector :default [0 2 4 7 9] :doc "semitones above root"}}}}
   [root intervals] (mapv #(+ root %) intervals))
 
-;; -- tools: within one type, any material ------------------------------------
-
-(defalgo cycle> "Its child, repeated forever (lazy)."
-  {:algo {:category "tool" :in [:any] :out :same}}
-  [xs] (cycle xs))
-
-(defalgo shuffle> "Its child, reshuffled on every pass, forever (lazy)."
-  {:algo {:category "tool" :in [:any] :out :same}}
-  [xs] (let [v (vec xs)] (mapcat identity (repeatedly #(random/shuffle v)))))
-
-(defalgo take> "The first :len items of its child."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:len {:type :int :min 0 :max 256 :default 16 :doc "items kept"}}}}
-  [xs len] (vec (take len xs)))
-
-(defalgo rotate "Its child (finite) moved :steps places to the left, the front items coming round to the back; negative steps go right."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:steps {:type :int :min -256 :max 256 :default 1 :doc "places to the left"}}}}
-  [xs steps] (let [v (vec xs)] (if (empty? v) v (rot/rotate v steps))))
-
-(defalgo map> "Each item through :fn (set at the REPL), lazily; the type stays."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:fn {:type :fn :default identity :doc "applied to each item"}}}}
-  [xs fn] (map fn xs))
-
-(defalgo filter> "The items :fn (set at the REPL) keeps, lazily."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:fn {:type :fn :default some? :doc "true keeps the item"}}}}
-  [xs fn] (filter fn xs))
-
-(defalgo remove> "The items :fn (set at the REPL) doesn't drop, lazily: on leaves the line gets shorter, later notes move earlier."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:fn {:type :fn :default nil? :doc "true drops the item"}}}}
-  [xs fn] (remove fn xs))
-
-(defalgo mute> "Each note :fn (set at the REPL) is true for becomes a rest of its duration, lazily: the rhythm stays. Rests stay."
-  {:algo {:category "tool" :in [:leaf] :out :leaf
-          :params {:fn {:type :fn :default (constantly false) :doc "true silences the note"}}}}
-  [leaves fn] (map #(if (and (not (d/rest? %)) (fn %)) (d/rest* nil nil (:duration %)) %) leaves))
-
-(defalgo scale> "Each number's place in :from-lo..:from-hi onto :to-lo..:to-hi, lazily (not clamped): a factor is 0..1 onto 0..factor."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:from-lo {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "maps to :to-lo"}
-                   :from-hi {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "maps to :to-hi"}
-                   :to-lo   {:type :double :min ##-Inf :max ##Inf :default 0.0 :doc "lowest out"}
-                   :to-hi   {:type :double :min ##-Inf :max ##Inf :default 1.0 :doc "highest out"}}}}
-  [xs from-lo from-hi to-lo to-hi]
-  (let [span (- from-hi from-lo)
-        k    (if (zero? span) 0.0 (/ (- to-hi to-lo) (double span)))]
-    (map #(+ to-lo (* k (- % from-lo))) xs)))
+;; -- tools: see musics.algo.tree.tools (take, map, rotate, stretch ...) --------
 
 (defalgo transpose "Shift pitches, chords or notes; rests stay."
   {:algo {:category "shape" :in [:any] :out :same
           :params {:semitones (quantity :semitones {:doc "shift"})}}}
   [xs semitones] (map (partial shift semitones) xs))
-
-(defn- stretched [factor x]
-  (cond (number? x)   (* factor x)
-        (:duration x) (update x :duration #(* factor %))
-        :else         x))
-
-(defalgo stretch> "Every duration times :factor -- numbers, or notes' :duration; anything else stays."
-  {:algo {:category "tool" :in [:any] :out :same
-          :params {:factor (quantity :ratio {:doc "duration multiplier"})}}}
-  [xs factor] (map (partial stretched factor) xs))
 
 (defalgo pick "One index, drawn with the child's weights."
   {:algo {:category "shape" :in [:weight] :out :index}}

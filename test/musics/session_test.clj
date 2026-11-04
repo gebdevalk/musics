@@ -9,11 +9,12 @@
             [musics.domain.resolve :as r]
             [musics.domain.ornaments :as orn]
             [musics.algo.tree :as t]
-            [musics.algo.tree.lib :as lib]))
+            [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]))
 
 ;; pitch shift and duration stretch are musics.algo.tree algos now (musics.algo.tree.lib)
 (defn- shift [n material] (t/run (lib/transpose :m) {:m material :semitones n}))
-(defn- stretch [f material] (t/run (lib/stretch> :m) {:m material :factor f}))
+(defn- stretch [f material] (t/run (tools/stretch :m) {:m material :factor f}))
 (defn- times [n material] (take (* n (count material)) (cycle material)))
 
 (defn reset-state-fixture [f]

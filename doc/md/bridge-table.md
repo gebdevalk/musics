@@ -40,7 +40,7 @@ more parts), and the generators that make leaves themselves (`drums`,
   make; `pulses->durations` makes durations of it.
 - **`:onset`**: event times (seconds or beats); `onsets->durations`.
 - **`:number`**: plain numbers (samplers, walks, chaos, noise);
-  `numbers->durations`, `numbers->pitches`, or `scale>` then
+  `numbers->durations`, `numbers->pitches`, or `rescale` then
   `degrees->pitches`; `threshold` makes pulses of them.
 - **`:point`**: a vector per step (`henon`, `lorenz`);
   `points->pitches`, `points->durations`, or `axis` → `:number`.

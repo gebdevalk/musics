@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.algo.tree.half-products :as hp]
             [musics.algo.tree.registry :as reg]
             [musics.algo.numeric.rng :as rc]
@@ -57,7 +58,7 @@
   (apply <= (map (comp first :pitches) (sort-by (comp :volume :overrides) notes))))
 
 (deftest one-as-one-run
-  (let [notes (fn [as] (t/run (lib/zip (lib/cycle> [1/8])
+  (let [notes (fn [as] (t/run (lib/zip (tools/cycle [1/8])
                                        (if as (algo :pitch/normal :as as) (algo :pitch/normal))
                                        (if as (algo :volume/normal :as as) (algo :volume/normal)))
                               {}))]
@@ -73,16 +74,16 @@
 
 (deftest leaf-filters
   (let [high? #(and (:pitches %) (< 70 (first (:pitches %))))]
-    (testing "remove> drops: the line gets shorter"
-      (is (= [[60] nil] (map :pitches (t/run (lib/remove> line) {:fn high?})))))
-    (testing "mute> silences: each becomes a rest of its duration, the rhythm stays"
-      (let [out (t/run (lib/mute> line) {:fn high?})]
+    (testing "remove drops: the line gets shorter"
+      (is (= [[60] nil] (map :pitches (t/run (tools/remove line) {:fn high?})))))
+    (testing "mute silences: each becomes a rest of its duration, the rhythm stays"
+      (let [out (t/run (tools/mute line) {:fn high?})]
         (is (= (map :duration line) (map :duration out)))
         (is (= [false true true true] (map d/rest? out)))))
-    (testing "filter> keeps"
-      (is (= [[72] [74]] (map :pitches (t/run (lib/filter> line) {:fn high?})))))
+    (testing "filter keeps"
+      (is (= [[72] [74]] (map :pitches (t/run (tools/filter line) {:fn high?})))))
     (testing "on a half product"
-      (is (= [60 64] (t/run (lib/filter> [60 72 64 79]) {:fn #(< % 70)}))))))
+      (is (= [60 64] (t/run (tools/filter [60 72 64 79]) {:fn #(< % 70)}))))))
 
 (deftest pulse-algos-vary-durations
   (is (= #{:duration/emi :duration/mutate :duration/oblique :duration/rnn :duration/tuplets
@@ -101,4 +102,4 @@
     (testing "the grid is the resolution: a duration rounds to whole pulses"
       (is (= [1/8 1/4] (t/run (algo :duration/bracelet [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
     (testing "on the shop floor, after a specialised source"
-      (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (lib/cycle> lib/scale)) {:k 5 :n 16}))))))
+      (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (tools/cycle lib/scale)) {:k 5 :n 16}))))))

@@ -4,11 +4,12 @@
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]
             [musics.compose :as compose]
             [musics.algo.rhythmic.meter :as poly]))
 
 (deftest each-layer-routes-into-its-own-part
-  (let [voice (fn [as pitch] (lib/zip (lib/pulses->durations (lib/layer lib/polyrhythm :as as)) (lib/cycle> [pitch])))
+  (let [voice (fn [as pitch] (lib/zip (lib/pulses->durations (lib/layer lib/polyrhythm :as as)) (tools/cycle [pitch])))
         tree  (lib/parts (voice :low 48) (voice :high 55))
         ps    (t/run tree {:low/index 0 :high/index 1 :pulse 1/16})]
     (is (= :part (t/out-type (t/as-node tree))))

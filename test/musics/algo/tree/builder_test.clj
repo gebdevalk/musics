@@ -3,7 +3,8 @@
             [clojure.test :refer [deftest is]]
             [musics.algo.tree :as t]
             [musics.algo.tree.builder :as b]
-            [musics.algo.tree.lib :as lib]))
+            [musics.algo.tree.lib :as lib]
+            [musics.algo.tree.tools :as tools]))
 
 (defn- plain [d] (str/replace (b/render d) "▸" ""))
 
@@ -13,11 +14,11 @@
   (reduce (fn [d s] (b/place d s (:active d))) (b/draft) shorts))
 
 (deftest grows-root-to-leaves
-  (let [d (build :zip :pulses->durations :euclid :cycle> :scale)]
+  (let [d (build :zip :pulses->durations :euclid :cycle :scale)]
     (is (b/complete? d))
-    (is (= (t/show (lib/zip (lib/pulses->durations lib/euclid) (lib/cycle> lib/scale)))
+    (is (= (t/show (lib/zip (lib/pulses->durations lib/euclid) (tools/cycle lib/scale)))
            (t/show (b/->tree d))) "the same tree as written by hand")
-    (is (= "(zip (pulses->durations (euclid)) (cycle> (scale)))" (plain d)))))
+    (is (= "(zip (pulses->durations (euclid)) (cycle (scale)))" (plain d)))))
 
 (deftest the-active-slot-moves-to-the-next-hole
   (let [d (build :zip :pulses->durations)]
@@ -30,7 +31,7 @@
   (let [d (build :zip :pulses->durations)]
     (is (b/fits? d [0 0] :euclid))
     (is (not (b/fits? d [0 0] :scale)) "pitches don't fit a grid slot")
-    (is (b/fits? d [1] :cycle>) "a :same algo fits by its first input")
+    (is (b/fits? d [1] :cycle) "a :same algo fits by its first input")
     (is (thrown-with-msg? Exception #"wants :pulse" (b/place d :scale [0 0])))
     (let [fit (->> (b/categories d) (filter #(= "workshop" (:name %))) first :fit)]
       (is (pos? fit))
@@ -47,9 +48,9 @@
     (is (some #{:euclid} (map :short (b/algos-in d "workshop"))) "a raw source")))
 
 (deftest replace-remove-undo
-  (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
+  (let [d  (build :zip :pulses->durations :euclid :cycle :scale)
         d2 (b/place d :cantor [0 0])]
-    (is (= "(zip (pulses->durations (cantor)) (cycle> (scale)))" (plain d2)) "a node replaced")
+    (is (= "(zip (pulses->durations (cantor)) (cycle (scale)))" (plain d2)) "a node replaced")
     (let [d3 (b/remove d2 [1])]
       (is (= "(zip (pulses->durations (cantor)) ▸①)" (b/render d3)))
       (is (= (b/render d2) (b/render (b/undo d3))) "undo")
@@ -65,13 +66,13 @@
     (is (= "(transpose :nodes)" (plain d)))))
 
 (deftest edits-an-existing-tree
-  (let [tree (lib/zip (lib/pulses->durations (lib/euclid :as :bass)) (lib/cycle> lib/scale))
+  (let [tree (lib/zip (lib/pulses->durations (lib/euclid :as :bass)) (tools/cycle lib/scale))
         d    (b/draft tree)]
     (is (b/complete? d))
     (is (= (t/show tree) (t/show (b/->tree d))) "round trip, :as kept")))
 
 (deftest finalize-returns-tree-and-tctx
-  (let [d (build :zip :pulses->durations :euclid :cycle> :scale)
+  (let [d (build :zip :pulses->durations :euclid :cycle :scale)
         s (b/settings-for d nil)
         _ (t/setp! s :k 5)
         [tree tctx] (b/finalize d s)]
@@ -79,7 +80,7 @@
     (is (seq (t/run tree tctx)))))
 
 (deftest undo-and-redo
-  (let [d  (build :zip :pulses->durations :euclid :cycle> :scale)
+  (let [d  (build :zip :pulses->durations :euclid :cycle :scale)
         u3 (-> d b/undo b/undo b/undo)]
     (is (= "(zip (pulses->durations ▸①) ②)" (b/render u3)) "three steps back")
     (is (b/can-redo? u3))
@@ -94,9 +95,9 @@
         "... and redo removes again")))
 
 (deftest a-hole-under-a-same-node-takes-the-slots-type
-  ;; cycle> is :in [:any] :out :same -- in zip's pitches slot, its own
+  ;; cycle is :in [:any] :out :same -- in zip's pitches slot, its own
   ;; child has to give pitches too
-  (let [d (build :zip :pulses->durations :euclid :cycle>)]
+  (let [d (build :zip :pulses->durations :euclid :cycle)]
     (is (= :pitch (b/slot-type d [1 0])))
     (is (b/fits? d [1 0] :scale))
     (is (not (b/fits? d [1 0] :euclid)) "a grid source no longer slips in")
