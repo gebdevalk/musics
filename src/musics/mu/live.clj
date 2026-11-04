@@ -116,7 +116,7 @@
 (defn play!
   "A play word given a recipe: bind a live name (the voice's own, or a
    fresh one) and play x -- or, on nothing, the recipe's first result --
-   through it. staged: [count] when it waits for a boundary (.>>)."
+   through it. staged: [count] when it waits for a boundary (->>)."
   [x recipe ctx join? target staged]
   (let [named (or target (when (v/material? x) (mt/voice-name x)) (when (v/recipe? recipe) (:id recipe)))
         name  (or named (fresh-name))]

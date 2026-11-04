@@ -120,39 +120,39 @@ instead of waiting; `doc/md/setup.md` has what to do.
 
 | Word | Does |
 |---|---|
-| `.>` or `play` | play now, stopping what plays |
-| `.>+` or `play+` | play now, joining what plays |
-| `.>>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
-| `x \| .>>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
-| `.>>+` or `play-next+` | join at the next boundary |
+| `->` or `play` | play now, stopping what plays |
+| `->+` or `play+` | play now, joining what plays |
+| `->>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
+| `x \| ->>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
+| `->>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
-| `voices` or `.<<` | what plays, the highest voice on top: each voice's index (`highest` … `1 lowest`, `0 drums` …), id and music |
-| `:bass playing` or `:bass .<` | the music the voice `:bass` plays, onto the stack |
+| `voices` or `<<-` | what plays, the highest voice on top: each voice's index (`highest` … `1 lowest`, `0 drums` …), id and music |
+| `:bass playing` or `:bass <-` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
-`.>` plays now, `.>>` at the next boundary; a `+` joins what plays
+`->` plays now, `->>` at the next boundary; a `+` joins what plays
 instead of replacing it.
 
 ```
-[c d e f g] .>
-[c d e f g] [~] .>        loop it until stop
-[e f g a b] .>>           takes over at the end of the current pass
+[c d e f g] ->
+[c d e f g] [~] ->        loop it until stop
+[e f g a b] ->>           takes over at the end of the current pass
 ```
 
 Music with a name plays as a voice of that name, and playing it again
 replaces only that voice, the others going on:
 
 ```
-[bass: c2 g] [~] .>           the voice :bass
-[mel: e8 f g a] [~] .>        a second voice, :mel; :bass goes on
-[bass: f2 c] [~] .>>          :bass changes at the end of its pass
+[bass: c2 g] [~] ->           the voice :bass
+[mel: e8 f g a] [~] ->        a second voice, :mel; :bass goes on
+[bass: f2 c] [~] ->>          :bass changes at the end of its pass
 :mel hush                    silence :mel, keeping its place
 :mel hush                    and back
 ```
 
-Music without a name is no voice of its own: `.>` stops everything,
-`.>+` adds it under an id the engine gives (`:TA` …), shown by
+Music without a name is no voice of its own: `->` stops everything,
+`->+` adds it under an id the engine gives (`:TA` …), shown by
 `voices`.
 
 Voices also go by index, low to high: `1` the lowest voice, `2` the
@@ -161,11 +161,11 @@ first). An index or id on top of a play word plays as that voice; on
 its own, with no music under it, the voice starts its own music again:
 
 ```
-1 .<                  what the lowest voice plays
-3 .< 12 + 3 .>>        voice 3 an octave up, at its boundary
+1 <-                  what the lowest voice plays
+3 <- 12 + 3 ->>        voice 3 an octave up, at its boundary
 0 hush               silence the drums
-1 .>                  voice 1 from its start, now
-:bass .>>             :bass from its start, at the end of its pass
+1 ->                  voice 1 from its start, now
+:bass ->>             :bass from its start, at the end of its pass
 ```
 
 `echo` prints each note as it sounds; `echo` again stops it.
@@ -399,9 +399,9 @@ music says itself. There are two places to write it.
 Just before a play word, on top of the stack:
 
 ```
-[!tempo:90 c d e] ^{ !tempo:60 } .>        plays at 60: the context comes first
-[c d !ff e f] ^{ !mf } .>                  every note mf, the !ff overridden
-[c d !ff e f] ^{ !pp } with ^{ !mf } .>    every note mf: with filled in pp, .> puts mf first
+[!tempo:90 c d e] ^{ !tempo:60 } ->        plays at 60: the context comes first
+[c d !ff e f] ^{ !mf } ->                  every note mf, the !ff overridden
+[c d !ff e f] ^{ !pp } with ^{ !mf } ->    every note mf: with filled in pp, -> puts mf first
 ```
 
 Inside a line, from where it is written, nested lines included:
@@ -411,7 +411,7 @@ Inside a line, from where it is written, nested lines included:
 ```
 
 The difference in one sentence: `with` changes the music (its result
-is a new line, stored or played later), a context before `.>` or in
+is a new line, stored or played later), a context before `->` or in
 front of notes is how that music is played here, and so it wins.
 
 ### Feel: swing, groove, accents
@@ -432,10 +432,10 @@ its bars, as written, so a swung part stays in step with a straight one.
 | `!accentDepth:0..1` | how much the accent weighs (0.5) |
 
 ```
-[!shuffle c8 d e f g a b c] [~] .>
-[!laidBack c16 d e f g a b c d e f g a b c d] [~] .>
-[!M:223 !accent:metric c8 c c c c c c c c c c c] [~] .>
-[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] .>>
+[!shuffle c8 d e f g a b c] [~] ->
+[!laidBack c16 d e f g a b c d e f g a b c d] [~] ->
+[!M:223 !accent:metric c8 c c c c c c c c c c c] [~] ->
+[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] ->>
 ```
 
 The last two are the same twelve eighths: `223` is heard as four
@@ -989,7 +989,7 @@ word's inputs, taken off the stack by the `$` in its stack effect:
 '[/4 /8 /8] [c d e f g] pitches 15 isorhythm [||]
 → [C4/4 D4/8 E4 F4/4 G4/8 C4 | D4/4 E4/8 F4 G4/4 C4/8 D4 | E4/4 F4/8 G4]
 
-'[/4. /8 /4 /4] [c e g b d'] pitches 20 isorhythm .>
+'[/4. /8 /4 /4] [c e g b d'] pitches 20 isorhythm ->
 ```
 
 Barring it with `[||]` shows the shift: each bar starts on another note
@@ -1092,7 +1092,7 @@ how many steps there are, the shorter ones cycling. With `:curve '[:lin]`
 next. `with` lays the context under a line:
 
 ```
-[c4 d e f g a b c] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with .>
+[c4 d e f g a b c] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with ->
 | :duration '[1/4] [~] @^{ len:8 } volume/uniform :volume swap >ctx    an algo's volumes, a new one each quarter
 ```
 
@@ -1123,17 +1123,17 @@ range, a walk (brown) drifts; `boundary:reflect` bounces it off its
 clip bounds, given as its pitch range too:
 
 ```
-[c8] [~] durations @^{ len:16 } pitch/uniform zip .>
-[c8] [~] durations @^{ len:16 dice:5 } pitch/pink zip .>
-[c8] [~] durations @^{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip .>
-@^{ seed:4 len:16 } duration/pink @^{ seed:5 len:16 } pitch/pink zip .>
+[c8] [~] durations @^{ len:16 } pitch/uniform zip ->
+[c8] [~] durations @^{ len:16 dice:5 } pitch/pink zip ->
+[c8] [~] durations @^{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip ->
+@^{ seed:4 len:16 } duration/pink @^{ seed:5 len:16 } pitch/pink zip ->
 ```
 
 A tendency mask draws between two bounds that move, here closing from
 48..84 onto 66 (`lo-start lo-end hi-start hi-end`):
 
 ```
-[c16] [~] durations @^{ len:32 } pitch/tendency zip .>
+[c16] [~] durations @^{ len:32 } pitch/tendency zip ->
 ```
 
 `pitch/row-classes` is a twelve-tone row (`kind:allInterval`: every
@@ -1142,9 +1142,9 @@ seed reads one row, so it can be rhythm too -- Babbitt's time points --
 and volume:
 
 ```
-@^{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + .>
-@^{ seed:3 kind:allInterval } duration/row-time-points @^{ seed:3 kind:allInterval } pitch/row-classes zip .>
-@^{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @^{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip .>
+@^{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + ->
+@^{ seed:3 kind:allInterval } duration/row-time-points @^{ seed:3 kind:allInterval } pitch/row-classes zip ->
+@^{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @^{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip ->
 ```
 
 `duration/ca` is a cellular automaton, a bar of `width` pulses per
@@ -1152,8 +1152,8 @@ generation (`rule:90` Sierpinski, `30` chaos, `110` structure,
 `start:random`), as notes or drums:
 
 ```
-@^{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip .>
-@^{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums .>
+@^{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip ->
+@^{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums ->
 ```
 
 ### Chords and a walking bass
@@ -1172,8 +1172,8 @@ loop with the chords.
 
 ```
 [blues: !M:4/4 repeat 2 [ F3/1:7 | b&:7 | f:7 | c2:m7 f:7 | b&1:7 | b:d7 | f:7 | d:7 | g:m7 | c:7 ] volta [ [ f,2:7 d:7 | g:m7 c:7 ] [ f,1:7 | f:7 ] ] ]
-dup 1 walking-bass {2} .>          once through, the end held
-[F3/1:7 | b&:7 | c:7 | f:7] dup walking-bass {2} [~] .>    an ostinato, looped
+dup 1 walking-bass {2} ->          once through, the end held
+[F3/1:7 | b&:7 | c:7 | f:7] dup walking-bass {2} [~] ->    an ostinato, looped
 ```
 
 `dup` keeps the chords, `walking-bass` makes the bass from the copy,
@@ -1187,7 +1187,7 @@ the next note of what the recipe gives now -- and changing the recipe's
 settings changes what you hear on the next note, without starting over.
 
 ```
-| '( duration/euclid [c e g] pitches zip [~] ) :riff .>
+| '( duration/euclid [c e g] pitches zip [~] ) :riff ->
 ```
 
 - `'( … )` is the recipe: euclid's rhythm with the pitches of `[c e g]`,
@@ -1215,7 +1215,7 @@ written; `unset` goes back to it. The voice keeps its place, so a change
 goes on from where it is, not from the start.
 
 ```
-| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell .>
+| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell ->
 ```
 
 Here `seed` and `len` reach every word, and `volume/walk` alone reads
@@ -1225,7 +1225,7 @@ With music under it, the recipe runs on that music, and the voice plays
 the music's notes as the recipe changes them:
 
 ```
-[c d e g] [~] '( 5 + ) :up .>     the loop a fourth higher
+[c d e g] [~] '( 5 + ) :up ->     the loop a fourth higher
 '( 7 + ) :up retree              … now a fifth, from the next note
 ```
 
@@ -1236,16 +1236,16 @@ section 8, has the rest). No music is written inside; a tree that needs
 music takes it from under the recipe:
 
 ```
-| @( '[1/8] [~] scale [~] zip ) :sc .>                     from nothing
-[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol .>   on the music under it
+| @( '[1/8] [~] scale [~] zip ) :sc ->                     from nothing
+[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol ->   on the music under it
 @^{ k:5 } @( duration/euclid '[60] [~] zip ) run          settings from outside; run puts a finite one on the stack
 @( arp: k:3 euclid '[60 64 67] [~] zip ) R!               stored as :arp, as its text; :arp R@ gives it back
 ```
 
-All play words take a recipe: `.>>` from the next boundary (`| '( … ) ||
-:riff .>>`), `.>+` joining what plays. `compose` opens the composer window
+All play words take a recipe: `->>` from the next boundary (`| '( … ) ||
+:riff ->>`), `->+` joining what plays. `compose` opens the composer window
 and leaves the tree it builds on the stack, a recipe like a quotation
-(`compose :riff .>`); `compose gui` shows its settings with a preview.
+(`compose :riff ->`); `compose gui` shows its settings with a preview.
 
 ## 17. Rating what you hear
 

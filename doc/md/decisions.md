@@ -2942,3 +2942,18 @@ is the optional third argument (`:mu :optional {:q quotation?}`, as `with`
 picks its shape), the two-value forms are as they were; without a key, music
 is refused with the way to give one. Rejected: ordering notes by pitch and lines
 by duration with no key (the right order is the question's, not the type's).
+
+## 2026-11-04 — The play signs are arrows: ->, ->>, ->+, ->>+, <-, <<-
+
+`.>` `.>>` `.>+` `.>>+` `.<` `.<<` borrowed the dot of Forth's print words (`.`
+and `.s`), so one prefix meant print and play. The play family is now arrows:
+`->` plays, `->>` at the next boundary, `->+` and `->>+` join, `<-` is what a
+voice plays and `<<-` the voices; `-` and `>` alone stay subtract and
+greater-than. The arrow is what the first `>` was, sending to the player,
+without the clash with comparison; `<-` reads from a voice, and a doubled sign
+widens it, as before. Every sign keeps its named twin (`play`, `play-next`,
+`play+`, `play-next+`, `playing`, `voices`). `->` and `->>` are Clojure's
+threading macros, which mu does not use. The dotted forms and the earliest
+signs (`>>`, `>+`, `<<` …) are not words and answer with the arrow
+(`.>: isn't a word; write ->`); `<` and `>` as comparisons say
+`to play, write ->`.

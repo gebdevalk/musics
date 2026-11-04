@@ -84,13 +84,13 @@
   (is (= [true] (:ok (run "'[1 2] '[1.0 2.0] ="))) "element by element, by value")
   (testing "the order signs take numbers only, and say how to play"
     (is (re-find #"^<: needs two numbers, got \"a\" and \"b\"" (:error (run "\"a\" \"b\" <"))))
-    (is (re-find #"^>: needs 2 items on the stack, has 1 -- to play, write .>" (:error (run "[c d] >"))))
-    (is (re-find #"^>: needs two numbers, got \[C4/4 D4\] and 5 -- to order by something, give a key: c d '\( pitch \) >; to play, write .>" (:error (run "[c d] 5 >"))))
-    (is (re-find #"^<: needs 2 items on the stack, has 1 -- what a voice plays is .<" (:error (run ":bass <")))))
+    (is (re-find #"^>: needs 2 items on the stack, has 1 -- to play, write ->" (:error (run "[c d] >"))))
+    (is (re-find #"^>: needs two numbers, got \[C4/4 D4\] and 5 -- to order by something, give a key: c d '\( pitch \) >; to play, write ->" (:error (run "[c d] 5 >"))))
+    (is (re-find #"^<: needs 2 items on the stack, has 1 -- what a voice plays is <-" (:error (run ":bass <")))))
   (testing "the old play signs say what replaced them"
-    (is (re-find #"^>>: isn't a word; write .>>" (:error (run "[c] >>"))))
-    (is (re-find #"^<<: isn't a word; write .<<" (:error (run "<<"))))
-    (is (re-find #"^>\+: isn't a word; write .>\+" (:error (run "[c] >+")))))
+    (is (re-find #"^>>: isn't a word; write ->>" (:error (run "[c] >>"))))
+    (is (re-find #"^<<: isn't a word; write <<-" (:error (run "<<"))))
+    (is (re-find #"^>\+: isn't a word; write ->\+" (:error (run "[c] >+")))))
   (testing "the names are gone"
     (doseq [w ["lt" "gt" "le" "ge" "eq" "ne" "neg" "add" "sub" "mul" "div"]]
       (is (re-find #"unknown word" (:error (run (str "1 2 " w)))) w))))
@@ -183,9 +183,9 @@
         (is (= before (set (keys @(repo/registry)))) "nothing stored")
         (is (:ok (run "[e f] play+")) "play+ joins")
         (is (= 2 (count @(:voices engine/*engine*))) "the earlier voice keeps playing")
-        (is (:ok (run "[g] .>+")) ".>+ is play+")
+        (is (:ok (run "[g] ->+")) "->+ is play+")
         (is (= 3 (count @(:voices engine/*engine*))))
-        (is (:ok (run "[g] .>")) ".> is play")
+        (is (:ok (run "[g] ->")) "-> is play")
         (is (= 1 (count @(:voices engine/*engine*))) "play stops everything first")
         (run "pause")
         (is (engine/paused?) "pause pauses what plays")
@@ -337,17 +337,17 @@
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
-        (run "[!tempo:240 c16 d | e f | g a] .>")
-          (run "[b16 c] | .>>")
+        (run "[!tempo:240 c16 d | e f | g a] ->")
+          (run "[b16 c] | ->>")
           (is (= [[:mark 1] :enter] (first (keys (conductor/scheduled)))) "waits for the next |")
           (Thread/sleep 300)
           (is (empty? (conductor/scheduled)) "taken at the bar line")
-          (run "[!tempo:240 c16 d | e f | g a b c d e f g] .>")
-          (run "[c16 d] | .>>+")
+          (run "[!tempo:240 c16 d | e f | g a b c d e f g] ->")
+          (run "[c16 d] | ->>+")
           (Thread/sleep 300)
-          (is (empty? (conductor/scheduled)) ".>>+ is taken at the bar line too")
+          (is (empty? (conductor/scheduled)) "->>+ is taken at the bar line too")
           (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
-          (run "[c d] .>>")
+          (run "[c d] ->>")
           (run "stop")
           (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
@@ -361,7 +361,7 @@
                     e/print-above (atom #(swap! lines conj %))]
         (try
           (is (= "echo on\n" (out "echo")))
-          (run "[x32\\36 x\\38 c\\i:40] .>")
+          (run "[x32\\36 x\\38 c\\i:40] ->")
           (loop [n 0] (when (and (< (count @lines) 3) (< n 100)) (Thread/sleep 20) (recur (inc n))))
           (is (= ["x\\36 Bass Drum 1" "x\\38 Acoustic Snare" "\\i:40 violin  C4"] @lines) "in playing order")
           (is (= "echo off\n" (out "echo")))
@@ -377,10 +377,10 @@
     (with-redefs [engine/receiver (atom :silent)]
       (try
         (let [ids #(set (keys (mt/live-voices)))]
-          (run "[bass: !tempo:60 c1 d1] .>")
-          (run "[mel: !tempo:60 e1 f1] .>")
+          (run "[bass: !tempo:60 c1 d1] ->")
+          (run "[mel: !tempo:60 e1 f1] ->")
           (is (= #{:bass :mel} (ids)) "named music adds or replaces its own voice, not the others")
-          (run "[bass: !tempo:60 g1 a1] .>")
+          (run "[bass: !tempo:60 g1 a1] ->")
           (is (= #{:bass :mel} (ids)) "replacing :bass leaves :mel")
           (is (= "[bass: !tempo:60 G3/1 A3]" (p/show (first (:ok (run ":bass playing"))))) "playing gives what it plays")
           (run ":bass hush")
@@ -391,23 +391,23 @@
           (is (= [:mel] (:solo (engine/hushed))))
           (run ":mel solo")
           (is (nil? (:solo (engine/hushed))) "solo again and all sound")
-          (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass .<"))))) ".< is playing")
-          (is (re-find #":bass .*\[bass:" (out ".<<")) ".<< is voices")
-          (is (re-find #"no voice 4" (:error (run "4 .<"))) ".< on a number is an index; past the voices an error")
+          (is (= (p/show (first (:ok (run ":bass playing")))) (p/show (first (:ok (run ":bass <-"))))) "<- is playing")
+          (is (re-find #":bass .*\[bass:" (out "<<-")) "<<- is voices")
+          (is (re-find #"no voice 4" (:error (run "4 <-"))) "<- on a number is an index; past the voices an error")
           (run ":mel stop")
           (is (= #{:bass} (ids)) "stop one voice")
           (is (re-find #"isn't playing" (:error (run ":mel playing"))))
-          (run "[!tempo:60 c1] .>+")
+          (run "[!tempo:60 c1] ->+")
           (is (= 2 (count (ids))) "unnamed music joining gets an engine id")
           (is (some #(re-matches #"T[A-Z]" (name %)) (ids)))
-          (run "[!tempo:60 c1] .>")
-          (is (= 1 (count (ids))) "unnamed .> stops everything")
-          (run "[bass: !tempo:60 c1 d1] [~] .>")
+          (run "[!tempo:60 c1] ->")
+          (is (= 1 (count (ids))) "unnamed -> stops everything")
+          (run "[bass: !tempo:60 c1 d1] [~] ->")
           (is (contains? (ids) :bass) "a loop plays as the line it repeats")
-          (run "[mel: !tempo:60 e1 f1] .>")
-          (run "[bass: !tempo:60 g1] .>>")
+          (run "[mel: !tempo:60 e1 f1] ->")
+          (run "[bass: !tempo:60 g1] ->>")
           (is (= [[:bass :exit]] (filter #(= :bass (first %)) (keys (conductor/scheduled))))
-              ".>> on a named voice waits for that voice's own pass")
+              "->> on a named voice waits for that voice's own pass")
           (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
         (finally (mt/stop-all!))))))
 
@@ -415,15 +415,15 @@
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [engine/receiver (atom :silent)]
       (try
-        (run "[bass: !tempo:60 c1 d1] [~] .>")
-        (run "[mel: !tempo:60 e'1 f1] ^{ !mf } .>")
+        (run "[bass: !tempo:60 c1 d1] [~] ->")
+        (run "[mel: !tempo:60 e'1 f1] ^{ !mf } ->")
         (let [played (atom [])
               shown  (fn [[x ctx _ target]] [(p/show x) (some? ctx) target])]
           (with-redefs [mt/play!  (fn [x ctx join? target] (swap! played conj [x ctx join? target]))
                         mt/stage! (fn [x ctx _ join? target] (swap! played conj [x ctx join? target]))]
             (run "1 play")
-            (run ":mel .>")
-            (run "2 .>>")
+            (run ":mel ->")
+            (run "2 ->>")
             (is (= [["repeat ~ [bass: !tempo:60 C4/1 D4]" false :bass]
                     ["[mel: !tempo:60 E5/1 F5]" true :mel]
                     ["[mel: !tempo:60 E5/1 F5]" true :mel]]
@@ -432,7 +432,7 @@
             (reset! played [])
             (run "[g1] 1 play")
             (is (= "[G3/1]" (p/show (ffirst @played))) "music under it plays as the voice, as before")))
-        (is (re-find #":motif R@ .>" (:error (run ":motif .>"))) "a name that plays nothing: the hint to fetch it")
+        (is (re-find #":motif R@ ->" (:error (run ":motif ->"))) "a name that plays nothing: the hint to fetch it")
         (finally (mt/stop-all!))))))
 
 (deftest a-named-voice-changes-at-its-own-boundary
@@ -440,9 +440,9 @@
     (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
         (try
-          (run "[bass: !tempo:240 c16 d] [~] .>")
-          (run "[mel: !tempo:60 e1 f1] .>")
-          (run "[bass: !tempo:240 g16 a] [~] .>>")
+          (run "[bass: !tempo:240 c16 d] [~] ->")
+          (run "[mel: !tempo:60 e1 f1] ->")
+          (run "[bass: !tempo:240 g16 a] [~] ->>")
           (is (= "[bass: !tempo:240 C4/16 D4]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "not yet")
           (Thread/sleep 400)
           (is (= "[bass: !tempo:240 G3/16 A3]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "changed at the end of its pass")
@@ -453,34 +453,34 @@
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [engine/receiver (atom :silent)]
       (try
-        (run "[!tempo:60 C5/1 D5] .>")
-        (run "[!tempo:60 C3/1 D3] .>+")
-        (run "[!tempo:60 E4/1 F4] .>+")
-        (run "[!tempo:60 x1 x1] .>+")
-        (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "1 .<"))))) "1 the lowest")
-        (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "3 .<"))))) "n the highest")
-        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 .<"))))) "0 the drums")
+        (run "[!tempo:60 C5/1 D5] ->")
+        (run "[!tempo:60 C3/1 D3] ->+")
+        (run "[!tempo:60 E4/1 F4] ->+")
+        (run "[!tempo:60 x1 x1] ->+")
+        (is (= "[!tempo:60 C3/1 D3]" (p/show (first (:ok (run "1 <-"))))) "1 the lowest")
+        (is (= "[!tempo:60 C5/1 D5]" (p/show (first (:ok (run "3 <-"))))) "n the highest")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <-"))))) "0 the drums")
         (run "2 hush")
         (is (= 1 (count (:hushed (engine/hushed)))) "an index wherever a voice goes")
-        (run "[!tempo:60 C6/1] 1 .>")
-        (is (= "[!tempo:60 C6/1]" (p/show (first (:ok (run "3 .<"))))) "x 1 .> plays as voice 1, which is now the highest")
-        (is (re-find #"(?m)^0 drums +:" (out ".<<")) ".<< numbers them, drums 0")
-        (is (re-find #"(?m)^1 lowest +:" (out ".<<")) "1 the lowest")
-        (is (re-find #"(?m)^3 highest +:" (out ".<<")) "n the highest")
-        (is (apply = (map #(str/index-of % "[") (str/split-lines (out ".<<")))) "the columns aligned")
-        (is (not (str/includes? (out ".<<") "null")) "nothing after a voice that is neither hushed nor soloed")
-        (run "[!tempo:60 x1\\hhc x1] .>+")
-        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 .<"))))) "0 the drums with the lowest key (35, a plain x)")
-        (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 .<"))))) "-1 the next (42)")
-        (is (= ["3" "2" "1" "0" "-1"] (map #(re-find #"-?\d+" %) (str/split-lines (out ".<<")))) "the highest on top, down to the drums")
-        (is (re-find #"(?m)^-1 drums +:" (out ".<<")) ".<< numbers them, drums 0, -1 …")
+        (run "[!tempo:60 C6/1] 1 ->")
+        (is (= "[!tempo:60 C6/1]" (p/show (first (:ok (run "3 <-"))))) "x 1 -> plays as voice 1, which is now the highest")
+        (is (re-find #"(?m)^0 drums +:" (out "<<-")) "<<- numbers them, drums 0")
+        (is (re-find #"(?m)^1 lowest +:" (out "<<-")) "1 the lowest")
+        (is (re-find #"(?m)^3 highest +:" (out "<<-")) "n the highest")
+        (is (apply = (map #(str/index-of % "[") (str/split-lines (out "<<-")))) "the columns aligned")
+        (is (not (str/includes? (out "<<-") "null")) "nothing after a voice that is neither hushed nor soloed")
+        (run "[!tempo:60 x1\\hhc x1] ->+")
+        (is (= "[!tempo:60 x1 x]" (p/show (first (:ok (run "0 <-"))))) "0 the drums with the lowest key (35, a plain x)")
+        (is (= "[!tempo:60 x1\\42 x]" (p/show (first (:ok (run "-1 <-"))))) "-1 the next (42)")
+        (is (= ["3" "2" "1" "0" "-1"] (map #(re-find #"-?\d+" %) (str/split-lines (out "<<-")))) "the highest on top, down to the drums")
+        (is (re-find #"(?m)^-1 drums +:" (out "<<-")) "<<- numbers them, drums 0, -1 …")
         (run "0 stop")
         (run "-0 stop")
-        (is (re-find #"no drum voice" (:error (run "0 .<"))))
-        (run "[!tempo:60 C2/1 D2] [~] .>+")
-        (run "[!tempo:60 C7/1 D7] 2 times .>+")
-        (is (re-find #"C2/1" (p/show (first (:ok (run "1 .<"))))) "a loop ranks by its pitch")
-        (is (re-find #"C7/1" (p/show (first (:ok (run "5 .<"))))) "a repeat too, not among the drums")
+        (is (re-find #"no drum voice" (:error (run "0 <-"))))
+        (run "[!tempo:60 C2/1 D2] [~] ->+")
+        (run "[!tempo:60 C7/1 D7] 2 times ->+")
+        (is (re-find #"C2/1" (p/show (first (:ok (run "1 <-"))))) "a loop ranks by its pitch")
+        (is (re-find #"C7/1" (p/show (first (:ok (run "5 <-"))))) "a repeat too, not among the drums")
         (finally (mt/stop-all!))))))
 
 (deftest a-group-is-one-line
@@ -508,7 +508,7 @@
         "the first ending's F stays F under another key")))
 
 (deftest a-name-on-top-of-play-is-a-voice
-  (is (re-find #":motif R@ .>" (:error (run ":motif .>"))) "the hint to fetch what is stored"))
+  (is (re-find #":motif R@ ->" (:error (run ":motif ->"))) "the hint to fetch what is stored"))
 
 (deftest staged-play-with-no-boundary-plays-at-once
   (let [eng (engine/engine nil (repo/registry) :ROOT)]
@@ -517,7 +517,7 @@
         (try
           (mt/stop-all!)
           (engine/play [(first (:ids (store/read! "[!tempo:60 c1 d1]")))])
-          (run "[e f] .>>")
+          (run "[e f] ->>")
           (is (empty? (conductor/scheduled)) "mu knows no pass of what plays: no wait for a | that may never come")
           (is (= 1 (count (mt/live-voices))))
           (finally (mt/stop-all!)))))))
@@ -573,3 +573,8 @@
     (mu)
     (is (= java.util.logging.Level/WARNING
            (.getLevel (java.util.logging.Logger/getLogger "java.util.prefs"))))))
+
+
+(deftest the-dotted-play-signs-say-what-replaced-them
+  (doseq [[old new] [[".>" "->"] [".>+" "->+"] [".>>" "->>"] [".>>+" "->>+"] [".<" "<-"] [".<<" "<<-"]]]
+    (is (= (str old ": isn't a word; write " new) (:error (run (str "[c] " old)))) old)))

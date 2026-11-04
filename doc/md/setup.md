@@ -61,7 +61,7 @@ Fluidsynth. Gervill's reverb and chorus are plainer than Fluidsynth's;
 the soundfont matters most.
 
 If the default output doesn't open within 5 s -- a Bluetooth speaker
-asleep or out of reach -- `gervill`, and the first `.>` in mu, say so
+asleep or out of reach -- `gervill`, and the first `->` in mu, say so
 instead of waiting: `wpctl status` lists the outputs, `wpctl
 set-default <id>` picks another, and `systemctl --user restart pipewire
 wireplumber` resets a stuck audio server.
@@ -94,7 +94,7 @@ it in mu:
 
 ```
 fluidsynth
-[c e g c'] .>
+[c e g c'] ->
 ```
 
 Connecting finds the VirMIDI port and the Fluidsynth port, and runs

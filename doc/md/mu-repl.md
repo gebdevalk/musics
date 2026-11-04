@@ -319,8 +319,8 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
-| **playback** | `.>` or `play` (stops what plays first), `.>+` or `play+` (joins it now), `.>>` or `play-next` (in its place, from the next boundary), `.>>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `.<<`, `playing` or `.<`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up .>`, `\| '( … ) :riff .>` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
@@ -650,7 +650,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   then run with each param resolved by name (alias, algo, plain,
   default) -- and lazy: `run` gives a finite result (an `@^{ }` under the
   recipe its settings), `see` the tree, a play word plays one live
-  (`| @( '[1/8] [~] scale [~] zip ) :sc .>`). It is material: an id first
+  (`| @( '[1/8] [~] scale [~] zip ) :sc ->`). It is material: an id first
   names it (`@( sc: … )`), `R!` stores it as its text (a `:RECIPE` node)
   and `R@` rebuilds it; a voice playing a stored recipe follows a new one
   stored under its id, from its next note.
@@ -711,35 +711,35 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   (`[c d | ./. | ./. | e]`). A tool that reorders a line can
   leave the marks unplayable (`[R]` puts DS before `$`), which is
   an error.
-- **`.>>` waits for a boundary**, through the conductor: `x .>>` replaces
+- **`->>` waits for a boundary**, through the conductor: `x ->>` replaces
   what plays when it reaches its end, or the end of its repeat's
-  current pass; `x | .>>` … `x |||| .>>` at the next bar line of that
+  current pass; `x | ->>` … `x |||| ->>` at the next bar line of that
   strength. The new material starts when the boundary is due, so it
   lands in time; with nothing playing, or only what mu didn't start (an audition, a voice
-  from Clojure), whose passes it can't see, it plays at once. `.>>+` waits the
+  from Clojure), whose passes it can't see, it plays at once. `->>+` waits the
   same way but joins what plays, which goes on -- a second part entering
   at the next `||`. One staged play waits at a time for each voice it
-  replaces: a later `.>>` or `.>>+` for it replaces it; `.>`, `.>+` and
+  replaces: a later `->>` or `->>+` for it replaces it; `->`, `->+` and
   `stop` forget it.
 - **Named music is a voice**: music with a name of its own plays as the
-  voice of that name -- `[bass: c d e] .>` is the voice `:bass`, and so
-  is `[bass: c d] [~] .>`, a loop of it. Playing named music replaces
-  only its own voice (or adds it), the others going on: `[bass: g a] .>`
-  now, `[bass: g a] .>>` at the end of `:bass`'s own pass (a bar line,
-  `x | .>>`, is the next one of any voice). A name is one voice, so `.>+`
-  on it is `.>`. Unnamed music stops everything (`.>`) or joins under an
-  id the engine gives (`.>+`, `:TA` …). `voices` lists what plays, with
-  its id (`.<<` for short); `:bass stop` stops one voice, `:bass playing`
-  (`:bass .<`) puts what it plays on the stack (`:bass .< 5 + .>>`), `:bass hush` silences it
+  voice of that name -- `[bass: c d e] ->` is the voice `:bass`, and so
+  is `[bass: c d] [~] ->`, a loop of it. Playing named music replaces
+  only its own voice (or adds it), the others going on: `[bass: g a] ->`
+  now, `[bass: g a] ->>` at the end of `:bass`'s own pass (a bar line,
+  `x | ->>`, is the next one of any voice). A name is one voice, so `->+`
+  on it is `->`. Unnamed music stops everything (`->`) or joins under an
+  id the engine gives (`->+`, `:TA` …). `voices` lists what plays, with
+  its id (`<<-` for short); `:bass stop` stops one voice, `:bass playing`
+  (`:bass <-`) puts what it plays on the stack (`:bass <- 5 + ->>`), `:bass hush` silences it
   and `:bass solo` lets only it sound -- both keeping its place, again
   to undo.
 - **Voices by index**: wherever a voice's id goes, its index does too,
   by the mean pitch of what each plays: `1` the lowest voice with pitch,
   `n` the highest; the voices without pitch (drums) from `0` down, `0`
-  the one with the lowest drum key, `-1` the next. `1 .<`, `2 hush`,
-  `0 stop`, `x 1 .>>` (a voice's id or index on top of a play word is
-  the voice to play as: `3 .< 12 + 3 .>>`; alone, with no music under it,
-  the voice starts its own music again: `1 .>`, `:bass .>>`); `.<<` lists
+  the one with the lowest drum key, `-1` the next. `1 <-`, `2 hush`,
+  `0 stop`, `x 1 ->>` (a voice's id or index on top of a play word is
+  the voice to play as: `3 <- 12 + 3 ->>`; alone, with no music under it,
+  the voice starts its own music again: `1 ->`, `:bass ->>`); `<<-` lists
   them by index, marking the drums, the lowest and the highest.
 
 ### Arithmetic on material, accessors
@@ -770,9 +770,9 @@ names left out (`[c d e] [C4 D4 E4] =` and `[a: c] [c] =` are true), two loops
 by what they repeat, data element by element (another endless stream is
 refused). A flag is `true` or `false` and nothing else: `and` `or` `xor` `not`
 `if` and `when` refuse a number or a note in its place, naming it. `:=`
-binds a name. Playing is `.>` (a dot, as in Forth's output words: `.` prints,
+binds a name. Playing is `->` (a dot, as in Forth's output words: `.` prints,
 `.s` shows the stack, `..` is a range), so `[c d] >` is refused with "to play,
-write .>"; the old `>>` `>+` `>>+` `<<` say what replaced them. The stack words
+write ->"; the old `>>` `>+` `>>+` `<<` say what replaced them. The stack words
 are Forth's too: `dup drop swap over rot -rot nip tuck pick roll 2dup 2drop`,
 and `1+` `1-` (a number, a list, or a semitone for music).
 
@@ -784,7 +784,7 @@ is a symbol, and has a named twin, a name Clojure could carry too:
 `[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[\]` `alternating`, `[[]]`
 `measures`, `[*]` `times`, `[/]` `parts`, `[+]` `concat`, `!` `put`, `_` `delete`, `[_]` `cut`, `@` `nth`,
 `[H]` `head`, `[T]` `tail`, `[%]` `rotating` (as it plays; `rotate` now), `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `-` `*` `/`. Playback, which acts on
-what plays rather than on a line, is written with `.>`: `.>` now, `.>>` at
+what plays rather than on a line, is written with `->`: `->` now, `->>` at
 the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 `play-next`, `play-next+`); `stop` and `pause` stop and pause it.
 
@@ -799,7 +799,7 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[H]`, `[T]` | the head, the first element, and the tail, all after it (`head`, `tail`); the first n is `take` | `[c d e f] [H]` gives `C4/4`, `[c d e f] [T]` `[D4/4 E4 F4]`, `[c d e f] 2 take` `[C4/4 D4]` |
 | `[%]` | the text's `rotate n [ … ]`, one step further each time it plays (`rotating`); data and streams are rotated now. `rotate` rotates music now, wrapping around | `[a b c d] 1 rotate` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 [%] [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
-| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] .>`, `[c d] [~] \|\| .>>+` |
+| `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] ->`, `[c d] [~] \|\| ->>+` |
 | `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[[]]` | the whole split by its meter into its measures, each a line of its own, cut and tied as `[\|\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
@@ -810,8 +810,8 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `{2}` `{3}` … | the top n at once, `{ a b … }` | `[c d] [e f] {2}` |
 | `{+}` | the parts of two parallels in one `{ }` (a line is one part) | `{[c] [d]} {[e] [f]} {+}` |
 | `[*]` | the whole played n times (`times`), the text's `repeat n [ ]`; data and streams written out n times, printed as their repeat | `[a b] 3 [*]` gives `repeat 3 [A3/4 B3]`, `'[1 2] 2 [*]` `'[1 2] 2 times` (its elements `1 2 1 2`) |
-| `.>`, `.>+`, `.>>`, `.>>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] .>`, `[e f] .>+`, `[g a] \|\| .>>`, `[e f] \| .>>+` |
-| `stop` | stop (and forget a waiting `.>>`); Alt+. at the prompt, mid-typing | `stop` |
+| `->`, `->+`, `->>`, `->>+` | play now, stopping what plays; joining it now; in its place from the next boundary; joining it from the next boundary | `[c d e] ->`, `[e f] ->+`, `[g a] \|\| ->>`, `[e f] \| ->>+` |
+| `stop` | stop (and forget a waiting `->>`); Alt+. at the prompt, mid-typing | `stop` |
 | `pause` | pause what plays; again, resume it; Alt+, at the prompt | `pause` |
 | `sounds` | a copy of a note, chord or drum per number (0-127): a drum's key, a note's instrument | `x8 35 82 range sounds` (the drum set), `c4 0 128 range sounds` (every instrument), `x4 '[36 38 42 46] sounds [~]` |
 | `D.major` | a key: a tonic (`#` sharp, `&` flat) and a scale, as `!key:` writes it; without the scale, `D` is the note | `B&.minor`, `f#.dorian` |
@@ -910,7 +910,7 @@ duration/euclid                          → '[3/16 3/16 1/8]
 @^{ k:5 n:16 } duration/euclid            the settings on top are its own
 [c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip
                                          the rhythm rotated, a rest's pitch unused
-[!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg .>
+[!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg ->
                                          played in a line, a key param follows its !key:
 ```
 

@@ -1,7 +1,7 @@
 (ns musics.mu.kernel
   "mu's kernel words that read the stack itself (namespace kernel): the
    stack, quotations, printing the stack, binding; also the play words
-   that read the stack's shape (play, .>, play-next, .>>, …)
+   that read the stack's shape (play, ->, play-next, ->>, …)
    (doc/md/mu-repl.md, section 8). The kernel's other words are
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
@@ -186,13 +186,13 @@
 (defn- target-of
   "[voice-id stack]: a voice's id (:bass) or index (1 the lowest) on top
    is the voice to play as; else nil. With nothing under it, the voice
-   plays its own music again, from the start (1 .>, :bass .>>)."
+   plays its own music again, from the start (1 ->, :bass ->>)."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
     (let [k (peek s)]
       (when (and (keyword? k) (= 1 (count s)) (not (get (mt/live-voices) k)))
         (e/mu-error (str word ":") (pr-str k) "on top is the voice to play as, and plays no music;"
-                    "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ .>"))
+                    "to play what is stored as" (pr-str k) "fetch it first:" (pr-str k) "R@ ->"))
       (let [id (mt/voice-id word k) s (pop s)]
         (if-let [{:keys [x ctx]} (and (empty? s) (get (mt/live-voices) id))]
           [id (cond-> (or (live/replay id) [x]) ctx (conj ctx))]
@@ -228,14 +228,14 @@
         (mt/play! x ctx join? target))
       s)))
 
-(word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also .>); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass .>) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
+(word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also ->); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass ->) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
        (play-now "play" false))
 
-(word! "play" "play+" "( material [recipe] [^{ }] [voice] -- )  play it now, joining what plays (also .>+)"
+(word! "play" "play+" "( material [recipe] [^{ }] [voice] -- )  play it now, joining what plays (also ->+)"
        (play-now "play+" true))
 
-(word! "play" ".>" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
-(word! "play" ".>+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
+(word! "play" "->" "( material [^{ }] -- )  play" (e/same-as "play" "play"))
+(word! "play" "->+" "( material [^{ }] -- )  play+, joining what plays" (e/same-as "play" "play+"))
 
 (defn- staged-word
   "( material [recipe] [^{ }] [|...||||] [voice] -- ): stage! from the next boundary."
@@ -251,17 +251,18 @@
           (mt/stage! x ctx n join? target))
         s))))
 
-(word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also .>>)"
+(word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also ->>)"
        (staged-word "play-next" false))
-(word! "play" "play-next+" "( material [^{ }] [|...||||] -- )  joining what plays, from the next boundary, as play-next finds it (also .>>+)"
+(word! "play" "play-next+" "( material [^{ }] [|...||||] -- )  joining what plays, from the next boundary, as play-next finds it (also ->>+)"
        (staged-word "play-next+" true))
-(word! "play" ".>>" "( material [^{ }] [|...||||] -- )  play-next, in place of what plays from the next boundary"
-       (staged-word ".>>" false))
-(word! "play" ".>>+" "( material [^{ }] [|...||||] -- )  play-next+, joining what plays from the next boundary"
-       (staged-word ".>>+" true))
+(word! "play" "->>" "( material [^{ }] [|...||||] -- )  play-next, in place of what plays from the next boundary"
+       (staged-word "->>" false))
+(word! "play" "->>+" "( material [^{ }] [|...||||] -- )  play-next+, joining what plays from the next boundary"
+       (staged-word "->>+" true))
 
 ;; the old signs: not words, and say what replaced them
-(doseq [[w new] [[">+" ".>+"] [">>" ".>>"] [">>+" ".>>+"] ["<<" ".<<"]]]
+(doseq [[w new] [[">+" "->+"] [">>" "->>"] [">>+" "->>+"] ["<<" "<<-"]
+                 [".>" "->"] [".>+" "->+"] [".>>" "->>"] [".>>+" "->>+"] [".<" "<-"] [".<<" "<<-"]]]
   (word! "play" w (str "( -- )  not a word: write " new)
          (fn [_] (e/mu-error (str w ":") "isn't a word; write" new))))
 

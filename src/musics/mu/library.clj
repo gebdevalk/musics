@@ -67,7 +67,7 @@
    "last" "( x -- elem )", "map" "( x q -- x' )", "mean" "( l -- n )"
    "scale" "( key -- m ) or ( root intervals -- m )", "select" "( x weights -- elem )"
    "slice" "( x start end -- x' )", "sum" "( l -- n )"
-   "playing" "( voice -- m )", ".<" "( voice -- m )"})
+   "playing" "( voice -- m )", "<-" "( voice -- m )"})
 
 (defn effect
   "v's stack effect and description, as a word written in Clojure shows

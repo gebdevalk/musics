@@ -298,22 +298,22 @@ onto a line, a value per note. Instruments and drums stay apart: `instruments`/
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`
-when it changes. Playback: `.>`
-now, stopping what plays; `.>>` in its place at the next boundary
-(`x | .>>` at the next `|`); `.>+` joining now, `.>>+` at the next
+when it changes. Playback: `->`
+now, stopping what plays; `->>` in its place at the next boundary
+(`x | ->>` at the next `|`); `->+` joining now, `->>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes); `,` (`edit`) takes the top into the next prompt as its printed text (`musics.mu.kernel/edit-text`, read by `mu.clj`'s `readLine`). Named music
-is a voice of that name (`[bass: c d] .>`, a loop of it too): playing it
-replaces only that voice (`.>` now, `.>>` at the end of its own pass), the
+is a voice of that name (`[bass: c d] ->`, a loop of it too): playing it
+replaces only that voice (`->` now, `->>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
-everything or joins under an engine id. `voices` (`.<<`), `:bass stop`,
-`:bass playing` (`:bass .<`), `:bass hush`, `:bass solo`; an index
+everything or joins under an engine id. `voices` (`<<-`), `:bass stop`,
+`:bass playing` (`:bass <-`), `:bass hush`, `:bass solo`; an index
 addresses a voice too, by mean pitch (1 the lowest with pitch .. n, the
 drum voices 0, -1 … by lowest drum key: `musics.mu.material/voice-id`),
 and a voice's id or index on top of a play word is the voice to play as
-(`3 .< 12 + 3 .>>`) (`engine/stop-voice!`,
+(`3 <- 12 + 3 ->>`) (`engine/stop-voice!`,
 `hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Most bracket signs
 have a named twin, a name Clojure could carry too (`[R]` `retrograde`,
-`[~]` `cycle`, `.>>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
+`[~]` `cycle`, `->>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( $a b -- c ) … ;` (a `$` input a local, the results checked) and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
@@ -331,7 +331,7 @@ pass their `:mu :optional` test), pushing the one value it returns --
 nothing for a `!` function -- and naming an error by the word; it
 calls the var, so a redefinition changes the word everywhere. The words that read the stack's shape stay stack
 words: the stack, quotations, `:=` and printing the stack, and the play
-words with their optional context, mark and voice (`.>`, `.>>`, …) in
+words with their optional context, mark and voice (`->`, `->>`, …) in
 `musics.mu.kernel`; `split-at` (two values), `par` `{n}` `[n]`
 `chord` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`; the algo words,
 generated from the registry (`musics.mu.algos`). `musics.mu.material`
@@ -452,7 +452,7 @@ it, just passes it through.
 - Every signal carries `:at`, when it is due (`System/nanoTime`), so
   an action can start material exactly there:
   `musics.engine/play-from!` replaces what plays with a voice whose
-  `:t` 0 is that moment (or, joining, adds one) — mu's `.>>`/`.>>+`
+  `:t` 0 is that moment (or, joining, adds one) — mu's `->>`/`->>+`
   (`musics.mu.material/stage!`).
 - **`musics.engine/schedule-tx!`** — the primary use case: `(schedule-tx!
   id phase)` moves every voice that crosses `[id phase]` onto whatever
@@ -558,7 +558,7 @@ ones, so `(play [:loud :verse])` plays `:loud`'s settings over
 `build-chain`, a group's fresh context and
 `musics.domain.resolve/chain-links` all insert behind the overrides;
 doc/md/decisions.md, 2026-10-15). mu's play words with a context on
-top (`x ^{ !mf } .>`) build the same `[ctx x]` form.
+top (`x ^{ !mf } ->`) build the same `[ctx x]` form.
 `tagged-form?`/`split-tag` recognize `[Form :algo Name]` by FIXED SHAPE
 (a vector, exactly 3 elements, `:algo` at index 1) — replacing an
 earlier `[:algo name]`-marker-scanned-for-anywhere-in-args scheme
@@ -889,7 +889,7 @@ It runs on `musics.algo.tree.builder`, a pure draft model
 `->tree`, `from-tree`, `render`; Ctrl+Z/Ctrl+Y in the window);
 `(t/build-tree tree tctx)` edits an existing tree. In mu (`musics.mu.live`)
 a play word given a **recipe** -- a quotation, or a composer tree
-(`compose`) -- plays live: `x '( 5 + ) :up .>`, or from nothing with a mark
+(`compose`) -- plays live: `x '( 5 + ) :up ->`, or from nothing with a mark
 `|` (or nothing) under the recipe, `| '( duration/euclid [c e g] pitches
 zip [~] ) :riff >`. Each note the voice reaches is the next note of what
 the recipe gives now (`musics.algo.tree.live/bind-run!`, the generator's
@@ -954,7 +954,7 @@ is lazy, a `seed` in the settings starting the draws there; mu's `run`
 (`musics.mu.tools`) takes the recipe's inputs from the stack and puts a
 finite result there (a line, a `{ }`), refusing an endless one; `see`
 prints the tree it builds; a play word plays one live -- a generator
-from nothing (`| @( … ) :riff .>`), one with an input on the music
+from nothing (`| @( … ) :riff ->`), one with an input on the music
 under it -- the voice pulling the lazy result note by note, its tctx
 the voice's settings (`set`, `settings`, `gui`, the Wall), a copy of the
 recipe's, so `set` never reaches the recipe; a named recipe plays as the
@@ -997,7 +997,7 @@ walked in the same form) and writes `[bass: !i:acousticBass ...]`;
 then `(play #{id :bass})`. In mu the word `walking-bass` ( chords [n] --
 bass ) makes it from the line on the stack as it runs, every pass of a
 repeat walked anew: with n as long as the chords n times, each walked
-anew, the last chord held (`x 4 times x 4 walking-bass {2} .>`); without,
+anew, the last chord held (`x 4 times x 4 walking-bass {2} ->`); without,
 an ostinato leading back into its own start, to loop (`x dup
 walking-bass {2} [~] >`). Both draw from
 `musics.algo.random`, so a seed repeats them.

@@ -77,15 +77,15 @@
 (defn <
   "True when a is less than b: numbers, ratios and durations; with a key q
    on top, the numbers it reads: c d '( pitch ) <, [c d] [e f g] '( duration ) <"
-  {:mu {:out "flag" :hint "what a voice plays is .<" :optional {:q v/quotation?}}}
-  ([a b] (ordered core/< a b "<" "what a voice plays is .<"))
+  {:mu {:out "flag" :hint "what a voice plays is <-" :optional {:q v/quotation?}}}
+  ([a b] (ordered core/< a b "<" "what a voice plays is <-"))
   ([a b q] (ordered-by core/< "<" q a b)))
 
 (defn >
   "True when a is greater than b: numbers, ratios and durations; with a key
    q on top, the numbers it reads"
-  {:mu {:out "flag" :hint "to play, write .>" :optional {:q v/quotation?}}}
-  ([a b] (ordered core/> a b ">" "to play, write .>"))
+  {:mu {:out "flag" :hint "to play, write ->" :optional {:q v/quotation?}}}
+  ([a b] (ordered core/> a b ">" "to play, write ->"))
   ([a b q] (ordered-by core/> ">" q a b)))
 
 (defn <=

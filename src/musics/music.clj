@@ -243,7 +243,7 @@
 ;; -- forms -----------------------------------------------------------------
 
 (defn cycle
-  "x endlessly, repeat ~ [ x ]: [c d] [~] .> plays until stop; data or a
+  "x endlessly, repeat ~ [ x ]: [c d] [~] -> plays until stop; data or a
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]

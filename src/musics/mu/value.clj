@@ -41,7 +41,7 @@
                 (str/join " " items))
          close)))
 
-(defrecord Mark [count])  ; | … ||||: a gathering mark, and .>>'s boundary
+(defrecord Mark [count])  ; | … ||||: a gathering mark, and ->>'s boundary
 (def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
 
