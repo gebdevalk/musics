@@ -202,7 +202,7 @@
 (deftest parse-warns-when-a-redefinition-has-spillover
   (parse! "[motif: c4 d4] [verseA: :motif e4] [verseB: :motif f4]")
   (let [printed (with-out-str (store/read! "[motif: g4 a4]"))]
-    (is (re-find #"Redefining :motif also affects" printed))
+    (is (re-find #"load: :motif is used by" printed))
     (is (re-find #":verseA" printed))
     (is (re-find #":verseB" printed))
     (is (not (re-find #":ROOT" printed))

@@ -206,8 +206,11 @@ followed by nothing, a duration or `*n`.
 - `R!` stores silently, as Forth's `!` does, and leaves the top-level
   id it stored under on the stack (inner ids are stored with it): to
   print (`[c d] R! .` prints `:s12`), fetch (`[c d] R! R@`), inspect
-  (`usages`, `ctx`) or bind (`'m [c d] R! :=`). An existing id is replaced silently;
-  playing voices keep their snapshot.
+  (`usages`, `ctx`) or bind (`'m [c d] R! :=`). An existing id is replaced silently
+  when nothing else stored uses it; when other parts do, `R!` refuses and names
+  them (`R!: :motif is used by :verse -- R!! stores it anyway …`), and **`R!!`**
+  (`overwrite`) stores it and says which parts change with it. Playing voices keep
+  their snapshot either way. Reading a file (`load`, the editor) behaves as `R!!`.
 - A literal on the stack is a value, not yet in the repo: it can be
   `dup`ed, transformed and played without being stored.
 - **Inspecting the repo** (printing a stored part is `:id R@`): `ids`,
@@ -317,7 +320,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `negate` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers, or anything by a key); `true` `false` `and` `or` `xor` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
-| **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
+| **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
 | **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ k:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |

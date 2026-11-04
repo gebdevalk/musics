@@ -938,7 +938,8 @@ and play it, or rate them (section 17).
 | Word | Does |
 |---|---|
 | `'name value :=` | bind a name for this session; `\name` is the value |
-| `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!` |
+| `R!` or `store` | store in the repo, under an id: `[c d e] :mel R!`; refused when other stored parts use that id |
+| `R!!` or `overwrite` | the same, redefining an id other parts use, and saying which change with it |
 | `R@` or `fetch` | fetch from the repo: `:mel R@` |
 | `ids`, `:mel usages` | every stored id; the ids that hold `:mel` |
 | `forget` | take a name out of the repo: `:mel forget` (refused while something uses it) |

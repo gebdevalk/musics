@@ -2957,3 +2957,17 @@ threading macros, which mu does not use. The dotted forms and the earliest
 signs (`>>`, `>+`, `<<` …) are not words and answer with the arrow
 (`.>: isn't a word; write ->`); `<` and `>` as comparisons say
 `to play, write ->`.
+
+## 2026-11-04 — R! refuses to redefine what other parts use; R!! does it and says so
+
+Storing under an id that other stored parts use printed
+`[musics] Redefining :a also affects [:b]` and went ahead: a warning in a style
+no other word has, easy to miss at a prompt, and a change that reaches `:b`
+by surprise. `R!` now refuses before anything is stored, in the error style
+(`R!: :a is used by :b -- R!! stores it anyway, changing them too; or give it a
+new id`); `R!!` (`overwrite`) stores and says which parts change with it
+(`R!!: :a is used by :b, so storing it changes them too`). An id nothing else
+uses is replaced silently, as before; parts stored in the same call count as
+covered. Reading a file or the editor's text (`load`, `read!`) behaves as `R!!`,
+labelled `load:`, since re-reading a file is how a piece is edited. The check
+is `musics.mu.material/store-all!`'s, with the word's name and a refuse flag.

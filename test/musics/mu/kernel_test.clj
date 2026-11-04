@@ -578,3 +578,20 @@
 (deftest the-dotted-play-signs-say-what-replaced-them
   (doseq [[old new] [[".>" "->"] [".>+" "->+"] [".>>" "->>"] [".>>+" "->>+"] [".<" "<-"] [".<<" "<<-"]]]
     (is (= (str old ": isn't a word; write " new) (:error (run (str "[c] " old)))) old)))
+
+;; R! refuses to redefine an id other stored parts use; R!! does it and says which
+(deftest r!-refuses-what-r!!-says
+  (run "[motif: c d] R!" "[verse: :motif e] R!")
+  (testing "an id nothing uses, or a new one, is stored silently"
+    (is (= [:fresh] (:ok (run "[fresh: g] R!"))))
+    (is (= "" (with-out-str (run "[fresh: a] R!")))))
+  (testing "R! refuses, naming where it is used, and stores nothing"
+    (is (re-find #"^R!: :motif is used by :verse -- R!! stores it anyway" (:error (run "[motif: g a] R!"))))
+    (is (= "[motif: C4/4 D4]" (first (map p/show (:ok (run ":motif R@"))))) "still the old one"))
+  (testing "R!! stores it and says what changes with it"
+    (let [out (with-out-str (is (= [:motif] (:ok (run "[motif: g a] R!!")))))]
+      (is (re-find #"^R!!: :motif is used by :verse, so storing it changes them too" out)))
+    (is (= "[motif: G3/4 A3]" (first (map p/show (:ok (run ":motif R@")))))))
+  (testing "the named twins"
+    (is (re-find #"^store: |^R!: " (:error (run "[motif: c] store"))))
+    (is (= [:motif] (:ok (run "[motif: d] overwrite"))))))

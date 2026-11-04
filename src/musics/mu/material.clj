@@ -411,9 +411,11 @@
 
 (defn store-all!
   "Store each [x name] of pairs at once, as store! does one; returns the
-   ids, in order. Warns (without refusing) when an id it redefines is
-   also used by a part it doesn't store."
-  [pairs]
+   ids, in order. An id it redefines that a part it doesn't store also
+   uses is said so in word's name: refused when refuse? (R!, before
+   anything is stored), else stored and said (R!!, load)."
+  ([pairs] (store-all! pairs "load" false))
+  ([pairs word refuse?]
   (let [parts (for [[x name] pairs]
                 (if (v/recipe? x)
                   ;; a recipe is stored as its text, rebuilt when read (musics.recipe/stored)
@@ -426,11 +428,14 @@
         parts (doall parts)
         edits (apply merge (map :edits parts))
         ours  (conj (set (keys edits)) :ROOT)]
-    (doseq [k (keys edits)
-            :let [affected (remove ours (repo/usages k))]
-            :when (and (repo/current k) (seq affected))]
-      (println "[musics] Redefining" k "also affects" (vec affected)
-               "-- give it a new id instead if that's not intended."))
+    (let [used (for [k (keys edits)
+                     :let [affected (remove ours (repo/usages k))]
+                     :when (and (repo/current k) (seq affected))]
+                 (str (pr-str k) " is used by " (str/join " " (map pr-str affected))))]
+      (when (seq used)
+        (if refuse?
+          (e/mu-error (str word ":") (str/join "; " used) "-- R!! stores it anyway, changing them too; or give it a new id")
+          (println (str word ":") (str (str/join "; " used) ", so storing it changes them too")))))
     (repo/commit-many! edits)
     (let [root (or (repo/current :ROOT) (get (:repo (builder/empty-session)) :ROOT))
           new  (for [{:keys [id top]} parts
@@ -439,13 +444,13 @@
       (when (seq new)
         (repo/commit-node! :ROOT (update root :children (fnil into []) (distinct new)))))
     (reg/log! :parse)
-    (mapv :id parts)))
+    (mapv :id parts))))
 
 (defn store!
   "Store x in the repo under name if given, else its own id or an auto
    one; returns the id (see store-all!)."
-  [x name]
-  (first (store-all! [[x name]])))
+  ([x name] (store! x name "load" false))
+  ([x name word refuse?] (first (store-all! [[x name]] word refuse?))))
 
 (defn fetch
   "The value stored as id."
@@ -466,7 +471,7 @@
   (atom {}))
 
 (defn cancel-staged!
-  "Forget a .>> still waiting for its boundary: one target's, or all."
+  "Forget a ->> still waiting for its boundary: one target's, or all."
   ([] (doseq [t (keys @staged)] (cancel-staged! t)))
   ([target]
    (when-let [{:keys [keys action]} (get @staged target)]
@@ -602,7 +607,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
-  "Stop what plays, a staged .>> and whatever stoppers hold."
+  "Stop what plays, a staged ->> and whatever stoppers hold."
   []
   (cancel-staged!)
   (reset! voices {})
