@@ -67,9 +67,11 @@
   [st name]
   (if-let [now (renamed name)]
     (str "it is now written " now)
-    (let [close (close-words st name 3)]
+    (if (contains? (:bindings st) name)
+      (str name " is a value, not a word: \\" name " puts it on the stack")
+      (let [close (close-words st name 3)]
       (if (seq close)
         (str "did you mean " (str/join ", " close) "?")
         (if (re-matches #"[a-zA-Z][a-zA-Z0-9_-]*" name)
           (str "about " name " looks for it; words lists them")
-          "words lists them, help shows the way")))))
+          "words lists them, help shows the way"))))))

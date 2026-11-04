@@ -59,6 +59,13 @@
   (testing "the same text twice is two literals, each read in its place"
     (is (= ["C4/4" "E4/4" "G4/4" "C5/4"] (shown (run "c4 e g c"))))))
 
+(deftest errors-point-at-the-way
+  (testing "numbers in brackets are data, written with a quote"
+    (is (re-find #"'\[1 2 3\]" (:error (run "[1 2 3]")))))
+  (testing "a bound name is a value: \\name puts it on the stack"
+    (run "'zz 5 :=")
+    (is (re-find #"zz is a value, not a word: \\zz puts it" (:error (run "zz"))))))
+
 (deftest errors-leave-the-stack
   (let [r (run "1 2 drop drop drop")]
     (is (re-find #"drop: needs 1 item" (:error r)))
