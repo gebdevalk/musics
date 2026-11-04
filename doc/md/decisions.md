@@ -2971,3 +2971,14 @@ uses is replaced silently, as before; parts stored in the same call count as
 covered. Reading a file or the editor's text (`load`, `read!`) behaves as `R!!`,
 labelled `load:`, since re-reading a file is how a piece is edited. The check
 is `musics.mu.material/store-all!`'s, with the word's name and a refuse flag.
+
+## 2026-11-04 — A successful input says ok
+
+A successful input printed nothing and the prompt showed only the stack's
+depth, so `[c d e]` left `mu<1>` and no sign that it had worked. The REPL loop
+(`musics.mu/run-input`) now prints `ok` after an input that ran, after
+whatever the input printed, as Forth does; an error still prints `error:` and
+the reason, and nothing is added to the evaluator (`eval-input` stays silent, so
+the GUI and the tests that read it are unchanged). Showing the top of the stack
+instead was considered and left out: a value is read with `.` and the stack
+with `.s`, and the prompt's depth says that something was pushed.

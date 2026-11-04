@@ -479,7 +479,7 @@
 (defn eval-input
   "Evaluate one input. Returns {:ok stack}, {:incomplete true}, or
    {:error message} -- the stack as it was before the input. Nothing is
-   printed: as in Forth, only words that print do."
+   printed here: as in Forth, only words that print do (the REPL says ok)."
   [text]
   (let [r (try (parse-input text)
                (catch StackOverflowError _ {:error "the stack of calls overflowed reading this"})

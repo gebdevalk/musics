@@ -236,6 +236,11 @@ followed by nothing, a duration or `*n`.
 
 ## 7. The REPL
 
+- **`ok`**: an input that ran prints `ok` after whatever it printed, as in
+  Forth; one that failed prints `error:` and the reason, and leaves the
+  stack as it was. Nothing else is shown: a value stays on the stack until
+  `.` prints it or `.s` shows the stack, and the prompt's number tells
+  how deep it is.
 - **Prompt**: `mu<n>`, n the number of items on the stack. A
   continuation is `...`, right-aligned under it:
 
