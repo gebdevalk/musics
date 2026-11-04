@@ -4,7 +4,7 @@
 ;; duplication found by a complexity audit, 2026-09-03), extracted here
 ;; as the one shared copy both now require.
 
-(ns musics.algo.common.numeric)
+(ns musics.algo.numeric.integer)
 
 (defn gcd
   "Greatest common divisor of a and b, via the Euclidean algorithm.

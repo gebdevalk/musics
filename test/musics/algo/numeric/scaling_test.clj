@@ -1,6 +1,6 @@
-(ns ^:algo musics.algo.common.scaling-test
+(ns ^:algo musics.algo.numeric.scaling-test
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.common.scaling :as scaling]))
+            [musics.algo.numeric.scaling :as scaling]))
 
 (deftest clamp-keeps-a-value-inside-the-bounds
   (is (= 10 (scaling/clamp 0 10 15)))

@@ -239,7 +239,7 @@ musics.algo.melodic.*               melody
 ├── melody                    248   markov, L-system, grammar, constraints, modulation
 ├── serial                    192   rows, set classes, polations
 └── counterpoint              254   motif imitation, best-effort species rules
-musics.algo.logic.counterpoint 442  species counterpoint after Jeppesen, in core.logic
+musics.algo.counterpoint.jeppesen 442  species counterpoint after Jeppesen, in core.logic
 ├── counterpoint.intervals    150   notes, intervals, modes
 └── counterpoint.rules        431   the rules as checks
 musics.algo.harmonic.walking-bass 250  a walking bass under chords
@@ -250,10 +250,10 @@ musics.algo.random            746   distributions, walks, pink noise, choice
 └── random.lorenz              90   Lorenz attractor
 musics.algo.indispensability  227   Barlow's indispensability, adherence
 musics.algo.metric             75   binary, modular, continued-fraction pulses
-musics.algo.common.pitch      108   scales from keys
-musics.algo.common.numeric     34   gcd, lcm
+musics.algo.melodic.pitch      108   scales from keys
+musics.algo.numeric.integer     34   gcd, lcm
 musics.algo.common.rotate      25   rotation
-musics.algo.common.scaling     89   clamp, scale, bound
+musics.algo.numeric.scaling     89   clamp, scale, bound
 ```
 
 ## Unreached
@@ -261,15 +261,15 @@ musics.algo.common.scaling     89   clamp, scale, bound
 Loaded only by tests:
 
 ```
-musics.algo.common.farey        38   rational approximation
+musics.algo.numeric.farey        38   rational approximation
 musics.algo.common.gate        130   gate criteria
 musics.algo.common.isorhythm    86   color-talea
 musics.algo.common.pulse        43   grid → pulses
 musics.algo.common.reshape     114   reshaping recipes
 musics.algo.common.split        92   voice splitting
 musics.algo.common.transient-ops 68  times, tuplet, transpose on material
-musics.algo.common.trig        124   waves
+musics.algo.numeric.trig        124   waves
 musics.algo.common.zfilter     127   recurrence filters
-musics.algo.clam               136   (nothing requires it)
+musics.algo.numeric.clam               136   (nothing requires it)
 musics.algo.harmonic.progression 153 roman-numeral progressions
 ```

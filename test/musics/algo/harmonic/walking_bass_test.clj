@@ -4,7 +4,7 @@
             [musics.mu.store :as store]
             [musics.repo :as repo]
             [musics.events :as ev]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.algo.harmonic.progression :as hp]
             [musics.algo.harmonic.walking-bass :as wb]))
 

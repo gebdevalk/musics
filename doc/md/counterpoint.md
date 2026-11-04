@@ -7,12 +7,12 @@ Polyphonic Vocal Style of the Sixteenth Century*, 1939) teaches
 Palestrina-style counterpoint through the five species (kinds), in two,
 three and four voices, against a given *cantus prius factus* (a cantus
 firmus, CF). musics has one counterpoint generator,
-`musics.algo.melodic.counterpoint` (motif imitation + a few greedy rules, which
+`musics.algo.counterpoint.imitation` (motif imitation + a few greedy rules, which
 falls back to rule-breaking pitches when stuck). It has no species,
 can't take a given cantus to work against, and can't tell a third
 from a diminished fourth.
 
-`musics.algo.logic.counterpoint` takes a cantus, a number of voices (2–4) and
+`musics.algo.counterpoint.jeppesen` takes a cantus, a number of voices (2–4) and
 a kind (1–5), and returns counterpoint that obeys Jeppesen's rules —
 or `nil` when none is found — searched with core.logic. Every rule has
 a name, and the same rules *check* music (a cantus, a hand-written
@@ -37,7 +37,7 @@ Its settings are `voices`, `kind`, `cantus-in`, `mode` and `seed`, as
 below. In code:
 
 ```clojure
-(require '[musics.algo.logic.counterpoint :as cp])
+(require '[musics.algo.counterpoint.jeppesen :as cp])
 
 (def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] ; whole notes, MIDI
                          :voices 3          ; 2, 3 or 4, the cantus included
@@ -119,7 +119,7 @@ Clojure sets in it).
 
 **Where it lives.** `src/musics/algo/logic/counterpoint.clj` (layout, rhythm,
 search, `check`, `->mus`, `:species`), `counterpoint/rules.clj`,
-`counterpoint/intervals.clj`. `musics.algo.melodic.counterpoint` (motif
+`counterpoint/intervals.clj`. `musics.algo.counterpoint.imitation` (motif
 imitation) is a different algo and stays.
 
 ## The rules

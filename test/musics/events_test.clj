@@ -10,7 +10,7 @@
             [musics.domain.context :as c]
             [musics.midi.file :as midi-file]
             [musics.mu.store :as store] [musics.mu.value :as v]
-            [musics.algo.random.core :as rc])
+            [musics.algo.numeric.rng :as rc])
   (:import [javax.sound.midi MidiSystem ShortMessage]))
 
 (use-fixtures :each (fn [f] (with-fresh-session (f))))

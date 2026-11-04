@@ -4,7 +4,7 @@
             [musics.algo.tree.lib :as lib]
             [musics.algo.tree.half-products :as hp]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.domain :as d]))
 
 (defn- algo

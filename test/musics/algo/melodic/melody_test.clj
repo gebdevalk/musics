@@ -40,7 +40,7 @@
     (is (every? (set a/a-minor) (subvec melody 6 11)))))
 
 (deftest modulating-melody-accepts-key-kw-and-spec-string-segments
-  ;; scale-spec goes through musics.algo.common.pitch/resolve-scale -- a
+  ;; scale-spec goes through musics.algo.melodic.pitch/resolve-scale -- a
   ;; [key-kw scale-kw] pair and a "F#.major"-style string both resolve,
   ;; same as an already-built scale vector.
   (let [melody (a/modulating-melody [[[:C :major] 4] ["A.minor" 4]] [])]

@@ -22,7 +22,7 @@
 ;; deterministic given their own explicit state, no PRNG involved at
 ;; all.
 
-(ns musics.algo.random.core)
+(ns musics.algo.numeric.rng)
 
 ;; ------------------------------------------------------------
 ;; RNG OBJECT

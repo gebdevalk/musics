@@ -2,7 +2,7 @@
 
 How the help system could work if it reasoned over facts with core.logic
 (`clojure.core.logic`, already a dependency, used by `musics.algo.logic.tree`
-and `musics.algo.logic.counterpoint`) instead of printing sentences written by
+and `musics.algo.counterpoint.jeppesen`) instead of printing sentences written by
 hand.
 
 Status: built (2026-10-04) as `musics.assist`, which drives the GUI's

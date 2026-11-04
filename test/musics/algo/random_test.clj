@@ -3,7 +3,7 @@
    Run: lein test musics.algo.random-test"
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.random :as r]
-            [musics.algo.random.core :as seed]))
+            [musics.algo.numeric.rng :as seed]))
 
 (deftest random-rhythm-at-full-density-fires-every-beat
   (is (= [0.0 0.25 0.5 0.75] (r/random-rhythm 0.25 4 1.0))))

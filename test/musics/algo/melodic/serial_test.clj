@@ -1,7 +1,7 @@
 (ns ^:algo musics.algo.melodic.serial-test
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.melodic.serial :as s]
-            [musics.algo.random.core :as rc]))
+            [musics.algo.numeric.rng :as rc]))
 
 (deftest a-row-holds-every-pitch-class-once
   (is (= (set (range 12)) (set (s/row :random))))

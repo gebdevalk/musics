@@ -1,5 +1,5 @@
 ;; pulse.clj
-;; Converts a flat onset/pulse grid (musics.algo.rhythmic.rhythm/algo.metric.
+;; Converts a flat onset/pulse grid (musics.algo.rhythmic.pattern/algo.metric.
 ;; metric's own output -- a plain vector of 0/1, or a wider weighted
 ;; range) into real domain Pulse records -- closes the composability gap
 ;; those generators otherwise have: musics.algo.common.isorhythm/color-talea's
@@ -11,7 +11,7 @@
 
 (defn grid->pulses
   "Collapse grid (a flat vector of 0/1, or a wider weighted range, e.g.
-   musics.algo.rhythmic.rhythm/euclidean-rhythm's or musics.algo.metric/
+   musics.algo.rhythmic.pattern/euclidean-rhythm's or musics.algo.metric/
    modular-rhythm's own output) into a seq of real domain Pulse records
    (musics.domain/pulse) -- one per consecutive equal-value
    run: :duration = run length in grid units, :value = the shared value.

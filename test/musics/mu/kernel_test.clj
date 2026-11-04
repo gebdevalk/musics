@@ -195,9 +195,9 @@
         (is (= "nothing plays\n" (out "pause")) "with nothing playing it says so")))))
 
 (deftest require-loads-clojure-words
-  (is (= "musics.algo.common.numeric as numeric/ (3 words)\n" (out "\"musics.algo.common.numeric\" require")))
-  (is (= [6] (:ok (run "12 18 numeric/gcd"))) "under its last name")
-  (out "\"musics.algo.common.numeric\" 'n require")
+  (is (= "musics.algo.numeric.integer as integer/ (3 words)\n" (out "\"musics.algo.numeric.integer\" require")))
+  (is (= [6] (:ok (run "12 18 integer/gcd"))) "under its last name")
+  (out "\"musics.algo.numeric.integer\" 'n require")
   (is (= [12] (:ok (run "4 6 n/lcm"))) "or a short alias")
   (let [dir (doto (java.io.File/createTempFile "mu-words" "") (.delete) (.mkdirs))
         f   (java.io.File. dir "words.clj")]
@@ -209,7 +209,7 @@
     (is (= [8] (:ok (run "4 w/add4"))) "required again, reloaded")
     (is (re-find #"unknown word: w/add3" (:error (run "4 w/add3"))) "its old words gone"))
   (is (re-find #"no namespace musics.nope" (:error (run "\"musics.nope\" require"))))
-  (is (re-find #"'kernel is a namespace already" (:error (run "\"musics.algo.common.numeric\" 'kernel require")))
+  (is (re-find #"'kernel is a namespace already" (:error (run "\"musics.algo.numeric.integer\" 'kernel require")))
       "mu's own namespaces are kept"))
 
 (deftest namespaces-help-files

@@ -1,4 +1,4 @@
-(ns musics.algo.logic.counterpoint.intervals
+(ns musics.algo.counterpoint.jeppesen.intervals
   "Notes, intervals and modes for species counterpoint (see
    doc/md/counterpoint.md).
 

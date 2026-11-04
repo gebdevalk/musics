@@ -29,7 +29,7 @@
    given at use or set on a live voice don't."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
             [musics.algo.tree.registry :as reg]

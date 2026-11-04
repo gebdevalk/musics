@@ -1,9 +1,9 @@
 (ns ^:algo musics.algo.random.seed-test
-  "Tests for musics.algo.random.core's with-seed, and that its reach extends
+  "Tests for musics.algo.numeric.rng's with-seed, and that its reach extends
    into musics.algo.random's rand-double/rand-int/choose/shuffle and
    everything built on top of them. Run: lein test musics.algo.random.seed-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.random.core :as seed]
+            [musics.algo.numeric.rng :as seed]
             [musics.algo.random :as r]))
 
 (deftest same-seed-reproduces-rand

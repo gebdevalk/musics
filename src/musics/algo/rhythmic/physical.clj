@@ -61,7 +61,7 @@
 (defn logistic-map-rhythm
   "Binary pattern of the given length from the logistic map (x_{n+1} = r
    * x_n * (1 - x_n)), thresholded to 1/0 each step. r in [3.57, 4.0]
-   gives a chaotic (aperiodic) sequence -- see musics.algo.random.logistic for
+   gives a chaotic (aperiodic) sequence -- see musics.algo.numeric.chaos.logistic for
    the same map as a live, stateful generator instead of a fixed-length
    pattern."
   {:algo {:short :logistic-grid :in [] :out :pulse :arity 4

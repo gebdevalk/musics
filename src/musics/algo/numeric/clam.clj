@@ -1,4 +1,4 @@
-(ns musics.algo.clam
+(ns musics.algo.numeric.clam
   (:require [clojure.math :as m]))
 
 ;; ============================================================

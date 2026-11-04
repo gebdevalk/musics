@@ -5,7 +5,7 @@
 ;; periodic complement to musics.algo.random's noise-based random-walk/
 ;; smooth-noise.
 
-(ns musics.algo.common.trig)
+(ns musics.algo.numeric.trig)
 
 (defn cosr
   "Value at idx along a cosine wave scaled by amp, shifted to base,

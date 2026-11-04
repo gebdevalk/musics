@@ -1,4 +1,4 @@
-(ns musics.algo.logic.counterpoint.rules
+(ns musics.algo.counterpoint.jeppesen.rules
   "Jeppesen's rules for species counterpoint, as checks on a score
    being built (see doc/md/counterpoint.md, \"The rules\").
 
@@ -18,7 +18,7 @@
    approach is checked when it is placed, its departure when the next
    note of that voice is. Soft rules (`penalties`) score a finished
    score: Jeppesen's preferences."
-  (:require [musics.algo.logic.counterpoint.intervals :as iv]))
+  (:require [musics.algo.counterpoint.jeppesen.intervals :as iv]))
 
 ;; ---------------------------------------------------------------------------
 ;; Reading the score

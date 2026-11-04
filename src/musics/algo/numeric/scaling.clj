@@ -4,12 +4,12 @@
 ;; names) -- small number-rounding/range-remapping utilities.
 ;;
 ;; clamp was previously duplicated identically (private, same 1-line
-;; body) in musics.algo.random.henon and musics.algo.random.lorenz -- a real,
+;; body) in musics.algo.numeric.chaos.henon and musics.algo.numeric.chaos.lorenz -- a real,
 ;; confirmed duplication found by a code-reuse audit (2026-09-05, same
-;; pattern as musics.algo.common.numeric's own gcd/lcm extraction) -- moved
+;; pattern as musics.algo.numeric.integer's own gcd/lcm extraction) -- moved
 ;; here as the one shared copy both now require.
 
-(ns musics.algo.common.scaling)
+(ns musics.algo.numeric.scaling)
 
 (defn clamp
   "Clamp v into [lo hi].

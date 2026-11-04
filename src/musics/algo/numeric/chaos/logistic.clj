@@ -6,7 +6,7 @@
 ;; it destructures three return values from a Julia @resumable generator
 ;; that only ever yields one, so it doesn't actually run as written.
 
-(ns musics.algo.random.logistic)
+(ns musics.algo.numeric.chaos.logistic)
 
 (defn logistic-function
   "A logistic map generator -- the classic discrete chaotic system

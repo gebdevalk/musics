@@ -32,7 +32,7 @@
             [musics.algo.tree :as t]
             [musics.algo.tree.lib]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.domain :as d]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]

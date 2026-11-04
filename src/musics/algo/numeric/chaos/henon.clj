@@ -1,13 +1,13 @@
 ;; henon.clj
 ;; The Hénon map -- a 2D discrete chaotic system (Michel Hénon, 1976),
-;; genuinely different from musics.algo.random.logistic's own 1D map and
-;; musics.algo.random.lorenz's own continuous 3D system: a discrete 2D map,
+;; genuinely different from musics.algo.numeric.chaos.logistic's own 1D map and
+;; musics.algo.numeric.chaos.lorenz's own continuous 3D system: a discrete 2D map,
 ;; iterated directly (no numerical integration needed, unlike lorenz-
 ;; attractor's own RK4 stepping). Ported from a design discussion
 ;; (MusicalGesture, 2026-04-28) that already listed henon alongside logistic/lorenz as
 ;; sibling pitch-shape generators for the same "gesture" concept.
 
-(ns musics.algo.random.henon)
+(ns musics.algo.numeric.chaos.henon)
 
 (defn- henon-step
   "[x' y'] for the classical Hénon map at [x y], given a/b:

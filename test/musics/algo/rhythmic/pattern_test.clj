@@ -1,7 +1,7 @@
-(ns ^:algo musics.algo.rhythmic.rhythm-test
-  "Tests for rhythm-pattern generators. Run: lein test musics.algo.rhythmic.rhythm-test"
+(ns ^:algo musics.algo.rhythmic.pattern-test
+  "Tests for rhythm-pattern generators. Run: lein test musics.algo.rhythmic.pattern-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.rhythmic.rhythm :as a]))
+            [musics.algo.rhythmic.pattern :as a]))
 
 (deftest euclidean-test
   ;; Regression test: the previous bucket-merging loop's own stopping

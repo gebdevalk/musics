@@ -35,7 +35,7 @@
    back as durations (pulses->durations) -- a rhythm varied on the
    shop floor, without leaving durations."
   (:require [clojure.string :as str]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.domain :as d]
             [musics.algo.tree :as t]
             [musics.algo.tree.registry :as reg]))

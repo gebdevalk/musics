@@ -1,4 +1,4 @@
-(ns musics.algo.logic.counterpoint
+(ns musics.algo.counterpoint.jeppesen
   "Species counterpoint after Knud Jeppesen's Kontrapunkt: two to four
    voices against a given cantus prius factus, in any of the five
    kinds, searched with core.logic (see doc/md/counterpoint.md).
@@ -10,7 +10,7 @@
    Bars are filled left to right, each added voice's notes for the bar
    chosen from its candidates (and, in the 4th and 5th kinds, its
    rhythm from the kind's bar patterns) -- every choice a core.logic
-   choice point, every hard rule (musics.algo.logic.counterpoint.rules)
+   choice point, every hard rule (musics.algo.counterpoint.jeppesen.rules)
    pruning at once, so the search backtracks out of dead ends instead
    of breaking a rule. Several searches with differently shuffled
    candidates, run in parallel, give several solutions; the one with the
@@ -19,10 +19,10 @@
   (:require [clojure.core.logic :refer [== run fail]]
             [clojure.core.logic.protocols :refer [take*]]
             [clojure.string :as str]
-            [musics.algo.logic.counterpoint.intervals :as iv]
-            [musics.algo.logic.counterpoint.rules :as r]
+            [musics.algo.counterpoint.jeppesen.intervals :as iv]
+            [musics.algo.counterpoint.jeppesen.rules :as r]
             [musics.algo.random :as rand]
-            [musics.algo.random.core :as rcore]
+            [musics.algo.numeric.rng :as rcore]
             [musics.common.music-data :as data]
             [musics.domain :as d]
             [musics.input.reader.leaf-parser :as lp]))
@@ -439,7 +439,7 @@
    factus of whole notes: :voices parts (the cantus included), the top
    added one in :kind and the others in 1st species: one stream of leaves
    per voice, top to bottom -- or [] when no solution is found. See
-   musics.algo.logic.counterpoint/counterpoint for the [pitch dur] score."
+   musics.algo.counterpoint.jeppesen/counterpoint for the [pitch dur] score."
   {:algo {:short :species :category "melodic" :in [:pitch] :out :part
           :params {:voices    {:type :int :min 2 :max 4 :default 2 :doc "parts, the cantus included"}
                    :kind      {:type :int :min 1 :max 5 :default 1 :doc "species (1st to 5th) of the florid voice"}

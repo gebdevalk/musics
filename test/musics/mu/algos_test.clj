@@ -10,7 +10,7 @@
             [musics.mu.kernel]
             [musics.mu.print :as p]
             [musics.mu.tools]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
 

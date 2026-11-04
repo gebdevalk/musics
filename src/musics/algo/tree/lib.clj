@@ -65,15 +65,15 @@
 
 (expose-ns musics.algo.bridge
            musics.algo.indispensability
-           musics.algo.logic.counterpoint
+           musics.algo.counterpoint.jeppesen
            musics.algo.metric
-           musics.algo.melodic.counterpoint
+           musics.algo.counterpoint.imitation
            musics.algo.melodic.melody
            musics.algo.melodic.serial
            musics.algo.random
-           musics.algo.random.henon
-           musics.algo.random.logistic
-           musics.algo.random.lorenz
+           musics.algo.numeric.chaos.henon
+           musics.algo.numeric.chaos.logistic
+           musics.algo.numeric.chaos.lorenz
            musics.algo.rhythmic.automaton
            musics.algo.rhythmic.constraint
            musics.algo.rhythmic.decompose
@@ -84,7 +84,7 @@
            musics.algo.rhythmic.phase-sieve
            musics.algo.rhythmic.physical
            musics.algo.rhythmic.poly
-           musics.algo.rhythmic.rhythm
+           musics.algo.rhythmic.pattern
            musics.algo.rhythmic.sonification
            musics.algo.rhythmic.stochastic
            musics.algo.rhythmic.transform

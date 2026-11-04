@@ -5,7 +5,7 @@
 
 (ns musics.algo.rhythmic.drums
   (:require [musics.algo.random :as random]
-            [musics.algo.random.core :as rcore]
+            [musics.algo.numeric.rng :as rcore]
             [musics.common.music-data :as data]
             [musics.compose :as compose]
             [musics.domain :as d]))

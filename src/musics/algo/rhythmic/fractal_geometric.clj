@@ -3,7 +3,7 @@
 ;; 17-18 -- rhythms from fractals (Cantor set, dragon curve) and
 ;; geometry (polygon rotation, circle of fifths, golden ratio). L-system
 ;; rhythms (also ported here originally, as l-system-rhythm) were
-;; removed 2026-09-10 -- a confirmed duplicate of musics.algo.rhythmic.rhythm/
+;; removed 2026-09-10 -- a confirmed duplicate of musics.algo.rhythmic.pattern/
 ;; lindenmayer-rhythm, independently reimplemented from a different
 ;; porting pass; use that one instead (string-keyed rules, not
 ;; char-keyed, and takes an explicit output length rather than just

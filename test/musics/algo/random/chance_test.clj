@@ -3,7 +3,7 @@
    Run: lein test musics.algo.random.chance-test"
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.random :as c]
-            [musics.algo.random.core :as seed]))
+            [musics.algo.numeric.rng :as seed]))
 
 (deftest choose-picks-a-member
   (is (contains? (set [1 2 3 4 5 6]) (c/choose [1 2 3 4 5 6]))))

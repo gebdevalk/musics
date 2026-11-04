@@ -1,6 +1,6 @@
-(ns ^:algo musics.algo.common.trig-test
+(ns ^:algo musics.algo.numeric.trig-test
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.common.trig :as trig]))
+            [musics.algo.numeric.trig :as trig]))
 
 (deftest cosr-matches-known-values
   (is (= [12.0 10.0 8.0 10.0 12.0]

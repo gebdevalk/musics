@@ -14,7 +14,7 @@
             [musics.algo.tree :as t]
             [musics.algo.tree.registry :as reg]
             [musics.algo.tree.lib :as lib]
-            [musics.algo.random.core :as seed]
+            [musics.algo.numeric.rng :as seed]
             [musics.engine :as engine]
             [musics.domain.context :as c]
             [musics.domain :as d]
@@ -47,7 +47,7 @@
                       '[musics.compose :as compose]
                       '[musics.engine :as engine]
                       '[musics.wall :as wall]
-                      '[musics.algo.rhythmic.rhythm :as rhythm]
+                      '[musics.algo.rhythmic.pattern :as rhythm]
                       '[musics.algo.rhythmic.phase-sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
@@ -118,7 +118,7 @@
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
-    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.rhythm/fibonacci-rhythm, by its short name"]]
+    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.pattern/fibonacci-rhythm, by its short name"]]
     :params [["(def p {:length 16 :intervals [0 2 4 5 7 9 11] :pulse 1/16})" ""]]
     :runs [["result" "r3" "p"]]
     :extra [["full name" "(t/full-name :fibonacci)"]]}
@@ -658,7 +658,7 @@
        "<li>Generated leaves carry what the tree gives them: duration and pitch, and with zip their own volume, articulation and instrument (written back as <code>\\vol:90</code> … by <code>notes-&gt;mus</code>). Tempo, key and the rest come from the context where they play.</li>\n"
        "<li><code>notes-&gt;mus</code> covers MIDI 24–119 (octaves 1–8) and throws outside that range.</li>\n"
        "<li>An infinite tree (<code>cycle></code>, <code>shuffle></code> without a <code>take></code> or a finite rhythm) is fine live, but <code>t/play!</code> and printing need a finite result.</li>\n"
-       "<li>All random algos share one RNG (<code>musics.algo.random.core/default-rng</code>). <code>(musics.algo.random.core/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
+       "<li>All random algos share one RNG (<code>musics.algo.numeric.rng/default-rng</code>). <code>(musics.algo.numeric.rng/seed! 2026)</code> makes a recipe reproducible, but reseeds every live voice too.</li>\n"
        "<li>A <code>defalgo</code> lives in the namespace that defines it: re-run it (keep it in a source file) in a fresh session. A tctx is live state, not saved by <code>persist-session</code>.</li>\n"
        "<li>Keys are checked per tree: two separate trees that happen to share a param name share it only if they share a tctx.</li>\n</ul>\n"
        "</body>\n</html>\n"))

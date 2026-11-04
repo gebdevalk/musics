@@ -10,7 +10,7 @@
                                            indisp tilt power weights->pulses pick degrees->pitches]]
             [musics.algo.tree.live :as live]
             [musics.algo.indispensability :as indisp]
-            [musics.algo.random.core :as seed]
+            [musics.algo.numeric.rng :as seed]
             [musics.engine :as engine]
             [musics.common.music-elements :as el]
             [musics.domain.context :as c]
@@ -57,7 +57,7 @@
 
 (deftest introspection-reads-arglists-doc-and-metadata
   (let [e (reg/algo :euclid)]
-    (is (= 'musics.algo.rhythmic.rhythm/euclidean-rhythm (:full e)))
+    (is (= 'musics.algo.rhythmic.pattern/euclidean-rhythm (:full e)))
     (is (= [:k :n :rotation] (map :name (:params e))))
     (is (= 0 (:default (last (:params e)))) "rotation's default comes from its own :or")
     (is (= :pulse (:out e)))

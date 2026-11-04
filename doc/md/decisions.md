@@ -1263,7 +1263,7 @@ error); mu's `[|]` takes them as data on top (`x '[3 1] [|]`).
 
 ## 2026-10-17 — the random generator is xorshift32 again
 
-`musics.algo.random.core/rnd-step` applied its three shifts to the
+`musics.algo.numeric.rng/rnd-step` applied its three shifts to the
 original state instead of each to the one before, so its draws were
 skewed (rand-double averaged 0.34; `choose 3,1` played 7:1). It is
 Marsaglia's xorshift32 now, each step kept to 32 bits; every seeded

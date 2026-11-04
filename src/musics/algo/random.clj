@@ -4,14 +4,14 @@
 ;; continuous distributions, discrete/collection helpers, shaped
 ;; distributions, walks/composite generators, and event/rhythm
 ;; generators. The basic primitives are thin wraps of
-;; musics.algo.random.core's pure rnd-*/step!/default-rng; everything else in
+;; musics.algo.numeric.rng's pure rnd-*/step!/default-rng; everything else in
 ;; this file is built on those primitives as ordinary public calls,
-;; not on musics.algo.random.core directly.
+;; not on musics.algo.numeric.rng directly.
 
 (ns musics.algo.random
   (:refer-clojure :exclude [rand-int shuffle])
-  (:require [musics.algo.random.core :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
-            [musics.algo.common.scaling :as scaling]
+  (:require [musics.algo.numeric.rng :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
+            [musics.algo.numeric.scaling :as scaling]
             [musics.common.music-data :refer [quantity]]))
 
 ;; Param specs shared by the :algo metadata below (musics.algo.tree): identical
@@ -58,7 +58,7 @@
 ;; (mod-based, no floating-point rounding) -- only the external shape
 ;; changed, not the underlying seeded-RNG mechanism, and every OTHER
 ;; caller of this same rnd-int primitive (choose/weighted-choose/
-;; shuffle/markov, all via musics.algo.random.core) is untouched by this.
+;; shuffle/markov, all via musics.algo.numeric.rng) is untouched by this.
 (defn rand-int
   "Uniform integer in [lo,hi), drawn from an RNG atom (default-rng if omitted)."
   ([lo hi] (rand-int default-rng lo hi))

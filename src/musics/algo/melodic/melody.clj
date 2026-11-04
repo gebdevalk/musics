@@ -5,11 +5,11 @@
 
 (ns musics.algo.melodic.melody
   (:require [clojure.string :as str]
-            [musics.algo.common.pitch :as pitch]
+            [musics.algo.melodic.pitch :as pitch]
             [musics.algo.random :as rand]))
 
 ;; Scales are plain pitch-class integers (0-11) now, not note-name
-;; strings -- see musics.algo.common.pitch/build-scale's own docstring, and
+;; strings -- see musics.algo.melodic.pitch/build-scale's own docstring, and
 ;; doc/md/decisions.md's 2026-09-05 entry for why this
 ;; moved out of melody.clj entirely rather than staying a local,
 ;; string-based helper. Built via from-key, not hand-typed intervals --
@@ -22,12 +22,12 @@
 ;; church mode, harmonic/melodic minor, both pentatonics, blues major/
 ;; minor, whole-tone, both diminished forms, hungarian-minor, double-
 ;; harmonic, bebop-dominant/major, ...) across 13 tonics (musics.common.music-
-;; data/signatures), so musics.algo.common.pitch/from-key reaches 312 named
+;; data/signatures), so musics.algo.melodic.pitch/from-key reaches 312 named
 ;; key/scale combinations directly: (pitch/from-key :F# :dorian). Or,
 ;; for a single spec string instead of two keyword args (from-key-spec,
 ;; e.g. (pitch/from-key-spec "B&.blues-minor")) -- either resolves,
 ;; along with a plain already-built scale vector, through
-;; musics.algo.common.pitch/resolve-scale, which every generator/constraint fn
+;; musics.algo.melodic.pitch/resolve-scale, which every generator/constraint fn
 ;; below happily accepts unchanged (they were already representation-
 ;; agnostic before any of this existed) -- see modulating-melody below
 ;; for the motivating use.
@@ -157,7 +157,7 @@
   "Generate a melody across several scale segments in sequence -- each
    [scale-spec length] pair in segments gets its own constraint-melody
    run of exactly length notes, constraints shared across every
-   segment. scale-spec is anything musics.algo.common.pitch/resolve-scale
+   segment. scale-spec is anything musics.algo.melodic.pitch/resolve-scale
    accepts -- an already-built scale vector, a [key-kw scale-kw] pair,
    or a \"F#.major\"-style spec string -- so segments can freely mix
    pre-built scales with spec shorthand.

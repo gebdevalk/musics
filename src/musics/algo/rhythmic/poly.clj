@@ -4,7 +4,7 @@
 ;; Elliott Carter's metric modulation.
 
 (ns musics.algo.rhythmic.poly
-  (:require [musics.algo.common.numeric :as num]
+  (:require [musics.algo.numeric.integer :as num]
             [musics.common.music-data :refer [quantity]]))
 
 (defn polyrhythm

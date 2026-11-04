@@ -1,7 +1,7 @@
-(ns ^:algo musics.algo.logic.counterpoint-test
+(ns ^:algo musics.algo.counterpoint.jeppesen-test
   (:require [clojure.test :refer [deftest is testing]]
-            [musics.algo.logic.counterpoint :as cp]
-            [musics.algo.logic.counterpoint.intervals :as iv]
+            [musics.algo.counterpoint.jeppesen :as cp]
+            [musics.algo.counterpoint.jeppesen.intervals :as iv]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
             [musics.events :as ev] [musics.mu.store :as store] [musics.repo :as repo]))

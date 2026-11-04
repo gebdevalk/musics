@@ -24,7 +24,7 @@
 ;; local -- none of that is reproduced here, it has no effect on the
 ;; output either way.
 
-(ns musics.algo.melodic.counterpoint
+(ns musics.algo.counterpoint.imitation
   (:require [musics.algo.random :as rand]
             [musics.domain :as d]))
 

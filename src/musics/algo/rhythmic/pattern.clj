@@ -3,7 +3,7 @@
 ;; (Euclidean, Fibonacci, prime, L-system, Markov).
 ;; Python/Kotlin sources: rhythm.py
 
-(ns musics.algo.rhythmic.rhythm
+(ns musics.algo.rhythmic.pattern
   (:require [clojure.string :as str]
             [musics.algo.random :as rand]))
 

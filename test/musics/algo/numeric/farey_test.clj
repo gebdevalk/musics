@@ -1,6 +1,6 @@
-(ns ^:algo musics.algo.common.farey-test
+(ns ^:algo musics.algo.numeric.farey-test
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.common.farey :as farey]))
+            [musics.algo.numeric.farey :as farey]))
 
 (deftest farey-matches-an-exact-fraction
   (is (= 3/4 (farey/farey 0.75 4))))

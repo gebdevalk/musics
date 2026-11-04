@@ -1,6 +1,6 @@
-(ns ^:algo musics.algo.common.pitch-test
+(ns ^:algo musics.algo.melodic.pitch-test
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.common.pitch :as pitch]))
+            [musics.algo.melodic.pitch :as pitch]))
 
 (deftest build-scale-computes-pitch-classes-from-a-root-and-intervals
   (is (= [0 2 4 5 7 9 11] (pitch/build-scale 0 [0 2 4 5 7 9 11]))

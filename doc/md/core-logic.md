@@ -10,7 +10,7 @@ Status: partly built.
   `musics.algo.logic.tree`: the composer's typing of a draft and the
   registry's questions (`how`, `feeds`, `why-not`, `examples`,
   `surprise`). Its help idea is `musics.assist`. Species counterpoint
-  was built in core.logic as well (`musics.algo.logic.counterpoint`,
+  was built in core.logic as well (`musics.algo.counterpoint.jeppesen`,
   `doc/md/counterpoint.md`), beside the greedy generator of section 5.
 - **Still proposals:** spelled pitches and Markov chains on them
   (sections 2–4), and the rewrite of the other constraint generators
@@ -34,7 +34,7 @@ Status: partly built.
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
   search by hand:** `musics.algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
-  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.melodic.counterpoint/generate`.
+  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.counterpoint.imitation/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives
   backtracking and pruning, and returns either a correct answer or `nil`.

@@ -3,7 +3,7 @@
    streams are refused where all of a stream is needed."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.input.reader.builder :as builder]
             [musics.domain.context :as c]
             [musics.mu.eval :as e]

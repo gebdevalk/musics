@@ -2,7 +2,7 @@
 ;; Clojure port of pymusics src/algorithm/ — numeric/metric-structure
 ;; pulse generators (modular arithmetic, binary decomposition, continued
 ;; fractions), as distinct from the pattern-shape generators in
-;; musics.algo.rhythmic.rhythm.
+;; musics.algo.rhythmic.pattern.
 ;; Python/Kotlin sources: rhythm.py
 
 (ns musics.algo.metric)

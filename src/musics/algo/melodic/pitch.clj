@@ -11,7 +11,7 @@
 ;; neither is melody-specific -- any musics/algo/ generator wanting a
 ;; root+interval-pattern (or a named key/scale) can use them.
 
-(ns musics.algo.common.pitch
+(ns musics.algo.melodic.pitch
   (:require [musics.common.music-elements :as el]))
 
 (defn build-scale

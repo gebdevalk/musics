@@ -141,7 +141,7 @@ native access for JavaFX, which is pinned to 25.0.4 over cljfx's own
 `instaparse` (parsing), `org.clojure/core.async` (MIDI input),
 `cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
 `org.clojure/core.logic` (questions to the algo registry,
-`musics.algo.logic.tree`, and species counterpoint, `musics.algo.logic.counterpoint`). A Factor-style
+`musics.algo.logic.tree`, and species counterpoint, `musics.algo.counterpoint.jeppesen`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
 `frepl-standby` tag, not here — see `doc/md/decisions.md`, 2026-09-28.
 
@@ -1002,7 +1002,7 @@ an ostinato leading back into its own start, to loop (`x dup
 walking-bass {2} [~] >`). Both draw from
 `musics.algo.random`, so a seed repeats them.
 
-### Species counterpoint: `musics.algo.logic.counterpoint`
+### Species counterpoint: `musics.algo.counterpoint.jeppesen`
 
 `(cp/counterpoint {:cantus [...] :voices 2-4 :kind 1-5})` writes
 counterpoint after Jeppesen's *Kontrapunkt* against a given cantus
@@ -2075,12 +2075,12 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   melody methods, and constraint-satisfaction walks in `melody.clj`,
   plus `counterpoint.clj` -- a multi-voice motif-imitation + species-
   counterpoint generator ported from the same source); `random/` --
-  split into `random/core.clj` (`musics.algo.random.core`, the pure xorshift32
+  split into `random/core.clj` (`musics.algo.numeric.rng`, the pure xorshift32
   engine, mostly public, plus atom-backed seeding/state) and the parent
   `random.clj` (`musics.algo.random`, the basic primitives and everything
   built on them: distributions, chance/weighted-pick helpers), sitting
   alongside `random/logistic.clj`/`random/lorenz.clj` (chaotic maps,
-  no PRNG, untouched by that split) -- see `musics/algo/random/core.clj`'s own
+  no PRNG, untouched by that split) -- see `musics/algo/numeric/rng.clj`'s own
   header comment for why it's atom-backed rather than a dynamic var
   (wall-algorithm safety, the same core.async concern as everywhere
   else in this file); and `musics/common/` (`reshape.clj`'s sequence-reshaping

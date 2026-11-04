@@ -9,14 +9,14 @@
             [clojure.test :refer [deftest is testing]]
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
-            [musics.algo.random.core :as rc]
+            [musics.algo.numeric.rng :as rc]
             [musics.algo.melodic.melody :as melody]
             [musics.domain :as d]))
 
 (def not-algos
   "Public vars that aren't tree algos, and why."
-  {'musics.algo.melodic.counterpoint/default-rules          "data: counterpoint's :rules default"
-   'musics.algo.melodic.counterpoint/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
+  {'musics.algo.counterpoint.imitation/default-rules          "data: counterpoint's :rules default"
+   'musics.algo.counterpoint.imitation/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
    'musics.algo.melodic.melody/a-minor                      "data: a scale"
    'musics.algo.melodic.melody/c-major                      "data: a scale"
    'musics.algo.melodic.melody/c-pentatonic                 "data: a scale"
@@ -60,13 +60,17 @@
    'musics.algo.random/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
 
 (def engine-nss
-  "Not generators at all: the RNG engine."
-  #{'musics.algo.random.core})
+  "Not generators at all: the RNG engine, and helpers (maths, scales) that make no material."
+  #{'musics.algo.numeric.rng 'musics.algo.numeric.integer 'musics.algo.numeric.scaling
+    'musics.algo.numeric.trig 'musics.algo.numeric.farey 'musics.algo.numeric.clam
+    'musics.algo.melodic.pitch
+    'musics.algo.counterpoint.jeppesen 'musics.algo.counterpoint.jeppesen.intervals
+    'musics.algo.counterpoint.jeppesen.rules})
 
 (defn- source-nss []
   (->> (concat [(io/file "src/musics/algo/random.clj") (io/file "src/musics/algo/bridge.clj")
                 (io/file "src/musics/algo/metric.clj")]
-               (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "random" "rhythmic"]))
+               (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "numeric" "counterpoint" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))
        (remove engine-nss)

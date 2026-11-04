@@ -4,7 +4,7 @@
 ;; (the reference file's own commented-out attribution traces it to
 ;; John D. Cook's C++ original).
 
-(ns musics.algo.common.farey)
+(ns musics.algo.numeric.farey)
 
 (defn farey
   "Best rational approximation of x (a value in [0,1)) with denominator

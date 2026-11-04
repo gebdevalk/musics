@@ -168,7 +168,7 @@ registry as core.logic facts, below).
 
 ### Species counterpoint
 
-`musics.algo.logic.counterpoint` writes two- to four-part counterpoint after
+`musics.algo.counterpoint.jeppesen` writes two- to four-part counterpoint after
 Jeppesen against a cantus you give, in any of the five kinds, and
 checks counterpoint against the same rules:
 
@@ -180,7 +180,7 @@ In mu, `parallel/species` takes the cantus from the stack, its settings
 on top. In code:
 
 ```clojure
-(require '[musics.algo.logic.counterpoint :as cp])
+(require '[musics.algo.counterpoint.jeppesen :as cp])
 (def r (cp/counterpoint {:cantus [62 65 64 62 67 65 69 67 65 64 62] :voices 3 :kind 2}))
 (cp/check r)                 ; [] -- every hard rule kept
 (cp/->mus r :cpt)            ; musics text, spelled in the mode
