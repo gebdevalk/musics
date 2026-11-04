@@ -3020,3 +3020,12 @@ with it. An unknown word's error ends `about <name> looks for it`. A search
 over words, settings, marks and grammar with examples (`howto`), a table of
 guesses, and a core.logic planner were tried or weighed and set aside: the
 question is "what is this and where does it go", and one sentence answers it.
+
+## 2026-11-04 — tempo marks are camelCase keys, no hyphenated originals
+
+`tempo-markings` kept four kebab-case keys (`:marcia-moderato` …, ported from
+the Python data) that `!name` could not spell, with camelCase aliases added in
+`instruction-context`; so `marks tempo` listed each mark twice. The keys are
+camelCase now (`:marciaModerato`, `:andanteModerato`, `:allegroModerato`,
+`:allegroVivace`) and the aliases are gone. Scale names (`harmonic-minor`) keep
+their hyphen: `KeyValue` allows one, as in `!key:D.harmonic-minor`.

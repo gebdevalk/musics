@@ -1711,13 +1711,7 @@ usable directly as `BangConst`s (`!allegro`, `!presto`, ...), same as a
 dynamic mark (`!mf`/`!ff`) — `instruction-context` merges both tables into
 one `keyword -> [context-key value]` map that `walk-bang-const` looks up
 generically, so no separate wiring was needed for the single-word ones.
-A bare `!name` that is none of these is refused (`walker/walk-bang-const`, `unknown-mark!`): it names the marks it is within two letters of, or the context key that needs a value (`!volume:50`); a name with a value (`!name:value`) is any key, a custom one too. The handful of compound names (`:marcia-moderato`, `:andante-moderato`,
-`:allegro-moderato`, `:allegro-vivace`) are kebab-case in `tempo-markings`
-itself (ported straight from the Python data), but `BangConst`'s `Name`
-token can't contain a hyphen — `instruction-context` adds a camelCase
-alias for each (`!marciaModerato`, `!andanteModerato`, `!allegroModerato`,
-`!allegroVivace`) pointing at the same value, same convention already
-used there for `:commonTime`/`:stageLeft`/etc.
+A bare `!name` that is none of these is refused (`walker/walk-bang-const`, `unknown-mark!`): it names the marks it is within two letters of, or the context key that needs a value (`!volume:50`); a name with a value (`!name:value`) is any key, a custom one too. The handful of compound names are camelCase keys of `tempo-markings` itself (`:marciaModerato`, `:andanteModerato`, `:allegroModerato`, `:allegroVivace`), since `BangConst`'s `Name` token can't contain a hyphen, as `:commonTime`/`:stageLeft` are.
 
 Accidentals are GUIDO's symbols only — `#`/`##`/`&`/`&&`/`n`, a key's
 tonic too (`!key:B&.minor`, any case, any of the 23 scales); LilyPond's

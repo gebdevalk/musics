@@ -755,10 +755,9 @@
             (str "!" name " -> " bpm))))))
 
 (deftest tempo-marking-bang-const-compound-camelcase
-  (testing "Compound tempo-markings (music-data.clj's kebab-case keys,
-            e.g. :marcia-moderato) aren't spellable as-is -- BangConst's
-            Name token (musics.ebnf) can't contain a hyphen -- so they're
-            reachable via a camelCase alias instead, same values"
+  (testing "Compound tempo-markings are camelCase keys of music-data.clj's
+            tempo-markings, since BangConst's Name token (musics.ebnf) can't
+            contain a hyphen"
     (doseq [[name bpm] {"marciaModerato" 84 "andanteModerato" 102
                         "allegroModerato" 118 "allegroVivace" 174}]
       (let [seq-c (first-token (str "[!" name " c4]"))
