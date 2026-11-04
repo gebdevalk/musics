@@ -3040,3 +3040,16 @@ gathers the marks of every parameter the name reaches. `settings Key` and
 `settings Meter` printed the record (`#musics…Key{…}`); a key is written as
 `C.major` and a meter as `4/4`. `marks` of a line says it takes a name. The
 stack effect of `settings` shows both forms, `( voice -- ) or ( 'name -- )`.
+
+## 2026-11-04 — raw algos as mu words (`raw/`)
+
+The half-product words reach a raw source only through the ~4 bridges someone
+derived for it, and 22 workshop algos (the layer makers, `markov-train`/`gen`,
+`konnakol`, `swing`, `tilt`, `threshold` …) had no word at all. All 117
+workshop algos (sources, transforms, bridges) are now words of `raw/`, made by
+the same `algo-word` as the shelves; a stream carries its type (`:mu :part`).
+Known cost, left for the next step: nothing checks a bridge against that type
+(`raw/lorenz raw/numbers->pitches` is a `ClassCastException`) and a bridge's
+input range defaults to 0..1, where the derived `pitch/lorenz` probes the
+source. A type-directed `>pitches`-style converter (`lt/bridge`, the range read
+from the stream) is the weighed answer; not built yet.

@@ -166,8 +166,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   (`doc/md/algo-space.md`, "Algos deliver half products"): the half
   products `pitch/`, `duration/`, `volume/`, `articulation/` (and
   `instrument/`, once it has sources), and the products `leaf/` and
-  `parallel/`. Raw material (numbers, pulses, weights) and the bridges
-  stay in the trees' workshop, not in mu.
+  `parallel/`; and the trees' workshop -- raw material (numbers, pulses,
+  weights, layers), its transforms and the bridges -- as `raw/`
+  (`raw/euclid`, `raw/polyrhythm`, `raw/pulses->durations`).
 
 ## 6. Memory
 
@@ -384,9 +385,13 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   gives a `:SEQ` back, keeping its context.
 - **Endless input is checked**: an *everything* appetite after an
   *endless* yield (`cycle retrograde`) is refused before running.
-- **Convert is not a mu action**: the bridges turn raw material into
-  half products inside the algos (`pitch/lorenz` is lorenz and its
-  bridge), so mu never meets a pulse or a weight.
+- **Raw material is in `raw/`**: `raw/euclid` gives pulses
+  (`'[1 0 0 1 0 0 1 0]`), `raw/polyrhythm` layers, `raw/lorenz` points; the
+  bridges are words too (`raw/pulses->durations`, `raw/points->pitches`). A
+  stream carries what it is (`:mu :part`), but a bridge isn't checked
+  against it, and its input range defaults to 0..1 -- the half-product
+  words (`pitch/lorenz` is lorenz and its bridge, the range probed from
+  the source) are the finished way.
 - **Selection takes a quotation**, the test, run on each element:
   `[c e g c'] '( pitch 65 < ) filter` keeps the low notes, `remove`
   drops them (the later notes move earlier), `take-while`/`drop-while`

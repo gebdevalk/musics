@@ -6,8 +6,10 @@
    leaf/pocket, parallel/drums. The word is the algo's registry name: a
    specialised algo (musics.algo.tree.half-products) is keyed by its
    half product, :duration/euclid, and its shelf is that namespace. Raw
-   material and the bridges stay in the trees' workshop; the tools are
-   mu's own.
+   material, its transforms and the bridges (the trees' workshop) are
+   the words of the namespace raw -- raw/euclid gives pulses,
+   raw/polyrhythm layers, raw/pulses->durations a bridge -- by the type
+   they deliver (a stream carries it, :mu :part); the tools are mu's own.
 
    A word takes as many inputs as its algo (a source none): a line is
    taken apart into what the algo wants -- durations (a rest as itself),
@@ -73,8 +75,11 @@
     (f)))
 
 (def shelves
-  "The shelves whose algos are mu words."
-  #{"pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel"})
+  "The shelves whose algos are mu words, each in the namespace of its
+   name -- but the workshop's, in raw."
+  #{"pitch" "duration" "volume" "articulation" "instrument" "leaf" "parallel" "workshop"})
+
+(defn- shelf-ns [shelf] (if (= shelf "workshop") "raw" shelf))
 
 (defn- input
   "A mu value as the stream an algo's input of `type` takes: a line
@@ -159,8 +164,8 @@
   "A word for every algo on a shelf in `shelves`. Returns how many."
   []
   (let [ws (for [[short e] (t/algos) :when (shelves (:shelf e))] [(:shelf e) short e])]
-    (doseq [[shelf short e] ws]
-      (word! shelf (name short) (effect e) (algo-word (str shelf "/" (name short)) short e)))
+    (doseq [[shelf short e] ws :let [ns (shelf-ns shelf)]]
+      (word! ns (name short) (effect e) (algo-word (str ns "/" (name short)) short e)))
     (count ws)))
 
 (register-all!)

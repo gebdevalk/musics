@@ -35,7 +35,19 @@
   (is (every? #(get-in @e/state [:ns (namespace %) (name %)])
               [:pitch/lorenz :pitch/walk-degrees :duration/euclid :duration/emi :volume/walk
                :articulation/tala :pitch/scale :leaf/pocket :parallel/drums :instrument/walk :volume/euclid]))
-  (is (nil? (get-in @e/state [:ns "workshop"])) "raw material stays out"))
+  (is (nil? (get-in @e/state [:ns "workshop"])) "the workshop is raw/")
+  (is (every? #(get-in @e/state [:ns "raw" %]) ["euclid" "polyrhythm" "hemiola" "markov-train" "pulses->durations" "tilt"])))
+
+(deftest raw-material-as-words
+  (is (= "'[1 0 0 1 0 0 1 0]" (top "raw/euclid")) "pulses")
+  (is (= "'[3/16 3/16 1/8]" (top "raw/euclid raw/pulses->durations")) "and a bridge")
+  (is (= (top "duration/euclid") (top "raw/euclid raw/pulses->durations")))
+  (top "raw/euclid")
+  (is (= :pulse (:mu/part (meta (peek (:stack @e/state))))) "a stream carries its type")
+  (is (re-find #"^'\['\[" (top "raw/hemiola")) "layers")
+  (let [go "'[60 62 64 62 60 64] raw/markov-train @^{ seed:3 } raw/markov-gen"]
+    (is (re-matches #"'\[(\d+ ?)+\]" (top go)) "a model, then notes from it")
+    (is (= (top go) (top go)) "a seed repeats it")))
 
 (deftest instruments-and-accents-as-words
   (is (re-matches #"'\[(\d+ ?)+\]" (top "@^{ instrument-palette:(40 73 seashore) len:8 } instrument/walk")) "a stream of programs")

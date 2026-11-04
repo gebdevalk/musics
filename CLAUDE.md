@@ -787,7 +787,7 @@ registered as each half product a bridge makes of it -- a specialised
 algo, derived at load time (`register-all!`, end of `musics.algo.tree.lib`),
 named by half product: `:pitch/lorenz`, `:duration/euclid`,
 `:volume/walk`, `:articulation/tala`, and `:pitch/walk-degrees` for
-number→pitch's second bridge. Its entry carries `:via {:source :bridge
+number→pitch's second bridge. The workshop's algos (raw sources, transforms, bridges) are mu words too, in `raw/` (`raw/euclid`, `raw/pulses->durations`; unchecked types, bridge ranges default to 0..1). Its entry carries `:via {:source :bridge
 :split}` (`musics.algo.tree.registry/call` runs the source, then the
 bridge); its params are the source's, then the bridge's prefixed with
 the half product (`:pitch-lo`, `:duration-pulse`), so two half
