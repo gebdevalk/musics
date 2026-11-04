@@ -36,11 +36,12 @@
          (fn [_] (throw (ex-info "bye" {:mu/bye true}))))
 
 (defn- run-input
-  "Evaluate one complete input and report an error; true to go on."
+  "Evaluate one complete input and say how it went: ok, or error: and the
+   reason; true to go on."
   [text]
   (try
     (let [r (e/eval-input text)]
-      (when-let [msg (:error r)] (println "error:" msg))
+      (if-let [msg (:error r)] (println "error:" msg) (println "ok"))
       true)
     (catch clojure.lang.ExceptionInfo ex
       (if (:mu/bye (ex-data ex)) false (throw ex)))))

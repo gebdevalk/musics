@@ -30,6 +30,17 @@
        (mu/run-loop (fn [p] (swap! prompts conj p) (let [l (first @more)] (swap! more rest) l))))
      @prompts]))
 
+(deftest an-input-that-works-says-ok
+  (let [[out _] (session "1 2" "drop")]
+    (is (= "ok\nok\n" out) "one ok for each input that ran"))
+  (swap! e/state assoc :stack [])
+  (let [[out _] (session "1 2 3 .s")]
+    (is (= "0> 3\n1> 2\n2> 1\n----\nok\n" out) "after what the input printed"))
+  (let [[out _] (session "frob" "1")]
+    (is (str/starts-with? out "error: unknown word: frob") "an error says error, not ok")
+    (is (str/ends-with? out "ok\n"))
+    (is (= 1 (count (re-seq #"ok" out))))))
+
 (deftest the-prompt-shows-the-depth
   (let [[_ prompts] (session "1 2" "drop")]
     (is (= ["mu<0> " "mu<2> " "mu<1> "] prompts))))
@@ -63,11 +74,11 @@
 
 (deftest only-words-print
   (let [[out _] (session "{ [a b] [c d] } a 1 2")]
-    (is (= "" out) "a literal is pushed silently, as a number is in Forth"))
+    (is (= "ok\n" out) "a literal is pushed silently, as a number is in Forth: just ok"))
   (let [[out _] (session "[motif: c d] R!")]
-    (is (= "" out) "R! stores silently, as Forth's ! does"))
+    (is (= "ok\n" out) "R! stores silently, as Forth's ! does: just ok"))
   (let [[out _] (session "[c d] R! .")]
-    (is (re-matches #":s\d+\n" out) "its id is on the stack, for . to print")))
+    (is (re-matches #":s\d+\nok\n" out) "its id is on the stack, for . to print")))
 
 (deftest the-terminal-passes-musics-text-through
   (let [history (.toPath (java.io.File/createTempFile "mu-history" ""))
