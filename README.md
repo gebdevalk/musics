@@ -113,7 +113,8 @@ To understand how it works: [walk-through.md](doc/md/walk-through.md),
 | [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms in code: writing and registering an algo, trees in Clojure |
-| [doc/html/algo-cookbook.html](doc/html/algo-cookbook.html) | 53 worked recipes, each run for real (on GitHub, open it locally) |
+| [doc/md/algo-cookbook.md](doc/md/algo-cookbook.md) | 53 worked recipes of algo trees in Clojure, each run for real (also as [html](doc/html/algo-cookbook.html), open it locally) |
+| [doc/md/raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) | 26 recipes of the `raw/` words in mu, each run for real, and a table of every raw word |
 | [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: every word (editing, searching, time, analysis, algos, playback) and its design |
 | [doc/md/parsing.md](doc/md/parsing.md) | The text notation and its parser |
 | [doc/md/lilypond.md](doc/md/lilypond.md) | Coming from LilyPond: construct by construct |

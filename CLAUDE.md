@@ -170,6 +170,8 @@ scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
                          # git-ignored; the .md stays the source, except
                          # doc/html/algo-cookbook.html, which is generated
                          # and kept) -- open doc/html/index.html
+lein run -m clojure.main scripts/algo-cookbook.clj      # algo-cookbook .md + .html
+lein run -m clojure.main scripts/raw-algo-cookbook.clj  # raw-algo-cookbook.md
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -903,10 +905,11 @@ recipe again, but an algo word whose inputs and settings are as they
 were gives its last result (`*live*`'s `:cache`, by word and
 occurrence), so only the words the change reaches run, and the others
 keep their random values. `musics.algo.tree.lib/notes->mus` renders generated notes as musics
-text, ready to read. `doc/html/algo-cookbook.html` (generated and
-verified by `scripts/algo-cookbook.clj`, which runs every recipe;
-printed to `doc/pdf/algo-cookbook.pdf`) is the worked guide — 53 recipes plus reference tables
-read from the registry;
+text, ready to read. `doc/md/algo-cookbook.md` and `doc/html/algo-cookbook.html`
+(generated and verified by `scripts/algo-cookbook.clj`, which runs every recipe;
+the html printed to `doc/pdf/algo-cookbook.pdf`) are the worked guide — 53 recipes plus reference tables
+read from the registry; `doc/md/raw-algo-cookbook.md` (`scripts/raw-algo-cookbook.clj`,
+rendered by `scripts/docs.sh`) is its twin for the `raw/` words in mu;
 `.clj-kondo/hooks/defalgo.clj` teaches clj-kondo what `defalgo` defines
 (`hooks/core_logic.clj` does the same for core.logic's `run`).
 `musics.algo.logic.tree` also answers questions from the

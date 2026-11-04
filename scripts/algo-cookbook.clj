@@ -459,7 +459,9 @@
 (defn- part [label body]
   (str "<div class=\"part\"><div class=\"plabel\">" label "</div><div class=\"pbody\">" body "</div></div>"))
 
-(defn recipe-html [n {:keys [title tree params play runs extra no-params throws?]}]
+(defn eval-recipe
+  "Run one recipe's steps (each from seed 2026); the results, for every renderer."
+  [n {:keys [title tree params play runs extra no-params throws?]}]
   (seed/seed! 2026)
   (let [run-steps (fn [steps] (doall (for [[code note] steps] (let [[v out] (ev code)] {:code code :note note :v v :out out}))))
         tree-out   (run-steps tree)
@@ -474,28 +476,70 @@
         printed    (apply str (map :out all-steps))
         errors     (filter #(and (string? (:v %)) (str/starts-with? (:v %) "error:")) all-steps)]
     (doseq [e (when-not throws? errors)] (binding [*out* *err*] (println "STEP ERROR in" title ":" (:v e))))
-    (str "<section class=\"recipe\"><h3><span class=\"n\">" n "</span>" (esc title) "</h3>"
-         (part "Tree" (str "<table class=\"code\">" (code-rows tree-out) "</table>"))
-         (part "Params"
-               (if (and (empty? params-out) (empty? run-out))
-                 (str "<div class=\"none\">" (esc (or no-params "none")) "</div>")
-                 (str (when (seq params-out) (str "<table class=\"code\">" (code-rows params-out) "</table>"))
-                      (apply str (for [{:keys [label full]} run-out]
-                                   (res-row (if (> (count run-out) 1) label "values") full))))))
-         (part "Result"
-               (str (when (seq play-out) (str "<table class=\"code\">" (code-rows play-out) "</table>"))
-                    (apply str (for [{:keys [label code v]} run-out]
-                                 (str "<table class=\"code\"><tr><td class=\"c\"><code>" (esc code) "</code></td><td class=\"w\"></td></tr></table>"
-                                      (res-row label v))))
-                    (when (seq printed) (res-row "printed" (str/trimr printed)))
-                    (apply str (for [[label v] extra-out] (res-row label v)))))
-         "</section>")))
+    {:n n :title title :tree-out tree-out :params-out params-out :play-out play-out
+     :run-out run-out :extra-out extra-out :printed printed :no-params no-params}))
+
+(defn recipe-html [{:keys [n title tree-out params-out play-out run-out extra-out printed no-params]}]
+  (str "<section class=\"recipe\"><h3><span class=\"n\">" n "</span>" (esc title) "</h3>"
+       (part "Tree" (str "<table class=\"code\">" (code-rows tree-out) "</table>"))
+       (part "Params"
+             (if (and (empty? params-out) (empty? run-out))
+               (str "<div class=\"none\">" (esc (or no-params "none")) "</div>")
+               (str (when (seq params-out) (str "<table class=\"code\">" (code-rows params-out) "</table>"))
+                    (apply str (for [{:keys [label full]} run-out]
+                                 (res-row (if (> (count run-out) 1) label "values") full))))))
+       (part "Result"
+             (str (when (seq play-out) (str "<table class=\"code\">" (code-rows play-out) "</table>"))
+                  (apply str (for [{:keys [label code v]} run-out]
+                               (str "<table class=\"code\"><tr><td class=\"c\"><code>" (esc code) "</code></td><td class=\"w\"></td></tr></table>"
+                                    (res-row label v))))
+                  (when (seq printed) (res-row "printed" (str/trimr printed)))
+                  (apply str (for [[label v] extra-out] (res-row label v)))))
+       "</section>"))
+
+(def evaluated
+  "The recipes and their group headings, each recipe run once."
+  (loop [[r & more] recipes n 1 out []]
+    (cond (nil? r)     out
+          (:group r)   (recur more n (conj out r))
+          :else        (recur more (inc n) (conj out (eval-recipe n r))))))
 
 (defn recipes-html []
-  (loop [[r & more] recipes n 1 out []]
-    (cond (nil? r) (apply str out)
-          (:group r) (recur more n (conj out (str "<h2 class=\"grp\">" (esc (:group r)) "</h2>")))
-          :else (recur more (inc n) (conj out (recipe-html n r))))))
+  (apply str (for [e evaluated]
+               (if (:group e) (str "<h2 class=\"grp\">" (esc (:group e)) "</h2>") (recipe-html e)))))
+
+;; -- the same, as markdown ---------------------------------------------------
+
+(defn- steps-md [out]
+  (str/join "\n" (for [{:keys [code note]} out] (str code (when (seq note) (str "   ;; " note))))))
+
+(defn- value-md [v]
+  (str ";; => " (str/replace (show v) "\n" "\n;;    ")))
+
+(defn recipe-md [{:keys [n title tree-out params-out play-out run-out extra-out printed no-params]}]
+  (str "#### " n ". " title "\n\n"
+       "**Tree**\n\n```clojure\n" (steps-md tree-out) "\n```\n\n"
+       "**Params**\n\n"
+       (if (and (empty? params-out) (empty? run-out))
+         (str "*" (or no-params "none") "*\n\n")
+         (str "```clojure\n"
+              (str/join "\n" (remove str/blank?
+                                      [(steps-md params-out)
+                                       (str/join "\n" (for [{:keys [label full]} run-out]
+                                                        (str ";; " (if (> (count run-out) 1) (str label " ") "") "values " (show full))))]))
+              "\n```\n\n"))
+       "**Result**\n\n```clojure\n"
+       (str/join "\n" (remove str/blank?
+                               [(steps-md play-out)
+                                (str/join "\n" (for [{:keys [label code v]} run-out]
+                                                  (str code "\n" (when (> (count run-out) 1) (str ";; " label "\n")) (value-md v))))
+                                (when (seq printed) (str ";; printed\n;; " (str/replace (str/trimr printed) "\n" "\n;; ")))
+                                (str/join "\n" (for [[label v] extra-out] (str ";; " label "\n" (value-md v))))]))
+       "\n```\n"))
+
+(defn recipes-md []
+  (str/join "\n" (for [e evaluated]
+                   (if (:group e) (str "### " (:group e) "\n") (recipe-md e)))))
 
 (def post
   "What must follow an algo before its result is leaves: [type-or-names label steps then note]."
@@ -596,7 +640,7 @@
   (str "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Algo Cookbook</title>\n" css "\n</head>\n<body>\n"
        "<h1>Algo cookbook</h1>\n"
        "<div class=\"sub\">Composing <code>musics/algo/</code> generators with <code>musics.algo.tree</code> at the Clojure REPL: trees, their settings, your own algorithms, and live playback.</div>\n"
-       "<div class=\"meta\">musics · branch <code>algo-revisited</code> · 2026-10-05 · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>\n"
+       "<div class=\"meta\">musics · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>\n"
 
        "<h2>1. The idea</h2>\n"
        "<p>Two separate things. A <b>tree</b> says <i>what</i> is computed: algorithms nested as ordinary Clojure calls. A <b>tctx</b> holds the <i>settings</i> it runs with: an atom of params, derived from a tree but never holding it.</p>\n<ul>\n"
@@ -605,7 +649,7 @@
        "<li><b>Wrong shapes fail when built.</b> The child count and types are checked the moment you write the expression, not while it plays.</li>\n"
        "<li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>\n"
        "<li><b>A name makes it live.</b> <code>(t/live! :riff tree tctx)</code> plays the tree endlessly; every later change to the tctx is heard on the next note, and the GUI's Wall window draws a slider for each ranged param.</li>\n</ul>\n"
-       "<p>At <code>lein repl</code>, <code>musics.algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[musics.algo.tree :as t :refer [defalgo]] '[musics.algo.tree.lib :refer :all])</code>.</p>\n"
+       "<p>Trees are Clojure code, run from a namespace that requires them: <code>(require '[musics.algo.tree :as t :refer [defalgo]] '[musics.algo.tree.lib :refer :all])</code>. The tools (<code>take</code>, <code>map</code>, <code>rotate</code> …) are in <code>musics.algo.tree.tools</code> and take <code>clojure.core</code>'s names: refer them in a namespace that excludes those (this page does), or call <code>tools/take</code>. In mu the same algos are words, see the raw algo cookbook.</p>\n"
 
        "<h2>2. The API on one page</h2>\n<table class=\"tbl\"><tr><th>Call</th><th>Also</th><th>Does</th></tr>\n"
        (apply str (for [[a b c] api] (str "<tr><td><code>" (esc a) "</code></td><td><code>" (esc b) "</code></td><td>" (esc c) "</td></tr>\n")))
@@ -665,6 +709,61 @@
        "</body>\n</html>\n"))
 
 (spit "doc/html/algo-cookbook.html" html)
+;; -- the page as markdown: the prose and tables are the html above, converted ---
+
+(defn- unesc [s]
+  (-> s (str/replace "&lt;" "<") (str/replace "&gt;" ">") (str/replace "&quot;" "\"") (str/replace "&amp;" "&")))
+
+(defn- inline-md [s]
+  (-> s
+      (str/replace #"(?s)<code>(.*?)</code>" (fn [[_ c]] (str "`" (unesc c) "`")))
+      (str/replace #"(?s)<b>(.*?)</b>" "**$1**")
+      (str/replace #"(?s)<i>(.*?)</i>" "*$1*")
+      (str/replace "<br>" " ")
+      (str/replace #"<[^>]+>" "")
+      (str/replace "``" "")
+      (str/replace #"\s+" " ")
+      str/trim))
+
+(defn- table-md [inner]
+  (let [rows (for [[_ r] (re-seq #"(?s)<tr>(.*?)</tr>" inner)]
+               (mapv (fn [[_ _ c]] (str/replace (inline-md c) "|" "\\|")) (re-seq #"(?s)<t([hd])[^>]*>(.*?)</t[hd]>" r)))
+        n    (count (first rows))]
+    (str "\n" (str/join "\n" (concat [(str "| " (str/join " | " (first rows)) " |")
+                                      (str "|" (str/join "|" (repeat n "---")) "|")]
+                                     (for [r (rest rows)] (str "| " (str/join " | " r) " |"))))
+         "\n\n")))
+
+(defn- code-table-md [inner]
+  (str "\n```clojure\n"
+       (str/join "\n" (for [[_ c] (re-seq #"(?s)<td class=\"c\"><code>(.*?)</code>" inner)] (unesc c)))
+       "\n```\n\n"))
+
+(defn html->md
+  "The prose and tables of the page as markdown: the subset of html it uses."
+  [html]
+  (let [body (second (re-find #"(?s)<body>(.*)</body>" html))]
+    (-> body
+        (str/replace #"(?s)<div class=\"mock\">.*?Close</span></div></div>" "")
+        (str/replace #"(?s)<table class=\"code\">(.*?)</table>" (fn [[_ i]] (code-table-md i)))
+        (str/replace #"(?s)<table class=\"tbl\">(.*?)</table>" (fn [[_ i]] (table-md i)))
+        (str/replace #"(?s)<h1>(.*?)</h1>" (fn [[_ t]] (str "# " (inline-md t) "\n\n")))
+        (str/replace #"(?s)<h2[^>]*>(.*?)</h2>" (fn [[_ t]] (str "\n## " (inline-md t) "\n\n")))
+        (str/replace #"(?s)<div class=\"(?:sub|meta)\">(.*?)</div>" (fn [[_ t]] (str (inline-md t) "\n\n")))
+        (str/replace #"(?s)<p>(.*?)</p>" (fn [[_ t]] (str (inline-md t) "\n\n")))
+        (str/replace #"(?s)<li>(.*?)</li>" (fn [[_ t]] (str "- " (inline-md t) "\n")))
+        (str/replace #"</?ul>" "\n")
+        (str/replace #"\n{3,}" "\n\n")
+        str/trim)))
+
+(def md
+  (-> (html->md (str/replace html body-recipes "@@RECIPES@@"))
+      (str/replace "@@RECIPES@@" (str "\n" (recipes-md)))
+      (str "\n")))
+
+(spit "doc/md/algo-cookbook.md" md)
+(println "wrote doc/md/algo-cookbook.md")
+
 (println "wrote doc/html/algo-cookbook.html," n-recipes "recipes")
 (engine/stop!)
 (shutdown-agents)

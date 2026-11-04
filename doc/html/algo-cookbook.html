@@ -65,7 +65,7 @@
 <body>
 <h1>Algo cookbook</h1>
 <div class="sub">Composing <code>musics/algo/</code> generators with <code>musics.algo.tree</code> at the Clojure REPL: trees, their settings, your own algorithms, and live playback.</div>
-<div class="meta">musics · branch <code>algo-revisited</code> · 2026-10-05 · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>
+<div class="meta">musics · every recipe below was run for real, each starting from seed 2026; results are copied from that run</div>
 <h2>1. The idea</h2>
 <p>Two separate things. A <b>tree</b> says <i>what</i> is computed: algorithms nested as ordinary Clojure calls. A <b>tctx</b> holds the <i>settings</i> it runs with: an atom of params, derived from a tree but never holding it.</p>
 <ul>
@@ -75,7 +75,7 @@
 <li><b>Params come by name, not by position.</b> Each param is a key in the tctx. Change it with <code>setp!</code>, an <code>assoc</code> for its params (or a plain <code>swap!</code>); a validator checks every value against its spec.</li>
 <li><b>A name makes it live.</b> <code>(t/live! :riff tree tctx)</code> plays the tree endlessly; every later change to the tctx is heard on the next note, and the GUI's Wall window draws a slider for each ranged param.</li>
 </ul>
-<p>At <code>lein repl</code>, <code>musics.algo.tree</code> is <code>t</code> and every ready-made algo is referred. Elsewhere: <code>(require '[musics.algo.tree :as t :refer [defalgo]] '[musics.algo.tree.lib :refer :all])</code>.</p>
+<p>Trees are Clojure code, run from a namespace that requires them: <code>(require '[musics.algo.tree :as t :refer [defalgo]] '[musics.algo.tree.lib :refer :all])</code>. The tools (<code>take</code>, <code>map</code>, <code>rotate</code> …) are in <code>musics.algo.tree.tools</code> and take <code>clojure.core</code>'s names: refer them in a namespace that excludes those (this page does), or call <code>tools/take</code>. In mu the same algos are words, see the raw algo cookbook.</p>
 <h2>2. The API on one page</h2>
 <table class="tbl"><tr><th>Call</th><th>Also</th><th>Does</th></tr>
 <tr><td><code>(t/tctx tree)</code></td><td><code>(t/tctx tree overrides)</code></td><td>{:params-atom}, its settings under the names an @^{ } writes ("k"); the tree isn't stored, its specs are</td></tr>
