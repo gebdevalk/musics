@@ -9,14 +9,14 @@
    namespaces (the full list with params: (musics.algo.tree/algos)):
      musics.algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala drums
                        polyrhythm sieve necklace swing genetic ca ...
-     musics.algo.metric       bits cfrac modular
+     musics.algo.rhythmic.pattern       bits cfrac modular
      musics.algo.melodic.*    infra inter ultra polations markov-train
                        markov-gen lsys-melody grammar constrained
                        modulating counterpoint row row-form (serial)
      musics.algo.numeric.random.*     samplers (normal uniform triangular ... -- :len
                        draws), walks (walk glide cyclic chain), pink, tendency, logistic
                        henon lorenz, poisson sputter choose-n ...
-     musics.algo.indispensability  indisp tilt power
+     musics.algo.rhythmic.indispensability  indisp tilt power
    Defined here:
      scale        :root :intervals     -> :pitch (root + offsets)
    Tools, within one type, any material (marked > so they never shadow
@@ -65,33 +65,26 @@
             [musics.input.reader.leaf-parser :as lp]))
 
 (expose-ns musics.algo.bridge
-           musics.algo.indispensability
-           musics.algo.counterpoint.jeppesen
-           musics.algo.metric
            musics.algo.counterpoint.imitation
+           musics.algo.counterpoint.jeppesen
            musics.algo.melodic.melody
            musics.algo.melodic.serial
-           musics.algo.numeric.random
-           musics.algo.numeric.walk
-           musics.algo.numeric.markov
            musics.algo.numeric.chaos.henon
            musics.algo.numeric.chaos.logistic
            musics.algo.numeric.chaos.lorenz
-           musics.algo.rhythmic.automaton
-           musics.algo.rhythmic.constraint
+           musics.algo.numeric.markov
+           musics.algo.numeric.random
+           musics.algo.numeric.walk
+           musics.algo.rhythmic.data
            musics.algo.rhythmic.decompose
            musics.algo.rhythmic.drums
-           musics.algo.rhythmic.fractal-geometric
-           musics.algo.rhythmic.micro
-           musics.algo.rhythmic.necklace
-           musics.algo.rhythmic.phase-sieve
-           musics.algo.rhythmic.physical
-           musics.algo.rhythmic.process
-           musics.algo.rhythmic.poly
+           musics.algo.rhythmic.feel
+           musics.algo.rhythmic.indispensability
+           musics.algo.rhythmic.meter
+           musics.algo.rhythmic.nature
            musics.algo.rhythmic.pattern
-           musics.algo.rhythmic.sonification
-           musics.algo.rhythmic.stochastic
-           musics.algo.rhythmic.transform
+           musics.algo.rhythmic.process
+           musics.algo.rhythmic.sieve
            musics.algo.rhythmic.world)
 
 (defn ->part

@@ -5,7 +5,7 @@ on what it does and where it would fit.
 
 ## Speech stress for text-rhythm
 
-`text-rhythm` (`musics.algo.rhythmic.sonification/text-to-rhythm`) counts
+`text-rhythm` (`musics.algo.rhythmic.data/text-to-rhythm`) counts
 syllables with a rule of thumb (vowel groups, a final `e` dropped) and
 has no idea which syllable is stressed: its `"stress"` mode stresses a
 word's first syllable and alternates from there, and every word gets a

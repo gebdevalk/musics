@@ -1482,7 +1482,7 @@ correctly now (`walker.clj`'s `walk-assignment` has explicit
 `:Ratio` and `:StringLit` cases for the canonical `:Meter` key); this used
 to silently no-op for bare-ratio meters before `Meter` was stabilized.
 
-`indispensability` (`musics/algo/indispensability.clj`) computes Barlow
+`indispensability` (`musics/algo/rhythmic/indispensability.clj`) computes Barlow
 indispensability: given an ordered subdivisions factor sequence, every
 pulse `0..N-1` gets a rank, downbeat always `N-1`. The combination rule is
 one formula for any factor: substitute each level's raw digit through that
@@ -1500,7 +1500,7 @@ it ranks the groups' starts first, among themselves as a group of k
 pulses is, then the rest by their place in their own group
 (`additive-ranks`), and `metric-weights` (the accents', the groove's)
 follows it -- so `musics.common.music-elements` requires
-`musics.algo.indispensability` rather than keeping a second copy of the
+`musics.algo.rhythmic.indispensability` rather than keeping a second copy of the
 algorithm itself — the earlier standalone `musics/algo/` port of this same theory
 (`psi`/`psi-fractions`, from pymusics' `indispensability.py`) turned out to
 skip the base-table substitution step entirely, agreeing with this
@@ -1509,7 +1509,7 @@ removed in favor of this one rather than kept alongside it. Bar-length
 itself (for `musics.conductor`'s `:bar` signals) only needs `num`/`den`, not
 indispensability — the two are independent consumers of the same `Meter`.
 
-`musics.algo.indispensability` also carries an "adherence" layer on top
+`musics.algo.rhythmic.indispensability` also carries an "adherence" layer on top
 of the raw ranks — how strongly a pulse's own indispensability
 predicts its probability of sounding, tunable across `-1.0..+1.0`, not
 just the ranks themselves. `normalize-weights` divides any weight
@@ -2088,7 +2088,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   splitting, plus `farey.clj`/`trig.clj`/`scaling.clj`, small math
   utilities also ported from the reference dirs). Mostly still
   standalone/unwired into the grammar or engine, same as before the
-  reorg — `musics.algo.indispensability` is the one exception:
+  reorg — `musics.algo.rhythmic.indispensability` is the one exception:
   `musics.common.music-elements/meter-indispensability` requires it directly
   (see "Meter and indispensability" above), so that one namespace is a
   real, live dependency now, not just a kept-for-reference algorithm.

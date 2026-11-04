@@ -9,7 +9,7 @@
             [musics.algo.tree.lib :refer [lorenz euclid scale cycle> shuffle> take> transpose zip pulses->durations
                                            indisp tilt power weights->pulses pick degrees->pitches]]
             [musics.algo.tree.live :as live]
-            [musics.algo.indispensability :as indisp]
+            [musics.algo.rhythmic.indispensability :as indisp]
             [musics.algo.numeric.rng :as seed]
             [musics.engine :as engine]
             [musics.common.music-elements :as el]
@@ -75,9 +75,9 @@
                         (reg/register! #'bare))))
 
 (deftest short-and-full-names-alias-each-other
-  (is (= 'musics.algo.indispensability/indispensability (t/full-name :indisp)))
-  (is (= :indisp (t/short-name 'musics.algo.indispensability/indispensability)))
-  (is (= (t/algo :indisp) (t/algo 'musics.algo.indispensability/indispensability)))
+  (is (= 'musics.algo.rhythmic.indispensability/indispensability (t/full-name :indisp)))
+  (is (= :indisp (t/short-name 'musics.algo.rhythmic.indispensability/indispensability)))
+  (is (= (t/algo :indisp) (t/algo 'musics.algo.rhythmic.indispensability/indispensability)))
   (is (contains? (t/algos) :euclid)))
 
 (deftest defalgo-keeps-the-raw-fn-callable

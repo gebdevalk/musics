@@ -5,7 +5,7 @@
             [musics.algo.tree :as t]
             [musics.algo.tree.lib :as lib]
             [musics.compose :as compose]
-            [musics.algo.rhythmic.poly :as poly]))
+            [musics.algo.rhythmic.meter :as poly]))
 
 (deftest each-layer-routes-into-its-own-part
   (let [voice (fn [as pitch] (lib/zip (lib/pulses->durations (lib/layer lib/polyrhythm :as as)) (lib/cycle> [pitch])))

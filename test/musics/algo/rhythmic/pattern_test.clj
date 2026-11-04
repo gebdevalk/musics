@@ -1,7 +1,11 @@
 (ns ^:algo musics.algo.rhythmic.pattern-test
-  "Tests for rhythm-pattern generators. Run: lein test musics.algo.rhythmic.pattern-test"
+  "Tests for musics.algo.rhythmic.pattern."
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.rhythmic.pattern :as a]))
+
+;; ============================================================
+;; pattern-test
+;; ============================================================
 
 (deftest euclidean-test
   ;; Regression test: the previous bucket-merging loop's own stopping
@@ -59,3 +63,47 @@
   (is (= 30 (count (a/markov-rhythm 30 {"0" {"0" 0.3}}
                                     :initial-state "0" :states {"0" 0 "1" 1})))
       "under-summing transition weights must not throw"))
+
+;; ============================================================
+;; metric-test
+;; ============================================================
+
+(deftest modular-test
+  (is (= [1 0 0 0 1 0 0] (a/modular-rhythm 4 3 7 0))))
+
+(deftest continued-fraction-test
+  ;; Regression test: the zero-padding used to be concatenated BEFORE
+  ;; the real values via an unbounded (repeat 0), so this always
+  ;; returned all-zeros regardless of input -- confirmed live before
+  ;; fixing (2026-09-03).
+  (let [r (a/continued-fraction-rhythm 1.5 8)]
+    (is (= 8 (count r)))
+    (is (some pos? r) "must produce real, non-trivial pulses, not all zeros"))
+  (is (= [1 0 0 0 0 0 0 0] (a/continued-fraction-rhythm 1.5 8)))
+  (is (= [1 1 1 1 0 0 0 0 1 0] (a/continued-fraction-rhythm 3.7 10)))
+  (is (= [1 0 0] (a/continued-fraction-rhythm 1.5 3))
+      "shorter length -- still real values, correctly truncated"))
+
+;; ============================================================
+;; fractal-geometric-test
+;; ============================================================
+
+(deftest cantor-set-rhythm-removes-middle-thirds-recursively
+  (is (= [1 0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 1 0 1]
+         (a/cantor-set-rhythm 3 27))))
+
+(deftest dragon-curve-rhythm-folds-and-flips
+  (is (= [1 1 0 1 1 0 0 1 1 1 0 0 1 0 0 1 1 1 0 1 1 0 0 0 1 1 0 0 1 0 0]
+         (a/dragon-curve-rhythm 4))))
+
+(deftest polygon-rotation-rhythm-marks-vertex-alignments
+  (is (= [1 0 0 0 0 0 0 0]
+         (a/polygon-rotation-rhythm 5 8 0.0))))
+
+(deftest circle-of-fifths-rhythm-front-loads-the-active-notes
+  (is (= (vec (concat (repeat 12 1) (repeat 12 0)))
+         (a/circle-of-fifths-rhythm 12 24))))
+
+(deftest golden-ratio-rhythm-spreads-beats-with-shrinking-steps
+  (is (= [1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0]
+         (a/golden-ratio-rhythm 21))))

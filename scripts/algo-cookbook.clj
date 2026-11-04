@@ -48,7 +48,7 @@
                       '[musics.engine :as engine]
                       '[musics.wall :as wall]
                       '[musics.algo.rhythmic.pattern :as rhythm]
-                      '[musics.algo.rhythmic.phase-sieve :as sieve]
+                      '[musics.algo.rhythmic.sieve :as sieve]
                       '[musics.algo.rhythmic.world :as world]
                       '[musics.algo.melodic.melody :as melody]
                       '[musics.algo.melodic.serial :as slon])

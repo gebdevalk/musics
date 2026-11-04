@@ -1,7 +1,7 @@
-(ns ^:algo musics.algo.indispensability-test
-  "Tests for Barlow indispensability. Run: lein test musics.algo.indispensability-test"
+(ns ^:algo musics.algo.rhythmic.indispensability-test
+  "Tests for Barlow indispensability. Run: lein test musics.algo.rhythmic.indispensability-test"
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.indispensability :as a]
+            [musics.algo.rhythmic.indispensability :as a]
             [musics.algo.common.rotate :as rot]
             [musics.algo.common.pulse :as p]))
 

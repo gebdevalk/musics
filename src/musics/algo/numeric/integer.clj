@@ -1,6 +1,6 @@
 ;; numeric.clj
 ;; Small integer helpers -- gcd/lcm, previously duplicated identically
-;; in musics.algo.common.isorhythm and musics.algo.rhythmic.poly (a real, verified
+;; in musics.algo.common.isorhythm and musics.algo.rhythmic.meter (a real, verified
 ;; duplication found by a complexity audit, 2026-09-03), extracted here
 ;; as the one shared copy both now require.
 

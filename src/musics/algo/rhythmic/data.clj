@@ -3,7 +3,7 @@
 ;; -- converting arbitrary numerical data, stock-style price series, and
 ;; text into rhythmic patterns. Fully deterministic, no randomness.
 
-(ns musics.algo.rhythmic.sonification
+(ns musics.algo.rhythmic.data
   (:require [clojure.string :as str]))
 
 (defn- mean [xs] (/ (reduce + xs) (double (count xs))))

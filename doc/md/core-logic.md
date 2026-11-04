@@ -33,7 +33,7 @@ Status: partly built.
   A relation that runs in both directions (spelling → MIDI, MIDI → every
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
-  search by hand:** `musics.algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
+  search by hand:** `musics.algo.rhythmic.process/constraint-satisfaction-rhythm`,
   `musics.algo.melodic.melody/constraint-melody` and `musics.algo.counterpoint.imitation/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives

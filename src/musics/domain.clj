@@ -55,7 +55,7 @@
 
 (defn pulse
   "Create a Pulse -- a duration/value cell, for pulse-grid-shaped
-   generative material (musics.algo.rhythmic.pattern/algo.metric.metric's own
+   generative material (musics.algo.rhythmic.pattern's own
    onset/pulse grids -- see musics.algo.common.pulse/grid->pulses, the
    converter that builds these from a raw grid vector) that isn't
    pitched content the way a Leaf/Drum is, but still needs to occupy

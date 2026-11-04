@@ -1,6 +1,6 @@
-(ns ^:algo musics.algo.rhythmic.physical-test
+(ns ^:algo musics.algo.rhythmic.nature-test
   (:require [clojure.test :refer [deftest is]]
-            [musics.algo.rhythmic.physical :as phys]))
+            [musics.algo.rhythmic.nature :as phys]))
 
 (defn- round3 [t] (/ (Math/round (* t 1000.0)) 1000.0))
 

@@ -15,7 +15,7 @@
 ;; positions. psi/psi-fractions were removed rather than kept alongside
 ;; the correct version once that was confirmed.
 
-(ns musics.algo.indispensability)
+(ns musics.algo.rhythmic.indispensability)
 
 ;; Indispensability for a single-level cycle of q pulses (0-indexed,
 ;; downbeat = q-1). q=2/q=3 are simple rotations; q=5/q=7 are Barlow's

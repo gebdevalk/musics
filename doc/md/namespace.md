@@ -248,8 +248,8 @@ musics.algo.numeric.random            746   distributions, walks, pink noise, ch
 ├── random.logistic            54   logistic map
 ├── random.henon               65   Hénon map
 └── random.lorenz              90   Lorenz attractor
-musics.algo.indispensability  227   Barlow's indispensability, adherence
-musics.algo.metric             75   binary, modular, continued-fraction pulses
+musics.algo.rhythmic.indispensability  227   Barlow's indispensability, adherence
+musics.algo.rhythmic.pattern             75   binary, modular, continued-fraction pulses
 musics.algo.melodic.pitch      108   scales from keys
 musics.algo.numeric.integer     34   gcd, lcm
 musics.algo.common.rotate      25   rotation

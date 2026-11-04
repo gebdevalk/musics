@@ -7,7 +7,7 @@
 (ns musics.common.music-elements
   (:refer-clojure :exclude [key])
   (:require [musics.common.music-data :as data]
-            [musics.algo.indispensability :as indisp]
+            [musics.algo.rhythmic.indispensability :as indisp]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -195,7 +195,7 @@
 ;; 2a. INDISPENSABILITY (Clarence Barlow)
 ;; ============================================================
 
-;; The actual algorithm lives in musics.algo.indispensability now (moved
+;; The actual algorithm lives in musics.algo.rhythmic.indispensability now (moved
 ;; there so it has one canonical home instead of a second copy living
 ;; here) -- this just wires a Meter's own num/den/subdivisions into it.
 

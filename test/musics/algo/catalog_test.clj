@@ -15,7 +15,10 @@
 
 (def not-algos
   "Public vars that aren't tree algos, and why."
-  {'musics.algo.counterpoint.imitation/default-rules          "data: counterpoint's :rules default"
+  {'musics.algo.rhythmic.indispensability/normalize-weights          "a plain vector transform, for chaining before grid->pulses"
+   'musics.algo.rhythmic.indispensability/normalized-indispensability "ranks as a [0,1] vector, for chaining; indisp is the algo"
+   'musics.algo.rhythmic.indispensability/density-grid               "a 0/1 grid by thinning a meter; the tilt/power algos shape probabilities"
+   'musics.algo.counterpoint.imitation/default-rules          "data: counterpoint's :rules default"
    'musics.algo.counterpoint.imitation/generate               "[pitch dur] pairs; the counterpoint algo makes leaves of them"
    'musics.algo.melodic.melody/a-minor                      "data: a scale"
    'musics.algo.melodic.melody/c-major                      "data: a scale"
@@ -36,8 +39,8 @@
    'musics.algo.numeric.walk/smooth-noise                           "returns a curve of t; lib's noise samples it"
    'musics.algo.numeric.random/weighted-choose                      "one draw; lib's pick covers it"
    'musics.algo.numeric.random/weighted-coin                        "one boolean; stochastic/threshold make grids"
-   'musics.algo.rhythmic.necklace/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
-   'musics.algo.rhythmic.transform/oblique-strategies       "data: oblique's :strategy choices"
+   'musics.algo.rhythmic.sieve/vuza-canon                "always [] -- both single-beat patterns start at 0 and overlap"
+   'musics.algo.rhythmic.feel/oblique-strategies       "data: oblique's :strategy choices"
    'musics.algo.rhythmic.world/common-talas                 "data: tala's :tala-name choices"
    'musics.algo.bridge/degree->pitch                        "one value; degrees->pitches maps it"
    'musics.algo.bridge/number->duration                     "one value; numbers->durations maps it"
@@ -49,14 +52,14 @@
    'musics.algo.rhythmic.world/named-bell-patterns          "data: bell's :pattern-name choices"
    'musics.algo.rhythmic.world/tala-pattern                 "matra maps; tala is their accents"
    'musics.algo.rhythmic.world/djembe-pattern               "stroke maps in seconds; djembe makes the leaves"
-   'musics.algo.rhythmic.necklace/rhythmic-tiling           "[grid tiled?]; tiling is the grid"
-   'musics.algo.rhythmic.micro/pocket-groove                "timed maps in seconds; pocket is the delay per onset"
-   'musics.algo.rhythmic.micro/humanize-rhythm              "the :humanization context key does this per note"
-   'musics.algo.rhythmic.necklace/rhythm-necklace           "every rotation; necklace picks one"
-   'musics.algo.rhythmic.necklace/rhythm-bracelet           "every rotation and reversal; bracelet picks one"
-   'musics.algo.rhythmic.necklace/all-binary-necklaces      "every class; necklaces picks one"
-   'musics.algo.rhythmic.stochastic/crossover-genomes       "both children; crossover picks one"
-   'musics.algo.rhythmic.poly/polymeter                     "2/1 marks; the polymeter algo gives them as pulses"
+   'musics.algo.rhythmic.sieve/rhythmic-tiling           "[grid tiled?]; tiling is the grid"
+   'musics.algo.rhythmic.feel/pocket-groove                "timed maps in seconds; pocket is the delay per onset"
+   'musics.algo.rhythmic.feel/humanize-rhythm              "the :humanization context key does this per note"
+   'musics.algo.rhythmic.sieve/rhythm-necklace           "every rotation; necklace picks one"
+   'musics.algo.rhythmic.sieve/rhythm-bracelet           "every rotation and reversal; bracelet picks one"
+   'musics.algo.rhythmic.sieve/all-binary-necklaces      "every class; necklaces picks one"
+   'musics.algo.rhythmic.process/crossover-genomes       "both children; crossover picks one"
+   'musics.algo.rhythmic.meter/polymeter                     "2/1 marks; the polymeter algo gives them as pulses"
    'musics.algo.numeric.walk/generative-patch                     "a fixed demo of timed events with pitch bend, no params"})
 
 (def engine-nss
@@ -68,8 +71,7 @@
     'musics.algo.counterpoint.jeppesen.rules})
 
 (defn- source-nss []
-  (->> (concat [(io/file "src/musics/algo/bridge.clj")
-                (io/file "src/musics/algo/metric.clj")]
+  (->> (concat [(io/file "src/musics/algo/bridge.clj")]
                (mapcat #(file-seq (io/file "src/musics/algo" %)) ["melodic" "numeric" "counterpoint" "rhythmic"]))
        (filter #(str/ends-with? (.getName %) ".clj"))
        (map #(-> (.getPath %) (subs 4) (str/replace #"\.clj$" "") (str/replace "/" ".") (str/replace "_" "-") symbol))

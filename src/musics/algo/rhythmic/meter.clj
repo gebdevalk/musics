@@ -3,7 +3,7 @@
 ;; 3-4 -- simultaneous rhythmic layers (polyrhythm/polymeter) and
 ;; Elliott Carter's metric modulation.
 
-(ns musics.algo.rhythmic.poly
+(ns musics.algo.rhythmic.meter
   (:require [musics.algo.numeric.integer :as num]
             [musics.common.music-data :refer [quantity]]))
 

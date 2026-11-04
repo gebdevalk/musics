@@ -1,23 +1,122 @@
-;; necklace.clj
+(ns musics.algo.rhythmic.sieve
+  "Rhythms from combinatorics and sieves: Xenakis sieves, clapping-music phases, cellular automata, necklaces, bracelets and tilings."
+  (:require [musics.algo.common.rotate :refer [rotate]]
+            [musics.algo.numeric.random :as random]))
+
+;; ============================================================
+;; phase-sieve
+;; ============================================================
+
+;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
+;; 1-2 -- Steve Reich's phase-shifting technique ("Clapping Music") and
+;; Xenakis' sieve theory.
+
+(defn clapping-music-phases
+  "Phase-shifting patterns in the style of Reich's Clapping Music: total
+   phases rotations of pattern, each shifted one place further than the
+   last. total-phases defaults to (count pattern)."
+  {:algo {:short :phases :in [:pulse] :out :layer :arity 2
+          :params {:total-phases {:type :int :min 1 :max 64 :default 12 :doc "rotations"}}}}
+  ([pattern] (clapping-music-phases pattern (count pattern)))
+  ([pattern total-phases]
+   (if (empty? pattern)
+     []
+     (mapv #(rotate pattern %) (range total-phases)))))
+
+(defn clapping-music-duet
+  "The two parts of Clapping Music: pattern unchanged, and pattern phase
+   shifted by phase places. Returns [static-part shifted-part]."
+  {:algo {:short :duet :in [:pulse] :out :layer :arity 2
+          :params {:phase {:type :int :min 0 :max 64 :default 1 :doc "places shifted"}}}}
+  ([pattern] (clapping-music-duet pattern 0))
+  ([pattern phase]
+   (if (empty? pattern)
+     [[] []]
+     [pattern (rotate pattern phase)])))
+
+(defn xenakis-sieve
+  "Xenakis sieve: a binary pattern of the given length where position i
+   is 1 iff (i mod m) is in the matching residue list, for at least one
+   (modulus, residues) pair in moduli/residues (parallel vectors).
+
+   (xenakis-sieve [3 4] [[0 1] [2]] 12)
+   ;=> position in the sieve when (i mod 3) is 0 or 1, OR (i mod 4) is 2"
+  {:algo {:short :sieve :in [] :out :pulse
+          :params {:moduli   {:type :vector :default [3 4] :doc "one per residue list"}
+                   :residues {:type :vector :default [[0 1] [2]] :doc "onset when i mod m is one of these"}
+                   :length   {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
+  [moduli residues length]
+  {:pre [(= (count moduli) (count residues))]}
+  (mapv (fn [i]
+          (if (some (fn [[m rs]] (contains? (set rs) (mod i m)))
+                    (map vector moduli residues))
+            1 0))
+        (range length)))
+
+(defn sieve-from-intervals
+  "A pattern with beats at the cumulative sums of intervals, cycling
+   through intervals as many times as needed to reach length."
+  {:algo {:short :interval-sieve :in [] :out :pulse
+          :params {:intervals {:type :vector :default [2 3] :doc "gaps between onsets, cycled"}
+                   :length    {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
+  [intervals length]
+  (loop [pattern (vec (repeat length 0)) position 0]
+    (if (>= position length)
+      pattern
+      (let [idx (if (seq intervals) (mod position (count intervals)) 0)
+            step (if (seq intervals) (nth intervals idx) 1)]
+        (recur (assoc pattern position 1) (+ position step))))))
+
+(comment
+  (clapping-music-phases [1 1 1 0 1 1 0 1 0 1 1 0] 3)
+  (clapping-music-duet [1 1 1 0 1 1 0 1 0 1 1 0] 3)
+  (xenakis-sieve [3 4] [[0 1] [2]] 12)
+  (sieve-from-intervals [2 3] 10)
+  )
+
+;; ============================================================
+;; automaton
+;; ============================================================
+
+(defn- step
+  "The next generation of `cells` under `rule`, the row's ends wrapping."
+  [rule cells]
+  (let [n (count cells)]
+    (mapv (fn [i]
+            (let [l (cells (mod (dec i) n)) c (cells i) r (cells (mod (inc i) n))]
+              (if (bit-test rule (+ (* 4 l) (* 2 c) r)) 1 0)))
+          (range n))))
+
+(defn automaton
+  "An elementary cellular automaton's generations as pulses: :width cells
+   a bar, :steps bars, the first a single live cell in the middle or
+   :random. Rule 90 draws Sierpinski's triangle, 30 chaos, 110 structure."
+  {:algo {:short :ca :in [] :out :pulse
+          :params {:rule  {:type :int :min 0 :max 255 :default 90 :doc "Wolfram's rule number"}
+                   :width {:type :int :min 3 :max 64 :default 16 :doc "cells, pulses a bar"}
+                   :steps {:type :int :min 1 :max 64 :default 8 :doc "generations, bars"}
+                   :start {:type :keyword :choices [:single :random] :default :single :doc "the first generation"}}}}
+  [rule width steps start]
+  (let [first-gen (if (= :random start)
+                    (vec (repeatedly width #(if (< (random/rand-double) 0.5) 1 0)))
+                    (assoc (vec (repeat width 0)) (quot width 2) 1))]
+    (vec (apply concat (take steps (iterate (partial step rule) first-gen))))))
+
+;; ============================================================
+;; necklace
+;; ============================================================
+
 ;; classes of a binary pattern) and rhythmic tiling canons (Vuza).
-
 ;; Rhythm necklaces and bracelets intersect across combinatorics (mathematical structures of circular patterns) and musical geometry (algorithmic polyrhythms).
-
 ;; 1. Combinatorics: Necklaces and Bracelets
-
 ;; In mathematics and computer science, a necklace is a circular sequence of beads that is equivalent under rotation (cyclic group). A bracelet (or free necklace) adds equivalence under reflection (dihedral group, meaning you can flip it over).
 ;; • Necklaces (\(N_n(k)\)): Represent n circularly connected beads using k different colors, counted using Pólya's enumeration theorem via Wikipedia.
 ;; • Bracelets (\(B_n(k)\)): Account for both rotation and flip symmetry, making the number of distinct patterns slightly different depending on whether n is even or odd.
 ;; • Applications: These algorithms are used to list non-isomorphic patterns, study DNA/RNA sequences, and analyze cyclic structures.
-
 ;; 2. Musical Geometry: The "Rhythm Necklace" App & Theory
-
 ;; In ethnomusicology and algorithmic composition, circular rhythm patterns are visualized as necklaces where beats (onsets) and rests are distributed around a ring.
 ;; • Godfried Toussaint's Work: Explored in The Geometry of Musical Rhythm, showing how Euclidean algorithms generate traditional world music rhythms (like the clave or aksak) by evenly spacing pulses around a circle.
 ;; • Rhythm Necklace App: Created by Meara O'Reilly and Sam Tarakajian, this iOS geometric sequencer turns circular rhythm necklaces into playable musical patterns. It maps beats to visual beads on up to four concentric circles, allowing users to adjust pulses, rotation, scale, and Euclidean evenness in real time.
-
-(ns musics.algo.rhythmic.necklace
-  (:require [musics.algo.common.rotate :refer [rotate]]))
 
 (defn rhythm-necklace
   "All unique rotations of pattern -- its necklace equivalence class."
