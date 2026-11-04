@@ -27,7 +27,7 @@
   (testing "raw material stays in the workshop"
     (is (every? (on-shelf "workshop") [:euclid :lorenz :walk :pulses->durations :threshold :tilt])))
   (testing "an algo that delivers a half product itself sits on that shelf too"
-    (is (every? (on-shelf "pitch") [:scale :int-range :constrained]))))
+    (is (every? (on-shelf "pitch") [:scale :constrained]))))
 
 (deftest a-specialised-algo-is-its-source-then-its-bridge
   (let [explicit (lib/points->pitches (lib/lorenz))

@@ -3,13 +3,8 @@
 ;; specs give one shared tctx key, so (uniform) and (triangular) in one tree read the same :lo/:hi.
 
 (ns musics.algo.numeric.spec
-  "Shared param specs and the sampler metadata of the single-value generators."
-  (:require [musics.common.music-data :refer [quantity]]))
+  "Shared param specs and the sampler metadata of the single-value generators.")
 
-
-;; Param specs shared by the :algo metadata below (musics.algo.tree): identical
-;; specs give one shared tctx key, so (uniform) and (triangular) in one
-;; tree read the same :lo/:hi.
 (def num-spec  {:type :double :min ##-Inf :max ##Inf})
 
 (def pos-spec  {:type :double :min 0.0 :max ##Inf})
@@ -19,10 +14,6 @@
 (def lo  (assoc num-spec :default 0.0 :doc "lowest value"))
 
 (def hi  (assoc num-spec :default 1.0 :doc "highest value"))
-
-(def ilo (quantity :pitch {:default 60 :doc "lowest value"}))
-
-(def ihi (quantity :pitch {:default 72 :doc "highest value, exclusive"}))
 
 (def bias (assoc unit-spec :default 0.5 :doc "0 = uniform, 1 = strongest"))
 

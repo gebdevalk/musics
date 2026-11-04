@@ -73,14 +73,14 @@
           std   (get params :std (/ length 6.0))
           probs (mapv #(Math/exp (* -0.5 (Math/pow (/ (- % mean) std) 2))) (range length))
           max-p (apply max probs)]
-      (mapv (fn [p] (if (rand/weighted-coin (* (/ p max-p) density)) 1 0)) probs))
+      (mapv (fn [p] (if (weighted-coin (* (/ p max-p) density)) 1 0)) probs))
 
     "poisson"
     (let [rate (get params :rate (* density 10))]
       (loop [pattern (vec (repeat length 0)) current 0]
         (if (>= current length)
           pattern
-          (let [wait (rand/exponential (/ 1.0 rate))
+          (let [wait (exponential (/ 1.0 rate))
                 current' (+ current (int (/ (* wait length) 10)))]
             (if (< current' length)
               (recur (assoc pattern current' 1) current')
@@ -90,7 +90,7 @@
     (let [decay (get params :decay 2.0)]
       (mapv (fn [i]
               (let [prob (Math/exp (/ (* (- decay) i) length))]
-                (if (rand/weighted-coin (* prob density 2)) 1 0)))
+                (if (weighted-coin (* prob density 2)) 1 0)))
             (range length)))
 
     (vec (repeat length 0))))
@@ -122,7 +122,7 @@
           :params {:mutation-rate {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "chance a bit flips"}}}}
   ([pattern] (mutate pattern 0.1))
   ([pattern mutation-rate]
-   (mapv #(if (rand/weighted-coin mutation-rate) (- 1 %) %) pattern)))
+   (mapv #(if (weighted-coin mutation-rate) (- 1 %) %) pattern)))
 
 (defn crossover-genomes
   "Single-point crossover of two equal-length patterns -- returns

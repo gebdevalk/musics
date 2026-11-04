@@ -204,8 +204,8 @@
 
    {:group "Random sources"}
    {:title "A sampler is a sequence: :len draws"
-    :tree [["(def tri (zip (cycle [1/16]) int-triangular))" "one value per call, called :len times"]]
-    :params [["(def p {:lo 60 :hi 73 :mode 67 :len 12})" ""]]
+    :tree [["(def tri (zip (cycle [1/16]) (pitch/triangular)))" "a source delivered as pitches: one value per call, called :len times"]]
+    :params [["(def p {:pitch-lo 60 :pitch-hi 73 :mode 0.5 :len 12})" ""]]
     :runs [["result" "tri" "p"]]}
    {:title "Any numbers, rescaled onto a scale"
     :tree [["(def nd (zip (cycle [1/16]) (degrees->pitches (rescale normal))))" "rescale puts the draws onto scale steps, degrees->pitches spells them in a key"]]

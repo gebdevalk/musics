@@ -11,8 +11,7 @@
 (ns musics.algo.numeric.random
   (:refer-clojure :exclude [rand-int shuffle])
   (:require [musics.algo.numeric.rng :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
-            [musics.common.music-data :refer [quantity]]
-            [musics.algo.numeric.spec :refer [num-spec pos-spec unit-spec lo hi ilo ihi bias shape scale-p dof sampler]]))
+            [musics.algo.numeric.spec :refer [num-spec pos-spec unit-spec lo hi bias shape scale-p dof sampler]]))
 
 
 ;; ------------------------------------------------------------
@@ -348,24 +347,18 @@
   (triangular lo hi hi))
 
 
-;; -- Integer counterparts, added 2026-09-15 for symmetry with
-;; rising/falling's own int-rising/int-falling below: every OTHER
-;; bounded-range shaped distribution already had a float-only sibling
-;; with no integer counterpart, an asymmetry musics.algo.dimensions' own
-;; taxonomy work made visible. Same floor-after-computing pattern
-;; int-rising/int-falling already use.
+;; -- Integer counterparts: the floor of the float draw, plain functions. The
+;; algos for integer pitches are pitch/<shape> (the shape, then a bridge).
 
 (defn int-triangular
   "Integer version of triangular. Returns int between lo and hi-1
    peaked at mode."
-  {:algo (sampler :pitch {:lo ilo :hi ihi :mode (quantity :pitch {:default 66 :doc "peak"})})}
   [lo hi mode]
   (int (Math/floor (triangular (double lo) (double hi) (double mode)))))
 
 
 (defn int-linear
   "Integer version of linear. Returns int between lo and hi-1."
-  {:algo (assoc (sampler :pitch {:lo ilo :hi ihi :rising? {:type :bool :default true :doc "density ramps up"}}) :arity 3)}
   ([lo hi] (int-linear lo hi true))
   ([lo hi rising?]
    (int (Math/floor (linear (double lo) (double hi) rising?)))))
@@ -373,14 +366,12 @@
 
 (defn int-arcsine
   "Integer version of arcsine. Returns int between lo and hi-1."
-  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (arcsine (double lo) (double hi)))))
 
 
 (defn int-lo-emph
   "Integer version of lo-emph -- shorthand for (int-triangular lo hi lo)."
-  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi lo))
 
@@ -388,14 +379,12 @@
 (defn int-mean-emph
   "Integer version of mean-emph -- shorthand for
    (int-triangular lo hi (/ (+ lo hi) 2))."
-  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi (/ (+ lo hi) 2)))
 
 
 (defn int-hi-emph
   "Integer version of hi-emph -- shorthand for (int-triangular lo hi hi)."
-  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int-triangular lo hi hi))
 
@@ -404,22 +393,8 @@
 ;; WALKS & COMPOSITE GENERATORS
 ;; ------------------------------------------------------------
 
-;; Rewritten 2026-09-15 (was (+ lo (rand-int (- hi lo)))): conceptually
-;; int-uniform, and now implemented that way -- floor of a uniform
-;; float draw over [lo,hi), the exact same pattern every other int-*
-;; sibling (int-rising/int-falling/int-triangular/...) already uses.
-;; Dropped its own former dependency on rand-int deliberately -- rand-
-;; int keeps its own, different [n] (meaning [0,n)) argument shape to
-;; stay a drop-in seedable replacement for clojure.core/rand-int, so
-;; int-range calling it internally was the one thing standing in the
-;; way of giving rand-int a [lo hi] shape to match this fn, if that's
-;; still wanted. Docstring deliberately kept ONE LINE, not folding this
-;; explanation in -- show_algos_test.clj relies on int-range's own
-;; docstring staying short (the same role euclid's docstring
-;; used to fill, before it genuinely grew multi-line 2026-09-14).
 (defn int-range
   "Returns random integer between lo (inclusive) and hi (exclusive)"
-  {:algo (sampler :pitch {:lo ilo :hi ihi})}
   [lo hi]
   (int (Math/floor (uniform lo hi))))
 
@@ -451,7 +426,6 @@
 (defn int-rising
   "Integer version of rising. Returns int between lo and hi-1
    with upward bias. Great for choosing higher pitches more often."
-  {:algo (sampler :pitch {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (rising (double lo) (double hi) bias))))
 
@@ -459,6 +433,5 @@
 (defn int-falling
   "Integer version of falling. Returns int between lo and hi-1
    with downward bias. Great for choosing lower pitches more often."
-  {:algo (sampler :pitch {:lo ilo :hi ihi :bias bias})}
   [lo hi bias]
   (int (Math/floor (falling (double lo) (double hi) bias))))

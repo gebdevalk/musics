@@ -699,7 +699,7 @@ too), `:doc` the description; the first `(count :in)` args are children
 (or the args `:children` names), the rest params; a multi-arity fn names
 its `:arity`. A fn yielding ONE value per call becomes a sequence source
 through metadata alone: `:repeat :len` calls it `:len` times (the
-samplers: `normal`, `triangular`, `int-range`, ...), `:pull {:via :value
+samplers: `normal`, `triangular`, `uniform`, ...), `:pull {:via :value
 :args [..]}` calls it once for a generator and pulls `:len` values (the
 closures: `walk` (`:boundary` clamp, reflect or wrap), `pink` (Voss's 1/f dice), `glide`, `cyclic`, `chain`, `logistic`, `henon`,
 `lorenz`); the count is a param like any other. Every param spec must

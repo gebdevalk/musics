@@ -11,7 +11,7 @@ read from the registry through `musics.algo.logic.tree` (core.logic):
 ```clojure
 (lt/steps :pulse :leaf)            ; 2 -- the fewest algos between two types
 (map lt/show (lt/how :number :leaf 2))
-;; ((zip (numbers->durations input) (grammar)) (zip (numbers->durations input) (int-arcsine)))
+;; ((zip (numbers->durations input) (grammar)) (zip (numbers->durations input) (arcsine)))
 ```
 
 ## The types

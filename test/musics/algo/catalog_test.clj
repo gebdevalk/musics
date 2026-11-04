@@ -16,7 +16,16 @@
 
 (def not-algos
   "Public vars that aren't tree algos, and why."
-  {'musics.algo.rhythmic.indispensability/normalize-weights          "a plain vector transform, for chaining before grid->pulses"
+  {'musics.algo.numeric.random/int-triangular   "an integer draw; pitch/triangular is the algo"
+   'musics.algo.numeric.random/int-linear       "an integer draw; pitch/linear is the algo"
+   'musics.algo.numeric.random/int-arcsine      "an integer draw; pitch/arcsine is the algo"
+   'musics.algo.numeric.random/int-lo-emph      "an integer draw; pitch/lo-emph is the algo"
+   'musics.algo.numeric.random/int-mean-emph    "an integer draw; pitch/mean-emph is the algo"
+   'musics.algo.numeric.random/int-hi-emph      "an integer draw; pitch/hi-emph is the algo"
+   'musics.algo.numeric.random/int-rising       "an integer draw; pitch/rising is the algo"
+   'musics.algo.numeric.random/int-falling      "an integer draw; pitch/falling is the algo"
+   'musics.algo.numeric.random/int-range        "an integer draw, used inside other algos; pitch/uniform is the algo"
+   'musics.algo.rhythmic.indispensability/normalize-weights          "a plain vector transform, for chaining before grid->pulses"
    'musics.algo.rhythmic.indispensability/normalized-indispensability "ranks as a [0,1] vector, for chaining; indisp is the algo"
    'musics.algo.rhythmic.indispensability/density-grid               "a 0/1 grid by thinning a meter; the tilt/power algos shape probabilities"
    'musics.algo.counterpoint.imitation/default-rules          "data: counterpoint's :rules default"

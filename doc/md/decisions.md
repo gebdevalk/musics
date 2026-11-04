@@ -3190,3 +3190,24 @@ stretch rotate` now.
   `take>`, `cycle>` and the others stops reading; they take the new names.
 - Kept as they were: `catalog_test`'s rule that `lib`'s public names never shadow
   `clojure.core`, which still holds for `lib` itself.
+
+## 2026-11-04 — the `int-*` samplers stop being algos; the `points->*` bridges stay
+
+- `int-triangular`, `int-linear`, `int-arcsine`, `int-lo-emph`, `int-mean-emph`,
+  `int-hi-emph`, `int-rising`, `int-falling` and `int-range` were each a shape plus
+  a floor, as pitch sources with a 60-72 default. Each shape already reaches
+  integer pitches as `pitch/<shape>` (the shape, then the `numbers->pitches`
+  bridge), so nine `pitch/` words did what nine others did. They are plain
+  functions now (other algos call `int-range`); `ilo` and `ihi` went from `spec`.
+  Cost: the 60-72 default range; `pitch/triangular` sets its range with
+  `pitch-lo` and `pitch-hi` (48-84 by default). The float shapes keep `lo` and
+  `hi`: the range is part of what each shape is (a mode, a slope across it).
+- `points->durations`, `points->volumes`, `points->instruments` are
+  `numbers->…` after picking a coordinate, which `axis` also does, so on paper
+  the `axis` param repeats the `axis` algo. They stay: a derived word such as
+  `pitch/lorenz` is one source and one bridge (`half-products`), and the chain
+  `axis` then `numbers->X` would need that machinery to take two-step bridges,
+  a larger change than three three-line functions, and the coordinate is a
+  necessary choice of a derived word. `points->pitches` has no
+  `numbers->…` twin at all (it maps onto the steps of a key), so it stays whole.
+  Revisit if a bridge chain is built for another reason.
