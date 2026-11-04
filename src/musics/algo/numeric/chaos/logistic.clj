@@ -1,10 +1,4 @@
-;; logistic.clj
-;; Clojure port of kotlin-reference/jl/bifurcation.jl and verhulst.jl --
-;; identical files under two different names for the same logistic map
-;; (x = r*x*(1-x)). Their coroutine rewrite, resumable_bifurcation.jl,
-;; was left unported:
-;; it destructures three return values from a Julia @resumable generator
-;; that only ever yields one, so it doesn't actually run as written.
+;; The logistic map x = r*x*(1-x), a discrete chaotic system.
 
 (ns musics.algo.numeric.chaos.logistic)
 

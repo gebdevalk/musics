@@ -1,20 +1,7 @@
 (ns musics.algo.common.zfilter
-  "Symbolic recurrence filters for algorithmic composition -- ported from
-   a design discussion (Z filters, 2026-03-11)
-   that had already worked out the general shape: a generic IIR-style
-   recurrence engine (z-filter, named for the z-transform this mirrors)
-   plus a handful of named convenience instances built on it.
+  "Recurrence filters over a stream of numbers: a generic IIR-style engine (z-filter, after the z-transform) and named instances built on it (smooth, momentum, memory, interval-gain ...).
 
-   Genuinely distinct from everything else in musics.algo.common: reshape's own
-   invert/retrograde/arpeggiate/hocket/weighted-shuffle and
-   gate's own criteria all look at EITHER one part at a time OR the
-   whole sequence's own static shape (an axis, a fixed cutoff) -- none
-   of them carry state FORWARD note-to-note the way a real filter does.
-   z-filter's own y[n] depends on y[n-1] (and further back, depending on
-   how many feedback coefficients are given) -- smoothing a stream of
-   pitches/velocities/durations so consecutive values pull toward each
-   other, or exaggerating the difference between them (interval-gain),
-   rather than reordering or thresholding a fixed set of values.")
+   Unlike reshape and gate, which look at one part at a time or at the sequence's static shape, a filter carries state forward note to note: y[n] depends on y[n-1] and further back. It smooths pitches, velocities or durations so consecutive values pull toward each other, or exaggerates the difference between them (interval-gain), instead of reordering or thresholding a fixed set of values.")
 
 ;; ============================================================
 ;; Core z-filter engine

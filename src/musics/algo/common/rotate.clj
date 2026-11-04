@@ -1,10 +1,4 @@
-;; rotate.clj
-;; Rotate a vector by i positions -- previously duplicated identically
-;; (once as a private fn, twice more inlined) across musics.algo.rhythmic.
-;; necklace and musics.algo.rhythmic.sieve -- a real, confirmed
-;; duplication found by a code-reuse audit (2026-09-05, same pattern as
-;; musics.algo.numeric.integer's own gcd/lcm extraction), moved here as the one
-;; shared copy every caller now requires.
+;; Rotate a vector by i positions.
 
 (ns musics.algo.common.rotate)
 

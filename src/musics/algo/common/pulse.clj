@@ -1,4 +1,3 @@
-;; pulse.clj
 ;; Converts a flat onset/pulse grid (musics.algo.rhythmic.pattern's own
 ;; output -- a plain vector of 0/1, or a wider weighted
 ;; range) into real domain Pulse records -- closes the composability gap

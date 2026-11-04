@@ -1,4 +1,3 @@
-;; core.clj
 ;; The low-level, pure RNG engine for this project: xorshift32
 ;; (rnd-new/rnd-step/rnd-double/rnd-int/rnd-choose/rnd-weighted/
 ;; rnd-markov/rnd-shuffle, each taking/returning [value rng']),

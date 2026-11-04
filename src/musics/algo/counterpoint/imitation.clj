@@ -1,28 +1,13 @@
-;; counterpoint.clj
-;; Clojure port of python-reference/src/algorithm/polyphony_generator.py
-;; -- CounterpointEngine, a multi-voice generator combining loose motivic
-;; imitation with species-counterpoint rule checking (Jeppesen-style):
-;; no parallel fifths/octaves, consonance on every beat against every
-;; already-placed voice.
+;; A multi-voice generator: loose motivic imitation with species-counterpoint rule checking (Jeppesen-
+;; style: no parallel fifths or octaves, consonance on every beat against every placed voice).
 ;;
-;; Each voice is generated in two passes. First, independently: a voice
-;; either follows a motif (a short pitch-step + duration pattern, like a
-;; fugue subject) loosely -- at each beat with probability :strictness
-;; it takes the motif's own step, otherwise it falls back to a plain
-;; :shape envelope (or 0) -- or just follows :shape directly with no
-;; motif at all. Density envelopes subdivide each beat into sub-notes.
-;; Second, every voice after the first is re-derived against all
-;; earlier (already-finalized) voices: at each note, candidate pitches
-;; near its own original target (within :tolerance) are filtered to
-;; ones that stay consonant against every earlier voice and avoid
-;; parallel fifths/octaves with the previous interval, then one is
-;; picked at random from whatever survives.
-;;
-;; The reference this ports carries a little dead state -- a computed
-;; but never-read motif-end-beat, a current-pitch reassignment that's
-;; never read again after the very first note, an unused prev-new
-;; local -- none of that is reproduced here, it has no effect on the
-;; output either way.
+;; Each voice is made in two passes. First alone: it follows a motif (a short pitch-step and duration
+;; pattern, like a fugue subject) loosely -- at each beat, with probability :strictness, it takes the
+;; motif's step, otherwise it follows a plain :shape envelope (or 0) -- or it follows :shape with no
+;; motif. Density envelopes subdivide each beat into sub-notes. Then every voice after the first is re-
+;; derived against all earlier ones: at each note, candidate pitches near its target (within
+;; :tolerance) are filtered to those consonant with every earlier voice and free of parallel fifths and
+;; octaves with the previous interval, and one survivor is picked at random.
 
 (ns musics.algo.counterpoint.imitation
   (:require [musics.algo.numeric.random :as rand]
@@ -185,15 +170,10 @@
    to default-rules. Every voice must resolve to the same total number
    of sub-notes (an equal sum of :density-envelope across voices) --
    this is required for the note-against-note rule checking."
-  ;; Rules are a best-effort FILTER, not a hard guarantee: when a note
-  ;; has zero candidates satisfying both tolerance and every rule at
-  ;; once, generate falls back to the nearest allowed pitch regardless
-  ;; of rule compliance, same as the reference this ports -- confirmed
-  ;; live against the actual Python, this genuinely happens even with
-  ;; a wide tolerance if scale only offers a handful of absolute
-  ;; pitches (three-voice-simultaneous consonance is a much tighter
-  ;; constraint than it looks). A scale spanning several octaves makes
-  ;; real candidates far more likely to exist.
+  ;; Rules filter, they do not guarantee: when no candidate satisfies both the tolerance and every
+  ;; rule, generate falls back to the nearest allowed pitch. That happens even with a wide tolerance
+  ;; when the scale offers few absolute pitches (consonance with every voice at once is a tight
+  ;; constraint); a scale spanning several octaves makes candidates far more likely.
   ([scale pitch-range beat-durations voice-specs]
    (generate scale pitch-range default-rules beat-durations voice-specs))
   ([scale pitch-range rules beat-durations voice-specs]
@@ -237,11 +217,7 @@
          (generate scale pitch-range rules beat-durations voice-specs))))
 
 (comment
-  ;; NOTE: the reference's own demo_3_voices/demo_4_voices both throw
-  ;; (confirmed live) -- they mix a [1 1 1 1 1 1 1 1] density-envelope
-  ;; voice with a [2 2 2 2 2 2 2 2] one, violating the engine's own
-  ;; "every voice must produce the same number of sub-notes" contract.
-  ;; This example uses matching envelopes throughout instead.
+  ;; Every voice must give the same number of sub-notes, so the density envelopes here match.
   (generate [60 62 64 65 67 69 71 72] [55 84]
             [0.5 0.5 1.0 0.5 0.5 1.0 0.5 0.5]
             [{:motif {:steps [0 2 -1 2] :durations [0.5 0.5 0.5 0.5]}

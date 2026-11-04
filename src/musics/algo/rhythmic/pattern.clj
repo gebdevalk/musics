@@ -6,9 +6,7 @@
 ;; pattern
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/ — rhythm-pattern generators
-;; (Euclidean, Fibonacci, prime, L-system, Markov).
-;; Python/Kotlin sources: rhythm.py
+;; Rhythm-pattern generators: Euclidean, Fibonacci, prime, L-system.
 
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
@@ -87,11 +85,7 @@
 ;; metric
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/ — numeric/metric-structure
-;; pulse generators (modular arithmetic, binary decomposition, continued
-;; fractions), as distinct from the pattern-shape generators in
-;; musics.algo.rhythmic.pattern.
-;; Python/Kotlin sources: rhythm.py
+;; Number-theoretic pulse generators: modular arithmetic, binary decomposition, continued fractions.
 
 ;; ── Binary Decomposition ────────────────────────────────────
 
@@ -150,16 +144,8 @@
 ;; fractal-geometric
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 17-18 -- rhythms from fractals (Cantor set, dragon curve) and
-;; geometry (polygon rotation, circle of fifths, golden ratio). L-system
-;; rhythms (also ported here originally, as l-system-rhythm) were
-;; removed 2026-09-10 -- a confirmed duplicate of musics.algo.rhythmic.pattern/
-;; lindenmayer-rhythm, independently reimplemented from a different
-;; porting pass; use that one instead (string-keyed rules, not
-;; char-keyed, and takes an explicit output length rather than just
-;; whatever the raw expansion produces).
-;; Fully deterministic, no randomness.
+;; Rhythms from fractals (Cantor set, dragon curve) and geometry (polygon rotation, circle of fifths,
+;; golden ratio). Deterministic.
 
 (defn cantor
   "The Cantor set as a rhythm: start with every position on (1), then

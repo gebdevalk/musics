@@ -1,4 +1,3 @@
-;; random.clj
 ;; The random-function library for this project: basic primitives
 ;; (rand-double, rand-int, choose, weighted-choose, shuffle, markov),
 ;; continuous distributions, discrete/collection helpers and shaped
@@ -24,17 +23,8 @@
   ([rng-atom] (step! rng-atom rnd-double)))
 
 
-;; Signature changed 2026-09-15, [n] (meaning [0,n)) -> [lo hi] -- was
-;; the one remaining inconsistency with int-range/every other int-*
-;; sibling's own [lo hi] shape (see musics.algo.dimensions' own docstring,
-;; 'EXTENDED 2026-09-15', for the fuller history and the tradeoff this
-;; accepts: diverging from clojure.core/rand-int's own [n] convention,
-;; despite this fn's name and :refer-clojure exclusion both mirroring
-;; it). Still built on the exact-integer rnd-int/step! machinery below
-;; (mod-based, no floating-point rounding) -- only the external shape
-;; changed, not the underlying seeded-RNG mechanism, and every OTHER
-;; caller of this same rnd-int primitive (choose/weighted-choose/
-;; shuffle/markov, all via musics.algo.numeric.rng) is untouched by this.
+;; rand-int takes [lo hi], not clojure.core's [n], like every int-* function; it is built on the exact-
+;; integer rnd-int machinery of numeric.rng.
 (defn rand-int
   "Uniform integer in [lo,hi), drawn from an RNG atom (default-rng if omitted)."
   ([lo hi] (rand-int default-rng lo hi))

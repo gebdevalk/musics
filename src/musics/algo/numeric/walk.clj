@@ -1,4 +1,3 @@
-;; walk.clj
 ;; Random walks, noise and tendency masks: numbers that move step by step.
 
 (ns musics.algo.numeric.walk

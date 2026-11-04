@@ -1,9 +1,5 @@
-;; physical.clj
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 10 and 12 -- rhythms derived from simulated physical/natural
-;; processes (pendulum swing, bouncing ball, the logistic map as a
-;; chaotic rhythm source, heartbeat, rainfall, birdsong). Random draws
-;; go through musics.algo.numeric.random, same as musics.algo.rhythmic.process.
+;; Rhythms from simulated natural processes: pendulum, bouncing ball, logistic map, heartbeat,
+;; rainfall, birdsong. Draws go through musics.algo.numeric.random.
 
 (ns musics.algo.rhythmic.nature
   (:require [musics.algo.numeric.random :as rand]))

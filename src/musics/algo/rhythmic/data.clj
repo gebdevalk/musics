@@ -1,7 +1,4 @@
-;; sonification.clj
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py section 15
-;; -- converting arbitrary numerical data, stock-style price series, and
-;; text into rhythmic patterns. Fully deterministic, no randomness.
+;; Rhythms from numerical data, price series and text. Deterministic, no randomness.
 
 (ns musics.algo.rhythmic.data
   (:require [clojure.string :as str]))

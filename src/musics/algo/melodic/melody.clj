@@ -1,49 +1,20 @@
-;; melody.clj
-;; Clojure port of pymusics src/algorithm/ — melodic algorithms (scales,
-;; Markov/L-system/grammar generators, constraint-satisfaction walks).
-;; Python/Kotlin sources: rule_based_melodic_algorithms.py
+;; Melodic generators: Markov, L-system and grammar melodies, and constraint-satisfaction walks.
 
 (ns musics.algo.melodic.melody
   (:require [musics.algo.melodic.pitch :as pitch]
             [musics.algo.numeric.lsystem :as lsystem]
             [musics.algo.numeric.random :as rand]))
 
-;; Scales are plain pitch-class integers (0-11) now, not note-name
-;; strings -- see musics.algo.melodic.pitch/build-scale's own docstring, and
-;; doc/md/decisions.md's 2026-09-05 entry for why this
-;; moved out of melody.clj entirely rather than staying a local,
-;; string-based helper. Built via from-key, not hand-typed intervals --
-;; :major/:minor/:pentatonic-major's own formulas already live in
-;; musics.common.music-elements/scale-steps, the project's own central table;
-;; re-typing them here as a second copy would just be duplication.
-;;
-;; These three are just convenience defs, not the only scales reachable
-;; -- musics.common.music-elements/scale-steps has 24 named scales (every
-;; church mode, harmonic/melodic minor, both pentatonics, blues major/
-;; minor, whole-tone, both diminished forms, hungarian-minor, double-
-;; harmonic, bebop-dominant/major, ...) across 13 tonics (musics.common.music-
-;; data/signatures), so musics.algo.melodic.pitch/from-key reaches 312 named
-;; key/scale combinations directly: (pitch/from-key :F# :dorian). Or,
-;; for a single spec string instead of two keyword args (from-key-spec,
-;; e.g. (pitch/from-key-spec "B&.blues-minor")) -- either resolves,
-;; along with a plain already-built scale vector, through
-;; musics.algo.melodic.pitch/resolve-scale, which every generator/constraint fn
-;; below happily accepts unchanged (they were already representation-
-;; agnostic before any of this existed) -- see modulating-melody below
-;; for the motivating use.
+;; The scales are plain pitch-class integers (0-11), built with pitch/from-key from
+;; musics.common.music-elements/scale-steps. These three are conveniences: from-key reaches 312 named
+;; key and scale combinations, e.g. (pitch/from-key :F# :dorian); from-key-spec takes one string,
+;; (pitch/from-key-spec "B&.blues-minor"); and every generator here accepts any of them, or a built
+;; scale vector, through pitch/resolve-scale (see modulating).
 (def c-major      (pitch/from-key :C :major))
 (def a-minor      (pitch/from-key :A :minor))
 (def c-pentatonic (pitch/from-key :C :pentatonic-major))
 
-;; Every function below draws from musics.algo.numeric.random now, not bare
-;; clojure.core rand-nth/shuffle -- this whole file was, until
-;; 2026-09-05, the largest unreproducible-randomness site (the ONLY
-;; melodic/rhythmic namespace in musics/algo/ using unreproducible randomness
-;; while its own neighbors -- counterpoint.clj, and every rhythmic/*
-;; file except rhythm.clj itself -- already drew consistently from
-;; musics.algo.numeric.random). Composing generators from different musics/algo/ files no
-;; longer risks silently mixing a reproducible stream with an
-;; unreproducible one.
+;; Every function here draws from musics.algo.numeric.random, so a seed repeats it.
 
 ;; ── Markov Chain Melody ─────────────────────────────────────
 

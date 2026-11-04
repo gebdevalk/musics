@@ -7,16 +7,8 @@
 ;; micro
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py section 14
-;; -- microtiming/groove techniques (swing, humanize, pocket). Split out
-;; of musics.algo.rhythmic.feel (2026-09-05): "transform" bundled two
-;; genuinely distinct concerns under one too-wide name -- EMI-style/
-;; Oblique-Strategies PATTERN VARIATION (content mutation, stayed in
-;; transform.clj) versus these three, which adjust onset TIMING FEEL of
-;; an already-fixed pattern, not its content. Unrelated to core.async-
-;; engine's own :micro/:humanization context keys (per-note MIDI onset
-;; delay, a domain/engine feature) -- same word, different namespace,
-;; different concern; see that feature's own micro_timing_test.clj.
+;; Timing feel of a fixed pattern (swing, pocket), not its content. Unrelated to the :micro and
+;; :humanization context keys, which delay a note as it plays.
 
 (defn swing
   "Swung onset timings (in beat-duration units, not seconds) of
@@ -103,14 +95,8 @@
 ;; transform
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py section 13
-;; -- pattern-VARIATION (rather than pattern-generating) techniques:
-;; David Cope's EMI-style variation, Brian Eno's Oblique Strategies --
-;; both mutate/vary a pattern's own CONTENT. Section 14's own
-;; microtiming/groove techniques (swing, humanize, pocket) -- adjusting
-;; onset TIMING FEEL rather than content -- moved to their own file,
-;; musics.algo.rhythmic.feel, once "transform" turned out too wide a name for
-;; two genuinely distinct concerns (2026-09-05).
+;; Pattern variation: David Cope's EMI-style variation and Brian Eno's Oblique Strategies both change a
+;; pattern's content.
 
 (defn emi
   "Vary pattern in the style of David Cope's EMI: at each position, with probability (1 - similarity), apply a random mutation (flip this bit, swap it with the next, insert a random bit, or delete this position). similarity near 1.0 stays close to the original, near 0.0 varies heavily. The result is clamped to [half, double] the original length."

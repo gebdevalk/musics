@@ -1,13 +1,4 @@
-;; scaling.clj
-;; Clojure port of kotlin-reference/decorator/Scaling.kt and
-;; kotlin-reference/jl/scaling.jl (identical fns under two different
-;; names) -- small number-rounding/range-remapping utilities.
-;;
-;; clamp was previously duplicated identically (private, same 1-line
-;; body) in musics.algo.numeric.chaos.henon and musics.algo.numeric.chaos.lorenz -- a real,
-;; confirmed duplication found by a code-reuse audit (2026-09-05, same
-;; pattern as musics.algo.numeric.integer's own gcd/lcm extraction) -- moved
-;; here as the one shared copy both now require.
+;; Small number-rounding and range-remapping utilities: clamp, scale, bound.
 
 (ns musics.algo.numeric.scaling)
 

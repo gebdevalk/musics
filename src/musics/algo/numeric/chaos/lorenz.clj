@@ -1,15 +1,5 @@
-;; lorenz.clj
-;; The real Edward Lorenz system -- the actual 3-equation chaotic
-;; attractor "the butterfly effect" refers to. An earlier 1D map here
-;; (lorenz-function, same closure shape as musics.algo.numeric.chaos.logistic/
-;; logistic but a different recurrence) was removed: confirmed
-;; empirically, not assumed, it wasn't a reliable chaos source at all --
-;; its default converged to a fixed point rather than chaotic output,
-;; and every other parameter combination tried diverged to ##Inf/##NaN
-;; within about 6-7 calls. lorenz below is a genuine, tested
-;; replacement -- verified live to stay bounded and keep moving (no
-;; fixed point, no ##Inf/##NaN) over hundreds of steps at its own
-;; defaults.
+;; The Lorenz system: the three-equation chaotic attractor of the butterfly effect, integrated by
+;; fourth-order Runge-Kutta.
 
 (ns musics.algo.numeric.chaos.lorenz)
 

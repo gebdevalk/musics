@@ -1,15 +1,5 @@
-;; pitch.clj
-;; Shared pitch-class helper -- build-scale/from-key, moved out of
-;; musics.algo.melodic.melody (2026-09-05:
-;; melody.clj's own scale representation used to be pitch-class NAME
-;; STRINGS -- "C", "C#", ... -- incompatible with every other pitch-
-;; touching fn in musics/algo/, which all already agree on plain numeric pitch
-;; (musics.algo.common.gate's own pitch-class-criterion and musics.algo.common.
-;; zfilter's own pc-smooth both already expect a genuine mod-12
-;; pitch-class int). Both fns here work entirely in that same numeric
-;; space, and live here rather than staying local to melody.clj since
-;; neither is melody-specific -- any musics/algo/ generator wanting a
-;; root+interval-pattern (or a named key/scale) can use them.
+;; Pitch-class helpers: build-scale and from-key work in plain 0-11 pitch classes, the representation
+;; musics.algo.common.gate and zfilter also use, and are not specific to melodies.
 
 (ns musics.algo.melodic.pitch
   (:require [musics.common.music-elements :as el]))

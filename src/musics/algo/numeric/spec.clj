@@ -1,4 +1,3 @@
-;; spec.clj
 ;; Param specs shared by the :algo metadata of the numeric and rhythmic generators: identical
 ;; specs give one shared tctx key, so (uniform) and (triangular) in one tree read the same :lo/:hi.
 

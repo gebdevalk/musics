@@ -1,4 +1,3 @@
-;; drums.clj
 ;; Style-authentic drum-kit grooves (rock, funk, hip-hop, jazz, house,
 ;; metal, ...), built in four strata -- backbone (kick/snare), time-
 ;; keeping (hats/ride), ghost notes, and a fill every 4th bar.

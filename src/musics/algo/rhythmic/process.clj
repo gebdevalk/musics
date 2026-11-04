@@ -43,10 +43,8 @@
 ;; stochastic
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 7-9 -- Xenakis-style stochastic rhythm, genetic-algorithm evolution,
-;; and Markov/RNN-style generators. Every random draw goes through
-;; musics.algo.numeric.random (seedable, algo-safe) rather than raw clojure.core/rand.
+;; Xenakis-style stochastic rhythm, genetic evolution, Markov and RNN generators. Every draw goes
+;; through musics.algo.numeric.random, so a seed repeats it.
 
 (defn stochastic
   "A binary pattern of the given length, its onsets placed by distribution
@@ -227,9 +225,7 @@
 ;; constraint
 ;; ============================================================
 
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py section 16
-;; -- constraint-driven rhythm generation: all-interval rhythms,
-;; isorhythmic beat-strength patterns, and backtracking constraint
+;; Constraint-driven rhythm: all-interval rhythms, isorhythmic beat strength, backtracking constraint
 ;; satisfaction.
 
 (defn all-interval

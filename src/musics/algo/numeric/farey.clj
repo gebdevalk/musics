@@ -1,8 +1,4 @@
-;; farey.clj
-;; Clojure port of kotlin-reference/Farey.kt -- best rational
-;; approximation of a real number, via a Stern-Brocot mediant search
-;; (the reference file's own commented-out attribution traces it to
-;; John D. Cook's C++ original).
+;; Best rational approximation of a real number by a Stern-Brocot mediant search.
 
 (ns musics.algo.numeric.farey)
 

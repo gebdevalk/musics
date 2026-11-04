@@ -1,30 +1,13 @@
-;; indispensability.clj
-;; Barlow indispensability -- the canonical implementation. Moved here
-;; from musics/common/music_elements.clj (which now requires this ns and
-;; delegates, rather than keeping its own copy) since this file's own
-;; earlier psi/psi-fractions -- a direct port of pymusics src/algorithm/'s
-;; indispensability.py/Indispensabilities.kt -- turned out to be a subtly
-;; incomplete implementation of the same theory: it combines each level's
-;; raw digit directly, skipping Barlow's own non-trivial substitution
-;; table for factors 5 and 7 (indispensability-base-tables below). That
-;; happens to not matter for factors 2 and 3 (their tables reduce to the
-;; identity permutation, so psi agreed with this implementation there,
-;; off by a constant +1/0-indexing difference) -- but for 5 and 7 it's a
-;; real divergence, not an indexing artifact: e.g. psi's own [5] case
-;; disagreed with the verified-correct [4 0 1 3 2] in its last two
-;; positions. psi/psi-fractions were removed rather than kept alongside
-;; the correct version once that was confirmed.
+;; Barlow indispensability; musics.common.music-elements/meter-indispensability delegates here. Factors
+;; 5 and 7 need Barlow's substitution table (indispensability-base-tables); 2 and 3 reduce to plain
+;; rotations.
 
 (ns musics.algo.rhythmic.indispensability)
 
-;; Indispensability for a single-level cycle of q pulses (0-indexed,
-;; downbeat = q-1). q=2/q=3 are simple rotations; q=5/q=7 are Barlow's
-;; real, non-trivial anacrusis-breaking pattern -- verified against a
-;; known-correct reference, not derivable from the q=2/q=3 case by
-;; extrapolation. Only these four are supported: real meters always
-;; decompose additively into them (see musics.common.music-elements/
-;; default-subdivisions), so a genuine bare prime cycle beyond 7 never
-;; actually arises.
+;; Indispensability of a single-level cycle of q pulses (0-indexed, downbeat = q-1). q = 2 and 3 are
+;; simple rotations; 5 and 7 are Barlow's non-trivial anacrusis-breaking patterns. Only these four are
+;; supported: real meters decompose additively into them (musics.common.music-elements/default-
+;; subdivisions).
 (def ^:private indispensability-base-tables
   {2 [1 0]
    3 [2 0 1]

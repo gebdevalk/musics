@@ -1,11 +1,5 @@
-;; world.clj
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 19-20 -- the Indian tala system (matra/vibhag structure, theka
-;; stroke patterns, konnakol) and West African timeline patterns (bell
-;; patterns, cross-rhythms, polyrhythm, djembe). The reference's Tala
-;; class carries no real mutable state -- its own "instance data" is
-;; just a name plus a lookup into a fixed table -- so this port is a
-;; data table plus plain functions taking a tala name, not a class.
+;; Indian tala (matra and vibhag structure, theka stroke patterns, konnakol) and West African timelines
+;; (bell patterns, cross-rhythms, polyrhythm, djembe). A tala is a name looked up in a fixed table.
 
 (ns musics.algo.rhythmic.world
   (:require [musics.algo.numeric.random :as rand]

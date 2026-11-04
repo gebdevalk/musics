@@ -60,13 +60,4 @@
         (recur (into (subvec remaining 0 idx) (subvec remaining (inc idx) n))
                (conj result (nth remaining idx)))))))
 
-;; The old pitch-range/pitch-class/interval/probability filters that
-;; used to live here (lo-filter/hi-filter/window-filter/pitch-class-
-;; filter/interval-filter/probability-filter) moved to
-;; musics.algo.common.gate (2026-09-03) -- one general engine (gate) plus
-;; criterion constructors, replacing six
-;; bespoke functions. See that ns's own docstring for the full
-;; rationale, including why this refactor was deliberately scoped to
-;; just the filters and not applied to the other, superficially similar
-;; cases found across musics/algo/ (musics.algo.numeric.random's own lo-emph/mean-emph/
-;; hi-emph, musics.algo.common.zfilter's own smooth/momentum/memory, etc.).
+;; The filters (pitch range, pitch class, interval, probability) are in musics.algo.common.gate.

@@ -1,14 +1,7 @@
 (ns musics.algo.common.gate
-  "One general engine (gate) plus a small set of criterion
-   constructors, replacing what used to be six separate, bespoke filter
-   functions in musics.algo.common.reshape (lo-filter/hi-filter/window-filter/
-   pitch-class-filter/interval-filter/probability-filter).
+  "One general engine (gate) plus criterion constructors (pitch range, pitch class, interval, probability) that decide which notes pass.
 
-   Two real simplifications from the version this replaces, both
-   deliberate: gate always operates on a Leaf's FIRST pitch (no more
-   per-chord-tone splitting -- a chord is judged, and kept or replaced,
-   as one whole unit); and 'what happens to a rejected part' is now a
-   genuine choice (:remove/:rest/:hold/custom), not hardcoded."
+   gate judges a Leaf by its first pitch (a chord is kept or replaced as one unit), and what becomes of a rejected part is a choice: :remove, :rest, :hold or a custom fn."
   (:require [musics.domain :as d]
             [musics.algo.numeric.random :as rand]))
 

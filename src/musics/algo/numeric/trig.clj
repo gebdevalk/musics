@@ -1,9 +1,5 @@
-;; trig.clj
-;; Clojure port of kotlin-reference/jl/trig.jl -- scaled, shifted
-;; periodic samplers (Impromptu's own cosr/sinr/tanr): a deterministic
-;; oscillator sampled at a beat/index rather than continuous time, a
-;; periodic complement to musics.algo.numeric.random's noise-based walk/
-;; smooth-noise.
+;; Scaled, shifted periodic samplers (cosr, sinr, tanr, trianglr, squarr, sawr): a deterministic
+;; oscillator sampled at an index, the periodic counterpart of walk and smooth-noise.
 
 (ns musics.algo.numeric.trig)
 

@@ -3279,3 +3279,47 @@ fixed argument that happens to be a keyword stays put: a pair counts only while
 the arguments below it are enough), and `see` shows the tail as `[:rotation v]`.
 A symbol tail (`& more`) is not handled: its length is open, so mu cannot tell
 where it ends.
+
+## 2026-11-04 — algo header comments describe the file; provenance and history are here
+
+File headers in `musics/algo/` told how a file was ported, fixed and moved; they say
+what the file holds now. What they recorded:
+
+- **Provenance.** From the Python reference (`pymusics`): `rhythm.py` gave
+  `rhythmic/pattern` (Euclid, Fibonacci, primes, L-system, Markov; modular, binary,
+  continued fraction); `advanced_rhythm.py` sections 1-2 gave `sieve` (phases,
+  sieve), 3-4 `meter`, 7-9 and 16 `process` (stochastic, genetic, Markov/RNN,
+  constraints), 10 and 12 `nature`, 13-14 `feel` (EMI and Oblique Strategies, then
+  swing and pocket), 15 `data`, 17-18 the fractal and geometric rhythms in
+  `pattern`, 19-20 `world`; `rule_based_melodic_algorithms.py` gave `melody`;
+  `polyphony_generator.py` (`CounterpointEngine`) gave `counterpoint/imitation`.
+  From the Kotlin/Julia references: `bifurcation.jl` and `verhulst.jl` (one logistic
+  map under two names) gave `chaos/logistic`, `Farey.kt` `farey` (after John D.
+  Cook's C++), `Scaling.kt`/`scaling.jl` `scaling`, `trig.jl` `trig`. `chaos/henon`
+  came from a 2026-04-28 design discussion ("MusicalGesture") and `zfilter` from
+  one on 2026-03-11. `resumable_bifurcation.jl` was left out: it destructures three
+  return values from a generator that yields one.
+- **Moves.** `reshape`'s six filters became `gate` (2026-09-03). `rotate`, `integer`
+  and `scaling` are one shared copy of code that was duplicated in
+  `necklace`/`sieve`, `isorhythm`/`meter` and `henon`/`lorenz` (found by the reuse
+  audit, 2026-09-03/05). `pitch`'s helpers left `melody` (2026-09-05) because
+  melody's scales were pitch-class name strings, unlike every other pitch function.
+  `transform` was split in two, pattern variation (`emi`, `oblique`) and timing feel
+  (`swing`, `pocket`), 2026-09-05; both are `feel` now. `l-system-rhythm` was dropped
+  (2026-09-10) as a duplicate of `lsys-rhythm`. `rand-int` took `[lo hi]` instead of
+  `[n]` (2026-09-15) to match the `int-*` functions.
+- **Randomness.** `melody` drew from `clojure.core` until 2026-09-05, the one melodic
+  or rhythmic namespace whose output a seed did not repeat; all algos draw from
+  `numeric.random` now.
+- **Corrections.** The first `lorenz` was a 1D map that converged to a fixed point
+  or diverged to infinity in 6-7 calls; the RK4 system replaced it. The `psi` and
+  `psi-fractions` indispensability port combined each level's digit directly and
+  skipped Barlow's substitution table for factors 5 and 7, so it differed from the
+  verified `[4 0 1 3 2]` for `[5]`; it was removed, and the implementation is now
+  `rhythmic/indispensability`.
+- **The `imitation` port.** It did not reproduce the reference's dead state (an
+  unread `motif-end-beat`, a `current-pitch` reassignment, an unused `prev-new`).
+  Its rules filter and do not guarantee: when no candidate fits, it falls back to the
+  nearest allowed pitch, as the reference does (checked against the Python). The
+  reference's own demo functions with 3 and 4 voices throw, because their density
+  envelopes sum differently; the engine requires equal sub-note counts.

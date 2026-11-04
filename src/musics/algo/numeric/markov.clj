@@ -1,5 +1,3 @@
-;; markov.clj
-
 (ns musics.algo.numeric.markov
   "A Markov chain over a transition table, drawn from musics.algo.numeric.random."
   (:require [musics.algo.numeric.random :refer [weighted-choose]]))

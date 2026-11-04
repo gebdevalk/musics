@@ -2093,6 +2093,5 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `java-reference/`, `julia-reference/`, `kotlin-reference/`, and
   `python-reference/` — prior implementations of this same system in
   other languages that these ports came from — are no longer part of
-  the repo at all; see `doc/md/decisions.md` for why (each file under
-  `musics/algo/` that traces back to one of them still says so in its own
-  header comment).
+  the repo at all; see `doc/md/decisions.md` for why and for which `musics/algo/` file
+  came from which of them (2026-11-04, algo header comments).
