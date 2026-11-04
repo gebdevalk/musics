@@ -61,17 +61,17 @@
 
 (deftest a-line-taken-apart-into-an-algos-input
   (is (= "'[1/8 1/8 1/4 3/8 1/8]" (top "[c8 d e4 f4. g8] durations")))
-  (is (= "1/2" (top "[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip durations 0 '( + ) reduce"))
+  (is (= "1/2" (top "[c8 d4 e8] dup durations @^{ index:1 } duration/bracelet swap pitches zip durations 0 '( + ) reduce"))
       "a rotation keeps the length")
-  (let [out (top "[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip")]
+  (let [out (top "[c8 d4 e8] dup durations @^{ index:1 } duration/bracelet swap pitches zip")]
     (is (not= "[C4/8 D4/4 E4/8]" out) "the rhythm varied")
     (is (= "[r16 D4/4 E4/8 C4/16]" out) "its rest takes c unused, the pitches cycling on")))
 
 (deftest a-repeat-stays-around-the-result
-  (let [once (top "[c8 d e4 f8] durations @^{ index:1 } duration/necklace")]
-    (is (= (str once " [~]") (top "[c8 d e4 f8] [~] durations @^{ index:1 } duration/necklace"))
+  (let [once (top "[c8 d e4 f8] durations @^{ index:1 } duration/bracelet")]
+    (is (= (str once " [~]") (top "[c8 d e4 f8] [~] durations @^{ index:1 } duration/bracelet"))
         "the algo runs on what the loop repeats; the loop goes around its result")
-    (is (= (str once " 2 times") (top "[c8 d e4 f8] 2 times durations @^{ index:1 } duration/necklace"))))
+    (is (= (str once " 2 times") (top "[c8 d e4 f8] 2 times durations @^{ index:1 } duration/bracelet"))))
   (is (str/starts-with? (top "[c d e] [~] leaf/pocket") "repeat ~ [") "a line in a loop gives a loop")
   (is (str/ends-with? (top "[c d e] [~] [e f g] [~] pitch/inter") "] [~]") "two loops by the same count")
   (is (re-find #"repeat differently" (top "[c d e] [~] [e f g] pitch/inter")))

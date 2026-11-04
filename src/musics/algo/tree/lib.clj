@@ -8,7 +8,7 @@
    Exposed from musics/algo/ -- every fn carrying :algo metadata in these
    namespaces (the full list with params: (musics.algo.tree/algos)):
      musics.algo.rhythmic.*   euclid fibonacci primes cantor dragon bell tala drums
-                       polyrhythm sieve necklace swing genetic ca ...
+                       polyrhythm sieve necklaces swing genetic ca ...
      musics.algo.rhythmic.pattern       bits cfrac modular
      musics.algo.melodic.*    infra inter ultra polations markov-train
                        markov-gen lsys-melody grammar constrained
@@ -23,6 +23,7 @@
    clojure.core):
      cycle> shuffle>                   repeat forever / reshuffle every pass
      take>        :len                 first :len items
+     rotate       :steps               the front items round to the back
      map> filter> :fn                  each item through a fn / the items a fn keeps
      remove>      :fn                  the items a fn doesn't drop
      mute>        :fn                  leaves: the notes a fn is true for become rests
@@ -56,6 +57,7 @@
    musics text, ready to read, edit, or commit with musics.mu.store/read!."
   (:require [musics.algo.tree :as t :refer [defalgo expose-ns]]
             [musics.algo.tree.half-products :as hp]
+            [musics.algo.common.rotate :as rot]
             [musics.algo.numeric.random :as random]
             [musics.algo.numeric.walk :as walk]
             [musics.common.music-data :as data :refer [quantity]]
@@ -123,6 +125,11 @@
   {:algo {:category "tool" :in [:any] :out :same
           :params {:len {:type :int :min 0 :max 256 :default 16 :doc "items kept"}}}}
   [xs len] (vec (take len xs)))
+
+(defalgo rotate "Its child (finite) moved :steps places to the left, the front items coming round to the back; negative steps go right."
+  {:algo {:category "tool" :in [:any] :out :same
+          :params {:steps {:type :int :min -256 :max 256 :default 1 :doc "places to the left"}}}}
+  [xs steps] (let [v (vec xs)] (if (empty? v) v (rot/rotate v steps))))
 
 (defalgo map> "Each item through :fn (set at the REPL), lazily; the type stays."
   {:algo {:category "tool" :in [:any] :out :same

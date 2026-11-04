@@ -288,7 +288,7 @@ each half product a bridge makes of it, a **specialised algo**
 - **Varying durations:** every algo that varies, elaborates or
   continues pulses is offered on durations too -- `duration/emi`,
   `duration/mutate`, `duration/oblique`, `duration/rnn`,
-  `duration/tuplets`, `duration/necklace`, `duration/bracelet`,
+  `duration/tuplets`, `duration/bracelet`,
   `duration/crossover`, `duration/tiling`. Its durations are laid on a
   grid of `:duration-pulse` (each rounds to whole pulses), varied, and
   read back as durations: `(zip (duration/emi (duration/euclid)) (cycle>

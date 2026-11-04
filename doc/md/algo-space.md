@@ -425,7 +425,7 @@ duration). It doesn't forbid analysis.
 | Aspect | Changes | Keeps | Tools now | Musical operation |
 |---|---|---|---|---|
 | **Value** | each element's value | order, count | `map`, `rescale`, `transpose`, `stretch`, `tilt`, `power` | transposition, inversion, augmentation/diminution, register |
-| **Order** | the sequence | the elements (a multiset) | `shuffle`, `deep-shuffle`, `necklace`, `bracelet` | permutation, retrograde, rotation |
+| **Order** | the sequence | the elements (a multiset) | `shuffle`, `deep-shuffle`, `rotate`, `bracelet` | permutation, retrograde, rotation |
 | **Membership** | which elements remain | order | `filter`, `only`, `choose-n` | elimination, fragmentation, selection |
 | **Extent** | length; finite or endless | the elements, cyclically | `cycle`, `take`, `sputter` | repetition, ostinato, truncation |
 | **Arrangement** | rows, lines | the elements | `parts`, `+part`, `part`, `row` | texture |
@@ -565,8 +565,8 @@ aspect, genericity, locality, extent and principle:
    that plays one after another, and no `interleave` or `alternate`.
    The play args have both (`[]`, `#{}`); the tree only the parallel
    one.
-2. **Order tools.** No `reverse` (retrograde), no general `rotate`.
-   Rotation exists only for pulses, inside `necklace`.
+2. **Order tools.** No `reverse` (retrograde); `rotate` is the tool for
+   rotation (`euclid` and the necklaces no longer rotate themselves).
 3. **Value tools.** No inversion (reflection about a pitch or a value)
    beside `transpose` (translation) and `stretch` (multiplication).
 4. **Each type's algebra.** Pulse grids have no union, intersection or

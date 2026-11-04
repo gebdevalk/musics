@@ -29,7 +29,7 @@
    :as :a) play the same attractor, x as pitch and y as volume.
 
    An algo that varies, elaborates or continues pulses (emi, mutate,
-   oblique, rnn, tuplets, necklace, crossover, ...) is offered on
+   oblique, rnn, tuplets, bracelet, crossover, ...) is offered on
    durations too: duration/emi takes durations, lays them on a grid of
    :duration-pulse (durations->pulses), runs emi, and reads the result
    back as durations (pulses->durations) -- a rhythm varied on the

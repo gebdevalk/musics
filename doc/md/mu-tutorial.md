@@ -1032,11 +1032,12 @@ steps into pitches plays in the line's `!key:`.
 
 An algo that varies something takes it from the stack, a line taken
 apart into what it wants: durations, pitches or the notes themselves.
-`duration/necklace` gives a rotation of a rhythm on its grid:
+`duration/bracelet` gives one rotation or reversal of a rhythm on its grid
+(`rotate` is the tool for a plain rotation):
 
 ```
-[c4. d8 e4] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
-                                                       → '[r4 1/8 1/4 1/8]
+[c4. d8 e4] durations @^{ index:1 duration-pulse:1/8 } duration/bracelet
+                                                       → '[r8 1/8 3/8 1/8]
 ```
 
 A loop around what it is given stays around what it gives -- the algo
@@ -1044,8 +1045,8 @@ works on what the loop repeats -- so a loop of a rhythm varied is a
 loop of the varied rhythm, ready to zip with a loop of pitches:
 
 ```
-[c4. d8 e4] [~] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
-    → '[r4 1/8 1/4 1/8] [~]
+[c4. d8 e4] [~] durations @^{ index:1 duration-pulse:1/8 } duration/bracelet
+    → '[r8 1/8 3/8 1/8] [~]
 @^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
     → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
 ```

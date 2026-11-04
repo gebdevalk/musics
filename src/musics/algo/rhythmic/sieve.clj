@@ -167,13 +167,6 @@
 
 (defn- nth-wrapping [xs index] (if (seq xs) (nth xs (mod index (count xs))) []))
 
-(defn necklace
-  "The index-th of pattern's unique rotations (rhythm-necklace), wrapping."
-  {:algo {:in [:pulse] :out :pulse
-          :params {:index {:type :int :min 0 :max 63 :default 1 :doc "which rotation"}}}}
-  [pattern index]
-  (nth-wrapping (rhythm-necklace pattern) index))
-
 (defn bracelet
   "The index-th of pattern's unique rotations and reversals
    (rhythm-bracelet), wrapping."

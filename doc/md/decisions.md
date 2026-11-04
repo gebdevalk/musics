@@ -3144,3 +3144,27 @@ docstrings recorded (dates 2026):
 - `power` vs `tilt`: softmax never gives a probability of 0, a power law does
   (for the base-0 position); `power` needs no tie-break term because its
   exponent never goes below 1.
+
+## 2026-11-04 — small algos: a parameter stays only if the algo needs it
+
+The rule for the algo space: a parameter that is part of what an algo is stays;
+one that does what another small function already does goes. First case,
+rotation:
+
+- `rotate` is a tree tool (`musics.algo.tree.lib`, `:steps`, plain name: it
+  does not clash with `clojure.core`). `euclid` lost `:rotation` and takes `k`
+  and `n`; it is also the only algo whose keyword tail mu's `require` could not
+  call without writing the tail out, so `3 8 r/euclid` works now.
+- `necklace` is gone: the index-th unique rotation, wrapping, is the same
+  pattern as rotating by the index (a rotation by the number of unique rotations
+  leaves a pattern as it is); checked on every pattern of 1-8 pulses, indexes
+  0-19, and kept as a test. `duration/necklace` went with it; `duration/bracelet`
+  is the lifted example in tests and docs (a bracelet's order differs from the
+  necklace's, so its index 1 is not a plain rotation).
+- Kept: `modular :offset` (the constant of `i*multiplier + offset`, not a
+  cyclic shift of a finite window), `polygon :offset` (a continuous start
+  angle), `bracelet :index` (rotations and reversals, a larger set than
+  `rotate`), `necklaces :index` (picks among generated classes), `phases
+  :total-phases` (how many layers), and `duet`: it builds a `:layer` from a
+  pattern and its rotation, and no tool joins pulse patterns into a layer
+  (`parts` joins note streams).

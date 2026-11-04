@@ -150,7 +150,7 @@ that did found their types:
 | `pocket` | `:leaf` from `:leaf` | each note laid back by its place in the beat, as its own `:micro` |
 
 `layer` takes `:layer` and gives `:pulse`; the sets of alternatives
-(`necklace`, `bracelet`, `necklaces`, `crossover`) give the one pattern
+(`bracelet`, `necklaces`, `crossover`) give the one pattern
 their `:index` picks.
 
 `humanize` and `patch` are plain functions now: the `:humanization`

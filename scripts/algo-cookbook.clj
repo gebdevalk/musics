@@ -110,8 +110,8 @@
 
    {:group "Rhythm × melody"}
    {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
-    :tree [["(def r2 (zip (pulses->durations euclid) (shuffle> scale)))" "every pitch once per pass"]]
-    :params [["(def p {:k 5 :n 16 :rotation 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
+    :tree [["(def r2 (zip (pulses->durations (rotate euclid)) (shuffle> scale)))" "rotate moves the onsets two places; every pitch once per pass"]]
+    :params [["(def p {:k 5 :n 16 :steps 2 :pulse 1/16})" "a plain map: missing keys take their defaults"]]
     :runs [["result" "r2" "p"]]}
    {:title "Legato by default, detached by articulation"
     :tree [["(def det (zip riff (as-part :articulation (cycle> [:staccato]))))" "every note staccato: the onsets stay, the notes sound shorter"]]
@@ -633,7 +633,7 @@
        "<ul><li><b><code>:params</code></b>: per param a <code>:type</code> (<code>:int :double :ratio :string :keyword :vector :map :fn :bool :any</code>), a <code>:default</code>, and for a number <code>:min</code>/<code>:max</code>. <code>##-Inf</code>/<code>##Inf</code> leave a range end open; a <code>##NaN</code> default makes the param required. <code>:choices</code> limits a string or keyword. Registration refuses an incomplete spec.</li>\n"
        "<li><b>One value per call?</b> <code>:repeat :len</code> calls the fn <code>:len</code> times (a sampler: <code>normal</code>); <code>:pull {:via :value}</code> calls it once for a generator and pulls <code>:len</code> values (a closure: <code>walk</code>, <code>logistic</code>). No wrapper fn needed; <code>:len</code> is a param like any other.</li>\n"
        "<li><b>Children not first?</b> <code>:children [:coll]</code> names the args that are children.</li>\n"
-       "<li><b>Keyword args</b> (<code>&amp; {:keys [rotation] :or {rotation 0}}</code>) are params too, their <code>:or</code> the default. A multi-arity fn names the arity to wrap with <code>:arity</code>.</li>\n"
+       "<li><b>Keyword args</b> (<code>&amp; {:keys [clip-lo clip-hi boundary] :or {boundary :clamp}}</code>) are params too, their <code>:or</code> the default. A multi-arity fn names the arity to wrap with <code>:arity</code>.</li>\n"
        "<li><b>Keys</b>: a param keeps its bare name unless two different algos in one tree read it with different specs; then each becomes <code>:short.name</code> (recipe " (recipe-number "Different algos, same param name") "). A named instance's are <code>:as/name</code>.</li></ul>\n"
 
        "<h2 class=\"pb\">7. Recipes (" n-recipes ")</h2>\n"

@@ -55,7 +55,7 @@
    'musics.algo.rhythmic.sieve/rhythmic-tiling           "[grid tiled?]; tiling is the grid"
    'musics.algo.rhythmic.feel/pocket-groove                "timed maps in seconds; pocket is the delay per onset"
    'musics.algo.rhythmic.feel/humanize-rhythm              "the :humanization context key does this per note"
-   'musics.algo.rhythmic.sieve/rhythm-necklace           "every rotation; necklace picks one"
+   'musics.algo.rhythmic.sieve/rhythm-necklace           "every rotation, for bracelet and the tests"
    'musics.algo.rhythmic.sieve/rhythm-bracelet           "every rotation and reversal; bracelet picks one"
    'musics.algo.rhythmic.sieve/all-binary-necklaces      "every class; necklaces picks one"
    'musics.algo.rhythmic.process/crossover-genomes       "both children; crossover picks one"

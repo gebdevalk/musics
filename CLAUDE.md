@@ -796,7 +796,7 @@ products of one source never share a bridge setting; a bridge's
 defaults (probed over eight seeds, so a random walk's range is where its runs go, not one run's band). Two with the same `:as` and source read one
 run of it within a `t/run` -- x as pitch, y as volume of one attractor.
 An algo that varies pulses (pulses in, pulses out: `emi`, `mutate`,
-`oblique`, `rnn`, `tuplets`, `necklace`, `bracelet`, `crossover`,
+`oblique`, `rnn`, `tuplets`, `bracelet`, `crossover`,
 `tiling`) is lifted onto durations the same way (`half-products/lift`):
 `duration/emi` takes durations, its `:via :lift` lays them on a grid of
 `:duration-pulse` (`half-products/durations->pulses`), and `pulses->durations`

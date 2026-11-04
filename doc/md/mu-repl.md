@@ -921,8 +921,8 @@ the doc and the settings it reads, `@^{ k n … }`.
 ```
 duration/euclid                          → '[3/16 3/16 1/8]
 @^{ k:5 n:16 } duration/euclid            the settings on top are its own
-[c8 d4 e8] dup durations @^{ index:1 } duration/necklace swap pitches zip
-                                         the rhythm rotated, a rest's pitch unused
+[c8 d4 e8] dup durations @^{ index:1 } duration/bracelet swap pitches zip
+                                         the rhythm as a bracelet member, a rest's pitch unused
 [!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg ->
                                          played in a line, a key param follows its !key:
 ```

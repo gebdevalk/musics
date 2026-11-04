@@ -21,3 +21,19 @@
       "whole numbers pass through")
   (is (= [60 67 72] (t/run (lib/degrees->pitches (lib/scale> [55 60 65])) {:from-lo 55.0 :from-hi 65.0 :to-lo 0.0 :to-hi 7.0}))
       "a walk's range onto one octave of steps"))
+
+(deftest rotate-moves-the-front-round-to-the-back
+  (is (= [2 3 1] (t/run (lib/rotate [1 2 3]) {})) "one place left by default")
+  (is (= [3 1 2] (t/run (lib/rotate [1 2 3]) {:steps -1})) "negative goes right")
+  (is (= [] (t/run (lib/rotate []) {})) "nothing to rotate")
+  (is (= [0 1 0 0 1 0 1 0] (t/run (lib/rotate lib/euclid) {:steps 2}))
+      "euclid, rotated: the tresillo two places on")
+  (is (= [1 0 0 1 0 0 1 0] (t/run lib/euclid {})) "euclid itself takes no rotation"))
+
+(deftest rotating-by-an-index-is-what-the-necklace-algo-gave
+  ;; necklace picked the index-th unique rotation, wrapping: the same pattern as rotating by the index
+  (doseq [n (range 1 7) m (range (bit-shift-left 1 n))
+          :let [p (mapv #(bit-and 1 (bit-shift-right m %)) (range n))
+                unique (vec (distinct (map #(vec (concat (drop % p) (take % p))) (range n))))]
+          i (range 12)]
+    (is (= (unique (mod i (count unique))) (t/run (lib/rotate p) {:steps i})))))

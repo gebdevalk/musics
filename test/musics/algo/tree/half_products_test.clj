@@ -86,19 +86,19 @@
 
 (deftest pulse-algos-vary-durations
   (is (= #{:duration/emi :duration/mutate :duration/oblique :duration/rnn :duration/tuplets
-           :duration/necklace :duration/bracelet :duration/crossover :duration/tiling}
+           :duration/bracelet :duration/crossover :duration/tiling}
          (set (for [[k v] (t/algos) :when (and (= "duration" (namespace k)) (seq (:in v)))] k))))
   (testing "durations become a pulse grid and back"
     (is (= [0 0 1 0 0 0 1] (vec (hp/durations->pulses [(d/rest* nil nil 1/8) 1/4 1/16] 1/16))))
     (is (= [1/8 1/4 3/8] (vec (t/run (lib/pulses->durations (vec (hp/durations->pulses [1/8 1/4 3/8] 1/16))) {})))))
   (let [ds [1/8 1/8 1/4 3/8 1/8]]
-    (testing "a rotation keeps the durations and their sum"
-      (let [r (t/run (algo :duration/necklace ds) {:index 2})]
+    (testing "a bracelet member keeps the durations and their sum"
+      (let [r (t/run (algo :duration/bracelet ds) {:index 3})]
         (is (= (sort ds) (sort r)))
         (is (= (reduce + ds) (reduce + r)))))
     (testing "two rhythms crossed"
       (is (= [1/8 1/8 1/4 1/4 1/4] (t/run (algo :duration/crossover ds [1/4 1/4 1/4 1/4]) {:crossover-point 4}))))
     (testing "the grid is the resolution: a duration rounds to whole pulses"
-      (is (= [1/8 1/4] (t/run (algo :duration/necklace [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
+      (is (= [1/8 1/4] (t/run (algo :duration/bracelet [1/16 3/16]) {:index 0 :duration-pulse 1/8}))))
     (testing "on the shop floor, after a specialised source"
       (is (seq (t/run (lib/zip (algo :duration/emi (algo :duration/euclid)) (lib/cycle> lib/scale)) {:k 5 :n 16}))))))

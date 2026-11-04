@@ -58,8 +58,7 @@
 (deftest introspection-reads-arglists-doc-and-metadata
   (let [e (reg/algo :euclid)]
     (is (= 'musics.algo.rhythmic.pattern/euclid (:full e)))
-    (is (= [:k :n :rotation] (map :name (:params e))))
-    (is (= 0 (:default (last (:params e)))) "rotation's default comes from its own :or")
+    (is (= [:k :n] (map :name (:params e))))
     (is (= :pulse (:out e)))
     (is (str/starts-with? (:doc e) "Distribute k beats"))))
 
@@ -90,7 +89,7 @@
 
 (deftest trees-print-and-show-as-their-expression
   (is (= "#node (zip (pulses->durations (euclid)) (cycle> (scale)))" (pr-str riff)))
-  (is (= "#algo (euclid :k :n :rotation)" (pr-str euclid)))
+  (is (= "#algo (euclid :k :n)" (pr-str euclid)))
   (is (= '(zip (pulses->durations (euclid :as :bass)) [60 62])
          (t/show (zip (pulses->durations (euclid :as :bass)) [60 62])))))
 
@@ -113,14 +112,14 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest keys-are-bare-unless-different-algos-share-a-name
-  (is (= [:k :n :rotation :pulse :root :intervals] (map :key (t/param-keys riff))))
+  (is (= [:k :n :pulse :root :intervals] (map :key (t/param-keys riff))))
   (is (= [:subdivisions :adherence] (map :key (t/param-keys (power (tilt indisp)))))
       "identical specs share one key")
-  (is (= [:euclid.k :n :rotation :clash.k] (map :key (t/param-keys (clash euclid))))
+  (is (= [:euclid.k :n :clash.k] (map :key (t/param-keys (clash euclid))))
       "different specs under one name each get :<short>.<name>"))
 
 (deftest a-named-instance-gets-its-own-keys
-  (is (= [:bass/k :bass/n :bass/rotation :k :n :rotation]
+  (is (= [:bass/k :bass/n :k :n]
          (map :key (t/param-keys (union (euclid :as :bass) euclid)))))
   (is (= [1 0 1 1 1 1 1 0] (t/run (union (euclid :as :bass) euclid) {:bass/k 2 :k 5}))
       "E(2,8) from :bass/k, E(5,8) from :k, merged"))
@@ -138,7 +137,7 @@
   (let [tctx (t/tctx riff)]
     (is (= #{:params-atom} (set (keys tctx))) "its own shape, not a music context")
     (is (= {} @(:params-atom tctx)) "it sets nothing yet")
-    (is (= {:k 3 :n 8 :rotation 0 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
+    (is (= {:k 3 :n 8 :pulse 1/16 :root 60 :intervals [0 2 4 7 9]} (t/params tctx)) "the defaults show through")
     (is (= [[60] [62] [64]] (map :pitches (t/run riff tctx))))
     (t/setp! tctx :k 5)
     (is (= {"k" 5} @(:params-atom tctx)) "a setting is the name an @^{ } writes")
@@ -305,7 +304,7 @@
     (let [{:keys [name tree params]} (first (get-in @gs/*state [:wall :trees]))]
       (is (= :riff name))
       (is (= "(zip (pulses->durations (euclid)) (cycle> (scale)))" tree))
-      (is (= [:k :n :rotation :pulse :root :intervals] (map :key params)))
+      (is (= [:k :n :pulse :root :intervals] (map :key params)))
       (is (= 3 (:value (first params)))))
     (gs/set-tree-param! :riff :k 5)
     (is (= 5 (:k (t/params tctx))) "a control writes through setp!")
