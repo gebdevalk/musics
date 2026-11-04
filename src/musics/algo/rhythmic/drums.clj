@@ -110,7 +110,7 @@
                           (accent vel) (assoc :dynamic (accent vel))))
                       hits (concat (rest onsets) [total]))))))
 
-(defn drum-pattern
+(defn drums
   "A drum-kit groove of :bars bars of 4/4 in :style, as parallel layers,
    one per kit piece that plays (kick, snare, rim, clap, hats, toms,
    crash, ride -- in that order): each a vector of Drum/Rest maps, the
@@ -122,8 +122,8 @@
    on the context's volume; timing and velocity spread come from the
    :humanization context key.
 
-   (drum-pattern :funk 8 0.75 0.2 1)"
-  {:algo {:short :drums :in [] :out :part
+   (drums :funk 8 0.75 0.2 1)"
+  {:algo {:in [] :out :part
           :params {:style   {:type :keyword :default :rock :choices styles :doc "the groove's style"}
                    :bars    {:type :int :min 1 :max 64 :default 8 :doc "bars of 4/4"}
                    :density {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "how many hats and ghost notes"}

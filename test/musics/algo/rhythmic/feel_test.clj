@@ -9,15 +9,15 @@
 
 (deftest swing-quantization-delays-upbeats-only
   (is (= [0.0 1.0 2.0 3.0]
-         (micro/swing-quantization [1 0 1 0 1 0 1 0] 0.67))))
+         (micro/swing [1 0 1 0 1 0 1 0] 0.67))))
 
 (deftest swing-quantization-straight-is-identity-on-the-grid
   (is (= [0.0 0.5 1.0 1.5]
-         (micro/swing-quantization [1 1 1 1] 0.5))))
+         (micro/swing [1 1 1 1] 0.5))))
 
 (deftest swing-quantization-upbeats-land-at-the-ratio-of-their-pair
   ;; step 0.5: a pair of steps spans 1.0, the upbeat sits swing-ratio into it
-  (let [ts (micro/swing-quantization [1 1 1 1] 0.75)]
+  (let [ts (micro/swing [1 1 1 1] 0.75)]
     (is (= [0.0 0.75 1.0 1.75] ts))
     (is (apply < ts))))
 
@@ -51,23 +51,23 @@
   ;; within [len/2, len*2]
   (dotimes [_ 50]
     (let [pattern [1 0 1 0 1 0 1 0]
-          varied (micro/emi-style-variation pattern 0.3)]
+          varied (micro/emi pattern 0.3)]
       (is (<= (quot (count pattern) 2) (count varied) (* (count pattern) 2))))))
 
 (deftest emi-style-variation-at-similarity-1-never-mutates
-  (is (= [1 0 1 0 1 0 1 0] (micro/emi-style-variation [1 0 1 0 1 0 1 0] 1.0))))
+  (is (= [1 0 1 0 1 0 1 0] (micro/emi [1 0 1 0 1 0 1 0] 1.0))))
 
 (deftest oblique-strategies-cover-every-deterministic-transform
   (let [pattern [1 0 1 1 0]]
-    (is (= [0 1 1 0 1] (micro/oblique-strategies-transform pattern "reverse")))
-    (is (= [0 1 0 0 1] (micro/oblique-strategies-transform pattern "invert")))
-    (is (= [1 1 1 0 0 0 1 1 1 1 1 1 0 0 0] (micro/oblique-strategies-transform pattern "slowest")))
-    (is (= [1 1 0] (micro/oblique-strategies-transform pattern "fastest")))
-    (is (= [1 0 1 0 0] (micro/oblique-strategies-transform pattern "disconnect")))
-    (is (= [1 0 1 0 0] (micro/oblique-strategies-transform pattern "only_essentials")))
-    (is (= [0 0 0 0 0] (micro/oblique-strategies-transform pattern "silence")))
-    (is (= [1 0 1 1 0 1 0 1 1 0] (micro/oblique-strategies-transform pattern "double")))
-    (is (= [1 0 1 1 0 0 1 1 0 1] (micro/oblique-strategies-transform pattern "mirror")))))
+    (is (= [0 1 1 0 1] (micro/oblique pattern "reverse")))
+    (is (= [0 1 0 0 1] (micro/oblique pattern "invert")))
+    (is (= [1 1 1 0 0 0 1 1 1 1 1 1 0 0 0] (micro/oblique pattern "slowest")))
+    (is (= [1 1 0] (micro/oblique pattern "fastest")))
+    (is (= [1 0 1 0 0] (micro/oblique pattern "disconnect")))
+    (is (= [1 0 1 0 0] (micro/oblique pattern "only_essentials")))
+    (is (= [0 0 0 0 0] (micro/oblique pattern "silence")))
+    (is (= [1 0 1 1 0 1 0 1 1 0] (micro/oblique pattern "double")))
+    (is (= [1 0 1 1 0 0 1 1 0 1] (micro/oblique pattern "mirror")))))
 
 (deftest oblique-strategies-unknown-name-is-a-no-op
-  (is (= [1 0 1] (micro/oblique-strategies-transform [1 0 1] "not-a-real-strategy"))))
+  (is (= [1 0 1] (micro/oblique [1 0 1] "not-a-real-strategy"))))

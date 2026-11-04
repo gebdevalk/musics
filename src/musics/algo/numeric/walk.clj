@@ -9,7 +9,7 @@
             [musics.algo.numeric.random :refer [rand-double shuffle uniform weighted-coin rising falling]]))
 
 
-(defn cyclic-random
+(defn cyclic
   "Returns a function that yields random items from coll, reshuffling
    after exhausting all items. Perfect for arpeggios or drum fills.
 
@@ -20,7 +20,7 @@
    The reset, lookup, and index increment now all happen inside one
    atomic swap!, so the item is always read from whichever pool is
    actually current.)"
-  {:algo {:short :cyclic :pull {} :in [:any] :out :same}}
+  {:algo {:pull {} :in [:any] :out :same}}
   [coll]
   (let [state (atom {:pool (shuffle coll) :idx 0})]
     (fn []
@@ -32,10 +32,10 @@
                    {:pool pool :idx (inc idx) :item (nth pool idx)})))))))
 
 
-(defn random-walk
+(defn walk
   "Returns a function that moves randomly by at most `step-bound` each call.
    Optional clipping keeps values in range. Good for LFOs or gradual changes."
-  {:algo {:short :walk :pull {} :in [] :out :number
+  {:algo {:pull {} :in [] :out :number
           :params {:start      (assoc num-spec :default 60.0 :doc "first value")
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
                    :clip-lo    clip-lo
@@ -68,14 +68,14 @@
         (reset! state (scaling/bound boundary clip-lo clip-hi next))))))
 
 
-(defn pink-noise
+(defn pink
   "Pink (1/f) noise between lo and hi, by Voss's dice.
    Returns a function, Voss's algorithm as Dodge & Jerse give it (8.1): `dice` dice, the
    k-th rolled again whenever bit k of a counter changes, the value
    their sum scaled to [lo hi). The first die changes every call, the
    last seldom, so it wanders like a walk yet stays in its range:
-   between white noise (uniform) and brown (random-walk)."
-  {:algo {:short :pink :pull {} :in [] :out :number
+   between white noise (uniform) and brown (walk)."
+  {:algo {:pull {} :in [] :out :number
           :params {:dice {:type :int :min 1 :max 16 :default 5 :doc "dice: more is slower to change"}
                    :lo   lo
                    :hi   hi}}}
@@ -108,7 +108,7 @@
            (uniform (along lo-start lo-end t) (along hi-start hi-end t))))))
 
 
-(defn smooth-walk
+(defn glide
   "Returns a function that moves toward a target each call with inertia.
    inertia=0 → snaps to target, inertia=1 → ignores target.
    Perfect for portamento or filter envelope following.
@@ -118,9 +118,9 @@
    jumped straight to the target (snapping) -- exactly backwards from
    both this docstring and the conventional physical sense of
    'inertia' (high inertia resists change, moves slowly). Confirmed
-   live before fixing: (smooth-walk 0.0 0 0.0) toward target 10 stayed
-   at 0.0; (smooth-walk 0.0 1 0.0) toward target 10 jumped to 10.0."
-  {:algo {:short :glide :pull {:args [:target]} :in [] :out :number
+   live before fixing: (glide 0.0 0 0.0) toward target 10 stayed
+   at 0.0; (glide 0.0 1 0.0) toward target 10 jumped to 10.0."
+  {:algo {:pull {:args [:target]} :in [] :out :number
           :params {:initial (assoc num-spec :default 60.0 :doc "first value")
                    :inertia (assoc unit-spec :default 0.8 :doc "0 = snaps to target, 1 = ignores it")
                    :step    (assoc pos-spec :default 0.5 :doc "random wobble")
@@ -174,7 +174,7 @@
 (defn generative-patch
   "Returns a function that generates musical events with rising/falling tendencies."
   []
-  (let [pitch-cycler (cyclic-random (range 60 72))
+  (let [pitch-cycler (cyclic (range 60 72))
         velocity-walk (biased-walk 80 15 0.4 :clip-lo 30 :clip-hi 127) ;; slight down bias
         rhythm-trigger #(weighted-coin 0.3)
         duration-fn #(falling 0.1 0.5 0.6)] ;; shorter durations favored

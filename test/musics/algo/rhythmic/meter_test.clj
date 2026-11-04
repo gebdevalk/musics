@@ -14,12 +14,12 @@
 
 (deftest metric-modulation-converts-tempo-by-ratio
   (is (= [0.0 0.375]
-         (poly/metric-modulation 120 3/2 [1 0 1 0]))))
+         (poly/metric-mod 120 3/2 [1 0 1 0]))))
 
 (deftest nested-tuplets-expands-one-level
   (is (= [1 0 0 0 0 1 0 0]
-         (poly/nested-tuplets [1 0 1] 3/2 1))))
+         (poly/tuplets [1 0 1] 3/2 1))))
 
 (deftest nested-tuplets-recurses-for-depth-two
   (is (= [1 0 0 0 0 0 0 0 0 0 0]
-         (poly/nested-tuplets [1 0] 3/2 2))))
+         (poly/tuplets [1 0] 3/2 2))))

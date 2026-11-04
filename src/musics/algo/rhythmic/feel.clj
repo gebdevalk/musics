@@ -18,16 +18,16 @@
 ;; delay, a domain/engine feature) -- same word, different namespace,
 ;; different concern; see that feature's own micro_timing_test.clj.
 
-(defn swing-quantization
+(defn swing
   "Swung onset timings (in beat-duration units, not seconds) of
    pattern's own 1s: on-grid on downbeats, delayed by swing-ratio
    (0.5=straight, ~0.67=typical swing) on upbeats. subdivision is grid
    steps per beat (2 = classic eighth-note swing)."
-  {:algo {:short :swing :in [:pulse] :out :onset :arity 3
+  {:algo {:in [:pulse] :out :onset :arity 3
           :params {:swing-ratio {:type :double :min 0.0 :max 1.0 :default 0.6 :doc "0.5 straight, ~0.67 swung"}
                    :subdivision {:type :int :min 1 :max 8 :default 2 :doc "grid steps per beat"}}}}
-  ([pattern] (swing-quantization pattern 0.6 2))
-  ([pattern swing-ratio] (swing-quantization pattern swing-ratio 2))
+  ([pattern] (swing pattern 0.6 2))
+  ([pattern swing-ratio] (swing pattern swing-ratio 2))
   ([pattern swing-ratio subdivision]
    (let [beat-duration (/ 1.0 subdivision)]
      (vec (keep (fn [[i v]]
@@ -99,7 +99,7 @@
          leaves onsets)))
 
 (comment
-  (swing-quantization [1 0 1 0 1 0 1 0] 0.67)
+  (swing [1 0 1 0 1 0 1 0] 0.67)
   (humanize-rhythm [0.0 0.25 0.5 0.75])
   (pocket-groove [1 0 0 1 0 1 0 0])
   )
@@ -117,7 +117,7 @@
 ;; musics.algo.rhythmic.feel, once "transform" turned out too wide a name for
 ;; two genuinely distinct concerns (2026-09-05).
 
-(defn emi-style-variation
+(defn emi
   "Vary pattern in the style of David Cope's EMI: independently, for
    each position, with probability (1 - similarity) apply a random
    mutation (flip this bit, swap it with the next, insert a random bit
@@ -133,9 +133,9 @@
    reproducing. This port instead re-checks the CURRENT length before
    every step, so it always terminates cleanly regardless of how many
    inserts/deletes have happened so far."
-  {:algo {:short :emi :in [:pulse] :out :pulse :arity 2
+  {:algo {:in [:pulse] :out :pulse :arity 2
           :params {:similarity {:type :double :min 0.0 :max 1.0 :default 0.7 :doc "1 = unchanged"}}}}
-  ([pattern] (emi-style-variation pattern 0.7))
+  ([pattern] (emi pattern 0.7))
   ([pattern similarity]
    (if (empty? pattern)
      []
@@ -175,20 +175,20 @@
    "double"          (fn [p] (vec (concat p p)))
    "mirror"          (fn [p] (vec (concat p (reverse p))))})
 
-(defn oblique-strategies-transform
+(defn oblique
   "Apply one of the named oblique-strategies transforms to pattern.
    strategy \"random\" (the default) picks one uniformly at random each
    call; an unrecognized strategy name is a no-op (returns pattern
    unchanged)."
-  {:algo {:short :oblique :in [:pulse] :out :pulse :arity 2
+  {:algo {:in [:pulse] :out :pulse :arity 2
           :params {:strategy {:type :string :default "random" :choices ["random" "reverse" "invert" "slowest" "fastest" "disconnect" "only_essentials" "mistakes" "silence" "double" "mirror"] :doc "which transform"}}}}
-  ([pattern] (oblique-strategies-transform pattern "random"))
+  ([pattern] (oblique pattern "random"))
   ([pattern strategy]
    (let [strategy (if (= strategy "random") (rand/choose (keys oblique-strategies)) strategy)
          f (get oblique-strategies strategy identity)]
      (f pattern))))
 
 (comment
-  (emi-style-variation [1 0 1 0 1 0 1 0] 0.8)
-  (oblique-strategies-transform [1 0 1 1 0] "reverse")
+  (emi [1 0 1 0 1 0 1 0] 0.8)
+  (oblique [1 0 1 1 0] "reverse")
   )

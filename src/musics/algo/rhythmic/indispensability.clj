@@ -71,7 +71,7 @@
           (recur (inc i) (+ r (* a digit'))))
         r))))
 
-(defn indispensability
+(defn indisp
   "Barlow indispensability for a meter whose beats decompose into
    subdivisions (an ordered factor sequence, e.g. [2 2 3] for 12/8's
    default grouping -- see musics.common.music-elements/default-subdivisions/
@@ -79,7 +79,7 @@
    N-1), one per pulse position 0..N-1, where N is the product of
    subdivisions. Each factor must be 2, 3, 5, or 7 (see
    indispensability-digit-fn)."
-  {:algo {:short :indisp :in [] :out :weight
+  {:algo {:in [] :out :weight
           :params {:subdivisions {:type :vector :default [2 2 3]
                                   :doc "meter's factor grouping, each 2, 3, 5 or 7"}}}}
   [subdivisions]
@@ -114,7 +114,7 @@
          (musics.algo.common.rotate/rotate 3)
          musics.algo.common.pulse/grid->pulses)"
   [subdivisions]
-  (normalize-weights (indispensability subdivisions)))
+  (normalize-weights (indisp subdivisions)))
 
 ;; The golden ratio -- an arbitrary but conventional choice of
 ;; irrational constant (any irrational works; this one is a common
@@ -122,7 +122,7 @@
 ;; down to a magnitude far below anything musically audible.
 (def ^:private tie-break-phi (* 1e-6 (/ (+ 1 (Math/sqrt 5)) 2)))
 
-(defn tilt-probabilities
+(defn tilt
   "Softmax over a vector of indispensability ranks (or any weights),
    temperature-scaled by adherence -- higher adherence pushes probability
    mass toward the more indispensable (higher-ranked) pulses more
@@ -141,7 +141,7 @@
    exact, reference-table-verified 0..N-1 permutation), so the same
    adherence value means the same thing regardless of how many pulses
    the meter has."
-  {:algo {:short :tilt :in [:weight] :out :weight
+  {:algo {:in [:weight] :out :weight
           :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
                                :doc "how strongly rank predicts sounding (negative inverts)"}}}}
   [psi-vals adherence]
@@ -158,7 +158,7 @@
 ;; (e.g. 1/(1-|adherence|), infinite right at the edge) would have.
 (def ^:private power-law-max-exponent 8.0)
 
-(defn power-law-probabilities
+(defn power
   "Power-law reshaping over a vector of indispensability ranks (or any
    weights): raises normalized weights to an exponent driven by
    adherence, always ORDER-PRESERVING (or, for negative adherence,
@@ -185,7 +185,7 @@
    gets -- power-law does, for whichever position's own base is exactly
    0 (the least-indispensable pulse when adherence >= 0, the downbeat
    itself when adherence < 0), at every adherence including 0."
-  {:algo {:short :power :in [:weight] :out :weight
+  {:algo {:in [:weight] :out :weight
           :params {:adherence {:type :double :min -1.0 :max 1.0 :default 0.5
                                :doc "how strongly rank predicts sounding (negative inverts)"}}}}
   [psi-vals adherence]
@@ -217,11 +217,11 @@
     (mapv #(if (contains? keep %) 1 0) (range n))))
 
 (comment
-  (indispensability [2 2 3])       ;; => [11 0 4 8 2 6 10 1 5 9 3 7]
-  (tilt-probabilities (indispensability [2 2]) 0.5)
-  (tilt-probabilities (indispensability [2 2]) 0.0)   ;; distinct, not [.25 .25 .25 .25]
-  (power-law-probabilities (indispensability [2 2]) 0.8)
-  (power-law-probabilities (indispensability [2 2]) -0.8)
-  (density-grid (indispensability [2 2]) 0.5)   ;; => [1 0 1 0]
+  (indisp [2 2 3])       ;; => [11 0 4 8 2 6 10 1 5 9 3 7]
+  (tilt (indisp [2 2]) 0.5)
+  (tilt (indisp [2 2]) 0.0)   ;; distinct, not [.25 .25 .25 .25]
+  (power (indisp [2 2]) 0.8)
+  (power (indisp [2 2]) -0.8)
+  (density-grid (indisp [2 2]) 0.5)   ;; => [1 0 1 0]
   (normalized-indispensability [2 2])   ;; => [1.0 0.0 0.6666... 0.3333...]
   )

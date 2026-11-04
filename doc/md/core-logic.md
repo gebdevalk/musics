@@ -33,8 +33,8 @@ Status: partly built.
   A relation that runs in both directions (spelling → MIDI, MIDI → every
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
-  search by hand:** `musics.algo.rhythmic.process/constraint-satisfaction-rhythm`,
-  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.counterpoint.imitation/generate`.
+  search by hand:** `musics.algo.rhythmic.process/csp`,
+  `musics.algo.melodic.melody/constrained` and `musics.algo.counterpoint.imitation/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives
   backtracking and pruning, and returns either a correct answer or `nil`.
@@ -202,7 +202,7 @@ spelling and `respell-fn` could both be built on this.
 
 ## 4. Markov chains on spelled pitches
 
-`markov-train` / `markov-generate` already work with any value that has
+`markov-train` / `markov-gen` already work with any value that has
 `=` and a hash, so canonical spelled maps (§2) work with them unchanged.
 What needs deciding is **what the state is**. Each choice is a single
 function applied before training, and each trades how faithful the
@@ -246,7 +246,7 @@ rejecting a step means backtracking, which leads to the next point.
 
 ### Constrained Markov generation (core.logic)
 
-`markov-generate` walks forward and takes whatever comes next. It cannot
+`markov-gen` walks forward and takes whatever comes next. It cannot
 also promise "end on the tonic", "stay between C3 and G5" or "no
 triple sharps". Writing the transition table as a relation and searching
 with backtracking gives exactly those guarantees. Every step is still a
@@ -279,7 +279,7 @@ For order > 1 the state is the last `order` items, carried through the
 recursion the same way. It works on any of the three state views above.
 For the interval view, `ok?` checks the realized pitch: run `+interval`
 along the path and reject any `:a` outside -2..2 or any pitch out of
-range. This also covers what `constraint-melody` + `cadence-constraint`
+range. This also covers what `constrained` + `cadence-constraint`
 are trying to do (§5), but with learned transitions in place of a
 scale.
 
@@ -294,7 +294,7 @@ the adapter to `:pitch` (`:m`) so a spelled result can feed
 every existing node.
 
 Dead ends get more frequent with sparser spelled states. When
-`markov-generate` reaches a state with no transitions, it jumps to a
+`markov-gen` reaches a state with no transitions, it jumps to a
 random state seen in training and plays all of it, so the join
 is a transition the training data never had. `constrained-markov`
 backtracks out of dead ends instead of jumping.
@@ -303,7 +303,7 @@ backtracks out of dead ends instead of jumping.
 
 ## 5. The existing constraint generators
 
-### `constraint-satisfaction-rhythm`: full enumeration, no pruning
+### `csp`: full enumeration, no pruning
 
 It tries 0 and then 1 at every position and only checks the predicates
 once a pattern is complete. That is 2^n patterns, which is why its
@@ -341,10 +341,10 @@ positions, not 0/1 cells:
 The same shape handles "fill a bar of 16 sixteenths with five distinct
 note values" (`fd/in` over `(fd/domain 1 2 3 4 6 8)`), a fixed number
 of onsets, onsets required on given pulses, and similar constraints.
-`all-interval-rhythm`, which its own docstring calls "not a true
+`all-interval`, which its own docstring calls "not a true
 all-interval series", becomes exact.
 
-### `constraint-melody`: greedy, so it can break its own constraints
+### `constrained`: greedy, so it can break its own constraints
 
 When no scale note satisfies every constraint, it picks any scale note.
 With `(max-leap-constraint scale 2)` and `(cadence-constraint 16 0)`, if
@@ -637,7 +637,7 @@ actions instead of algos.
 2. Add core.logic and `musics.algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.
-3. Port `constraint-satisfaction-rhythm` to `fd` (§5). It is
+3. Port `csp` to `fd` (§5). It is
    self-contained and easy to compare against the current version.
 4. Write `first-species` on spelled pitches. Then decide whether
    `counterpoint/generate` gets a backtracking mode or is replaced.

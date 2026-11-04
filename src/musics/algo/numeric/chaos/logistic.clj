@@ -8,7 +8,7 @@
 
 (ns musics.algo.numeric.chaos.logistic)
 
-(defn logistic-function
+(defn logistic
   "A logistic map generator -- the classic discrete chaotic system
    x = r*x*(1-x), iterated one step per call. Returns a map of three
    closures sharing private r/x atoms: :value (0-arg -- advances the
@@ -38,12 +38,12 @@
    r = 3.8 and r = 3.9 were both checked live and gave properly
    aperiodic, wide-ranging sequences from the first call on.
 
-   (def lg (logistic-function 3.8 0.5))
+   (def lg (logistic 3.8 0.5))
    ((:value lg))  ;; advance one step, get the next x, in (0,1)"
-  {:algo {:short :logistic :pull {:via :value} :in [] :out :number :arity 2
+  {:algo {:pull {:via :value} :in [] :out :number :arity 2
           :params {:r {:type :double :min 0.0 :max 4.0 :default 3.8 :doc "growth rate; chaotic above ~3.57"}
                    :x {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "starting value"}}}}
-  ([] (logistic-function 3.0 0.6486168175923613))
+  ([] (logistic 3.0 0.6486168175923613))
   ([r x]
    (let [r (atom r)
          x (atom x)]

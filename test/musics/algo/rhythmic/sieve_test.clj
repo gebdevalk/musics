@@ -9,7 +9,7 @@
 
 (deftest clapping-music-phases-rotates-progressively
   (let [pattern [1 1 1 0 1 1 0 1 0 1 1 0]
-        phases  (ps/clapping-music-phases pattern 3)]
+        phases  (ps/phases pattern 3)]
     (is (= [[1 1 1 0 1 1 0 1 0 1 1 0]
             [1 1 0 1 1 0 1 0 1 1 0 1]
             [1 0 1 1 0 1 0 1 1 0 1 1]]
@@ -18,15 +18,15 @@
 (deftest clapping-music-duet-returns-static-and-shifted
   (let [pattern [1 1 1 0 1 1 0 1 0 1 1 0]]
     (is (= [pattern [0 1 1 0 1 0 1 1 0 1 1 1]]
-           (ps/clapping-music-duet pattern 3)))))
+           (ps/duet pattern 3)))))
 
 (deftest xenakis-sieve-unions-multiple-residue-classes
   (is (= [1 1 1 1 1 0 1 1 0 1 1 0]
-         (ps/xenakis-sieve [3 4] [[0 1] [2]] 12))))
+         (ps/sieve [3 4] [[0 1] [2]] 12))))
 
 (deftest sieve-from-intervals-places-beats-at-cumulative-sums
   (is (= [1 0 1 0 1 0 1 0 1 0]
-         (ps/sieve-from-intervals [2 3] 10))))
+         (ps/interval-sieve [2 3] 10))))
 
 ;; ============================================================
 ;; automaton-test
@@ -37,10 +37,10 @@
           [0 0 1 0 1 0 0]
           [0 1 0 0 0 1 0]
           [1 0 1 0 1 0 1]]
-         (map vec (partition 7 (ps/automaton 90 7 4 :single))))))
+         (map vec (partition 7 (ps/ca 90 7 4 :single))))))
 
 (deftest a-random-start-gives-width-times-steps-pulses
-  (let [ps (ps/automaton 30 16 8 :random)]
+  (let [ps (ps/ca 30 16 8 :random)]
     (is (= 128 (count ps)))
     (is (every? #{0 1} ps))))
 
@@ -81,4 +81,4 @@
   (is (= [] (ps/vuza-canon 9))))
 
 (deftest tiled-is-the-tilings-grid
-  (is (= (first (ps/rhythmic-tiling [1 0] [0 1] 4)) (ps/tiled [1 0] [0 1] 4))))
+  (is (= (first (ps/rhythmic-tiling [1 0] [0 1] 4)) (ps/tiling [1 0] [0 1] 4))))

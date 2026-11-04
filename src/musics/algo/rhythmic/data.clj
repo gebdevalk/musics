@@ -25,18 +25,18 @@
               (mean (subvec (vec data) start end))))
           (range n))))
 
-(defn data-to-rhythm
+(defn data-rhythm
   "Binary pattern from any numerical data sequence: 1 where a value
    exceeds a threshold, 0 otherwise. threshold-type is \"median\"
    (default), \"mean\", or \"adaptive\" (each position compared against
    the mean of its own local +-2 window instead of one global
    threshold). smoothing > 1 first replaces each value with the mean of
    its own +-(smoothing/2) window."
-  {:algo {:short :data-rhythm :in [:number] :out :pulse :arity 3
+  {:algo {:in [:number] :out :pulse :arity 3
           :params {:threshold-type {:type :string :default "median" :choices ["median" "mean" "adaptive"] :doc "onset above this"}
                    :smoothing      {:type :int :min 1 :max 16 :default 1 :doc "window averaged first"}}}}
-  ([data] (data-to-rhythm data "median" 1))
-  ([data threshold-type] (data-to-rhythm data threshold-type 1))
+  ([data] (data-rhythm data "median" 1))
+  ([data threshold-type] (data-rhythm data threshold-type 1))
   ([data threshold-type smoothing]
    (if (empty? data)
      []
@@ -55,15 +55,15 @@
                             (mean data))]
            (mapv #(if (> % threshold) 1 0) data)))))))
 
-(defn stock-market-rhythm
+(defn trend-rhythm
   "Rhythm from price trends: for each price at or past lookback, compare
    it to the simple moving average of the previous lookback prices --
    2 (strong beat) if more than 2% above the SMA, 1 (weak beat) if
    above it, -1 (a rest/silence marker) if more than 2% below it, 0
    otherwise. The first lookback positions are always 0 (no SMA yet)."
-  {:algo {:short :trend-rhythm :in [:number] :out :weight :arity 2
+  {:algo {:in [:number] :out :weight :arity 2
           :params {:lookback {:type :int :min 1 :max 64 :default 5 :doc "moving-average window"}}}}
-  ([prices] (stock-market-rhythm prices 5))
+  ([prices] (trend-rhythm prices 5))
   ([prices lookback]
    (if (< (count prices) (inc lookback))
      (vec (repeat (count prices) 0))
@@ -94,7 +94,7 @@
         total (if (str/ends-with? word "e") (dec total) total)]
     (if (zero? total) 1 total)))
 
-(defn text-to-rhythm
+(defn text-rhythm
   "Rhythmic pattern from text's own linguistic structure. mode
    \"syllables\" (default): each word contributes a beat on its first
    syllable, rests for the rest. \"words\": each word contributes one
@@ -103,10 +103,10 @@
    alternate stressed/unstressed starting on the stress. Any sentence-
    ending punctuation (. ! ?) anywhere in text appends one trailing
    rest."
-  {:algo {:short :text-rhythm :in [] :out :weight :arity 2
+  {:algo {:in [] :out :weight :arity 2
           :params {:text {:type :string :default "Hello world this is rhythm." :doc "the text"}
                    :mode {:type :string :default "syllables" :choices ["syllables" "words" "stress"] :doc "what makes an onset"}}}}
-  ([text] (text-to-rhythm text "syllables"))
+  ([text] (text-rhythm text "syllables"))
   ([text mode]
    (let [words (str/split (str/trim text) #"\s+")
          words (if (= words [""]) [] words)
@@ -134,7 +134,7 @@
        pattern))))
 
 (comment
-  (data-to-rhythm [1.0 3.0 2.0 5.0 1.0 4.0 2.0 6.0] "median")
-  (stock-market-rhythm [100 101 99 102 105 98 110 95 103 108])
-  (text-to-rhythm "Hello world this is rhythm." "syllables")
+  (data-rhythm [1.0 3.0 2.0 5.0 1.0 4.0 2.0 6.0] "median")
+  (trend-rhythm [100 101 99 102 105 98 110 95 103 108])
+  (text-rhythm "Hello world this is rhythm." "syllables")
   )

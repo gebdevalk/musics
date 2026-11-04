@@ -1189,7 +1189,7 @@ treat it as a line; only the walk and mu's printer (`shuffle [ … ]`)
 look at the mark. mu's `[?]` makes one (on data it still shuffles now;
 `shuffle` always does). Spelled as a prefix command like `repeat` for
 now; how mu's words and the text's spelling come together is the next
-design question (doc/md/row-forms.md). Randomness is musics.algo.numeric.random's
+design question (doc/md/row-forms.md). Randomness is musics.algo.random's
 seeded generator, so a seed repeats a performance.
 
 ## 2026-10-17 — mu's retrograde sounds backwards; naturals print with n
@@ -1241,7 +1241,7 @@ not taken.
 ## 2026-10-17 — choose [ … ]; [|] chooses, [||] bars
 
 `choose [ … ]` (short `CHS`) plays one of its elements, picked at random
-(musics.algo.numeric.random, seeded), each time it is entered -- a repeat around
+(musics.algo.random, seeded), each time it is entered -- a repeat around
 it picks anew every pass; each alternative is one element, so a group
 is written as a line of its own. Its length, where one is needed
 (`d/duration`), is its longest element's. mu's `[|]` (`choosing`) makes
@@ -1263,7 +1263,7 @@ error); mu's `[|]` takes them as data on top (`x '[3 1] [|]`).
 
 ## 2026-10-17 — the random generator is xorshift32 again
 
-`musics.algo.numeric.rng/rnd-step` applied its three shifts to the
+`musics.algo.random.core/rnd-step` applied its three shifts to the
 original state instead of each to the one before, so its draws were
 skewed (rand-double averaged 0.34; `choose 3,1` played 7:1). It is
 Marsaglia's xorshift32 now, each step kept to 32 bits; every seeded

@@ -10,10 +10,10 @@
 ;; (shared mutable state at namespace load time).
 
 (deftest logistic-map-is-deterministic-given-seed
-  (let [v1 ((:value (lg/logistic-function 3.0 0.5)))
-        v2 ((:value (lg/logistic-function 3.0 0.5)))]
+  (let [v1 ((:value (lg/logistic 3.0 0.5)))
+        v2 ((:value (lg/logistic 3.0 0.5)))]
     (is (= v1 v2) "two fresh instances, same r/x, agree on their own first step")))
 
 (deftest logistic-map-matches-formula
-  (let [{:keys [value]} (lg/logistic-function 3.2 0.4)]
+  (let [{:keys [value]} (lg/logistic 3.2 0.4)]
     (is (= (* 3.2 0.4 (- 1 0.4)) (value)))))

@@ -19,17 +19,17 @@
   ;; bug rather than catching it -- confirmed live before fixing
   ;; (2026-09-14), against the textbook-known tresillo/cinquillo
   ;; patterns, not just internal self-consistency.
-  (is (= [1 0 0 1 0 0 1 0] (a/euclidean-rhythm 3 8)) "the tresillo")
-  (is (= [1 0 1 1 0 1 1 0] (a/euclidean-rhythm 5 8)) "the cinquillo")
-  (is (= [1 0 1 0 1 0 1 0] (a/euclidean-rhythm 4 8)))
-  (is (= [1 0 0 0 0] (a/euclidean-rhythm 1 5)))
-  (is (= [0 0 0 0] (a/euclidean-rhythm 0 4))))
+  (is (= [1 0 0 1 0 0 1 0] (a/euclid 3 8)) "the tresillo")
+  (is (= [1 0 1 1 0 1 1 0] (a/euclid 5 8)) "the cinquillo")
+  (is (= [1 0 1 0 1 0 1 0] (a/euclid 4 8)))
+  (is (= [1 0 0 0 0] (a/euclid 1 5)))
+  (is (= [0 0 0 0] (a/euclid 0 4))))
 
 (deftest fibonacci-test
-  (is (= [1 1 1 1 0 1 0 0 1 0 0 0 0] (a/fibonacci-rhythm 13))))
+  (is (= [1 1 1 1 0 1 0 0 1 0 0 0 0] (a/fibonacci 13))))
 
 (deftest prime-test
-  (let [r (a/prime-rhythm 10)]
+  (let [r (a/primes 10)]
     (is (= 10 (count r)))
     (is (= 1 (nth r 2)))
     (is (= 1 (nth r 3)))
@@ -40,13 +40,13 @@
   ;; Regression test: the zero-padding used to be concatenated BEFORE
   ;; the real values, so this always returned all-zeros regardless of
   ;; input -- confirmed live before fixing (2026-09-03).
-  (let [r (a/lindenmayer-rhythm "A" {"A" "AB" "B" "A"} 3 10)]
+  (let [r (a/lsys-rhythm "A" {"A" "AB" "B" "A"} 3 10)]
     (is (= 10 (count r)))
     (is (some pos? r) "must produce real, non-trivial pulses, not all zeros"))
-  (is (= [1 0 1 1 0 0 0 0 0 0] (a/lindenmayer-rhythm "A" {"A" "AB" "B" "A"} 3 10)))
-  (is (= [1 0 1 1 0] (a/lindenmayer-rhythm "A" {"A" "AB" "B" "A"} 3 5))
+  (is (= [1 0 1 1 0 0 0 0 0 0] (a/lsys-rhythm "A" {"A" "AB" "B" "A"} 3 10)))
+  (is (= [1 0 1 1 0] (a/lsys-rhythm "A" {"A" "AB" "B" "A"} 3 5))
       "shorter length -- still real values, correctly truncated")
-  (is (= [1 0 0 0 0 0] (a/lindenmayer-rhythm "A" {} 0 6))
+  (is (= [1 0 0 0 0 0] (a/lsys-rhythm "A" {} 0 6))
       "no rules/iterations -- axiom itself expands to just \"A\", padded with zeros"))
 
 (deftest markov-rhythm-test
@@ -69,19 +69,19 @@
 ;; ============================================================
 
 (deftest modular-test
-  (is (= [1 0 0 0 1 0 0] (a/modular-rhythm 4 3 7 0))))
+  (is (= [1 0 0 0 1 0 0] (a/modular 4 3 7 0))))
 
 (deftest continued-fraction-test
   ;; Regression test: the zero-padding used to be concatenated BEFORE
   ;; the real values via an unbounded (repeat 0), so this always
   ;; returned all-zeros regardless of input -- confirmed live before
   ;; fixing (2026-09-03).
-  (let [r (a/continued-fraction-rhythm 1.5 8)]
+  (let [r (a/cfrac 1.5 8)]
     (is (= 8 (count r)))
     (is (some pos? r) "must produce real, non-trivial pulses, not all zeros"))
-  (is (= [1 0 0 0 0 0 0 0] (a/continued-fraction-rhythm 1.5 8)))
-  (is (= [1 1 1 1 0 0 0 0 1 0] (a/continued-fraction-rhythm 3.7 10)))
-  (is (= [1 0 0] (a/continued-fraction-rhythm 1.5 3))
+  (is (= [1 0 0 0 0 0 0 0] (a/cfrac 1.5 8)))
+  (is (= [1 1 1 1 0 0 0 0 1 0] (a/cfrac 3.7 10)))
+  (is (= [1 0 0] (a/cfrac 1.5 3))
       "shorter length -- still real values, correctly truncated"))
 
 ;; ============================================================
@@ -90,20 +90,20 @@
 
 (deftest cantor-set-rhythm-removes-middle-thirds-recursively
   (is (= [1 0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 1 0 1]
-         (a/cantor-set-rhythm 3 27))))
+         (a/cantor 3 27))))
 
 (deftest dragon-curve-rhythm-folds-and-flips
   (is (= [1 1 0 1 1 0 0 1 1 1 0 0 1 0 0 1 1 1 0 1 1 0 0 0 1 1 0 0 1 0 0]
-         (a/dragon-curve-rhythm 4))))
+         (a/dragon 4))))
 
 (deftest polygon-rotation-rhythm-marks-vertex-alignments
   (is (= [1 0 0 0 0 0 0 0]
-         (a/polygon-rotation-rhythm 5 8 0.0))))
+         (a/polygon 5 8 0.0))))
 
 (deftest circle-of-fifths-rhythm-front-loads-the-active-notes
   (is (= (vec (concat (repeat 12 1) (repeat 12 0)))
-         (a/circle-of-fifths-rhythm 12 24))))
+         (a/fifths-rhythm 12 24))))
 
 (deftest golden-ratio-rhythm-spreads-beats-with-shrinking-steps
   (is (= [1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0]
-         (a/golden-ratio-rhythm 21))))
+         (a/golden 21))))

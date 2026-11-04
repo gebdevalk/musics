@@ -11,37 +11,37 @@
 ;; 1-2 -- Steve Reich's phase-shifting technique ("Clapping Music") and
 ;; Xenakis' sieve theory.
 
-(defn clapping-music-phases
+(defn phases
   "Phase-shifting patterns in the style of Reich's Clapping Music: total
    phases rotations of pattern, each shifted one place further than the
    last. total-phases defaults to (count pattern)."
-  {:algo {:short :phases :in [:pulse] :out :layer :arity 2
+  {:algo {:in [:pulse] :out :layer :arity 2
           :params {:total-phases {:type :int :min 1 :max 64 :default 12 :doc "rotations"}}}}
-  ([pattern] (clapping-music-phases pattern (count pattern)))
+  ([pattern] (phases pattern (count pattern)))
   ([pattern total-phases]
    (if (empty? pattern)
      []
      (mapv #(rotate pattern %) (range total-phases)))))
 
-(defn clapping-music-duet
+(defn duet
   "The two parts of Clapping Music: pattern unchanged, and pattern phase
    shifted by phase places. Returns [static-part shifted-part]."
-  {:algo {:short :duet :in [:pulse] :out :layer :arity 2
+  {:algo {:in [:pulse] :out :layer :arity 2
           :params {:phase {:type :int :min 0 :max 64 :default 1 :doc "places shifted"}}}}
-  ([pattern] (clapping-music-duet pattern 0))
+  ([pattern] (duet pattern 0))
   ([pattern phase]
    (if (empty? pattern)
      [[] []]
      [pattern (rotate pattern phase)])))
 
-(defn xenakis-sieve
+(defn sieve
   "Xenakis sieve: a binary pattern of the given length where position i
    is 1 iff (i mod m) is in the matching residue list, for at least one
    (modulus, residues) pair in moduli/residues (parallel vectors).
 
-   (xenakis-sieve [3 4] [[0 1] [2]] 12)
+   (sieve [3 4] [[0 1] [2]] 12)
    ;=> position in the sieve when (i mod 3) is 0 or 1, OR (i mod 4) is 2"
-  {:algo {:short :sieve :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:moduli   {:type :vector :default [3 4] :doc "one per residue list"}
                    :residues {:type :vector :default [[0 1] [2]] :doc "onset when i mod m is one of these"}
                    :length   {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
@@ -53,10 +53,10 @@
             1 0))
         (range length)))
 
-(defn sieve-from-intervals
+(defn interval-sieve
   "A pattern with beats at the cumulative sums of intervals, cycling
    through intervals as many times as needed to reach length."
-  {:algo {:short :interval-sieve :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:intervals {:type :vector :default [2 3] :doc "gaps between onsets, cycled"}
                    :length    {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
   [intervals length]
@@ -68,10 +68,10 @@
         (recur (assoc pattern position 1) (+ position step))))))
 
 (comment
-  (clapping-music-phases [1 1 1 0 1 1 0 1 0 1 1 0] 3)
-  (clapping-music-duet [1 1 1 0 1 1 0 1 0 1 1 0] 3)
-  (xenakis-sieve [3 4] [[0 1] [2]] 12)
-  (sieve-from-intervals [2 3] 10)
+  (phases [1 1 1 0 1 1 0 1 0 1 1 0] 3)
+  (duet [1 1 1 0 1 1 0 1 0 1 1 0] 3)
+  (sieve [3 4] [[0 1] [2]] 12)
+  (interval-sieve [2 3] 10)
   )
 
 ;; ============================================================
@@ -87,11 +87,11 @@
               (if (bit-test rule (+ (* 4 l) (* 2 c) r)) 1 0)))
           (range n))))
 
-(defn automaton
+(defn ca
   "An elementary cellular automaton's generations as pulses: :width cells
    a bar, :steps bars, the first a single live cell in the middle or
    :random. Rule 90 draws Sierpinski's triangle, 30 chaos, 110 structure."
-  {:algo {:short :ca :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:rule  {:type :int :min 0 :max 255 :default 90 :doc "Wolfram's rule number"}
                    :width {:type :int :min 3 :max 64 :default 16 :doc "cells, pulses a bar"}
                    :steps {:type :int :min 1 :max 64 :default 8 :doc "generations, bars"}
@@ -167,25 +167,25 @@
 
 (defn- nth-wrapping [xs index] (if (seq xs) (nth xs (mod index (count xs))) []))
 
-(defn rotation
+(defn necklace
   "The index-th of pattern's unique rotations (rhythm-necklace), wrapping."
-  {:algo {:short :necklace :in [:pulse] :out :pulse
+  {:algo {:in [:pulse] :out :pulse
           :params {:index {:type :int :min 0 :max 63 :default 1 :doc "which rotation"}}}}
   [pattern index]
   (nth-wrapping (rhythm-necklace pattern) index))
 
-(defn bracelet-member
+(defn bracelet
   "The index-th of pattern's unique rotations and reversals
    (rhythm-bracelet), wrapping."
-  {:algo {:short :bracelet :in [:pulse] :out :pulse
+  {:algo {:in [:pulse] :out :pulse
           :params {:index {:type :int :min 0 :max 63 :default 1 :doc "which rotation or reversal"}}}}
   [pattern index]
   (nth-wrapping (rhythm-bracelet pattern) index))
 
-(defn binary-necklace
+(defn necklaces
   "The index-th rotation class of n pulses with k onsets
    (all-binary-necklaces), wrapping."
-  {:algo {:short :necklaces :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:n     {:type :int :min 1 :max 16 :default 8 :doc "pulses"}
                    :k     {:type :int :min 0 :max 16 :default 3 :doc "onsets"}
                    :index {:type :int :min 0 :max 1023 :default 0 :doc "which class"}}}}
@@ -224,10 +224,10 @@
           [after-a false]
           [after-b (every? #(= 1 %) after-b)])))))
 
-(defn tiled
+(defn tiling
   "The grid rhythmic-tiling lays from pattern-a and pattern-b over
    length pulses (whether or not they tile it exactly)."
-  {:algo {:short :tiling :in [:pulse :pulse] :out :pulse
+  {:algo {:in [:pulse :pulse] :out :pulse
           :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
   [pattern-a pattern-b length]
   (first (rhythmic-tiling pattern-a pattern-b length)))

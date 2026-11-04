@@ -11,11 +11,11 @@
 ;; EVENT/RHYTHM GENERATORS
 ;; ------------------------------------------------------------
 
-(defn random-rhythm
+(defn random-onsets
   "Generates a sequence of event times within num-beats.
    Each beat has density% chance of containing an event.
-   Example: (random-rhythm 0.25 16 0.3) → sparse 16th-note pattern"
-  {:algo {:short :random-onsets :in [] :out :onset
+   Example: (random-onsets 0.25 16 0.3) → sparse 16th-note pattern"
+  {:algo {:in [] :out :onset
           :params {:beat-duration (assoc pos-spec :default 0.25 :doc "time per tick")
                    :num-beats     {:type :int :min 1 :max 256 :default 16 :doc "ticks"}
                    :density       (assoc unit-spec :default 0.5 :doc "chance per tick")}}}
@@ -25,7 +25,7 @@
     (filter some? events)))
 
 
-(defn poisson-events
+(defn poisson
   "Event onset times within [0, duration), Poisson-process style: keeps
    drawing inter-arrival gaps from an exponential distribution with the
    given rate (expected events per unit duration -- the same rate
@@ -35,9 +35,9 @@
    clustering/spacing, rather than random-rhythm's per-tick coin-flip
    approximation of the same idea.
 
-   (poisson-events 4 8) → a handful of onsets across an 8-beat phrase,
+   (poisson 4 8) → a handful of onsets across an 8-beat phrase,
    averaging 4 per beat"
-  {:algo {:short :poisson :in [] :out :onset
+  {:algo {:in [] :out :onset
           :params {:rate     (assoc pos-spec :min 0.01 :default 2.0 :doc "events per unit")
                    :duration (assoc pos-spec :default 4.0 :doc "span")}}}
   [rate duration]
@@ -57,14 +57,14 @@
 ;; and Markov/RNN-style generators. Every random draw goes through
 ;; musics.algo.numeric.random (seedable, algo-safe) rather than raw clojure.core/rand.
 
-(defn stochastic-rhythm
+(defn stochastic
   "Binary pattern of the given length, placed according to distribution
    ('uniform', 'gaussian', 'poisson', or 'exponential') at roughly the
    given density (0.0-1.0). params is a map of distribution-specific
    keys: :mean/:std for 'gaussian' (default length/2, length/6), :rate
    for 'poisson' (default density*10), :decay for 'exponential'
    (default 2.0)."
-  {:algo {:short :stochastic :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:distribution {:type :string :default "gaussian" :doc "where onsets fall"
                                   :choices ["uniform" "gaussian" "poisson" "exponential"]}
                    :params       {:type :map :default {} :doc "e.g. {:mean 8 :std 2} for gaussian"}
@@ -104,15 +104,15 @@
 
     (vec (repeat length 0))))
 
-(defn cloud-rhythm
+(defn cloud
   "A Xenakis-style granular \"cloud\" of num-events timings spread evenly
    across duration (seconds), each jittered by Gaussian noise (std
    time-std, scaled to the average inter-event gap), sorted ascending."
-  {:algo {:short :cloud :in [] :out :onset :arity 3
+  {:algo {:in [] :out :onset :arity 3
           :params {:num-events {:type :int :min 1 :max 256 :default 16 :doc "events"}
                    :duration   {:type :double :min 0.0 :max ##Inf :default 4.0 :doc "span"}
                    :time-std   {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "jitter, per gap"}}}}
-  ([num-events duration] (cloud-rhythm num-events duration 0.1))
+  ([num-events duration] (cloud num-events duration 0.1))
   ([num-events duration time-std]
    (let [gap (/ duration num-events)]
      (->> (range num-events)
@@ -125,11 +125,11 @@
 
 ;; ── Genetic rhythm ───────────────────────────────────────────
 
-(defn mutate-genome
+(defn mutate
   "Flip each bit of pattern independently with probability mutation-rate."
-  {:algo {:short :mutate :in [:pulse] :out :pulse :arity 2
+  {:algo {:in [:pulse] :out :pulse :arity 2
           :params {:mutation-rate {:type :double :min 0.0 :max 1.0 :default 0.1 :doc "chance a bit flips"}}}}
-  ([pattern] (mutate-genome pattern 0.1))
+  ([pattern] (mutate pattern 0.1))
   ([pattern mutation-rate]
    (mapv #(if (rand/weighted-coin mutation-rate) (- 1 %) %) pattern)))
 
@@ -143,10 +143,10 @@
    [(vec (concat (subvec (vec a) 0 crossover-point) (subvec (vec b) crossover-point)))
     (vec (concat (subvec (vec b) 0 crossover-point) (subvec (vec a) crossover-point)))]))
 
-(defn crossover-child
+(defn crossover
   "One child of crossover-genomes: 0 starts as a and ends as b, 1 the
    other way round."
-  {:algo {:short :crossover :in [:pulse :pulse]
+  {:algo {:in [:pulse :pulse]
           :out :pulse
           :params {:crossover-point {:type :int :min 0 :max 256 :default 4 :doc "where the parents swap"}
                    :child           {:type :int :min 0 :max 1 :default 0 :doc "which child"}}}}
@@ -154,13 +154,13 @@
   (let [n (min (count a) (count b))]
     (nth (crossover-genomes (take n a) (take n b) (min crossover-point n)) child)))
 
-(defn genetic-rhythm
+(defn genetic
   "Evolve a rhythmic pattern of pattern-length over generations, scored
    by fitness-fn (pattern -> higher-is-better number), via tournament
    selection + single-point crossover + per-bit mutation. elitism is
    the fraction of the fittest individuals carried over unchanged each
    generation. Returns the single best pattern found."
-  {:algo {:short :genetic :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:population-size {:type :int :min 2 :max 512 :default 20 :doc "patterns per generation"}
                    :pattern-length  {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :generations     {:type :int :min 0 :max 500 :default 20 :doc "generations"}
@@ -184,8 +184,8 @@
                          (let [p1 (tournament population)
                                p2 (tournament population)
                                [c1 c2] (crossover-genomes (:pattern p1) (:pattern p2))
-                               c1 (mutate-genome c1 mutation-rate)
-                               c2 (mutate-genome c2 mutation-rate)]
+                               c1 (mutate c1 mutation-rate)
+                               c2 (mutate c2 mutation-rate)]
                            [(genome c1) (genome c2)]))
               filled (loop [pop elite]
                        (if (>= (count pop) population-size)
@@ -195,14 +195,14 @@
 
 ;; ── Markov / RNN ─────────────────────────────────────────────
 
-(defn markov-chain-rhythm
+(defn chain-rhythm
   "Higher-order Markov chain rhythm generation: transitions maps a
    state (any value -- typically a vector of the last N beats) to a map
    of {next-state probability}. Walks from initial-state, appending the
    FIRST element of each new state to the output, until length beats
    are produced. A state with no entry in transitions falls back to a
    uniform-random binary next state."
-  {:algo {:short :chain-rhythm :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:transitions   {:type :map :default {[1 0] {[0 1] 0.7 [1 1] 0.3} [0 1] {[1 0] 0.8 [0 0] 0.2} [1 1] {[1 0] 1.0} [0 0] {[0 1] 1.0}} :doc "state -> {next-state prob}"}
                    :initial-state {:type :vector :default [1 0] :doc "first state"}
                    :length        {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
@@ -215,16 +215,16 @@
                           (vec (repeatedly (count current-state) #(rand/rand-int 0 2))))]
         (recur (conj pattern (first next-state)) next-state)))))
 
-(defn rnn-rhythm
+(defn rnn
   "Deterministic toy-RNN rhythm continuation: seed-pattern is extended
    for iterations steps by repeatedly running a tiny sigmoid-thresholded
    recurrent network (weights, a square matrix -- default a fixed
    3-neuron example) over its own previous state, appending the first
    neuron's binary output each step."
-  {:algo {:short :rnn :in [:pulse] :out :pulse :arity 3
+  {:algo {:in [:pulse] :out :pulse :arity 3
           :params {:weights    {:type :vector :default [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] :doc "square matrix"}
                    :iterations {:type :int :min 0 :max 256 :default 8 :doc "pulses added"}}}}
-  ([seed-pattern iterations] (rnn-rhythm seed-pattern [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] iterations))
+  ([seed-pattern iterations] (rnn seed-pattern [[0.1 0.8 -0.3] [-0.2 0.5 0.7] [0.6 -0.1 0.4]] iterations))
   ([seed-pattern weights iterations]
    (let [n (count weights)]
      (loop [pattern (vec seed-pattern)
@@ -240,11 +240,11 @@
            (recur (conj pattern (first new-state)) (mapv double new-state) (inc i))))))))
 
 (comment
-  (stochastic-rhythm "gaussian" {:mean 8 :std 2} 16 0.3)
-  (cloud-rhythm 5 2.0)
-  (genetic-rhythm 20 16 10 (fn [p] (/ (reduce + p) (count p))))
-  (markov-chain-rhythm {[1 0] {[0 1] 0.7 [1 1] 0.3}} [1 0] 8)
-  (rnn-rhythm [1 0 1] 10)
+  (stochastic "gaussian" {:mean 8 :std 2} 16 0.3)
+  (cloud 5 2.0)
+  (genetic 20 16 10 (fn [p] (/ (reduce + p) (count p))))
+  (chain-rhythm {[1 0] {[0 1] 0.7 [1 1] 0.3}} [1 0] 8)
+  (rnn [1 0 1] 10)
   )
 
 ;; ============================================================
@@ -256,16 +256,16 @@
 ;; isorhythmic beat-strength patterns, and backtracking constraint
 ;; satisfaction.
 
-(defn all-interval-rhythm
+(defn all-interval
   "A binary pattern of the given length where the intervals between
    consecutive beats are (as much as possible) all different: starts
    with a beat at 0, then repeatedly jumps by a not-yet-used interval
    (falling back to any interval that still fits once every interval
    has been tried) until reaching the far end. A simplified approach,
    not a true all-interval series."
-  {:algo {:short :all-interval :in [] :out :pulse :arity 1
+  {:algo {:in [] :out :pulse :arity 1
           :params {:length {:type :int :min 1 :max 256 :default 12 :doc "pulses"}}}}
-  ([] (all-interval-rhythm 12))
+  ([] (all-interval 12))
   ([length]
    (loop [pattern (assoc (vec (repeat length 0)) 0 1)
           used-intervals #{}
@@ -285,17 +285,17 @@
                     (conj used-intervals interval)
                     pos'))))))))
 
-(defn isorhythm-strength
+(defn iso-strength
   "Isorhythmic beat-strength pattern: talea (a binary rhythm pattern)
    repeated repetitions times, each of its own 1s replaced by (color
    entry) + 1 -- so the result cycles talea's own ON/OFF shape against
    color's own strength values independently, the classic isorhythmic
    talea/color pairing but expressed as beat strength (1 or 2) rather
    than pitch."
-  {:algo {:short :iso-strength :in [:pulse] :out :weight :arity 3
+  {:algo {:in [:pulse] :out :weight :arity 3
           :params {:color       {:type :vector :default [0 1] :doc "strength per onset, cycled"}
                    :repetitions {:type :int :min 1 :max 16 :default 3 :doc "talea repeats"}}}}
-  ([talea color] (isorhythm-strength talea color 3))
+  ([talea color] (iso-strength talea color 3))
   ([talea color repetitions]
    (let [talea (vec talea) color (vec color) tn (count talea) cn (count color)]
      (vec (mapcat (fn [rep]
@@ -306,7 +306,7 @@
                           (range tn)))
                    (range repetitions))))))
 
-(defn constraint-satisfaction-rhythm
+(defn csp
   "A binary pattern of the given length satisfying every predicate in
    constraints (each a fn from a full-length pattern to a boolean), via
    exhaustive depth-first backtracking (try 0, then 1, at each position
@@ -317,7 +317,7 @@
    effect on the result: the backtracking search overwrites every
    position unconditionally before it's ever read, so the outcome is
    fully determined by the constraints alone. This port skips both."
-  {:algo {:short :csp :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:constraints {:type :vector :default [#(= 3 (reduce + %)) #(= 1 (first %))] :doc "fns pattern -> bool, all must hold"}
                    :length      {:type :int :min 1 :max 16 :default 8 :doc "pulses"}}}}
   [constraints length]
@@ -330,6 +330,6 @@
     (backtrack (vec (repeat length 0)) 0)))
 
 (comment
-  (isorhythm-strength [1 0 1 1] [0 1] 3)
-  (constraint-satisfaction-rhythm [#(>= (reduce + %) 2)] 6)
+  (iso-strength [1 0 1 1] [0 1] 3)
+  (csp [#(>= (reduce + %) 2)] 6)
   )

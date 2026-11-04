@@ -214,7 +214,7 @@
   (let [fs (prime-factors-ascending n)]
     (cond
       (= n 1)                    [0]
-      (every? #{2 3 5 7} fs)     (indisp/indispensability fs)
+      (every? #{2 3 5 7} fs)     (indisp/indisp fs)
       :else                      (vec (cons (dec n) (range (dec n)))))))
 
 (defn- ranks-by
@@ -283,7 +283,7 @@
   [{:keys [num den subdivisions] :as meter}]
   (if (additive? meter)
     (additive-ranks subdivisions)
-    (indisp/indispensability (or subdivisions (default-subdivisions num den)))))
+    (indisp/indisp (or subdivisions (default-subdivisions num den)))))
 
 (def metric-weights
   "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),

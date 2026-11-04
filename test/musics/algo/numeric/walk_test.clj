@@ -56,7 +56,7 @@
   ;; returning a real item. Driving the cycler through many full passes
   ;; (not just one) is what actually exercises that boundary repeatedly.
   (let [coll (range 60 72)
-        gen  (w/cyclic-random coll)]
+        gen  (w/cyclic coll)]
     (dotimes [_ (* 50 (count coll))]
       (let [item (gen)]
         (is (some? item) "never nil, even right at a reshuffle boundary")
@@ -65,7 +65,7 @@
 
 (deftest cyclic-random-every-pass-is-a-permutation-of-coll
   (let [coll (vec (range 5))
-        gen  (w/cyclic-random coll)
+        gen  (w/cyclic coll)
         xs   (repeatedly (* 10 (count coll)) gen)]
     (is (every? #(= (set coll) (set %)) (partition (count coll) xs)))))
 
@@ -75,24 +75,24 @@
 ;; ============================================================
 
 (deftest random-walk-single-step-stays-within-step-bound
-  (let [w (w/random-walk 50 5)]
+  (let [w (w/walk 50 5)]
     (is (<= 45 (w) 55))))
 
 
 (deftest random-walk-clipping-keeps-every-step-in-range
-  (let [w (w/random-walk 50 5 :clip-lo 48 :clip-hi 52)]
+  (let [w (w/walk 50 5 :clip-lo 48 :clip-hi 52)]
     (is (every? #(<= 48 % 52) (repeatedly 100 w)))))
 
 
 (deftest random-walk-two-instances-have-independent-state
-  (let [w1 (w/random-walk 10 1)
-        w2 (w/random-walk 10 1)]
+  (let [w1 (w/walk 10 1)
+        w2 (w/walk 10 1)]
     (dotimes [_ 20] (w1))
     (is (<= 9 (w2) 11) "w2 is unaffected by w1's own 20 steps -- fresh, independent atom")))
 
 
 (deftest random-walk-reflects-off-its-bounds-instead-of-sticking
-  (let [xs (repeatedly 500 (w/random-walk 50 5 :clip-lo 48 :clip-hi 52 :boundary :reflect))]
+  (let [xs (repeatedly 500 (w/walk 50 5 :clip-lo 48 :clip-hi 52 :boundary :reflect))]
     (is (every? #(<= 48 % 52) xs))
     (is (not-any? #{48 52 48.0 52.0} xs) "clamping would park on an edge; reflecting doesn't")))
 
@@ -113,7 +113,7 @@
 ;; ============================================================
 
 (deftest pink-noise-stays-in-range-and-is-correlated
-  (let [xs  (vec (repeatedly 2000 (w/pink-noise 5 60 72)))
+  (let [xs  (vec (repeatedly 2000 (w/pink 5 60 72)))
         avg (fn [v] (/ (reduce + v) (count v)))
         a   (pop xs) b (subvec xs 1)
         ma  (avg a) mb (avg b)
@@ -124,7 +124,7 @@
 
 
 (deftest pink-noise-with-one-die-is-white
-  (let [xs (repeatedly 200 (w/pink-noise 1 0 1))]
+  (let [xs (repeatedly 200 (w/pink 1 0 1))]
     (is (< 150 (count (distinct xs))) "the single die is rolled again every call")))
 
 
@@ -137,22 +137,22 @@
   ;; `inertia` directly, inverting the documented meaning -- inertia=0
   ;; used to IGNORE the target entirely, exactly backwards -- confirmed
   ;; live before fixing (2026-09-03).
-  (let [w (w/smooth-walk 0.0 0 0.0)]
+  (let [w (w/glide 0.0 0 0.0)]
     (is (= 10.0 (w 10)))))
 
 
 (deftest smooth-walk-inertia-1-ignores-target
-  (let [w (w/smooth-walk 0.0 1 0.0)]
+  (let [w (w/glide 0.0 1 0.0)]
     (is (= 0.0 (w 10)))))
 
 
 (deftest smooth-walk-inertia-0.5-moves-halfway
-  (let [w (w/smooth-walk 0.0 0.5 0.0)]
+  (let [w (w/glide 0.0 0.5 0.0)]
     (is (= 5.0 (w 10)))))
 
 
 (deftest smooth-walk-state-persists-across-calls
-  (let [w (w/smooth-walk 0.0 0 0.0)]
+  (let [w (w/glide 0.0 0 0.0)]
     (w 10)
     (is (= 20.0 (w 20)) "already at 10 (inertia 0 snapped last call), snaps again to the new target")))
 

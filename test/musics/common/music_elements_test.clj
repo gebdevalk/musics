@@ -103,11 +103,11 @@
 
 (deftest meter-indispensability-uses-default-subdivisions-when-none-given
   (let [m (el/make-meter 12 8)]
-    (is (= (indisp/indispensability [2 2 3]) (el/meter-indispensability m)))))
+    (is (= (indisp/indisp [2 2 3]) (el/meter-indispensability m)))))
 
 (deftest meter-indispensability-honors-explicit-subdivisions
   (let [m (el/make-meter 12 8 [2 3 2])]
-    (is (= (indisp/indispensability [2 3 2]) (el/meter-indispensability m))) "factors, grouped as written"))
+    (is (= (indisp/indisp [2 3 2]) (el/meter-indispensability m))) "factors, grouped as written"))
 
 (deftest an-additive-meter-ranks-its-groups-starts-first
   (let [ranks (el/meter-indispensability (el/make-meter 7 8 [2 2 3]))]

@@ -325,7 +325,7 @@ puts a walk between 55 and 65 onto one octave of steps.
 
 ### Drum grooves
 
-`(drums)` (`musics.algo.rhythmic.drums/drum-pattern`) makes a drum-kit groove of
+`(drums)` (`musics.algo.rhythmic.drums/drums`) makes a drum-kit groove of
 `:bars` bars of 4/4. The `:style` param is one of `:rock` `:pop` `:funk`
 `:hiphop` `:trap` `:jazz` `:house` `:techno` `:metal`. Each groove has a
 backbone, time-keeping, ghost notes, and a fill every 4th bar whose

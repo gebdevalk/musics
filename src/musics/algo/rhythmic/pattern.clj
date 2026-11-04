@@ -13,7 +13,7 @@
 
 ;; ── Euclidean (Bjorklund) ────────────────────────────────────
 
-(defn euclidean-rhythm
+(defn euclid
   "Distribute k beats evenly among n pulses (Bjorklund's algorithm).
 
    (Fixed 2026-09-14: the previous bucket-merging loop's own stopping
@@ -25,7 +25,7 @@
    distributing anything evenly. A real, pre-existing bug, not
    hypothetical: rhythm_test.clj's own euclidean-test had baked the
    buggy output straight into its own hardcoded expectations
-   ([1 1 1 0 0 0 0 0] for (euclidean-rhythm 3 8)), so it silently
+   ([1 1 1 0 0 0 0 0] for (euclid 3 8)), so it silently
    confirmed the bug instead of catching it. Replaced with the
    standard Bjorklund sequence-merging construction (Toussaint, 'The
    Euclidean Algorithm Generates Traditional Musical Rhythms'):
@@ -35,7 +35,7 @@
    tresillo, E(3,8) = [1 0 0 1 0 0 1 0], and E(2,5) = [1 0 1 0 0],
    E(5,8) = [1 0 1 1 0 1 1 0] -- all textbook-known Euclidean
    rhythms, not just internally self-consistent."
-  {:algo {:short :euclid :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:k        {:type :int :min 0 :max 32 :default 3 :doc "onsets"}
                    :n        {:type :int :min 1 :max 32 :default 8 :doc "pulses"}
                    :rotation {:type :int :min 0 :max 32 :doc "steps to rotate the onsets"}}}}
@@ -58,11 +58,11 @@
 
 ;; ── Fibonacci ────────────────────────────────────────────────
 
-(defn fibonacci-rhythm
+(defn fibonacci
   "An onset at every Fibonacci number below length."
-  {:algo {:short :fibonacci :in [] :out :pulse :arity 1
+  {:algo {:in [] :out :pulse :arity 1
           :params {:length {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
-  ([length] (fibonacci-rhythm length [0 1]))
+  ([length] (fibonacci length [0 1]))
   ([length [a b]]
    (let [fibs (take-while #(< % length)
                           (map first (iterate (fn [[x y]] [y (+ x y)]) [a b])))
@@ -74,9 +74,9 @@
 (defn- prime? [n]
   (and (>= n 2) (not-any? #(zero? (mod n %)) (range 2 (inc (long (Math/sqrt n)))))))
 
-(defn prime-rhythm
+(defn primes
   "An onset at every prime below length (and at 1, unless include-one? is false)."
-  {:algo {:short :primes :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:length       {:type :int :min 1 :max 256 :default 16 :doc "pulses"}
                    :include-one? {:type :bool :default true :doc "1 counts"}}}}
   [length & {:keys [include-one?] :or {include-one? true}}]
@@ -88,7 +88,7 @@
 
 ;; ── L-System ─────────────────────────────────────────────────
 
-(defn lindenmayer-rhythm
+(defn lsys-rhythm
   "Expand axiom through rules for iterations generations, mapping each
    character to a 1 (A) or 0 (B, or anything else) pulse, up to length
    pulses -- zero-padded at the END if the expanded string comes up
@@ -96,7 +96,7 @@
    concatenated BEFORE the real values, so the final take only ever
    returned zeros regardless of axiom/rules/iterations -- confirmed
    live, a real bug, not a hypothetical one.)"
-  {:algo {:short :lsys-rhythm :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "A"} :doc "character -> replacement; A = onset"}
                    :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}
@@ -143,9 +143,9 @@
                  (or next-state state))))))
 
 (comment
-  (euclidean-rhythm 3 8)        ;; => [1 0 0 1 0 0 1 0]
-  (fibonacci-rhythm 13)         ;; beats at 0,1,2,3,5,8
-  (prime-rhythm 20)
+  (euclid 3 8)        ;; => [1 0 0 1 0 0 1 0]
+  (fibonacci 13)         ;; beats at 0,1,2,3,5,8
+  (primes 20)
   )
 
 ;; ============================================================
@@ -160,7 +160,7 @@
 
 ;; ── Binary Decomposition ────────────────────────────────────
 
-(defn binary-decomposition-rhythm
+(defn bits
   "number's own binary digits as a 0/1 onset grid, LSB first (pulse 0 =
    the 2^0 bit -- Long/toBinaryString's own MSB-first digits, reversed)
    -- so 13 (binary 1101) becomes [1 0 1 1]. With no length, the grid's
@@ -170,7 +170,7 @@
    zero-extension); a LONG one is truncated via (subvec bits 0 length),
    which keeps the length LOW-order bits and discards the
    more-significant ones, not the other way around."
-  {:algo {:short :bits :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:number {:type :int :min 0 :max ##Inf :default 13 :doc "its bits are the onsets"}
                    :length {:type :int :min 1 :max 64 :default 8 :doc "pulses (zero-padded or cut)"}}}}
   [number & {:keys [length]}]
@@ -184,7 +184,7 @@
 
 ;; ── Continued Fraction ──────────────────────────────────────
 
-(defn continued-fraction-rhythm
+(defn cfrac
   "Continued-fraction expansion of fraction, each term contributing (min
    term 3) pulses of (mod term 2), up to length pulses -- zero-padded
    at the END if the expansion comes up shorter than length. (Fixed
@@ -192,7 +192,7 @@
    values -- (repeat 0), unbounded -- so the final take only ever
    returned zeros regardless of fraction/length -- confirmed live, a
    real bug, not a hypothetical one.)"
-  {:algo {:short :cfrac :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:fraction {:type :double :min 0.0 :max ##Inf :default 3.141592653589793
                               :doc "expanded as a continued fraction"}
                    :length   {:type :int :min 1 :max 256 :default 16 :doc "pulses"}}}}
@@ -210,9 +210,9 @@
 
 ;; ── Modular ──────────────────────────────────────────────────
 
-(defn modular-rhythm
+(defn modular
   "An onset wherever (i*multiplier + offset) is a multiple of modulus."
-  {:algo {:short :modular :in [] :out :pulse
+  {:algo {:in [] :out :pulse
           :params {:modulus    {:type :int :min 1 :max 64 :default 7 :doc "onset when divisible by this"}
                    :multiplier {:type :int :min 0 :max 64 :default 3 :doc "step per pulse"}
                    :length     {:type :int :min 1 :max 256 :default 21 :doc "pulses"}
@@ -222,7 +222,7 @@
         (range length)))
 
 (comment
-  (modular-rhythm 7 3 21 0)
+  (modular 7 3 21 0)
   )
 
 ;; ============================================================
@@ -240,14 +240,14 @@
 ;; whatever the raw expansion produces).
 ;; Fully deterministic, no randomness.
 
-(defn cantor-set-rhythm
+(defn cantor
   "The Cantor set as a rhythm: start with every position on (1), then
    recursively remove the middle third of each remaining run,
    iterations times."
-  {:algo {:short :cantor :in [] :out :pulse :arity 2
+  {:algo {:in [] :out :pulse :arity 2
           :params {:iterations {:type :int :min 0 :max 8 :default 3 :doc "middle thirds removed"}
                    :length     {:type :int :min 1 :max 729 :default 27 :doc "pulses"}}}}
-  ([] (cantor-set-rhythm 3 27))
+  ([] (cantor 3 27))
   ([iterations length]
    (let [pattern (atom (vec (repeat length 1)))]
      (letfn [(remove-middle [start end level]
@@ -260,13 +260,13 @@
        (remove-middle 0 length 0)
        @pattern))))
 
-(defn dragon-curve-rhythm
+(defn dragon
   "The dragon-curve folding sequence as a binary rhythm: start with a
    single beat, then each iteration appends a beat (the fold) followed
    by the pattern-so-far reversed and bit-flipped."
-  {:algo {:short :dragon :in [] :out :pulse :arity 1
+  {:algo {:in [] :out :pulse :arity 1
           :params {:iterations {:type :int :min 0 :max 10 :default 4 :doc "folds; 2^(n+1)-1 pulses"}}}}
-  ([] (dragon-curve-rhythm 4))
+  ([] (dragon 4))
   ([iterations]
    (loop [pattern [1] i 0]
      (if (= i iterations)
@@ -274,16 +274,16 @@
        (let [flipped-reversed (mapv #(- 1 %) (rseq pattern))]
          (recur (vec (concat pattern [1] flipped-reversed)) (inc i)))))))
 
-(defn polygon-rotation-rhythm
+(defn polygon
   "A beat wherever a rotating point comes close (within 0.1 of a full
    revolution's worth) to landing exactly on one of an n-sided polygon's
    own vertices, sampled at rotations evenly-spaced steps around one
    full turn starting at offset (a fraction of a turn)."
-  {:algo {:short :polygon :in [] :out :pulse :arity 3
+  {:algo {:in [] :out :pulse :arity 3
           :params {:sides     {:type :int :min 1 :max 32 :default 5 :doc "polygon sides"}
                    :rotations {:type :int :min 1 :max 256 :default 8 :doc "pulses"}
                    :offset    {:type :double :min 0.0 :max 1.0 :default 0.0 :doc "fraction of a turn"}}}}
-  ([] (polygon-rotation-rhythm 5 8 0.0))
+  ([] (polygon 5 8 0.0))
   ([sides rotations offset]
    (mapv (fn [step]
            (let [angle (* (+ (/ (double step) rotations) offset) 2 Math/PI)
@@ -292,15 +292,15 @@
              (if (< distance 0.1) 1 0)))
          (range rotations))))
 
-(defn circle-of-fifths-rhythm
+(defn fifths-rhythm
   "A beat every (pattern-length / notes) steps, at a position stepping
    round the circle of fifths (+7 semitones mod notes) each time --
    notes defaults to 12 (the chromatic circle), so the classic circle
    of fifths (C G D A E B F# C# G# D# A# F)."
-  {:algo {:short :fifths-rhythm :in [] :out :pulse :arity 2
+  {:algo {:in [] :out :pulse :arity 2
           :params {:notes          {:type :int :min 1 :max 48 :default 12 :doc "circle size"}
                    :pattern-length {:type :int :min 1 :max 256 :default 24 :doc "pulses"}}}}
-  ([] (circle-of-fifths-rhythm 12 24))
+  ([] (fifths-rhythm 12 24))
   ([notes pattern-length]
    (let [step (quot pattern-length notes)]
      (loop [pattern (vec (repeat pattern-length 0)) current 0 i 0]
@@ -310,16 +310,16 @@
            (recur (assoc pattern (mod current pattern-length) 1) (mod (+ current 7) notes) (inc i))
            (recur pattern current (inc i))))))))
 
-(defn golden-ratio-rhythm
+(defn golden
   "A beat at each position reached by repeatedly stepping forward by
    phi * (length / (beat-count + 1)) -- an irrational, ever-shrinking
    step that spreads beats increasingly evenly (a low-discrepancy
    sequence), continuing until the position runs past length."
-  {:algo {:short :golden :in [] :out :pulse :arity 2
+  {:algo {:in [] :out :pulse :arity 2
           :params {:length {:type :int :min 1 :max 256 :default 34 :doc "pulses"}
                    :phi    {:type :double :min 1.0 :max 3.0 :default 1.61803398875 :doc "step ratio"}}}}
-  ([] (golden-ratio-rhythm 34 1.61803398875))
-  ([length] (golden-ratio-rhythm length 1.61803398875))
+  ([] (golden 34 1.61803398875))
+  ([length] (golden length 1.61803398875))
   ([length phi]
    (loop [pattern (vec (repeat length 0)) position 0.0 beat-count 0]
      (if (>= (int position) length)
@@ -330,9 +330,9 @@
          (recur pattern' (+ position (* phi (/ length (inc beat-count')))) beat-count'))))))
 
 (comment
-  (cantor-set-rhythm 3 27)
-  (dragon-curve-rhythm 4)
-  (polygon-rotation-rhythm 5 8 0.0)
-  (circle-of-fifths-rhythm 12 24)
-  (golden-ratio-rhythm 21)
+  (cantor 3 27)
+  (dragon 4)
+  (polygon 5 8 0.0)
+  (fifths-rhythm 12 24)
+  (golden 21)
   )

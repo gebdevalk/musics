@@ -64,9 +64,9 @@
                             (update m s #(conj (or % []) nxt)))
                           {} pairs)}))
 
-(defn markov-generate
+(defn markov-gen
   "A melody of `length` notes walked through a markov-train model."
-  {:algo {:short :markov-gen :in [:model] :out :pitch
+  {:algo {:in [:model] :out :pitch
           :params {:length length-spec
                    :opening {:type :any :default nil :doc "the opening notes, nil = random"}}}}
   [model length & {:keys [opening]}]
@@ -86,10 +86,10 @@
 
 ;; ── L-System Melody ─────────────────────────────────────────
 
-(defn lsystem-melody
+(defn lsys-melody
   "Expand axiom through rules `iterations` times; each character in
    note-map becomes that pitch, others are skipped."
-  {:algo {:short :lsys-melody :in [] :out :pitch
+  {:algo {:in [] :out :pitch
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "CA" "C" "A"} :doc "character -> replacement"}
                    :note-map   {:type :map :default {\A 60 \B 64 \C 67} :doc "character -> pitch"}
@@ -105,11 +105,11 @@
 
 ;; ── Generative Grammar ──────────────────────────────────────
 
-(defn grammar-generate
+(defn grammar
   "Expand `start` through a generative grammar: rules maps a symbol to
    its productions (one chosen at random), terminals are kept as-is.
    \"REST\" terminals are dropped when remove-rests? is true."
-  {:algo {:short :grammar :in [] :out :pitch
+  {:algo {:in [] :out :pitch
           :params {:rules {:type :map :doc "symbol -> productions"
                            :default {'S [['A 'B] ['B 'A 'S]]
                                      'A [[60 64] [67 64]]
@@ -133,11 +133,11 @@
 
 ;; ── Constraint Satisfaction ─────────────────────────────────
 
-(defn constraint-melody
+(defn constrained
   "A melody of `length` notes from scale: each note drawn from those
    every constraint (fn [melody note] -> bool) accepts, any scale note
    when none does."
-  {:algo {:short :constrained :in [:pitch] :out :pitch
+  {:algo {:in [:pitch] :out :pitch
           :params {:length length-spec
                    :constraints {:type :vector :default [#'no-repeat-constraint]
                                  :doc "fns [melody note] -> bool, e.g. max-leap-constraint"}
@@ -153,7 +153,7 @@
               candidates (if (empty? valid) scale valid)]
           (recur (conj melody (rand/choose candidates))))))))
 
-(defn modulating-melody
+(defn modulating
   "Generate a melody across several scale segments in sequence -- each
    [scale-spec length] pair in segments gets its own constraint-melody
    run of exactly length notes, constraints shared across every
@@ -178,10 +178,10 @@
    melody, not a different generator -- its own scale/length/
    constraints/:start contract is otherwise unchanged.
 
-   (modulating-melody [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
+   (modulating [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
    ;; => a 16-note melody, first 8 in C major, next 8 in A minor,
    ;;    pivoting on the hand-off note if it happens to fit both"
-  {:algo {:short :modulating :in [] :out :pitch
+  {:algo {:in [] :out :pitch
           :params {:segments {:type :vector :default [[[:C :major] 8] [[:A :minor] 8]]
                               :doc "[scale-spec length] pairs; pitch classes 0-11"}
                    :constraints {:type :vector :default [#'no-repeat-constraint]
@@ -194,7 +194,7 @@
             scale (pitch/resolve-scale scale-spec)
             pivot (when (and (seq melody) (some #{(peek melody)} scale))
                     (peek melody))
-            piece (constraint-melody scale length constraints :start pivot)]
+            piece (constrained scale length constraints :start pivot)]
         (recur (rest segs) (into melody piece))))))
 
 (defn max-leap-constraint [scale max-degrees]
@@ -242,7 +242,7 @@
       (= note cadence-note) true)))
 
 (comment
-  (constraint-melody c-major 16
+  (constrained c-major 16
     [(max-leap-constraint c-major 2) no-repeat-constraint
      (cadence-constraint 16 0)])
   )

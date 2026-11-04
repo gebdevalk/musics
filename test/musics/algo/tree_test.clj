@@ -57,7 +57,7 @@
 
 (deftest introspection-reads-arglists-doc-and-metadata
   (let [e (reg/algo :euclid)]
-    (is (= 'musics.algo.rhythmic.pattern/euclidean-rhythm (:full e)))
+    (is (= 'musics.algo.rhythmic.pattern/euclid (:full e)))
     (is (= [:k :n :rotation] (map :name (:params e))))
     (is (= 0 (:default (last (:params e)))) "rotation's default comes from its own :or")
     (is (= :pulse (:out e)))
@@ -75,9 +75,9 @@
                         (reg/register! #'bare))))
 
 (deftest short-and-full-names-alias-each-other
-  (is (= 'musics.algo.rhythmic.indispensability/indispensability (t/full-name :indisp)))
-  (is (= :indisp (t/short-name 'musics.algo.rhythmic.indispensability/indispensability)))
-  (is (= (t/algo :indisp) (t/algo 'musics.algo.rhythmic.indispensability/indispensability)))
+  (is (= 'musics.algo.rhythmic.indispensability/indisp (t/full-name :indisp)))
+  (is (= :indisp (t/short-name 'musics.algo.rhythmic.indispensability/indisp)))
+  (is (= (t/algo :indisp) (t/algo 'musics.algo.rhythmic.indispensability/indisp)))
   (is (contains? (t/algos) :euclid)))
 
 (deftest defalgo-keeps-the-raw-fn-callable
@@ -216,16 +216,16 @@
 (deftest trace-returns-every-node-children-first
   (let [tr (t/trace (weights->pulses (tilt indisp)) {})]
     (is (= ['(indisp) '(tilt (indisp)) '(weights->pulses (tilt (indisp)))] (map :node tr)))
-    (is (= (indisp/indispensability [2 2 3]) (:data (first tr)))))
+    (is (= (indisp/indisp [2 2 3]) (:data (first tr)))))
   (is (= (conj (vec (repeat 16 60)) '...)
          (:data (first (t/trace (cycle> [60]) {}))))
       "an infinite lazy seq is previewed, not walked"))
 
 (deftest the-lib-matches-the-plain-functions
-  (let [ranks (indisp/indispensability [2 2 3])]
-    (is (= (indisp/density-grid (indisp/tilt-probabilities ranks 0.8) 0.5)
+  (let [ranks (indisp/indisp [2 2 3])]
+    (is (= (indisp/density-grid (indisp/tilt ranks 0.8) 0.5)
            (t/run (weights->pulses (tilt indisp)) {:adherence 0.8 :density 0.5})))
-    (is (= (indisp/power-law-probabilities ranks -0.8)
+    (is (= (indisp/power ranks -0.8)
            (t/run (power indisp) {:adherence -0.8}))))
   (is (= [[60] [64] [67]] (map :pitches (t/run riff {:intervals [0 4 7]}))))
   (is (= [62 [62 66] nil] (t/run (transpose [60 [60 64] nil]) {:semitones 2})))

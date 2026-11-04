@@ -16,7 +16,7 @@
   [[x y] a b]
   [(+ 1 (- (* a x x)) y) (* b x)])
 
-(defn henon-attractor
+(defn henon
   "The classical Hénon map:
      x' = 1 - a*x^2 + y
      y' = b*x
@@ -41,18 +41,18 @@
    (never NaN/Inf) and keeps visibly moving -- 100 distinct values
    across 100 consecutive steps, no fixed point -- over 500 steps.
 
-   (def hn (henon-attractor))
+   (def hn (henon))
    ((:value hn))  ;; advance one step, get the next [x y]
 
    Typical musical use: x is the one usually mapped to a musical
    parameter (y is a simple scaled memory of x's own previous value,
    b*x, less independently interesting on its own)."
-  {:algo {:short :henon :pull {:via :value} :in [] :out :point :arity 4
+  {:algo {:pull {:via :value} :in [] :out :point :arity 4
           :params {:a  {:type :double :min 0.0 :max 2.0 :default 1.4 :doc "chaotic at 1.4"}
                    :b  {:type :double :min 0.0 :max 1.0 :default 0.3 :doc "chaotic at 0.3"}
                    :x0 {:type :double :min -1.0 :max 1.0 :default 0.1 :doc "starting x"}
                    :y0 {:type :double :min -1.0 :max 1.0 :default 0.1 :doc "starting y"}}}}
-  ([] (henon-attractor 1.4 0.3 0.1 0.1))
+  ([] (henon 1.4 0.3 0.1 0.1))
   ([a b x0 y0]
    (let [params (atom {:a a :b b})
          state  (atom [x0 y0])]

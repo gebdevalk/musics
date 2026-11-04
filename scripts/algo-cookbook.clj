@@ -118,7 +118,7 @@
     :params [["(def p {:k 5})" ""]]
     :runs [["result" "det" "p"]]}
    {:title "Every musics/algo/ generator is an algo: a Fibonacci rhythm"
-    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.pattern/fibonacci-rhythm, by its short name"]]
+    :tree [["(def r3 (zip (pulses->durations fibonacci) (cycle> scale)))" "musics.algo.rhythmic.pattern/fibonacci, by its short name"]]
     :params [["(def p {:length 16 :intervals [0 2 4 5 7 9 11] :pulse 1/16})" ""]]
     :runs [["result" "r3" "p"]]
     :extra [["full name" "(t/full-name :fibonacci)"]]}

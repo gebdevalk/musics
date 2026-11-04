@@ -1,18 +1,18 @@
 (ns musics.algo.rhythmic.decompose)
 
-(defn binary-decompose
+(defn bisect
   "Greedily decompose `duration` into powers of two (largest first), then
    for each term x, expand it into `depth` finer pieces by repeated
    halving -- except the LAST piece of each expansion takes whatever
    remains, rather than being halved away. This guarantees the full
    output always sums exactly back to `duration`, regardless of depth.
 
-   e.g. (binary-decompose 3/4 2)
+   e.g. (bisect 3/4 2)
         base pass: 1/2, 1/4
         expand each: 1/4, 1/4 (from 1/2 -- last piece absorbs the rest)
                        1/8, 1/8 (from 1/4)
         => [1/4 1/4 1/8 1/8] (sums to 3/4)"
-  {:algo {:short :bisect :in [] :out :duration
+  {:algo {:in [] :out :duration
           :params {:duration {:type :ratio :min 1/64 :max 16 :default 1 :doc "total length"}
                    :depth    {:type :int :min 1 :max 8 :default 2 :doc "pieces per power of two"}}}}
   [duration depth]
@@ -33,7 +33,7 @@
                      (recur (- remaining power) (/ power 2) (dec n) (conj acc power)))))]
     (vec (mapcat #(expand % depth) base))))
 
-(defn split-decompose
+(defn split
   "Splits `duration` into `depth` pieces, taking a `ratio`-sized bite off
    the remaining duration at each step and continuing to split what's
    left. The final piece always absorbs whatever remains, so the output
@@ -57,21 +57,21 @@
    ratio = 2/3 -> long-short (long piece kept first)
    ratio = 1/3 -> short-long (short piece kept first)
 
-   e.g. (split-decompose 1 0 1/2) => [1]
-        (split-decompose 1 1 1/2) => [1]
-        (split-decompose 1 4 1/2) => [1/2 1/4 1/8 1/8]
-        (split-decompose 1 3 2/3) => [2/3 2/9 1/9]           ;; whole note, long-short
-        (split-decompose {:pitches [60] :duration 1} 3 2/3)
+   e.g. (split 1 0 1/2) => [1]
+        (split 1 1 1/2) => [1]
+        (split 1 4 1/2) => [1/2 1/4 1/8 1/8]
+        (split 1 3 2/3) => [2/3 2/9 1/9]           ;; whole note, long-short
+        (split {:pitches [60] :duration 1} 3 2/3)
           => [{:pitches [60] :duration 2/3}
               {:pitches [60] :duration 2/9}
               {:pitches [60] :duration 1/9}]"
-  {:algo {:short :split :in [] :out :duration
+  {:algo {:in [] :out :duration
           :params {:duration {:type :ratio :min 1/64 :max 16 :default 1 :doc "total length"}
                    :depth    {:type :int :min 1 :max 32 :default 4 :doc "pieces"}
                    :ratio    {:type :ratio :min 1/16 :max 15/16 :default 1/2 :doc "bite taken each step"}}}}
   [duration depth ratio]
   (if (:duration duration)
-    (mapv #(assoc duration :duration %) (split-decompose (:duration duration) depth ratio))
+    (mapv #(assoc duration :duration %) (split (:duration duration) depth ratio))
     (loop [remaining duration
            n depth
            acc []]

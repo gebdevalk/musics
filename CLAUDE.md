@@ -1525,12 +1525,12 @@ handing the result to `musics.algo.common.pulse/grid->pulses` or
 `density-grid` — no dedicated pipeline mechanism needed, since a
 normalized weight vector is just a plain vector. Two distinct
 reshaping mechanisms consume `adherence`, genuinely different in kind,
-not just curve shape: `tilt-probabilities` is a softmax (temperature-
+not just curve shape: `tilt` is a softmax (temperature-
 scaled by adherence, with a tiny irrational position-based tie-break
 term so it never collapses to an exact uniform tie at adherence=0) —
 `exp(anything)` is always positive, so it never assigns a pulse
 literal zero probability, however extreme adherence gets.
-`power-law-probabilities` instead raises the normalized weight (or, for
+`power` instead raises the normalized weight (or, for
 negative adherence, its complement `1 - weight`) to an adherence-driven
 exponent — always order-preserving (or order-reversing), never
 re-ranks by blending, and CAN assign a pulse exactly zero probability
