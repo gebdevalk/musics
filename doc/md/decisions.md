@@ -3229,3 +3229,13 @@ add about eight tiny algos and as many derived `duration/` words.
 - `reverse` is a tree tool beside `rotate`: the "order" tools `algo-space.md`
   found missing. It lives in `musics.algo.tree.tools`, which excludes it from
   `clojure.core` with the rest.
+
+## 2026-11-04 — step 5: the `density` params stay
+
+Four algos have a `density` param, and none is another function's job:
+`weights->pulses` keeps the strongest fraction of a weighted bar (it calls
+`density-grid`, so the two are one implementation, not two); `random-onsets` is
+a coin per tick; `stochastic` scales its distribution's onset profile (an exact
+count for "uniform"); `drums` thins only the hi-hats and ghost notes. The name
+is shared, the meaning is not, and no existing function does any of the four.
+Nothing changed.
