@@ -84,13 +84,13 @@
   (is (= [true] (:ok (run "'[1 2] '[1.0 2.0] ="))) "element by element, by value")
   (testing "the order signs take numbers only, and say how to play"
     (is (re-find #"^<: needs two numbers, got \"a\" and \"b\"" (:error (run "\"a\" \"b\" <"))))
-    (is (re-find #"^>: needs 2 items on the stack, has 1 -- to play, write \.>" (:error (run "[c d] >"))))
-    (is (re-find #"^>: needs two numbers, got \[C4/4 D4\] and 5 -- to play, write \.>" (:error (run "[c d] 5 >"))))
-    (is (re-find #"^<: needs 2 items on the stack, has 1 -- what a voice plays is \.<" (:error (run ":bass <")))))
+    (is (re-find #"^>: needs 2 items on the stack, has 1 -- to play, write .>" (:error (run "[c d] >"))))
+    (is (re-find #"^>: needs two numbers, got \[C4/4 D4\] and 5 -- to order by something, give a key: c d '\( pitch \) >; to play, write .>" (:error (run "[c d] 5 >"))))
+    (is (re-find #"^<: needs 2 items on the stack, has 1 -- what a voice plays is .<" (:error (run ":bass <")))))
   (testing "the old play signs say what replaced them"
-    (is (re-find #"^>>: isn't a word; write \.>>" (:error (run "[c] >>"))))
-    (is (re-find #"^<<: isn't a word; write \.<<" (:error (run "<<"))))
-    (is (re-find #"^>\+: isn't a word; write \.>\+" (:error (run "[c] >+")))))
+    (is (re-find #"^>>: isn't a word; write .>>" (:error (run "[c] >>"))))
+    (is (re-find #"^<<: isn't a word; write .<<" (:error (run "<<"))))
+    (is (re-find #"^>\+: isn't a word; write .>\+" (:error (run "[c] >+")))))
   (testing "the names are gone"
     (doseq [w ["lt" "gt" "le" "ge" "eq" "ne" "neg" "add" "sub" "mul" "div"]]
       (is (re-find #"unknown word" (:error (run (str "1 2 " w)))) w))))
@@ -573,4 +573,3 @@
     (mu)
     (is (= java.util.logging.Level/WARNING
            (.getLevel (java.util.logging.Logger/getLogger "java.util.prefs"))))))
-

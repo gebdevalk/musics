@@ -2927,3 +2927,18 @@ has none (`from-items`); a word that only changes each note (`map-nodes`:
 `+` `*` `with`) or wraps the whole line (`times`, `cycle`) keeps the line as
 written. `retrograde` also drops them, and refuses jumps instead of dropping
 them (it reads the node's own children). The special cases are gone.
+
+## 2026-11-04 — A key orders anything
+
+`<` `>` `<=` `>=` took numbers only, `=` any two values, and music had no order
+at all (`sort` refused a line). An order of music depends on the question: a
+line has a first note, a highest note, a duration and a length. So the question
+is asked: a quotation on top is a key, read from each side
+(`c d '( pitch ) <`, `[c d] [e f g] '( duration ) <`, `x y '( length ) >`),
+the numbers it gives compared; `=` and `<>` take a key too, comparing whatever
+it reads (`c C5 '( pitch 12 mod ) =`); `sort` takes it and orders any elements,
+the first of equals first, a setting staying in front of its note. The key form
+is the optional third argument (`:mu :optional {:q quotation?}`, as `with`
+picks its shape), the two-value forms are as they were; without a key, music
+is refused with the way to give one. Rejected: ordering notes by pitch and lines
+by duration with no key (the right order is the question's, not the type's).

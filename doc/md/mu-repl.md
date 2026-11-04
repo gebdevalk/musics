@@ -315,7 +315,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 |---|---|
 | **stack** | `dup` `drop` `swap` `over` `rot` `-rot` `nip` `tuck` `pick` `roll` `2dup` `2drop` `1+` `1-` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
 | **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `negate` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
-| **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers); `true` `false` `and` `or` `xor` `not` |
+| **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers, or anything by a key); `true` `false` `and` `or` `xor` `not` |
 | **quotations** | `call` `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R@` (`store` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
@@ -757,7 +757,14 @@ multimethod over what the two values are):
 Anything else is refused, naming both values.
 
 Comparison is Forth's: `= <> < > <= >=`. `<` `>` `<=` `>=` take numbers,
-ratios and durations (`1 2 <`, `/4 /8 >`); `=` and `<>` take any two values:
+ratios and durations (`1 2 <`, `/4 /8 >`), or any two values by a **key**, a
+quotation on top that reads a number from each: `c d '( pitch ) <`,
+`[c d] [e f g] '( duration ) <` (how long), `[c d e] [e f] '( length ) >` (how
+many notes). `=` and `<>` take a key too, then compare what it reads
+(`c C5 '( pitch 12 mod ) =`, the same pitch class). `sort` takes the same key
+and orders any elements by it, the first of equals first: `[e c d] '( pitch )
+sort` is `[c d e]`, `[[c d] [e]] '( length ) sort` is `[[e] [c d]]`. `=` and `<>`
+take any two values:
 two numbers by value (`1 1.0 =`, `1/2 0.5 =` are true), music by its notes,
 names left out (`[c d e] [C4 D4 E4] =` and `[a: c] [c] =` are true), two loops
 by what they repeat, data element by element (another endless stream is

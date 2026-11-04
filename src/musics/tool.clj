@@ -136,9 +136,21 @@
     (/ (reduce + ns) (core/count ns))))
 
 (defn sort
-  "A stream's numbers, the smallest first: '[3 1 2] sort gives '[1 2 3]"
-  [x]
-  (each x (fn [_] (core/sort (mt/numbers-of "sort" x)))))
+  "A stream's numbers, the smallest first: '[3 1 2] sort gives '[1 2 3]; with
+   a key q on top, any elements by the number it reads from each, the first
+   of equals first: [g c e] '( pitch ) sort gives [c e g]"
+  {:mu {:optional {:q v/quotation?}}}
+  ([x]
+   (when (or (v/material? x) (mt/leaf? x))
+     (fail "needs numbers, got" (p/show x) "-- to sort music, give a key: x '( pitch ) sort"))
+   (each x (fn [_] (core/sort (mt/numbers-of "sort" x)))))
+  ([x q]
+   (quotation! q)
+   (each x (fn [els]
+             (let [keyed (mapv (fn [el] [(mt/result "sort" q el) el]) (mt/finite! "sort" els))]
+               (when-let [bad (first (core/remove (comp number? first) keyed))]
+                 (fail "the key must read a number from each element, got" (p/show (first bad))))
+               (core/map second (core/sort-by first keyed)))))))
 
 (defn intervals
   "The steps between a stream's numbers, each minus the one before:

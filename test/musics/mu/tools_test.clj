@@ -182,7 +182,7 @@
 
 (deftest a-word-that-returns-its-input-changed-primes-it-in-its-effect
   (let [effect #(:effect (e/lookup @e/state %))]
-    (doseq [[w head] [["sort" "( x -- x' )"] ["sputter" "( x -- x' )"] ["rotating" "( x n -- x' )"]
+    (doseq [[w head] [["sort" "( x [q] -- x' )"] ["sputter" "( x -- x' )"] ["rotating" "( x n -- x' )"]
                       ["shuffling" "( x -- x' )"]
                       ["times" "( x n -- x' )"] ["cycle" "( x -- x' )"] ["rotate" "( x n -- x' )"]
                       ["take" "( x n -- x' )"] ["+" "( x n -- x' )"]
@@ -808,6 +808,27 @@
     (is (= "[C4/2 D4 | E4 F4]" (top "[c d | e f] 2 *")))
     (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")) "a jump can't be turned round, and is not silently dropped")
     (is (= "repeat 2 [C4/4 D4 | E4 F4]" (top "[c d | e f] 2 times")))))
+
+;; any two values are ordered by a key, a quotation on top that reads a number from each
+(deftest a-key-orders-anything
+  (is (= "true" (top "c d '( pitch ) <")))
+  (is (= "true" (top "[c d] [e f g] '( duration ) <")) "a line by how long it is")
+  (is (= "true" (top "[c d e] [e f] '( length ) >")) "or by how many notes")
+  (is (= "true" (top "c d '( pitch ) <=")))
+  (is (= "false" (top "c d '( pitch ) >=")))
+  (is (= "true" (top "c C5 '( pitch 12 mod ) =")) "= and <> take a key too: the same pitch class")
+  (is (= "true" (top "c d '( pitch ) <>")))
+  (is (= "true" (top "3 5 <")) "without a key, numbers as before")
+  (testing "what is refused says what to do"
+    (is (re-find #"^<: needs two numbers, got C4/4 and D4/4 -- to order by something, give a key: c d '\( pitch \) <" (top "c d <")))
+    (is (re-find #"^<: the key must read a number from each, got '\[60\] and '\[62\]" (top "c d '( pitches ) <"))))
+  (testing "sort orders music by the same key"
+    (is (= "[C4/4 D4 E4]" (top "[e c d] '( pitch ) sort")))
+    (is (= "[[E4/4] [C4 D4] [F4 G4 A4]]" (top "[[c d] [e] [f g a]] '( length ) sort")) "lines by how many notes")
+    (is (= "[!mf C4/4 D4 E4]" (top "[e !mf c d] '( pitch ) sort")) "a setting stays in front of its note")
+    (is (= "'[3 2 1]" (top "'[3 1 2] '( negate ) sort")) "numbers by a key too")
+    (is (= "'[1 2 3]" (top "'[3 1 2] sort")) "and without a key as before")
+    (is (re-find #"^sort: needs numbers, got .* -- to sort music, give a key: x '\( pitch \) sort" (top "[e c d] sort")))))
 
 (deftest nothing-is-not-changed
   (is (= "[]" (top "[] 2 +")) "transposing an empty line writes no key")

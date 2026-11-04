@@ -55,7 +55,9 @@ either side; two lists work in step, as long as the shorter.
 ```
 
 Comparison is Forth's: `= <> < > <= >=`, giving `true` or `false`. The order
-signs take numbers, ratios and durations (`/4 /8 >` is true); `=` and `<>`
+signs take numbers, ratios and durations (`/4 /8 >` is true), or anything by a
+key, a quotation on top that reads a number from each (`c d '( pitch ) <`,
+`[c d] [e f g] '( duration ) <`, and `[e c d] '( pitch ) sort` orders a line); `=` and `<>`
 take any two values, two numbers by value (`1 1.0 =`), music by its notes
 (`[c d] [c d] =`), data element by element.
 
