@@ -16,12 +16,10 @@
             [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
             [musics.mu.about :as about]
-            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
-            [musics.recipe :as recipe]
             [musics.repo :as repo]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
@@ -63,15 +61,12 @@
 ;; -- the repo -------------------------------------------------------------
 
 (defn- store-as [word refuse? value id]
-  (let [stored (mt/store! value id word refuse?)]
-    (when (v/recipe? value) (live/follow! stored (recipe/stored (repo/current stored))))
-    stored))
+  (mt/store! value id word refuse?))
 
 (defn store
   "Store, silently, under the id on top if given; leaves the id it
    stored under. Refused when it would redefine an id that other stored
-   parts use (R!! does that). A recipe is stored as its text; a live voice
-   playing the recipe stored under that id plays the new one from its next note"
+   parts use (R!! does that)"
   {:mu {:names ["R!"] :optional {:id keyword?}}}
   ([value] (store value nil))
   ([value id] (store-as "R!" true value id)))
@@ -84,12 +79,11 @@
   ([value id] (store-as "R!!" false value id)))
 
 (defn fetch
-  "What the repo holds under :id: music, or a recipe rebuilt from its text"
+  "What the repo holds under :id"
   {:mu {:names ["R@"]}}
   [id]
   (when-not (keyword? id) (fail "needs a name, like :motif, got" (p/show id)))
-  (let [n (repo/current id)]
-    (if (= :RECIPE (:type n)) (recipe/stored n) (mt/fetch id))))
+  (mt/fetch id))
 
 (defn- stored-id
   "The id x names -- a name, or material fetched with R@ -- if something
@@ -236,19 +230,15 @@
 
 (defn see!
   "Show a word: its stack effect and what it does -- see dup, or
-   \"dup\" see, 'dup see, '[R] see; a tree recipe: the tree it builds, bridges put in"
+   \"dup\" see, 'dup see, '[R] see"
   [word]
-  (if (v/recipe? word)
-    ;; a tree recipe: as written, and the tree it builds, bridges put in
-    (println (p/show word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
-             (str "\n  takes " (:arity word) " from the stack under it"))
   (let [n (name-of word) entry (e/lookup @e/state n)]
     (println (cond (nil? entry) (str "unknown word: " n " -- " (suggest/hint @e/state n))
                    (:source entry) (:source entry)
                    :else (let [[_ eff what] (re-matches #"(?s)(\(.*?\))\s\s(.*)" (str (:effect entry)))]
                            (if eff
                              (str n " " eff "\n  " what)
-                             (str n " " (:effect entry)))))))))
+                             (str n " " (:effect entry))))))))
 
 (def ^:private guide
   ["mu: music is written as text and goes on the stack; words change it, join it and play it."

@@ -6,7 +6,6 @@
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
-            [musics.algo.tree :as t]
             [musics.engine :as engine]
             [musics.mu.about :as about]
             [musics.mu.eval :as e]
@@ -115,66 +114,32 @@
   "Open musics' GUI beside mu: transport, the parts and their contexts as
    sliders, the Wall, Record MIDI; closing it leaves mu running and gui
    opens it again. With a live voice on top (:riff gui), a window of its
-   settings, a control each; with a tree (compose), its settings and a
-   preview"
-  {:mu {:optional {:x (some-fn keyword? integer? t/node?)}}}
+   inputs, a control each"
+  {:mu {:optional {:x (some-fn keyword? integer?)}}}
   ([]
    ((requiring-resolve 'musics.gui.core/launch!) :dark)
    (keep-javafx!))
   ([x]
-   (cond (t/node? x)                  (t/gui x)
-         (live/input-voice "gui" x)   ((requiring-resolve 'musics.gui.params/open-inputs!) (live/input-voice "gui" x))
-         :else                        (t/gui (live/tctx-of "gui" x)))
+   (if-let [nm (live/input-voice "gui" x)]
+     ((requiring-resolve 'musics.gui.params/open-inputs!) nm)
+     (fail "gui:" (pr-str x) "plays nothing live, so it has no inputs to show -- 5 8 'riff :bass ->"))
    (keep-javafx!)))
 
-;; -- live voices: a play word given a recipe (musics.mu.live) ----------------
-
-(defn set-settings!
-  "Change a live voice's settings, heard on its next note: :riff @^{ onsets:5 } set"
-  {:mu {:names ["set"]}}
-  [voice settings]
-  (when-not (= :TCONTEXT (mt/kind settings))
-    (fail "takes a voice and settings, :riff @^{ onsets:5 } set -- got" (p/show settings)))
-  (let [m (live/settings-of settings)]
-    (when (empty? m) (fail "the settings are empty -- write @^{ onsets:5 }"))
-    (if-let [nm (live/input-voice "set" voice)]
-      (doseq [[k x] m] (inputs/put! nm k x))
-      (t/setp! (live/tctx-of "set" voice) m))))
-
-(defn unset!
-  "Leave a live voice's setting to its recipe's head and the defaults again: :riff 'k unset"
-  [voice nm]
-  (when-not (symbol? nm) (fail "takes a setting's name, 'k -- got" (p/show nm)))
-  (if-let [v (live/input-voice "unset" voice)]
-    (if-let [spec (get (inputs/specs v) (keyword (str nm)))]
-      (inputs/put! v nm (:default spec))
-      (fail (str "unset: :" (name v) " has no input") (str nm)))
-    (t/unsetp! (live/tctx-of "unset" voice) (str nm))))
+;; -- live voices (musics.mu.live) ------------------------------------------------
 
 (defn settings!
-  "A live voice's settings: each param its recipe reads, its value, range,
-   default and what it does; with a parameter's name (settings tempo), its
-   range, default and how it is written"
+  "A live voice's inputs: each one's value, range, default and what it does;
+   with a parameter's name (settings tempo), its range, default and how it is
+   written"
   [voice]
   (if (or (symbol? voice) (string? voice))
     (println (about/settings-text voice))
     (if-let [nm (live/input-voice "settings" voice)]
       (inputs/describe nm)
-      (t/describe (live/tctx-of "settings" voice)))))
+      (fail "settings:" (pr-str voice) "plays nothing live -- 5 8 'riff :bass ->"))))
 
 (defn retree!
-  "A new recipe for a live voice, its settings and position kept: '( … ) :riff retree"
+  "A new quotation for a live voice, its position kept: '( 7 + ) :up retree"
   [recipe voice]
-  (when-not (live/recipe? recipe) (fail "takes a recipe '( … ) and a live voice -- got" (p/show recipe)))
+  (when-not (live/recipe? recipe) (fail "takes a quotation '( … ) and a live voice -- got" (p/show recipe)))
   (live/retree! "retree" recipe voice))
-
-(defn compose
-  "The composer window: build a tree by drag and drop; Finalize leaves it
-   on the stack, a recipe for a play word (compose :riff ->); with a tree,
-   edit it"
-  {:mu {:optional {:tree t/node?}}}
-  ([] (compose nil))
-  ([tree]
-   (keep-javafx!)
-   (or (first (if tree (t/build-tree tree) (t/build-tree)))
-       (fail "the composer was closed without a tree"))))

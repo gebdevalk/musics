@@ -2,8 +2,6 @@
   (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.counterpoint.jeppesen :as cp]
             [musics.algo.counterpoint.jeppesen.intervals :as iv]
-            [musics.algo.tree :as t]
-            [musics.algo.tree.lib :as lib]
             [musics.events :as ev] [musics.mu.store :as store] [musics.repo :as repo]))
 
 (def dorian [62 65 64 62 67 65 69 67 65 64 62])   ; D F E D G F A G F E D
@@ -110,7 +108,7 @@
     (is (= [[:soprano 2] [:tenor :cantus] [:bass 3]] (:parts r)))
     (is (empty? (cp/check r)))))
 
-(deftest as-musics-text-and-tree-algo
+(deftest as-musics-text-and-species
   (let [r (cp/counterpoint {:cantus dorian :voices 2 :kind 5})
         txt (cp/->mus r :cpt)]
     (is (re-find #"\{cpt: \[!acc:explicit" txt))
@@ -118,5 +116,5 @@
     (is (= (reduce + (map #(count (remove (comp nil? first) %)) (:voices r)))
            (count (filter #(= :note (:kind %)) (ev/events (repo/registry) :cpt))))
         "every note parses and plays"))
-  (is (= 2 (count (t/run (lib/species dorian) {:voices 2 :kind 1}))))
-  (is (= [] (t/run (lib/species [60 61]) {})) "no solution: no layers"))
+  (is (= 2 (count (cp/species dorian 2 1 :auto :auto 1))))
+  (is (= [] (cp/species [60 61] 2 1 :auto :auto 1)) "no solution: no layers"))

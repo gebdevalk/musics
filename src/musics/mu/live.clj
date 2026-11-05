@@ -1,66 +1,47 @@
 (ns musics.mu.live
-  "Live voices: a play word given a recipe -- a quotation, or a tree from
-   the composer -- plays live (doc/md/mu-repl.md). Each note the voice
-   reaches is the next note of what the recipe gives now, run on the
-   music under it, or on nothing; a change of the voice's settings, or a
-   new recipe (retree), runs it once more, and the voice goes on at its
-   position (musics.algo.tree.live/bind-run!). The settings are a tctx
-   per live name, fitted to the algo words the recipe runs
-   (musics.mu.algos/*live*), so they know every param it reads."
-  (:require [musics.algo.tree :as t]
-            [musics.algo.tree.live :as tree-live]
-            [musics.engine :as engine]
-            [musics.mu.algos :as algos]
+  "Live voices: a play word given a quotation '( … ), or a word written with $
+   inputs, plays live (doc/md/mu-repl.md). Each note the voice reaches is the
+   next note of what the quotation, or the word, gives now -- run on the music
+   under it, or on nothing, or on the inputs it holds -- and a change (an
+   input stored, a new quotation by retree) runs it once more, the voice going
+   on at its position (musics.mu.voice)."
+  (:require [musics.engine :as engine]
             [musics.mu.eval :as e]
             [musics.mu.inputs :as inputs]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
             [musics.mu.voice :as voice]
-            [musics.recipe :as recipe]
-            [musics.wall :as wall]))
+            [musics.registries :as reg]))
 
 (defn recipe?
-  "A quotation, a tree (the composer's) or a tree recipe @( … ) (musics.recipe)."
+  "A quotation '( … ): what a play word plays live."
   [x]
-  (or (v/quotation? x) (t/node? x) (v/recipe? x)))
+  (v/quotation? x))
 
 (defn- music? [x] (or (v/material? x) (mt/leaf? x) (mt/endless? x) (and (sequential? x) (every? mt/leaf? x))))
 
 (defn- as-leaves
-  "What a recipe left, as the leaves it plays, a loop's endlessly."
+  "What a quotation or a word left, as the leaves it plays, a loop's endlessly."
   [x]
   (cond
     (mt/loop? x) (mapcat mt/played-leaves (mt/elements x))
     (music? x)   (mt/played-leaves x)
-    :else        (e/mu-error "a recipe leaves music, not" (p/show x))))
+    :else        (e/mu-error "a live voice plays music, not" (p/show x))))
 
 (defn- result
-  "What recipe gives on x (nil: on nothing), run with tctx's settings
-   first and chain (the music the voice plays in): a mu value. cache
-   keeps each algo word's last result across runs (musics.mu.algos/*live*)."
-  [recipe x tctx chain cache]
-  (binding [algos/*live* {:tctx tctx :chain chain :cache cache :seen (atom {})}]
-    (if (t/node? recipe)
-      (do (t/fit! tctx recipe) (mt/line (t/run recipe tctx chain)))
-      (let [left (e/call (if (some? x) [x] []) recipe)]
-        (when (empty? left) (e/mu-error "the recipe leaves nothing to play"))
-        (peek left)))))
-
-(defn- run-fn [recipe x cache]
-  (if (v/recipe? recipe)
-    ;; lazy all the way: the voice pulls what it plays, never more
-    (fn [tctx chain] (recipe/result recipe tctx chain (when (some? x) [x])))
-    (fn [tctx chain] (as-leaves (result recipe x tctx chain cache)))))
-
-(defn- empty-tctx
-  "A tctx with no params yet: the recipe's algo words fit it."
-  []
-  (t/tctx (t/as-node 0)))
+  "What quotation q gives on x (nil: on nothing): a mu value."
+  [q x]
+  (let [left (e/call (if (some? x) [x] []) q)]
+    (when (empty? left) (e/mu-error "the quotation leaves nothing to play"))
+    (peek left)))
 
 (def ^:private sources
-  "Live name -> {:x x :recipe r :cache c}: the recipe, the music it runs
-   on (nil: none) and its algo words' last results."
+  "Live name -> {:x x :recipe q}: the quotation and the music it runs on (nil: none)."
+  (atom {}))
+
+(def ^:private word-voices
+  "Voice id -> the word it plays (play-word!), to start it again."
   (atom {}))
 
 (def ^:private counter (atom 0))
@@ -68,78 +49,28 @@
 (defn- fresh-name []
   (keyword (str "live" (swap! counter inc))))
 
-(defn bind!
-  "Bind live name to recipe on x (nil: none), keeping the name's settings
-   when it has some. Returns the name."
-  [name recipe x]
-  (let [tctx  (or (:tctx (wall/registered name))
-                  ;; a copy: set on the voice never reaches the recipe
-                  (when (v/recipe? recipe) (t/tctx (:tree recipe) @(:params-atom (:tctx recipe))))
-                  (empty-tctx))
-        cache (atom {})]
-    (when (v/recipe? recipe)
-      (case (:arity recipe)
-        0 (when (some? x) (e/mu-error "this recipe takes nothing from the stack, it makes its own notes -- play it on nothing: | @( … ) :riff >"))
-        1 (when (nil? x) (e/mu-error "this recipe changes music: give it the music under it, x @( … ) :riff >"))
-        (e/mu-error "a live voice plays one line -- this recipe takes" (:arity recipe) "from the stack; run it"))
-      (when-not (= :leaf (t/out-type (:tree recipe)))
-        (e/mu-error "a live voice plays a line of notes -- this recipe gives" (pr-str (t/out-type (:tree recipe))) "; run it and play what it gives"))
-      ;; a name keeps its settings: the recipe's own fill in what it doesn't set yet
-      (t/fit! tctx (:tree recipe))
-      (let [set @(:params-atom tctx)
-            new (into {} (remove (fn [[n]] (contains? set n)) @(:params-atom (:tctx recipe))))]
-        (when (seq new) (t/setp! tctx new))))
-    (swap! sources assoc name {:x x :recipe recipe :cache cache})
-    (tree-live/bind-run! name (run-fn recipe x cache) (p/show recipe) tctx)
-    name))
-
-(defn follow!
-  "recipe, just stored under id, for every live voice playing the recipe
-   stored there: each plays it from its next note, at its position, its
-   settings the new recipe's (what set gave the voice is left behind)."
-  [id recipe]
-  (doseq [[nm {:keys [x] :as src}] @sources
-          :when (= id (:id (:recipe src)))]
-    (when-let [tctx (:tctx (wall/registered nm))]
-      (reset! (:params-atom tctx) {}))
-    (bind! nm recipe x)))
-
-(defn- seed-from-head!
-  "The voice's settings take the recipe's head (the @^{ } it opens with)
-   for every param it doesn't set yet, so settings and gui show them; an
-   unset goes back to the head as written."
-  [tctx recipe]
-  (when-let [head (and (v/quotation? recipe) (e/head-of recipe))]
-    (let [known (into #{"seed"} (map :own (vals (t/specs tctx))))
-          set   @(:params-atom tctx)
-          new   (into {} (for [[n v] head :when (and (known n) (not (contains? set n)))] [n v]))]
-      (when (seq new) (t/setp! tctx new)))))
+(defn- run-fn [q x]
+  (fn [_vals _chain] (as-leaves (result q x))))
 
 (defn play!
-  "A play word given a recipe: bind a live name (the voice's own, or a
-   fresh one) and play x -- or, on nothing, the recipe's first result --
-   through it. staged: [count] when it waits for a boundary (->>)."
-  [x recipe ctx join? target staged]
-  (let [named (or target (when (v/material? x) (mt/voice-name x)) (when (v/recipe? recipe) (:id recipe)))
-        name  (or named (fresh-name))]
-    (bind! name recipe x)
-    (let [tctx (:tctx (wall/registered name))
-          ;; run once now, so a recipe that fails is refused here, not heard
-          first-run (if (v/recipe? recipe)
-                      (do (doall (take 1 (recipe/result recipe tctx nil (when (some? x) [x])))) nil)
-                      (doto (result recipe x tctx nil (:cache (get @sources name))) as-leaves))
-          ;; a tree recipe @( ) is endless: each note of an endless rest is its next one
-          form (cond (some? x) x (v/recipe? recipe) (mt/read-text "repeat ~ [r8]") :else first-run)]
-      (seed-from-head! tctx recipe)
-      (if staged
-        (mt/stage! form ctx (first staged) join? named name)
-        (mt/play! form ctx join? named name)))))
+  "A play word given a quotation: bind a live name (the voice's own, or a fresh
+   one) and play x -- or, on nothing, the quotation's first result -- through it.
+   staged: [count] when it waits for a boundary (->>)."
+  [x q ctx join? target staged]
+  (let [name (or target (when (v/material? x) (mt/voice-name x)) (fresh-name))
+        ;; run once now, so a quotation that fails is refused here, not heard
+        first-run (doto (result q x) as-leaves)
+        form (if (some? x) x first-run)]
+    (inputs/clear! name)
+    (inputs/set-inputs! name [] {})
+    (swap! word-voices dissoc name)
+    (swap! sources assoc name {:x x :recipe q})
+    (voice/follow! name (run-fn q x) (p/show q))
+    (if staged
+      (mt/stage! form ctx (first staged) join? name name)
+      (mt/play! form ctx join? name name))))
 
-(def ^:private word-voices
-  "Voice id -> the word it plays (play-word!), to start it again."
-  (atom {}))
-
-(defn- algo-params
+(defn- param-owner-algos
   "Every parameter of the algorithms loaded now, [algo-name param-name spec]: each
    public function of a musics.algo namespace whose :algo metadata lists :params."
   []
@@ -157,7 +88,7 @@
    value any of them takes is refused), the rest from the first by name. The
    spec names its owner, :algo, only when one algo reads that name."
   [input]
-  (let [found (filter #(= input (second %)) (algo-params))]
+  (let [found (filter #(= input (second %)) (param-owner-algos))]
     (when (seq found)
       (let [type   (key (apply max-key val (frequencies (map (comp :type #(nth % 2)) found))))
             same   (map #(nth % 2) (filter #(= type (:type (nth % 2))) found))
@@ -189,6 +120,7 @@
    the inputs it holds now; :voice/input reads or stores one. staged:
    [count] when it waits for a boundary (->>)."
   [word voice values ctx join? staged]
+  (reg/log! :live-word)
   (let [names (mapv first (e/live-inputs word))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))
         _     (inputs/clear! voice)
@@ -202,6 +134,7 @@
       (doall (take 1 (run (inputs/values voice) nil)))
       (catch Throwable t (inputs/clear! voice) (throw t)))
     (swap! word-voices assoc voice word)
+    (swap! sources dissoc voice)
     (voice/follow! voice run (str word))
     (let [form (mt/read-text "repeat ~ [r8]")]
       (if staged
@@ -210,8 +143,8 @@
     voice))
 
 (defn input-voice
-  "The id of the word voice that word's voice argument (an id or index) addresses,
-   or nil when it is no word voice."
+  "The id of the live voice that word's voice argument (an id or index)
+   addresses, or nil when it plays nothing live."
   [word voice]
   (let [id (try (mt/voice-id word voice) (catch Exception _ nil))
         nm (or (some-> id engine/voice-at :algo) id)]
@@ -221,37 +154,23 @@
 
 (defn replay
   "What to put on the stack to play the live voice id again, as it
-   started -- [x recipe], or [recipe] on nothing -- nil for a voice
-   playing no recipe."
+   started -- [x q], or [q] on nothing, or a word voice's inputs and its quoted
+   name -- nil for a voice playing nothing live."
   [id]
   (let [nm (or (some-> (engine/voice-at id) :algo) id)]
     (if-let [w (get @word-voices nm)]
-      ;; a word voice: its inputs as they are now, under its name
       (conj (mapv #(inputs/value nm %) (inputs/names nm)) (symbol w))
       (when-let [{:keys [x recipe]} (get @sources nm)]
         (if (some? x) [x recipe] [recipe])))))
 
-(defn live-name
-  "The live name of the voice word addresses (an id or index)."
-  [word voice]
-  (let [id (mt/voice-id word voice)
-        nm (or (some-> (engine/voice-at id) :algo)
-               (when (and (keyword? id) (:tctx (wall/registered id))) id))]
-    (when-not (and nm (:tctx (wall/registered nm)))
-      (e/mu-error (str word ":") (pr-str voice) "plays no recipe -- give a play word one: x '( … ) :riff >"))
-    nm))
-
-(defn tctx-of [word voice] (:tctx (wall/registered (live-name word voice))))
-
-(defn settings-of
-  "{\"k\" 5 …}: the settings an @^{ } holds."
-  [x]
-  (into {} (:params (v/node x))))
-
 (defn retree!
-  "A new recipe for the voice's live name: its settings and its voices'
-   positions kept."
-  [word recipe voice]
-  (let [nm (live-name word voice)]
-    (bind! nm recipe (:x (get @sources nm)))
+  "A new quotation for the live voice word addresses, the voice going on at its
+   position."
+  [word q voice]
+  (let [nm (input-voice word voice)
+        {:keys [x]} (get @sources nm)]
+    (when-not (and nm (get @sources nm))
+      (e/mu-error (str word ":") (pr-str voice) "plays no quotation -- give a play word one: x '( … ) :riff ->"))
+    (swap! sources assoc nm {:x x :recipe q})
+    (voice/retarget! nm (run-fn q x) (p/show q))
     nm))

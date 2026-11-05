@@ -270,27 +270,13 @@
       :else
       (run-defined stack name entry))))
 
-(def ^:dynamic *head*
-  "While a quotation that opens with an @^{ } runs: that @^{ }'s settings,
-   {name value}, read by every algo word in it (musics.mu.algos) after its
-   own local @^{ } -- the recipe's head. The nearest quotation's wins."
-  nil)
-
-(defn head-of
-  "The settings of a quotation's opening @^{ }, {name value}, else nil."
-  [{:keys [body env]}]
-  (when-let [i (some-> (first body) (#(when (= :Settings (first %)) %)) meta :mu/index)]
-    (into {} (:params (v/node (nth (:values env) i))))))
-
 (defn call
-  "Run a quotation on stack; one that opens with an @^{ } runs with it as
-   its head (*head*)."
+  "Run a quotation on stack."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
-  (cond
-    (fn? q)      (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
-    (head-of q)  (binding [*head* (head-of q)] (run-items stack (rest (:body q)) (:env q)))
-    :else        (run-items stack (:body q) (:env q))))
+  (if (fn? q)
+    (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
+    (run-items stack (:body q) (:env q))))
 
 (defn- node-name [node]
   (let [x (second node)]
@@ -361,8 +347,6 @@
     :Measures   (run-word stack "[[]]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
-    ;; an algo tree, built by musics.recipe (which builds on what eval runs)
-    :TreeRecipe (conj stack ((requiring-resolve 'musics.recipe/build) node env))
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

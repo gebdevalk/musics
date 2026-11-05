@@ -401,14 +401,6 @@
 
 ;; -- the repo -------------------------------------------------------------
 
-(defn- recipe-id
-  "The next free :r<n> id for a recipe that names none."
-  []
-  (loop []
-    (let [n  (get (swap! reg/session update-in [:auto-ids :RECIPE] (fnil inc 0)) :auto-ids)
-          id (keyword (str "r" (:RECIPE n)))]
-      (if (repo/current id) (recur) id))))
-
 (defn store-all!
   "Store each [x name] of pairs at once, as store! does one; returns the
    ids, in order. An id it redefines that a part it doesn't store also
@@ -417,14 +409,10 @@
   ([pairs] (store-all! pairs "load" false))
   ([pairs word refuse?]
   (let [parts (for [[x name] pairs]
-                (if (v/recipe? x)
-                  ;; a recipe is stored as its text, rebuilt when read (musics.recipe/stored)
-                  (let [id (or name (:id x) (recipe-id))]
-                    {:id id :edits {id {:type :RECIPE :id id :text (:source x)}}})
-                  (let [mat (->material (if (repetition? x) (line [x]) x)) ; a bare repeat is stored in a line
-                        id  (or name (:id mat))
-                        top (assoc (v/node mat) :id id)]
-                    {:id id :top top :edits (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top))})))
+                (let [mat (->material (if (repetition? x) (line [x]) x)) ; a bare repeat is stored in a line
+                      id  (or name (:id mat))
+                      top (assoc (v/node mat) :id id)]
+                  {:id id :top top :edits (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top))}))
         parts (doall parts)
         edits (apply merge (map :edits parts))
         ours  (conj (set (keys edits)) :ROOT)]

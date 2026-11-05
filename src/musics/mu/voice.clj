@@ -61,19 +61,32 @@
                       :id (:id node) :context (:context node) ::step true)))
            nodes))))
 
+(def ^:private runs
+  "Voice id -> {:run f :label text :cursors atom}: what the voice follows now."
+  (atom {}))
+
 (defn- register!
-  [voice run label cursors]
-  (let [spec {:run run :label label :vals (inputs/values voice)}]
+  [voice]
+  (let [{:keys [run label cursors]} (get @runs voice)
+        spec {:run run :label label :vals (inputs/values voice)}]
     (wall/build-algo! voice (wall-fn spec cursors) label)
     (swap! reg/*algo-registry* update voice assoc :inputs voice :cursors cursors :label label)
     voice))
 
 (defn follow!
-  "Make voice (a keyword id with inputs) play what (run values chain) gives, now
-   and after every change of an input. values is {\"name\" value}. label names the
-   voice in messages."
+  "Make voice (a keyword id with inputs, maybe none) play what (run values chain)
+   gives, now and after every change of an input, from the start. values is
+   {\"name\" value}. label names the voice in messages."
   [voice run label]
-  (let [cursors (atom {})]
-    (register! voice run label cursors)
-    (inputs/watch! voice ::follow (fn [_ _] (register! voice run label cursors)))
-    voice))
+  (swap! runs assoc voice {:run run :label label :cursors (atom {})})
+  (register! voice)
+  (inputs/watch! voice ::follow (fn [_ _] (register! voice)))
+  voice)
+
+(defn retarget!
+  "Make voice follow another run, going on at the position it has."
+  [voice run label]
+  (if (get @runs voice)
+    (do (swap! runs update voice assoc :run run :label label)
+        (register! voice))
+    (follow! voice run label)))

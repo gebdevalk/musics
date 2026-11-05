@@ -18,7 +18,7 @@
   transport bar / context-editor panels."
   (:require [cljfx.lifecycle :as lifecycle]
             [cljfx.component :as component]
-            [musics.algo.tree :as at]))
+            [musics.mu.inputs :as inputs]))
 
 (def recreate-on-key-changed
   "A cljfx extension lifecycle -- {:fx/type recreate-on-key-changed
@@ -247,14 +247,14 @@
     (vec (for [a (distinct (map algo-of rows))] [a (vec (get by a))]))))
 
 (defn param-control
-  "One control for one tctx param: a slider for a finite numeric range, a
+  "One control for one voice input: a slider for a finite numeric range, a
    dropdown for :choices, a note for a function (set in the recipe),
    else a text field applied on Enter -- EDN, or plain text for a
    :string. An unset (##NaN) value is marked required. `ev` is merged
    into every event it sends (e.g. {:name nm}); param-input reads the
    value back out of one."
   [ev k v {:keys [type min max choices doc scale]}]
-  (let [lbl   (str (name k) (when (at/nan? v) "  (required)"))
+  (let [lbl   (str (name k) (when (inputs/nan? v) "  (required)"))
         text  (fn [t] (button-row
                         {:children [(label {:text lbl})
                                     (text-field {:text t :prompt (or doc "EDN value")
@@ -263,7 +263,7 @@
     (cond
       (and (#{:int :double :ratio} type) (Double/isFinite (double min)) (Double/isFinite (double max)))
       (slider {:label lbl :min (double min) :max (double max) :scale scale
-               :value (double (if (and (number? v) (not (at/nan? v))) v min))
+               :value (double (if (and (number? v) (not (inputs/nan? v))) v min))
                :fmt (if (= :int type) "%.0f" "%.3f")
                :on-change (merge ev {:event/type :set-tree-param :key k :type type})})
 
@@ -274,11 +274,11 @@
                                           :string? (= :string type)})}))
 
       (or (= :fn type) (some fn? (tree-seq coll? seq v)))
-      (label {:text (str lbl ": " (if (at/nan? v) "a function" "set")
+      (label {:text (str lbl ": " (if (inputs/nan? v) "a function" "set")
                          " -- set in the recipe")})
 
-      (= :string type) (text (if (at/nan? v) "" v))
-      :else            (text (if (at/nan? v) "" (pr-str v))))))
+      (= :string type) (text (if (inputs/nan? v) "" v))
+      :else            (text (if (inputs/nan? v) "" (pr-str v))))))
 
 (defn param-input
   "What a param-control event carries: a number from a slider (rounded

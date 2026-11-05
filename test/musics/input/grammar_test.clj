@@ -723,26 +723,6 @@
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
                           (v/read-domain "[c4\\vol:40,50]")))))
 
-(deftest an-algos-settings-are-a-value-of-their-own
-  (let [{:keys [tree]} (v/read-domain
-                        "@^{ onsets:5 pulses:16 bass.onsets:3 pitch/walk.lo:48 key:\"D.major\" style:rock iv:0,2,4 r:3/8 x:-0.5 rising?:true }")
-        node (some #(when (= :TCONTEXT (:type %)) %) (vals tree))
-        at   (into {} (:params node))]
-    (is (= ["onsets" "pulses" "bass.onsets" "pitch/walk.lo"] (take 4 (map first (:params node)))) "in written order")
-    (is (= 5 (at "onsets")))
-    (is (= 3 (at "bass.onsets")) "qualified by a named instance")
-    (is (= 48 (at "pitch/walk.lo")) "qualified by a specialised algo")
-    (is (= "D.major" (at "key")) "a string")
-    (is (= :rock (at "style")) "a bare name is a keyword")
-    (is (= [0 2 4] (at "iv")) "a comma list is a vector")
-    (is (= 3/8 (at "r")))
-    (is (= -0.5 (at "x")))
-    (is (= :true (at "rising?")) "a name with ?")
-    (is (str/starts-with? (:text node) "onsets:5 pulses:16 bass.onsets:3") "written back as written"))
-  (testing "music holds the music's keys only"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\^\{ k:" (v/read-domain "[s: !tempo:90 ?k:5 c4]")))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"an algo's settings are @\^\{ k:" (v/read-domain "^{set: ?k:5}")))))
-
 (deftest a-meter-as-its-factors
   (let [meter-of (fn [text] (let [{:keys [tree]} (v/read-domain text)
                                   s (some #(when (= :SEQ (:type %)) %) (vals tree))]

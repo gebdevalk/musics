@@ -36,8 +36,8 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   :CONTEXT (^{ }) and :TCONTEXT (@^{ }, an algo's settings)."
-  #{:CONTEXT :TCONTEXT})
+   :CONTEXT (^{ })."
+  #{:CONTEXT})
 
 ;; ============================================================
 ;; State initialization
@@ -74,7 +74,6 @@
       :stack      [root]
       :auto-ids   (atom (:auto-ids session))
       :var-map    (atom (or (:var-map session) {}))
-      :param-aliases (or (:param-aliases session) {})
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
@@ -94,7 +93,6 @@
   {:SEQ     "s"
    :PAR     "p"
    :CONTEXT "c"
-   :TCONTEXT "t"
    :DATA    "d"})
 
 (defn next-auto-id

@@ -59,8 +59,7 @@
 (deftest a-session-file-restores-them-in-place-of-mus-own
   (with-file
     (fn [f]
-      (top "[verse: c4 d e f] R!" "'motif [c8 e g] :=" ": lift ( $x -- y ) $x 5 + ;"
-           "'r @( onsets:3 euclid '[60] [~] zip ) :=")
+      (top "[verse: c4 d e f] R!" "'motif [c8 e g] :=" ": lift ( $x -- y ) $x 5 + ;")
       (with-out-str (top (str "\"" f "\" save-session")))
       (top ": junk 1 ;" "'motif [a] :=" "'extra 1 :=")
       (top "[c] 7")
@@ -71,7 +70,6 @@
       (testing "what was saved"
         (is (= "[C4/8 E4 G4]" (top "\\motif")))
         (is (= "[!K:F.major F4/4]" (top "[c] lift")))
-        (is (= "[C4/8. C4 C4/8]" (top "\\r run")))
         (is (= "[verse: C4/4 D4 E4 F4]" (top ":verse R@")) "and the repo")))))
 
 (deftest a-file-without-mus-state-leaves-it

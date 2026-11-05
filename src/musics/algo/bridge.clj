@@ -15,8 +15,8 @@
              strongest pulses) -- give it a finite one
 
    A duration stream holds note values, plus a Rest (musics.domain.
-   domain/rest*) for silence before anything sounds; musics.algo.tree.lib's
-   zip passes a Rest through without using a pitch. Keys are spelled as
+   domain/rest*) for silence before anything sounds; mu's zip passes a Rest
+   through without using a pitch. Keys are spelled as
    !key: writes them (\"D.major\"), volume on the !vol: 0-100 scale,
    articulations from musics.common.music-data/articulations."
   (:require [musics.algo.rhythmic.indispensability :as indisp]

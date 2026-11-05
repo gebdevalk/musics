@@ -112,7 +112,6 @@
     (case (:type node)
       :PAR     (str "{" (id-prefix node) (show-children repo node) "}")
       :CONTEXT (str "^{ " (id-prefix node) (show-children repo node) " }")
-      :TCONTEXT (if (seq (:text node)) (str "@^{ " (:text node) " }") "@^{ }")
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))
                       (str/join " " (map #(data-element t %) (:children node))) "]"))
@@ -135,7 +134,6 @@
   (cond
     (v/pcset? x)          (v/pcset-text x)
     (v/ref? x)            (:label x)
-    (v/recipe? x)         (str "@( " (some-> (:id x) name (str ": ")) (:source x) (when (seq (:source x)) " ") ")")
     (:mu/repeat (meta x)) (let [[body n] (:mu/repeat (meta x))]
                             (str (show body) " " (if (= n :infinite) "[~]" (str n " times"))))
     (v/material? x)  (show-node (:repo x) (v/node x))

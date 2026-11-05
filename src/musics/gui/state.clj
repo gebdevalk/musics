@@ -80,10 +80,7 @@
     [musics.persist :as persist]
     [musics.wall :as wall]
     [musics.algo.numeric.random :as rnd]
-    [musics.algo.tree :as at]
-    [musics.mu.inputs :as inputs]
-    [musics.algo.tree.lib :as tree-lib]
-            [musics.algo.tree.tools :as tools]))
+    [musics.mu.inputs :as inputs]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
@@ -1250,31 +1247,22 @@
 
 (defn- fmt-registered
   "musics.wall/registered's {name -> entry} as one line per algo: its
-   name and doc -- for a live tree (musics.algo.tree/live!), its expression."
+   name and doc -- for a live voice, what it follows."
   [m]
   (str/join "\n"
             (for [[k {:keys [doc]}] (sort-by (comp str first) m)]
               (str (name k) " — " (or doc "(no doc)")))))
 
 (defn- tree-controls
-  "Every live name with its params, one control each:
-   [{:name kw :tree text :params [{:key :value :spec}]}]. A word voice's params
-   are its inputs; a tree's, its tctx's."
+  "Every live voice with its inputs, one control each:
+   [{:name kw :tree text :params [{:key :value :spec}]}]."
   [m]
-  (vec (concat
-         (for [[nm {:keys [label inputs]}] (sort-by (comp str first) m) :when inputs]
-           {:name   nm
-            :tree   (or label (str nm))
-            :params (let [{:keys [params specs]} (inputs/state nm)]
-                      (vec (for [[k spec] (sort-by (comp :order val) specs)]
-                             {:key k :value (get params k) :spec spec})))})
-         (for [[nm {:keys [tree tctx label]}] (sort-by (comp str first) m) :when tctx]
-           {:name   nm
-            :tree   (or label (pr-str (at/show tree)))
-            :params (let [ps (at/params tctx)]
-                      (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
-                                 :when (not= :read (:algo spec))]
-                             {:key k :value (get ps k) :spec spec})))}))))
+  (vec (for [[nm {:keys [label inputs]}] (sort-by (comp str first) m) :when inputs]
+         {:name   nm
+          :tree   (or label (str nm))
+          :params (let [{:keys [params specs]} (inputs/state nm)]
+                    (vec (for [[k spec] (sort-by (comp :order val) specs)]
+                           {:key k :value (get params k) :spec spec})))})))
 
 (defn- refresh-wall!
   [& _]
@@ -1284,15 +1272,13 @@
   nil)
 
 (defn set-tree-param!
-  "Set one param of live tree `nm`'s tctx -- heard on the next note. A
+  "Set one input of live voice `nm` -- heard on the next note. A
    value its spec rejects is reported in the window, not applied. A
    string (from a text field) is read as EDN first."
   [nm k v]
   (try
     (let [v (if (string? v) (edn/read-string v) v)]
-      (if (:inputs (wall/registered nm))
-        (inputs/put! nm k v)
-        (at/setp! (:tctx (wall/registered nm)) k v))
+      (inputs/put! nm k v)
       (swap! *state assoc-in [:wall :message] nil))
     (catch Exception e
       (swap! *state assoc-in [:wall :message] (.getMessage e))))
@@ -1673,11 +1659,12 @@
   [name params material]
   (case name
     "times"           (take (* (get params :n 2) (count material)) (cycle material))
-    "transpose"       (at/run (tree-lib/transpose :material) {:material material :semitones (get params :semitones 0)})
+    "transpose"       (map (d/transpose (get params :semitones 0)) material)
     "invert"          (if (contains? params :axis)
                          (map (d/invert (get params :axis)) material)
                          (map (d/invert) material))
-    "stretch"         (at/run (tools/stretch :material) {:material material :factor (get params :factor 1)})
+    "stretch"         (let [f (get params :factor 1)]
+                        (map #(if (:duration %) (update % :duration (fn [x] (* f x))) %) material))
     "reverse"         (clojure.core/reverse material)
     "shuffle"         (seq (rnd/shuffle material))
     "tonal-transpose" (map (d/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1)) material)

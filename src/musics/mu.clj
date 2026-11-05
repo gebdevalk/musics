@@ -12,7 +12,6 @@
             [musics.mu.kernel :as kernel]
             [musics.mu.material :as mt]
             [musics.mu.tools]
-            [musics.mu.algos]
             [musics.mu.complete :as complete]
             [musics.mu.library]
             [musics.version :refer [version]]

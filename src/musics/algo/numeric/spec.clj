@@ -1,5 +1,5 @@
 ;; Param specs shared by the :algo metadata of the numeric and rhythmic generators: identical
-;; specs give one shared tctx key, so (uniform) and (triangular) in one tree read the same :lo/:hi.
+;; specs agree on a parameter shared by several algos (lo, hi, len), so a control for it is the same everywhere.
 
 (ns musics.algo.numeric.spec
   "Shared param specs and the sampler metadata of the single-value generators.")

@@ -9,10 +9,10 @@
    engine calls it once with a container's whole list of children, then
    again with each resulting note singleton-wrapped, so a fn with side
    effects (or one that transforms) must pass through what it already
-   produced -- musics.algo.tree.live tags its output for exactly this.
+   produced -- musics.mu.voice tags its output for exactly this.
 
-   What fills this registry is musics.algo.tree/live! (a name bound to a tree
-   and a tctx); build-algo! stores any hand-written wall fn directly. The
+   What fills this registry is musics.mu.voice/follow! (a live voice's name
+   bound to what it follows); build-algo! stores any hand-written wall fn directly. The
    registry atom lives in musics.registries, ^:dynamic so a test can bind
    a fresh one."
   (:require [musics.registries :as reg]))
@@ -49,7 +49,7 @@
 
 (defn registered
   "With no arg: the whole {name -> entry} registry. With name: its entry
-   (a name bound by musics.algo.tree/live! adds :tree, :tctx and :cursors)."
+   (a name bound by musics.mu.voice/follow! adds :inputs, :cursors and :label)."
   ([] @reg/*algo-registry*)
   ([name] (get @reg/*algo-registry* name)))
 

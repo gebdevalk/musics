@@ -36,9 +36,6 @@
   (is (re-find #"^unknown word: retrogrde -- did you mean retrograde\?" (error "retrogrde")))
   (is (re-find #"did you mean insert" (error "[c d] 1 g insrt")))
   (is (re-find #"did you mean (swap|over)" (error "1 2 swpa")) "a swapped pair")
-  (testing "a word in a namespace not in use is written with it"
-    (is (re-find #"did you mean .*duration/euclid" (error "euclid")))
-    (is (re-find #"did you mean pitch/lorenz" (error "pitch/lorenzz")) "a typo in a qualified name"))
   (testing "nothing close says where to look"
     (is (re-find #"^unknown word: zzzzzz -- about zzzzzz looks for it; words lists them$" (error "zzzzzz")))))
 

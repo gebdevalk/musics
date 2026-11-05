@@ -10,11 +10,8 @@
 (ns raw-algo-cookbook
   (:require [clojure.string :as str]
             [musics.algo.numeric.rng :as seed]
-            [musics.algo.tree :as t]
-            [musics.algo.tree.lib]
             [musics.input.reader.builder :as builder]
             [musics.mu]
-            [musics.mu.algos]
             [musics.mu.eval :as e]
             [musics.mu.print :as p]
             [musics.repo :as repo]))

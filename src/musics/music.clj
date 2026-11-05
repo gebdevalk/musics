@@ -15,7 +15,6 @@
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
             [musics.algo.melodic.serial :as serial]
-            [musics.algo.tree.lib :as lib]
             [musics.common.music-data :as data]
             [musics.common.context-keys :as ck]
             [musics.common.music-elements :as el]
@@ -707,7 +706,7 @@
   "The key's tonic, in octave 4"
   [key]
   (when-not (mt/key? key) (fail "needs a key, as D.major, got" (p/show key)))
-  (lib/->part (+ 60 (first (el/key-pitches key))) 1/4))
+  (d/leaf nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
 
 (defn key
   "The key a note was written in, or a line's own (else the defaults')"

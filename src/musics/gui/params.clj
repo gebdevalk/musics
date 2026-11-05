@@ -1,70 +1,35 @@
 (ns musics.gui.params
-  "A settings window for one tctx -- one control per param, without the
-   rest of the GUI:
+  "A window of a live voice's inputs -- one control each, under the algo its
+   parameter belongs to, without the rest of the GUI:
 
-     (gui tctx)        ; the tctx's params
-     (gui tree)        ; makes a tctx for tree, returns it
-     (gui tree tctx)   ; also the tree, a live preview, Play once, Live as
+     (open-inputs! :bass)
 
-   The tctx is the model, both ways: a control calls t/setp! (so the
-   validator checks it; a rejected value is shown, not applied), and a
-   change made elsewhere (mu's set) moves the control. A live voice's
-   tctx is heard on the next note. One window per tctx; opening it again
-   brings it to the front. Closing it stops watching the tctx."
-  (:require [musics.algo.tree :as t]
-            [musics.algo.tree.lib :as lib]
-            [cljfx.api :as fx]
+   The voice's inputs are the model, both ways: a control stores into them
+   (checked against the parameter's spec; a refused value is shown, not
+   applied), and a change made elsewhere (:bass/onsets !) moves the control.
+   A change is heard on the voice's next note. One window per voice."
+  (:require [cljfx.api :as fx]
             [clojure.edn :as edn]
-            [clojure.string :as str]
             [musics.gui.components :as ui]
             [musics.gui.state :as state]
             [musics.gui.theme :as theme]
             [musics.mu.inputs :as inputs])
   (:import [javafx.application Platform]))
 
-(defonce ^:private windows (atom {}))          ; tctx -> {:state :renderer}
-
-(def ^:private preview-limit 32)
-
-(defn- preview-text
-  "The tree's result as text: notes as musics text, anything else
-   printed -- at most preview-limit items of an endless result."
-  [tree tctx]
-  (try
-    (let [v    (t/run tree tctx)
-          more (and (seq? v) (not (counted? v)) (seq (drop preview-limit v)))
-          xs   (if (sequential? v) (vec (take preview-limit v)) v)
-          body (if (and (sequential? xs) (seq xs) (every? #(and (map? %) (:type %)) xs))
-                 (lib/notes->mus xs)
-                 (binding [*print-length* preview-limit] (pr-str xs)))]
-      (str body (when more (str "\n… endless; the first " preview-limit " shown"))))
-    (catch Exception e (str "does not run: " (ex-message e)))))
-
-(defn- refresh!
-  "Re-run the preview after `delay-ms` quiet: a slider drag re-runs the
-   tree once it settles, not on every step."
-  [st tree tctx]
-  (when tree
-    (let [g (:gen (swap! st update :gen (fnil inc 0)))]
-      (future
-        (Thread/sleep 120)
-        (when (= g (:gen @st))
-          (swap! st assoc :preview (preview-text tree tctx)))))))
-
 (defn param-groups
-  "[algo [[key value spec] ...]] in the tctx's own param order, the params of one
+  "[algo [[key value spec] ...]] in the voice's own param order, the params of one
    algo together under it."
   [{:keys [params specs]}]
   (->> (sort-by (comp :order val) specs)
        (map (fn [[k spec]] [k (get params k) spec]))
        (ui/group-by-algo (fn [[_ _ spec]] (:algo spec)))))
 
-(defn- view [{:keys [tree-text title-text tctx-value preview message live-name showing theme]}]
+(defn- view [{:keys [title-text inputs-value message showing theme]}]
   {:fx/type :stage
    :showing showing
-   :title (str "Params — " (or title-text tree-text "tctx"))
+   :title (str "Inputs — " title-text)
    :width 620
-   :height (if tree-text 720 520)
+   :height 520
    :on-close-request {:event/type ::close}
    :scene
    {:fx/type :scene
@@ -74,31 +39,20 @@
      :spacing 8
      :style "-fx-padding: 8;"
      :children
-     (concat
-       (when tree-text
-         [(ui/label {:text tree-text :style "-fx-font-family: monospace;"})])
-       [(assoc (ui/scroll-pane
-                 {:content
-                  {:fx/type :v-box
-                   :spacing 8
-                   :children (vec (for [[algo rows] (param-groups tctx-value)]
-                                    (ui/titled-panel
-                                      {:title (str (symbol algo))
-                                       :children (vec (for [[k v spec] rows]
-                                                        (ui/param-control {} k v spec)))})))}})
-               :v-box/vgrow :always)]
-       (when tree-text
-         [(ui/titled-panel
-            {:title "Result"
-             :children [(ui/text-area {:text (or preview "") :pref-row-count 6 :editable? false})]})
-          (ui/button-row
-            {:children [(ui/button {:text "Play once" :on-action {:event/type ::play}})
-                        (ui/text-field {:text (or live-name "") :prompt "name, e.g. riff"
-                                        :on-text-changed {:event/type ::live-name}})
-                        (ui/button {:text "Live as" :on-action {:event/type ::live}})
-                        (ui/button {:text "Stop" :on-action {:event/type ::stop}})]})])
-       [(ui/label {:text (or message "")})
-        (ui/button {:text "Close" :on-action {:event/type ::close}})])}}})
+     [(assoc (ui/scroll-pane
+               {:content
+                {:fx/type :v-box
+                 :spacing 8
+                 :children (vec (for [[algo rows] (param-groups inputs-value)]
+                                  (ui/titled-panel
+                                    {:title (str (symbol algo))
+                                     :children (vec (for [[k v spec] rows]
+                                                      (ui/param-control {} k v spec)))})))}})
+             :v-box/vgrow :always)
+      (ui/label {:text (or message "")})
+      (ui/button {:text "Close" :on-action {:event/type ::close}})]}}})
+
+(defonce ^:private windows (atom {}))   ; voice -> {:state :renderer}
 
 (declare close!)
 
@@ -106,98 +60,38 @@
   (try (f) (swap! st assoc :message nil)
        (catch Exception e (swap! st assoc :message (ex-message e)))))
 
-(defn- handler [st tree tctx]
-  (fn [event]
-    (case (:event/type event)
-      (:set-tree-param :set-tree-param-text)
-      (report! st #(let [v (ui/param-input event)]
-                     (t/setp! tctx (:key event) (if (string? v) (edn/read-string v) v))))
-      ::play      (report! st #(t/play! tree tctx))
-      ::live-name (swap! st assoc :live-name (:fx/event event))
-      ::live      (report! st #(let [nm (str/trim (or (:live-name @st) ""))]
-                                 (when (str/blank? nm) (throw (ex-info "give the live name first" {})))
-                                 (t/live! (keyword nm) tree tctx)
-                                 (swap! st assoc :live (keyword nm))))
-      ::stop      (report! st #(some-> (:live @st) t/stop!))
-      ::close     (close! tctx)
-      nil)))
-
-(defn close!
-  "Close `tctx`'s window and stop watching it (a live name keeps playing)."
-  [tctx]
-  (when-let [{:keys [state renderer]} (get @windows tctx)]
-    (remove-watch (:params-atom tctx) ::window)
-    (swap! state assoc :showing false)
-    (fx/unmount-renderer state renderer)
-    (swap! windows dissoc tctx))
-  nil)
-
-(defn open!
-  "Open a settings window: (open! tctx), (open! tree) -- a new tctx for
-   it -- or (open! tree tctx). Returns the tctx."
-  ([x] (if (t/tctx? x) (open! nil x) (open! x (t/tctx x))))
-  ([tree tctx]
-   (let [tree (some-> tree t/as-node)]
-     (when tree (t/fit! tctx tree))
-     (Platform/setImplicitExit false)             ; closing this window mustn't end JavaFX
-     (if-let [{:keys [state]} (get @windows tctx)]
-       (swap! state assoc :showing true)
-       (let [st (atom {:tree-text  (some-> tree t/show pr-str)
-                       :tctx-value (t/state tctx)
-                       :showing    true
-                       :theme      (:theme @state/*state :dark)})
-             r  (fx/create-renderer
-                  :middleware (fx/wrap-map-desc view)
-                  :opts {:fx.opt/map-event-handler (handler st tree tctx)})]
-         (add-watch (:params-atom tctx) ::window (fn [_ _ _ _]
-                                                      (swap! st assoc :tctx-value (t/state tctx))
-                                                      (refresh! st tree tctx)))
-         (swap! windows assoc tctx {:state st :renderer r})
-         (refresh! st tree tctx)
-         (fx/mount-renderer st r)))
-     tctx)))
-
-
-;; -- the inputs of a word voice ---------------------------------------------------
-
-(defonce ^:private input-windows (atom {}))   ; voice -> {:state :renderer}
-
-(declare close-inputs!)
-
-(defn- input-handler [st voice]
+(defn- handler [st voice]
   (fn [event]
     (case (:event/type event)
       (:set-tree-param :set-tree-param-text)
       (report! st #(let [v (ui/param-input event)]
                      (inputs/put! voice (:key event) (if (string? v) (edn/read-string v) v))))
-      ::close (close-inputs! voice)
+      ::close (close! voice)
       nil)))
 
-(defn close-inputs!
+(defn close!
   "Close the window of voice's inputs."
   [voice]
-  (when-let [{:keys [state renderer]} (get @input-windows voice)]
+  (when-let [{:keys [state renderer]} (get @windows voice)]
     (swap! state assoc :showing false)
     (fx/unmount-renderer state renderer)
-    (swap! input-windows dissoc voice))
+    (swap! windows dissoc voice))
   nil)
 
 (defn open-inputs!
-  "A window of a word voice's inputs, a control each under the algo its parameter
-   belongs to, a value changed here heard on the voice's next note and a change
-   made elsewhere (:bass/onsets !) moving the control. One window a voice."
+  "A window of a word voice's inputs, a control each. One window a voice."
   [voice]
-  (Platform/setImplicitExit false)
-  (if-let [{:keys [state]} (get @input-windows voice)]
+  (Platform/setImplicitExit false)             ; closing this window mustn't end JavaFX
+  (if-let [{:keys [state]} (get @windows voice)]
     (swap! state assoc :showing true)
-    (let [st (atom {:title-text  (str ":" (name voice))
-                    :tctx-value  (inputs/state voice)
-                    :showing     true
-                    :theme       (:theme @state/*state :dark)})
+    (let [st (atom {:title-text   (str ":" (name voice))
+                    :inputs-value (inputs/state voice)
+                    :showing      true
+                    :theme        (:theme @state/*state :dark)})
           r  (fx/create-renderer
                :middleware (fx/wrap-map-desc view)
-               :opts {:fx.opt/map-event-handler (input-handler st voice)})]
-      (inputs/watch! voice ::window (fn [_ _] (swap! st assoc :tctx-value (inputs/state voice))))
-      (swap! input-windows assoc voice {:state st :renderer r})
+               :opts {:fx.opt/map-event-handler (handler st voice)})]
+      (inputs/watch! voice ::window (fn [_ _] (swap! st assoc :inputs-value (inputs/state voice))))
+      (swap! windows assoc voice {:state st :renderer r})
       (fx/mount-renderer st r)))
   voice)

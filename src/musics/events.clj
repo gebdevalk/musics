@@ -30,9 +30,9 @@
    last child left, a :PAR merges its branches' streams by :t and then
    continues where the branch that ends last stopped (the engine's
    continue-after-fork!). Nothing is walked ahead of what is read, so a
-   :count :infinite repeat or an endless live tree is fine -- take what
+   :count :infinite repeat or an endless live voice is fine -- take what
    you need. Each voice's :algo runs where the engine runs it (a
-   container's children, then each leaf), so a live musics.algo.tree voice's
+   container's children, then each leaf), so a live voice's
    cursor moves as its events are read.
 
    Nothing here touches core.async, a clock, MIDI or *engine*. repo is

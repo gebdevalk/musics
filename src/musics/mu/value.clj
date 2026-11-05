@@ -70,7 +70,7 @@
 
 (def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
-  (into leaf-tags #{:Sequence :Parallel :Context :Settings :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
+  (into leaf-tags #{:Sequence :Parallel :Context  :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -105,13 +105,6 @@
        :else [vm nodes]))
    [{} {}] bindings))
 
-(defn- param-aliases
-  "The bindings of a name to another name ('dp 'duration-pulse :=) as
-   {\"dp\" \"duration-pulse\"}: an algo param written by its short name
-   in an @^{ } is read as the long one."
-  [bindings]
-  (into {} (for [[k x] bindings :when (symbol? x)] [k (str x)])))
-
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
    auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
@@ -126,8 +119,7 @@
      ;; :base stays the repo without the bound nodes: what a bound name
      ;; brings in is the literal's own, stored with it by R!
      (let [[vm bound] (var-map bindings)
-           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm
-                                              :param-aliases (param-aliases bindings)})
+           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm})
            tree (:tree r)]
        {:values (mapv (fn [node id]
                         (cond
@@ -149,15 +141,6 @@
 (defn ref? [x] (instance? Ref x))
 (defn ref-get [r] ((:get r)))
 (defn ref-set! [r x] ((:set r) x))
-
-(defrecord Recipe [tree tctx source arity])
-;; :id, assoc'd on, the id it names itself with (@( riff: … )) or is stored under
-
-(defn recipe?
-  "A tree recipe, @( … ): an algo tree, its settings beside it and how
-   many inputs it takes from the stack under it (musics.recipe)."
-  [x]
-  (instance? Recipe x))
 
 (defn node
   "A Material's own node."
