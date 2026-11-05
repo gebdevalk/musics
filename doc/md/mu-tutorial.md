@@ -40,6 +40,35 @@ A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside
 are optional: `'(12 +)` is `'( 12 + )`.
 
+### Asking mu
+
+After each input mu prints `ok`, or `error:` and the reason, and an error leaves the
+stack as it was. The words that look things up read the word after them, as Forth's `see`
+does, so `help dup` and `see dup` do not run `dup`:
+
+```
+help dup                 → dup ( x -- x x )
+                           copy the top
+about tempo              → tempo is a musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ].
+about pitch              → pitch is a property of a note or chord.
+                           pitch is a word of mu ( note -- pitch ).
+settings tempo           → 30..300, default 100, Beats per minute. Written !tempo:100, or set on a line with x :tempo 100 with
+marks tempo              → !adagissimo !larghissimo !grave !largo … !presto !prestissimo
+```
+
+`about` says in a sentence what a name is: a parameter, a mark, a word, an instrument, a drum, a
+scale, a chord quality, an articulation or a rule of the grammar (written as the grammar writes it,
+`about Leaf`), and where it can appear (notes only in `[ ]`). `settings` and `marks` say more about a
+parameter: its range and default, and the named values that set it, slowest to fastest, loudest
+last. A mistake explains itself when it can:
+
+```
+[1 2 3]                  → numbers in a list are data: '[1 2 3]
+'n 5 :=
+n                        → unknown word: n -- n is a value, not a word: \n puts it on the stack
+\n                       → 5
+```
+
 ### Numbers, comparison, conditions
 
 Arithmetic is `+ - * /`, the same signs that move and stretch music
@@ -1122,13 +1151,48 @@ falling together:
 
 ### The algorithms as plain functions
 
-Underneath the algo words are the Clojure functions themselves. `"musics.algo.rhythmic.pattern" require`
-makes `pattern/euclid` a word, and it takes its arguments from the stack, in the order `see pattern/euclid`
-shows: `3 8 pattern/euclid`. There is no settings object and no default: a bridge from `musics.algo.bridge`
-turns the raw list into durations (`1/16 bridge/pulses->durations`) or pitches (`from-lo from-hi lo hi
-bridge/numbers->pitches`), and `zip` makes notes of them. A function that gives one number per call is called
-n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`, or `60.0 2.0 walk/walk 16 pull` for a walk that keeps
-its place. `doc/md/raw-algo-cookbook.md` has all 53 recipes of the algo cookbook written this way.
+Underneath the algo words are the Clojure functions themselves, and they can be called by name with their
+parameters on the stack. `"musics.algo.rhythmic.pattern" require` makes `pattern/euclid` a word, and it takes its
+arguments in the order `see pattern/euclid` shows them. There is no settings object and no default: you say
+every parameter.
+
+```
+"musics.algo.rhythmic.pattern" require
+"musics.algo.bridge" require
+see pattern/euclid                                    → pattern/euclid ( onsets pulses -- euclid )
+3 8 pattern/euclid                                    → '[1 0 0 1 0 0 1 0]
+3 8 pattern/euclid 1/16 bridge/pulses->durations      → '[3/16 3/16 1/8]
+3 8 pattern/euclid 1/16 bridge/pulses->durations '[60 64 67] zip
+                                                      → [C4/8. E4 G4/8]
+```
+
+The raw material a function gives is a plain list; a **bridge** from `musics.algo.bridge` turns it into
+durations (`pulses->durations`, with the pulse you give it), pitches (`numbers->pitches`, with the range the
+numbers really have: `from-lo from-hi lo hi`), volumes and so on, and `zip` makes notes of them. A list inside
+a list is written `'[ '[0 1] '[2] ]`.
+
+A function that gives one number per call is called n times with `pull`, which takes a quotation, or a
+function that keeps its place:
+
+```
+"musics.algo.numeric.rng" require
+"musics.algo.numeric.random" require
+"musics.algo.numeric.walk" require
+7 rng/seed                                            the random words after it repeat
+'( 0.0 1.0 random/normal ) 12 pull                    twelve draws
+60.0 3.0 walk/walk 8 pull                             a walk of eight steps, from 60
+```
+
+A quotation is also a function of what it is given, so it can be the fitness function a Clojure function
+wants; and a group of quotations, `( '( … ) '( … ) )`, is a list of them:
+
+```
+"musics.algo.melodic.melody" require
+'[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained
+```
+
+draws twelve notes of the scale, none repeated and none more than a whole tone from the one before.
+`doc/md/raw-algo-cookbook.md` has all 53 recipes of the algo cookbook written this way.
 
 ### Noise, masks, rows and automata
 
@@ -1356,6 +1420,8 @@ c4 '[0 40 73] sounds audition
 | `as-drums` | `( line stream -- line )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
 | `combos` | `( note numbers k -- line )` |
+| `pull` | `( f n -- list )` |
+| `@` `!` | `( ref -- value )` `( value ref -- )`; `( x n -- elem )` `( x n y -- x' )` |
 | `delay` | `( x d -- line )` |
 | `delays` | `( parallel d\|list -- parallel )` |
 | `setting` | `( note\|line :key -- value )` |

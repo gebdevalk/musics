@@ -133,7 +133,8 @@
          (second m))))
 
 (defn- rule [t]
-  (for [r (rule-names) :when (same? t r)]
+  ;; a rule is named as the grammar writes it (Leaf, TempoMark), so pitch is not Pitch
+  (for [r (rule-names) :when (= t r)]
     (str r " is a rule of the grammar and " (appears (keyword r)) ".")))
 
 ;; -- names that start with it, else contain it -----------------------------------------------

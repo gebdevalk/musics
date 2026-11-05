@@ -3433,3 +3433,7 @@ of `melody/constrained` and `melody/modulating` can be written in mu: a
 constraint is a function of the melody so far and a candidate note, which a
 quotation is. `walk/smooth-noise` takes `lo` and `hi` as optional (`:mu
 :optional`), as the other multi-arity functions that are not algorithms need.
+
+`about pitch` no longer also answers with the grammar's `Pitch` rule: a rule
+is matched as the grammar writes it (`about Leaf`, `about TempoMark`), so a
+lower-case name keeps to the parameter, mark, word and the like.
