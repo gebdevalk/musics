@@ -81,7 +81,9 @@ IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*' (<'/'> #'[a-zA-Z][a-zA-Z0-9_\-?]*')?
 (* 'motif -- a name, held: what := binds a value to, or the word execute
    runs: 'dup, '+, 'reverse. \motif, musics text's VarRef, is the
    value bound to it, bare or inside a literal. *)
-QuotedName = <"'"> (VarName / WordName / SymbolWord)
+QuotedName = <"'"> (DottedName / VarName / WordName / SymbolWord)
+(* 'numeric.rng -- a Clojure namespace's name held, dots and all: what require and algorequire take. *)
+DottedName = #'[a-zA-Z][a-zA-Z0-9_\-]*(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)+'
 
 (* $[047] $(037) $<001110> -- a set of pitch classes: classes, a prime
    form, an interval vector, the numbers glued together (T is 10, E is 11)

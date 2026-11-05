@@ -173,12 +173,21 @@
 (defn- short-name? [x]
   (and (or (string? x) (symbol? x)) (re-matches #"[a-zA-Z][a-zA-Z0-9_\-]*" (str x))))
 
+(defn- alias-conflict
+  "Why alias cannot name the words of namespace sym -- it names mu's own or
+   another required namespace -- or nil."
+  [sym alias]
+  (let [st @e/state owner (get-in st [:required alias])]
+    (when (and (contains? (:ns st) alias) (core/not= owner sym))
+      (str "'" alias " is a namespace already " (if owner (str "(" owner ")") "of mu's own")
+           " -- give a short alias: \"" sym "\" 'x require"))))
+
 (defn require!
   "Load a Clojure namespace now, its public functions mu's words under
    its last name or a short alias: \"musics.algo.numeric.random\" require gives
    random/uniform, \"musics.algo.numeric.random\" 'r require r/uniform; a .clj
    file too (\"my/words.clj\" require). Requiring again reloads it, a
-   file afresh."
+   file afresh. A name may be quoted instead of in a string: 'numeric.rng."
   {:mu {:optional {:alias short-name?}}}
   ([ns] (require! ns nil))
   ([ns alias]
@@ -186,18 +195,22 @@
          file?  (str/ends-with? n ".clj")
          _      (when (and file? (core/not (.exists (java.io.File. ^String n)))) (fail "no such file:" n))
          sym    (if file? (clj-ns n) (symbol n))
-         alias  (str (or alias (last (str/split (str sym) #"\."))))
-         st     @e/state
-         owner  (get-in st [:required alias])]
-     (when (and (contains? (:ns st) alias) (core/not= owner sym))
-       (fail (str "'" alias) "is a namespace already" (if owner (str "(" owner ")") "of mu's own")
-             (str "-- give a short alias: \"" sym "\" 'x require")))
+         alias  (str (or alias (last (str/split (str sym) #"\."))))]
+     (when-let [why (alias-conflict sym alias)] (fail why))
      ;; a file's namespace is loaded afresh, so a function taken out of it goes
      (try (if file? (do (remove-ns sym) (load-file n)) (core/require sym :reload))
           (catch java.io.FileNotFoundException _ (fail "no namespace" (str sym) "on the classpath")))
      (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym) (assoc-in [:sources alias] n)))
      ((requiring-resolve 'musics.mu.library/register!) sym alias)
      (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
+
+(defn algorequire!
+  "Load a namespace of musics.algo, named without that start:
+   \"numeric.rng\" algorequire is \"musics.algo.numeric.rng\" require, and
+   'numeric.rng 'r algorequire gives it the alias r"
+  {:mu {:optional {:alias short-name?}}}
+  ([ns] (algorequire! ns nil))
+  ([ns alias] (require! (str "musics.algo." (name-of ns)) alias)))
 
 (defn in!
   "Put new definitions into namespace ns"

@@ -3437,3 +3437,17 @@ quotation is. `walk/smooth-noise` takes `lo` and `hi` as optional (`:mu
 `about pitch` no longer also answers with the grammar's `Pitch` rule: a rule
 is matched as the grammar writes it (`about Leaf`, `about TempoMark`), so a
 lower-case name keeps to the parameter, mark, word and the like.
+
+## 2026-11-05 — `algorequire`, and a quoted name may hold dots
+
+Twenty `"musics.algo.x.y" require` lines made the raw cookbook's setup long,
+and a package that loads a directory of namespaces at once was tried and put
+back (it loaded helpers nobody asked for, and one line then hid what it
+loaded). `algorequire` is `require` with `musics.algo.` in front, still one
+namespace a line, with the same optional alias: `'numeric.rng 'r algorequire`.
+For that a quoted name takes dots (`DottedName` in `mu.ebnf`; `'a.b` was a
+parse error, so nothing changed meaning), and `require` takes a quoted name as
+well as a string. A word `as` that renamed the namespace required last
+(`"numeric.rng" algorequire 'r as`) was written and dropped: the alias in the
+same line does the same with one mechanism less. The prefix reaches only
+`musics.algo`; another library is still a full name.

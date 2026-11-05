@@ -166,7 +166,12 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
   an alias. A function with a keyword tail (`& {:keys [length]}`) takes its
   `:key value` pairs written just before the word, or none: `13 r/bits`,
-  `13 :length 8 r/bits`; `see` shows them as `[:length v]`. An algorithm
+  `13 :length 8 r/bits`; `see` shows them as `[:length v]`. `algorequire` is
+  `require` for the namespaces of `musics.algo`, named without that start:
+  `"numeric.rng" algorequire` is `"musics.algo.numeric.rng" require`. A name
+  may be quoted instead of written in a string, dots and all, and an alias
+  follows it: `'bridge 'b algorequire`, `'numeric.rng 'r algorequire`
+  (`require` takes a quoted name too). An algorithm
   of `musics/algo/` takes all its arguments from the stack, as `see` lists
   them (`3 8 pattern/euclid`; its defaults are the tree's). `pull` calls a
   function n times and gives the list: `'( 0.0 1.0 random/normal ) 12 pull`

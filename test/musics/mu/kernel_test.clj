@@ -716,3 +716,20 @@
   (let [r (e/eval-input "99 8 pattern/euclid")]
     (is (re-find #"^pattern/euclid: refused, it needs <= onsets pulses" (:error r)) (:error r))
     (is (= [] (:stack @e/state)) "the stack as it was")))
+
+(deftest algorequire-takes-a-quoted-or-written-name
+  (swap! e/state assoc :stack [])
+  (testing "algorequire is require with musics.algo. in front"
+    (is (re-find #"musics\.algo\.numeric\.rng as rng/" (with-out-str (e/eval-input "\"numeric.rng\" algorequire"))))
+    (is (nil? (:error (e/eval-input "7 rng/seed")))))
+  (testing "the name may be quoted, dots and all, and an alias follows it"
+    (is (re-find #"musics\.algo\.numeric\.random as x/" (with-out-str (e/eval-input "'numeric.random 'x algorequire"))))
+    (is (re-find #"musics\.algo\.bridge as b/" (with-out-str (e/eval-input "'bridge 'b algorequire"))))
+    (is (= 0 (count (:stack @e/state))) "nothing is left on the stack"))
+  (testing "require takes a quoted name too"
+    (is (re-find #"musics\.algo\.rhythmic\.pattern as p/"
+                 (with-out-str (e/eval-input "'musics.algo.rhythmic.pattern 'p require"))))
+    (is (= "'[1 0 0 1 0 0 1 0]" (p/show (first (:ok (e/eval-input "3 8 p/euclid")))))))
+  (testing "an alias that is taken is refused, and a namespace that is not there is said"
+    (is (re-find #"'x is a namespace already" (:error (e/eval-input "'numeric.rng 'x algorequire"))))
+    (is (re-find #"no namespace musics.algo.nothing.here" (:error (e/eval-input "'nothing.here algorequire"))))))

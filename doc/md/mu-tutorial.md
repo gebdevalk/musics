@@ -1152,13 +1152,14 @@ falling together:
 ### The algorithms as plain functions
 
 Underneath the algo words are the Clojure functions themselves, and they can be called by name with their
-parameters on the stack. `"musics.algo.rhythmic.pattern" require` makes `pattern/euclid` a word, and it takes its
+parameters on the stack. `'rhythmic.pattern algorequire` (that is `"musics.algo.rhythmic.pattern" require`,
+short for the namespaces of `musics.algo`; `'rhythmic.pattern 'p algorequire` gives it the alias `p`) makes `pattern/euclid` a word, and it takes its
 arguments in the order `see pattern/euclid` shows them. There is no settings object and no default: you say
 every parameter.
 
 ```
-"musics.algo.rhythmic.pattern" require
-"musics.algo.bridge" require
+'rhythmic.pattern algorequire
+'bridge algorequire
 see pattern/euclid                                    → pattern/euclid ( onsets pulses -- euclid )
 3 8 pattern/euclid                                    → '[1 0 0 1 0 0 1 0]
 3 8 pattern/euclid 1/16 bridge/pulses->durations      → '[3/16 3/16 1/8]
@@ -1175,9 +1176,9 @@ A function that gives one number per call is called n times with `pull`, which t
 function that keeps its place:
 
 ```
-"musics.algo.numeric.rng" require
-"musics.algo.numeric.random" require
-"musics.algo.numeric.walk" require
+'numeric.rng algorequire
+'numeric.random algorequire
+'numeric.walk algorequire
 7 rng/seed                                            the random words after it repeat
 '( 0.0 1.0 random/normal ) 12 pull                    twelve draws
 60.0 3.0 walk/walk 8 pull                             a walk of eight steps, from 60
@@ -1187,7 +1188,7 @@ A quotation is also a function of what it is given, so it can be the fitness fun
 wants; and a group of quotations, `( '( … ) '( … ) )`, is a list of them:
 
 ```
-"musics.algo.melodic.melody" require
+'melodic.melody algorequire
 '[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained
 ```
 
