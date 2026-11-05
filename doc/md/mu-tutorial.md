@@ -52,7 +52,7 @@ help dup                 → dup ( x -- x x )
 about tempo              → tempo is a musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ].
 about pitch              → pitch is a property of a note or chord.
                            pitch is a word of mu ( note -- pitch ).
-settings tempo           → 30..300, default 100, Beats per minute. Written !tempo:100, or set on a line with x :tempo 100 with
+settings tempo           → 30..300, default 100, Beats per minute. Written !tempo:100, or on a line: x !tempo:100 with
 marks tempo              → !adagissimo !larghissimo !grave !largo … !presto !prestissimo
 ```
 
@@ -601,13 +601,13 @@ sits, a ramp followed along the line:
 is the note's name, or the context's factor under the name it equals, else
 the number (`0.9` by default). `@` is `nth`, the element counted from 0.
 
-`with` writes one the same way, a key and its value before the word:
+`with` writes one the same way, the instruction as the line would hold it, before the word:
 
 ```
-[c d] :volume 70 with           → [!volume:70 C4/4 D4]
-[c d] :Tempo 3/2 with           → [!Tempo:3/2 C4/4 D4]
-[c d] :Key D.major with         → [!Key:D.major C#4/4 D4]
-[c d] :volume 70 with :volume setting   → 70
+[c d] !volume:70 with           → [!volume:70 C4/4 D4]
+[c d] !Tempo:3/2 with           → [!Tempo:3/2 C4/4 D4]
+[c d] !Key:D.major with         → [!Key:D.major C#4/4 D4]
+[c d] !volume:70 with :volume setting   → 70
 ```
 
 A note becomes a line, the line's own settings still come after so they

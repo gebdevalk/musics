@@ -272,8 +272,8 @@
     (is (re-find #"^\{2\}: takes music .* got 1 " (top "1 2 {2}")))
     (is (= "'[1 2]" (top "( 1 2 )")) "and they do"))
   (testing "with says every form it takes"
-    (is (re-find #"^with: needs a context \^\{ … \} or a key \(D.major\) on top -- or a key and its value, :volume 70 with"
-                 (top "[c d e] 70 :volume with"))))
+    (is (re-find #"^with: needs an instruction \(!tempo:89\), a context \^\{ … \} or a key \(D.major\) on top"
+                 (top "[c d e] 70 with"))))
   (testing "an error is named by the word once"
     (is (re-find #"^insert: needs a line, a list or a stream, got 1" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
     (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
@@ -838,14 +838,14 @@
       "a context is no subject: it goes on top of music"))
 
 (deftest a-known-key-holds-its-range
-  (is (re-find #"volume is 0..100, got 700" (top "[c d] :volume 700 with")))
+  (is (re-find #"volume is 0..100, got 700" (top "[c d] !volume:700 with")))
   (is (re-find #"volume is 0..100, got 700" (top "[!volume:700 c d]")))
   (is (re-find #"volume is 0..100, got -1" (top "[c4\\vol:-1]")) "a note's own too")
   (is (= "50" (top "[c d] :volume setting")) "the default is a whole number")
-  (is (= "70" (top "[c d] :volume 70.0 with :volume setting")) "a decimal is the whole number it is")
-  (is (= "73" (top "[c d] :volume 72.5 with :volume setting")))
-  (is (= "70" (top "[c d] :bogus 70 with :bogus setting")) "a custom key has no range")
-  (is (= "[!swingUnit:16 C4/4 D4]" (top "[c d] :swingUnit 16 with")) "a log-scale key's range is a slider's, not a rule"))
+  (is (= "70" (top "[c d] !volume:70.0 with :volume setting")) "a decimal is the whole number it is")
+  (is (= "73" (top "[c d] !volume:72.5 with :volume setting")))
+  (is (= "70" (top "[c d] !bogus:70 with :bogus setting")) "a custom key has no range")
+  (is (= "[!swingUnit:16 C4/4 D4]" (top "[c d] !swingUnit:16 with")) "a log-scale key's range is a slider's, not a rule"))
 
 (deftest the-element-words-keep-the-settings-of-a-line
   (is (= "[D4/4 !mf E4]" (top "[c d !mf e f] 1 3 slice")) "a setting stays before its note")

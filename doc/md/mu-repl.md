@@ -90,6 +90,12 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   line, the same spelling as in a line (`!tempo:4=120`, `!tempo<16:140`,
   `!allegro`, `!tempo:140@4`). Several: `^{ !mf !tempo:89 } with`. mu never
   writes `:ROOT`.
+- **`with` on a voice** changes what plays: `:bass !tempo:140 with`,
+  `:bass :Tempo 140 with` or `:bass ^{ !mf !tempo:90 } with` write the settings
+  in front of the voice's own music and swap it in at the end of its pass, as
+  `->>` does; the voice's id stays on the stack. Do one change at a time: a
+  second `with` before the pass ends starts again from the music still playing,
+  so several settings go in one `^{ }`.
 - `^{ … }` is a value like any literal: store it (`:loud R!`), use it
   inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
   value, to keep or store: `[c4 d e] ^{ !pp } with` gives `[!pp C4/4 D4
@@ -607,15 +613,12 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   f4 !vol:90]` `2 @ :volume setting` is `60` and `3 @ :volume setting`
   `75`, and the volume at a time is `at` first: `1/2 at :volume setting`.
   `:Tempo` and `:Meter` read as written (`100`, `3/4`).
-  `with` writes one: `[c d] :volume 70 with` is `[!volume:70 C4/4 D4]`,
-  a number, a ratio, a key, a meter, a name or a keyword value (`:accidentals
-  :explicit`), the line's own settings still after it so they win; a note
-  becomes a line, and a number key takes a number (a name only for
-  `:instrument` and `:kit`). `with` also still takes a context
+  `with` writes one: `[c d] !volume:70 with` is `[!volume:70 C4/4 D4]`,
+  any instruction as the text writes it, the line's own settings still after
+  it so they win; a note becomes a line. `with` also takes a context
   (`^{ !mf } with`) or a key (`D.major with`). A bare `!name` at the top
-  level reads nothing: it is an instruction, refused, and for a context key
-  the message says how (`!volume`: "the key is read after the music with
-  :volume setting"). Inside a line a bare `!name` must be a mark: a typo is
+  level is a context holding it (see the instruction bullet above); to read a
+  key use `:name setting`. Inside a line a bare `!name` must be a mark: a typo is
   refused with what it is close to (`[!mff c]`: "!mff is no mark -- did you
   mean !ff or !mf?"), and a context key without its value says so
   (`[!volume c]`: write `!volume:value`); `!name:value` still takes any

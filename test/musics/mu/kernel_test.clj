@@ -419,6 +419,24 @@
           (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
         (finally (mt/stop-all!))))))
 
+(deftest with-on-a-voice-id-changes-the-playing-voice
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [engine/receiver (atom :silent)]
+      (try
+        (run "[bass: !tempo:60 c1 d1] [~] ->")
+        (let [staged (atom [])]
+          (with-redefs [mt/stage! (fn [x ctx _ join? target] (swap! staged conj [(p/show x) join? target]))]
+            (is (= [:bass] (:ok (run ":bass !tempo:140 with"))) "the id stays")
+            (run ":bass !volume:80 with")
+            (run ":bass ^{ !mf !tempo:90 } with")
+            (is (= [["[!tempo:140 repeat ~ [bass: !tempo:60 C4/1 D4]]" false :bass]
+                    ["[!volume:80 repeat ~ [bass: !tempo:60 C4/1 D4]]" false :bass]
+                    ["[!mf !tempo:90 repeat ~ [bass: !tempo:60 C4/1 D4]]" false :bass]]
+                   @staged)
+                "the voice's own music, the settings in front, replacing only it")))
+        (is (re-find #"with: :zzz isn't a voice" (:error (run ":zzz !tempo:90 with"))))
+        (finally (mt/stop-all!))))))
+
 (deftest a-voice-alone-plays-its-own-music-again
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [engine/receiver (atom :silent)]
@@ -647,7 +665,7 @@
         (is (re-find #"(?m)^volume is a musical parameter" out))
         (is (re-find #"(?m)^volume is a word of mu \( note -- volume \)" out))))
     (testing "settings and marks say more about a parameter"
-      (is (= "30..300, default 100, Beats per minute. Written !tempo:100, or set on a line with x :tempo 100 with"
+      (is (= "30..300, default 100, Beats per minute. Written !tempo:100; on a line: x !tempo:100 with"
              (run-out "settings tempo")))
       (is (re-find #"^!adagissimo " (run-out "marks tempo")))
       (is (re-find #"!adagissimo" (run-out "marks T")) "T is Tempo and transposition")

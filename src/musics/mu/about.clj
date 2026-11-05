@@ -190,7 +190,7 @@
                       :let [shown (if (number? default) default "value")]]
                   (str (when range (str (first range) ".." (second range) ", ")) "default " (written default) ", "
                        (str/replace (str description) #"\.$" "") ". Written !" t ":" shown
-                       ", or set on a line with x :" t " " shown " with")))
+                       "; on a line: x !" t ":" shown " with")))
       :else (str (pr-str t) " is no musical parameter; about " t " says what it is"))))
 
 (defn marks-text

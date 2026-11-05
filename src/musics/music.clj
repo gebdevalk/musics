@@ -791,46 +791,42 @@
                        slots (map vector parts (range)))]
     (mt/from-items x slots')))
 
-(defn- setting-text
-  "!key:value as the text reads it, for a key keyword and a value on the
-   stack: a number, a ratio, a key, a meter or a name as it is written, a
-   string bare when it is a name, else quoted."
-  [k v]
-  (let [n (name k)
-        ck (try (ck/context-key k) (catch clojure.lang.ExceptionInfo _ nil))]
-    (when (and ck (#{:float :int} (:type ck)) (not (number? v)) (not (#{"instrument" "kit"} (:name ck))))
-      (fail (str ":" n) "is a number, got" (p/show v)))
-    (str "!" n ":"
-         (cond (number? v)           (if (ratio? v) (str (numerator v) "/" (denominator v)) (pr-str v))
-               (mt/key? v)           (el/key->str v)
-               (instance? musics.common.music_elements.Meter v) (el/meter->str v)
-               (keyword? v)          (name v)
-               (and (string? v) (re-matches #"[a-zA-Z][a-zA-Z0-9_]*" v)) v
-               (string? v)           (pr-str v)
-               :else (fail "can't set" (str ":" n) "to" (p/show v) "-- a number, a ratio, a key, a meter or a name")))))
+(declare with)
+
+(defn- voice-with
+  "The voice id playing its own music with settings in front of it, from the
+   end of its pass (as ->> does); id back."
+  [id settings]
+  (let [{:keys [ctx]} (get (mt/live-voices) id)]
+    (when-not (get (mt/live-voices) id)
+      (fail "with:" (pr-str id) "isn't a voice mu plays -- voices lists them"))
+    (mt/stage! (with (mt/playing id) settings) ctx nil false id)
+    id))
 
 (defn with
   "x with the settings in front of it (its own come after, so they win): a
-   context ^{ !mf }, a key D.major, or one key and its value, :volume 70
-   with; a note becomes a line; a { } or a repeat is wrapped"
-  {:mu {:arity (fn [stack] (if (and (>= (count stack) 3) (keyword? (peek (pop stack)))) 3 2))}}
-  ([x k value]
-   (with x (mt/read-text (str "^{ " (setting-text k value) " }"))))
-  ([x settings]
+   context ^{ !mf }, an instruction alone, !tempo:89 with, or a key D.major; a
+   note becomes a line; a { } or a repeat is wrapped. A voice's id as x
+   (:bass !tempo:140 with) changes the voice playing, from the end of its
+   pass; the id stays"
+  [x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx))
-      (fail "needs a context ^{ … } or a key (D.major) on top -- or a key and its value, :volume 70 with"))
-    (when (= :CONTEXT (mt/kind x))
-      (fail "needs music under the context, got" (p/show x) "-- a context goes on top of what it is laid under"))
-    (let [settings (str/join " " (map :raw (:children (v/node ctx))))
-          shown    (p/show (mt/->material x))]
-      ;; at the start of a line (or a note made a line); a { } or a
-      ;; repeat wrapped in a line holding them
-      (mt/read-text
-       (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
-                                 (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
-         (str "[" id settings " " body "]")
-         (str "[" settings " " shown "]")))))))
+      (fail "needs an instruction (!tempo:89), a context ^{ … } or a key (D.major) on top"))
+    (cond
+      (keyword? x) (voice-with x ctx)
+      (= :CONTEXT (mt/kind x))
+      (fail "needs music under the context, got" (p/show x) "-- a context goes on top of what it is laid under")
+      :else
+      (let [settings (str/join " " (map :raw (:children (v/node ctx))))
+            shown    (p/show (mt/->material x))]
+        ;; at the start of a line (or a note made a line); a { } or a
+        ;; repeat wrapped in a line holding them
+        (mt/read-text
+         (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
+                                   (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
+           (str "[" id settings " " body "]")
+           (str "[" settings " " shown "]")))))))
 
 (defn transpose
   "x moved by n semitones, or by the interval from one note to the other,

@@ -75,33 +75,32 @@
       (is (= 0.9 (mu "[c d] 0 nth :articulation setting"))))
     (testing "its other name"
       (is (= 60 (mu (str line " :volume setting")))))
-    (testing "a number has no context; a bare !name at the top level reads nothing and says how"
+    (testing "a number has no context; a bare !name at the top level is a context, a typo is refused"
       (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
       (is (thrown-with-msg? Exception #"!nothing is no mark" (e/run-text [] "[c d] !nothing with")))
       (is (thrown-with-msg? Exception #"names a context key|names it|needs a value" (e/run-text [] "[c d] !volume with"))))
     (testing "an instruction alone is a context, for with"
       (is (= "[!tempo:89 C4/4 D4]" (run "[c d] !tempo:89 with"))))))
 
-(deftest with-sets-one-key-or-a-context
-  (testing "a key and its value in front of a line"
-    (is (= "[!volume:70 C4/4 D4]" (run "[c d] :volume 70 with")))
-    (is (= "[!Tempo:3/2 C4/4 D4]" (run "[c d] :Tempo 3/2 with")) "a ratio as written")
-    (is (= "[!instrument:violin C4/4 D4]" (run "[c d] :instrument \"violin\" with")) "a name")
-    (is (= "[!accidentals:explicit C4/4 D4]" (run "[c d] :accidentals :explicit with")) "a keyword value")
-    (is (= "[!Key:D.major C#4/4 D4]" (run "[c d] :Key D.major with")))
-    (is (= "[!Meter:\"3/4\" C4/4 D4]" (run "[c d] :Meter \"3/4\" with")))
-    (is (= "[!volume:90 C4/4]" (run "c :volume 90 with")) "a note becomes a line"))
+(deftest with-sets-an-instruction-a-context-or-a-key
+  (testing "an instruction in front of a line"
+    (is (= "[!volume:70 C4/4 D4]" (run "[c d] !volume:70 with")))
+    (is (= "[!Tempo:3/2 C4/4 D4]" (run "[c d] !Tempo:3/2 with")) "a ratio as written")
+    (is (= "[!instrument:violin C4/4 D4]" (run "[c d] !instrument:violin with")) "a name")
+    (is (= "[!accidentals:explicit C4/4 D4]" (run "[c d] !accidentals:explicit with")) "a keyword value")
+    (is (= "[!Key:D.major C#4/4 D4]" (run "[c d] !Key:D.major with")))
+    (is (= "[!Meter:\"3/4\" C4/4 D4]" (run "[c d] !Meter:\"3/4\" with")))
+    (is (= "[!volume:90 C4/4]" (run "c !volume:90 with")) "a note becomes a line"))
   (testing "it reads back"
-    (is (= 70 (mu "[c d] :volume 70 with :volume setting")))
-    (is (= 90 (mu "[c d] :Tempo 90 with :Tempo setting"))))
-  (testing "the two older forms are as before"
+    (is (= 70 (mu "[c d] !volume:70 with :volume setting")))
+    (is (= 90 (mu "[c d] !Tempo:90 with :Tempo setting"))))
+  (testing "the other forms"
     (is (= "[!mf C4/4 D4]" (run "[c d] ^{ !mf } with")) "a context")
     (is (= "[!K:D.major C#4/4 D4]" (run "[c d] D.major with")) "a key"))
   (testing "the line's own settings still win"
-    (is (= 60 (mu "[!mf c d] :volume 30 with 0 nth :volume setting")) "its own, after"))
+    (is (= 60 (mu "[!mf c d] !volume:30 with 0 nth :volume setting")) "its own, after"))
   (testing "refused"
-    (is (thrown-with-msg? Exception #":volume is a number" (e/run-text [] "[c d] :volume \"loud\" with")))
-    (is (thrown-with-msg? Exception #"can't set :Key" (e/run-text [] "[c d] :Key [e] with")))))
+    (is (thrown-with-msg? Exception #"needs an instruction" (e/run-text [] "[c d] [e] with")))))
 
 (deftest time-gives-access-to-a-line
   (testing "length, in whole notes as written"
