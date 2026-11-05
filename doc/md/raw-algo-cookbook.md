@@ -1,10 +1,10 @@
-# Raw algo cookbook
+# Algo cookbook
 
-The 53 recipes of the [algo cookbook](algo-cookbook.md), written with the algorithms as plain Clojure functions, called by name with their parameters on the stack. Every recipe was run for real, the line typed at the `mu>` prompt and what came back. The numbers are the same as in the algo cookbook, so recipe 13 here is recipe 13 there.
+The algorithms of `musics/algo/` as plain Clojure functions, called by name with their parameters on the stack: 53 recipes. Every recipe was run for real, the line typed at the `mu>` prompt and what came back. 
 
 ## The idea
 
-An algorithm of `musics/algo/` is an ordinary function with clear argument names. `"musics.algo.rhythmic.pattern" require` makes its public functions words, `pattern/euclid`, and a word takes its arguments from the stack in the order `see pattern/euclid` shows them: `3 8 pattern/euclid`. There are no settings objects, no defaults and no registry in between: what a function needs, you put on the stack. A function that makes *raw material* (pulses, numbers, weights, onsets, points) gives a plain list; a **bridge** from `musics.algo.bridge` (`pulses->durations`, `numbers->pitches` …) turns it into a duration, a pitch or a volume, with the range or the grid you give it; `zip` puts the parts together into notes. A function that makes one number per call is called n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`; one that keeps its place (a walk, the logistic map) is `pull`ed as it is.
+An algorithm of `musics/algo/` is an ordinary function with clear argument names. `"musics.algo.rhythmic.pattern" require` makes its public functions words, `pattern/euclid`, and a word takes its arguments from the stack in the order `see pattern/euclid` shows them: `3 8 pattern/euclid`. There is nothing in between, no settings object and no defaults: what a function needs, you put on the stack. A function that makes *raw material* (pulses, numbers, weights, onsets, points) gives a plain list; a **bridge** from `musics.algo.bridge` (`pulses->durations`, `numbers->pitches` …) turns it into a duration, a pitch or a volume, with the range or the grid you give it; `zip` puts the parts together into notes. A function that makes one number per call is called n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`; one that keeps its place (a walk, the logistic map) is `pull`ed as it is.
 
 Three things to keep in mind:
 
@@ -67,7 +67,7 @@ mu> : penta ( -- l ) '[60 62 64 67 69] ;
 
 #### 1. A source, a bridge, a scale
 
-The bare form of cookbook recipe 1. `pattern/euclid` is the Clojure function itself: its arguments, `onsets` and `pulses`, come from the stack and `see pattern/euclid` shows them. It gives a row of pulses, 1 for an onset and 0 for a rest. `bridge/pulses->durations` lets each onset last until the next one on a grid of the `pulse` you give it; `zip` puts durations and pitches together. `penta` is a word of our own, the scale the recipes play over.
+`pattern/euclid` is the Clojure function itself: its arguments, `onsets` and `pulses`, come from the stack and `see pattern/euclid` shows them. It gives a row of pulses, 1 for an onset and 0 for a rest. `bridge/pulses->durations` lets each onset last until the next one on a grid of the `pulse` you give it; `zip` puts durations and pitches together. `penta` is a word of our own, the scale the recipes play over.
 
 ```
 mu> see pattern/euclid
@@ -81,7 +81,7 @@ mu> 3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip
 
 #### 2. Change a parameter; a precondition guards it
 
-Cookbook recipe 2. Write another number. A function that cannot work with its arguments says what it needs.
+Write another number. A function that cannot work with its arguments says what it needs.
 
 ```
 mu> 5 8 pattern/euclid 1/16 bridge/pulses->durations penta zip
@@ -96,7 +96,7 @@ error: pattern/euclid: refused, it needs pos? pulses
 
 #### 3. Wrong shapes
 
-Cookbook recipe 3. A word takes what its stack effect says from the stack. Too few arguments are refused; arguments of the wrong kind are not always: a bridge on durations runs and gives nonsense.
+A word takes what its stack effect says from the stack. Too few arguments are refused; arguments of the wrong kind are not always: a bridge on durations runs and gives nonsense.
 
 ```
 mu> 5 pattern/euclid
@@ -109,7 +109,7 @@ mu> 3 8 pattern/euclid 1/16 bridge/pulses->durations 1/16 bridge/pulses->duratio
 
 #### 4. Raw material needs its bridges
 
-Cookbook recipe 4. Pulses become durations with one bridge. Weights (`indisp` ranks) need two: `weights->pulses` keeps the strongest `density` of them, then `pulses->durations`.
+Pulses become durations with one bridge. Weights (`indisp` ranks) need two: `weights->pulses` keeps the strongest `density` of them, then `pulses->durations`.
 
 ```
 mu> 3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip
@@ -120,7 +120,7 @@ mu> '[2 2 3] indispensability/indisp 0.5 bridge/weights->pulses 1/16 bridge/puls
 
 #### 5. One run, several parameters
 
-Cookbook recipe 5. `dup` copies what is on the stack, so one run of a walk can be the pitches and the velocities: the higher the note, the louder. `pull` calls a function n times; `walk/walk` gives a function that keeps its place.
+`dup` copies what is on the stack, so one run of a walk can be the pitches and the velocities: the higher the note, the louder. `pull` calls a function n times; `walk/walk` gives a function that keeps its place.
 
 ```
 mu> 7 rng/seed
@@ -133,7 +133,7 @@ mu> 60.0 3.0 walk/walk 8 pull dup 52 68 48 72 bridge/numbers->pitches swap 52 68
 
 #### 6. Euclidean rhythm, rotated, over a reshuffled pentatonic
 
-Cookbook recipe 6. `rotate` and `shuffle` are mu's own list words: they work on a row of pulses and on a list of pitches alike.
+`rotate` and `shuffle` are mu's own list words: they work on a row of pulses and on a list of pitches alike.
 
 ```
 mu> 7 rng/seed
@@ -144,7 +144,7 @@ mu> 5 16 pattern/euclid 2 rotate 1/16 bridge/pulses->durations penta shuffle zip
 
 #### 7. Legato by default, detached by articulation
 
-Cookbook recipe 7. `zip` takes a named part: `:articulation` before a list gives every note it.
+`zip` takes a named part: `:articulation` before a list gives every note it.
 
 ```
 mu> 5 8 pattern/euclid 1/16 bridge/pulses->durations penta :articulation '[:staccato] zip
@@ -153,7 +153,7 @@ mu> 5 8 pattern/euclid 1/16 bridge/pulses->durations penta :articulation '[:stac
 
 #### 8. A Fibonacci rhythm
 
-Cookbook recipe 8. Every generator of `musics/algo/` is a function you can call.
+Every generator of `musics/algo/` is a function you can call.
 
 ```
 mu> 16 pattern/fibonacci 1/16 bridge/pulses->durations '[60 62 64 65 67 69 71] zip
@@ -162,7 +162,7 @@ mu> 16 pattern/fibonacci 1/16 bridge/pulses->durations '[60 62 64 65 67 69 71] z
 
 #### 9. A Xenakis sieve as the rhythm
 
-Cookbook recipe 9. The moduli and their residues are lists; a list inside a list is written `'[ '[0 1] '[2] ]`.
+The moduli and their residues are lists; a list inside a list is written `'[ '[0 1] '[2] ]`.
 
 ```
 mu> '[3 4] '[ '[0 1] '[2] ] 12 sieve/sieve 1/16 bridge/pulses->durations penta zip
@@ -171,7 +171,7 @@ mu> '[3 4] '[ '[0 1] '[2] ] 12 sieve/sieve 1/16 bridge/pulses->durations penta z
 
 #### 10. A clave timeline carrying an arpeggio
 
-Cookbook recipe 10. `world/bell` gives a named West African timeline for a meter, `[pulses subdivision]`.
+`world/bell` gives a named West African timeline for a meter, `[pulses subdivision]`.
 
 ```
 mu> '[12 8] "clave" world/bell 1/16 bridge/pulses->durations '[60 64 67 72] zip
@@ -182,7 +182,7 @@ mu> '[12 8] "clave" world/bell 1/16 bridge/pulses->durations '[60 64 67 72] zip
 
 #### 11. Isorhythm: a 5-note color against a 3-value talea
 
-Cookbook recipe 11. Two loops of different lengths zipped line up after their least common multiple, here 15 notes.
+Two loops of different lengths zipped line up after their least common multiple, here 15 notes.
 
 ```
 mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take
@@ -191,7 +191,7 @@ mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take
 
 #### 12. Stretch the durations, transpose the pitches
 
-Cookbook recipe 12. `*` stretches the durations of a line and `+` transposes it.
+`*` stretches the durations of a line and `+` transposes it.
 
 ```
 mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take 1/2 * 7 +
@@ -202,7 +202,7 @@ mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take 1/2 * 7 +
 
 #### 13. Indispensability thins a 12/8 bar
 
-Cookbook recipe 13. `indisp` ranks the pulses of a meter given by its subdivisions, `tilt` turns ranks into probabilities (`adherence` how strongly rank decides), `weights->pulses` keeps the strongest `density` of them.
+`indisp` ranks the pulses of a meter given by its subdivisions, `tilt` turns ranks into probabilities (`adherence` how strongly rank decides), `weights->pulses` keeps the strongest `density` of them.
 
 ```
 mu> '[2 2 3] indispensability/indisp 0.8 indispensability/tilt 0.5 bridge/weights->pulses 1/16 bridge/pulses->durations '[67 64 60] zip
@@ -211,7 +211,7 @@ mu> '[2 2 3] indispensability/indisp 0.8 indispensability/tilt 0.5 bridge/weight
 
 #### 14. Swap one stage: strong beats silent
 
-Cookbook recipe 14. `power` in place of `tilt`, with a negative adherence: the weak pulses win.
+`power` in place of `tilt`, with a negative adherence: the weak pulses win.
 
 ```
 mu> '[2 2 3] indispensability/indisp -0.8 indispensability/power 0.5 bridge/weights->pulses 1/16 bridge/pulses->durations '[67 64 60] zip
@@ -220,7 +220,7 @@ mu> '[2 2 3] indispensability/indisp -0.8 indispensability/power 0.5 bridge/weig
 
 #### 15. One weighted choice
 
-Cookbook recipe 15. `random/weighted-choose` draws one of the values (here the nine pulses `0 9 range`) with the weights it is given.
+`random/weighted-choose` draws one of the values (here the nine pulses `0 9 range`) with the weights it is given.
 
 ```
 mu> 7 rng/seed
@@ -233,7 +233,7 @@ mu> 0 9 range '[3 3] indispensability/indisp 1.0 indispensability/tilt random/we
 
 #### 16. A Markov melody trained on a motif
 
-Cookbook recipe 16. `markov-train` learns the motif (its `order`), `markov-gen` walks the model for `length` notes.
+`markov-train` learns the motif (its `order`), `markov-gen` walks the model for `length` notes.
 
 ```
 mu> 7 rng/seed
@@ -244,7 +244,7 @@ mu> 11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64
 
 #### 17. Slonimsky: insertions before, between, after
 
-Cookbook recipe 17. `serial/infra` puts a pattern before each principal tone; `serial/polations` does infra, inter and ultra at once (the last argument: ultra after the last tone too).
+`serial/infra` puts a pattern before each principal tone; `serial/polations` does infra, inter and ultra at once (the last argument: ultra after the last tone too).
 
 ```
 mu> '[60 64 67 72] '[59 62] serial/infra
@@ -255,7 +255,7 @@ mu> '[60 64 67 72] '[] '[65] '[62] false serial/polations
 
 #### 18. An L-system melody
 
-Cookbook recipe 18. `melody/lsys-melody` expands an axiom with rules and reads each letter as a note. The rules and the letters' pitches are maps, which mu text cannot write yet, so this one is only shown: `see` gives its parameters.
+`melody/lsys-melody` expands an axiom with rules and reads each letter as a note. The rules and the letters' pitches are maps, which mu text cannot write yet, so this one is only shown: `see` gives its parameters.
 
 ```
 mu> see melody/lsys-melody
@@ -265,7 +265,7 @@ melody/lsys-melody ( axiom rules note-map iterations max-notes -- lsys-melody )
 
 #### 19. A constrained walk
 
-Cookbook recipe 19. `melody/constrained` walks a scale: each note is drawn from those that every constraint accepts. A constraint is a function of the melody so far and the candidate note, and a quotation is one: `( '( … ) '( … ) )` gathers quotations into the list. Here the first constraint refuses a repeated note (`swap last =` compares the candidate with the last note), the second keeps every step within a whole tone (`swap last - abs 3 <`).
+`melody/constrained` walks a scale: each note is drawn from those that every constraint accepts. A constraint is a function of the melody so far and the candidate note, and a quotation is one: `( '( … ) '( … ) )` gathers quotations into the list. Here the first constraint refuses a repeated note (`swap last =` compares the candidate with the last note), the second keeps every step within a whole tone (`swap last - abs 3 <`).
 
 ```
 mu> 7 rng/seed
@@ -278,7 +278,7 @@ mu> '[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < 
 
 #### 20. A melody that modulates
 
-Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`, and the constraints they share, as in recipe 19. The result is pitch classes of the keys; `60 +` lifts them to the middle of the keyboard.
+Segments of `[key length]` pairs, a key being `'[:C :major]`, and the constraints they share, as in recipe 19. The result is pitch classes of the keys; `60 +` lifts them to the middle of the keyboard.
 
 ```
 mu> 7 rng/seed
@@ -289,7 +289,7 @@ mu> '[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] ( '( swap last = not ) ) melody/m
 
 #### 21. Two-voice counterpoint
 
-Cookbook recipe 21. `jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one line per voice.
+`jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one line per voice.
 
 ```
 mu> '[55 57 59 60 62 64 65 67 69 71 72 74 76] 2 1 :auto :auto 1 jeppesen/species
@@ -300,7 +300,7 @@ mu> '[55 57 59 60 62 64 65 67 69 71 72 74 76] 2 1 :auto :auto 1 jeppesen/species
 
 #### 22. A number's bits, a fraction's expansion
 
-Cookbook recipe 22. 45 is 101101: onsets on bits 0, 2, 3 and 5. A function with a keyword tail takes `:key value` pairs written before it: `:length 8`. π is [3; 7, 15, 1, …].
+45 is 101101: onsets on bits 0, 2, 3 and 5. A function with a keyword tail takes `:key value` pairs written before it: `:length 8`. π is [3; 7, 15, 1, …].
 
 ```
 mu> 45 :length 8 pattern/bits 1/16 bridge/pulses->durations penta zip
@@ -311,7 +311,7 @@ mu> 3.141592653589793 16 pattern/cfrac 1/16 bridge/pulses->durations penta zip
 
 #### 23. Modular arithmetic as a rhythm
 
-Cookbook recipe 23. An onset wherever `multiplier · i + offset` is a multiple of `modulus`: `modulus multiplier length offset`.
+An onset wherever `multiplier · i + offset` is a multiple of `modulus`: `modulus multiplier length offset`.
 
 ```
 mu> 5 2 15 0 pattern/modular 1/16 bridge/pulses->durations penta zip
@@ -322,7 +322,7 @@ mu> 5 2 15 0 pattern/modular 1/16 bridge/pulses->durations penta zip
 
 #### 24. A sampler is a function: pull n draws
 
-Cookbook recipe 24. `random/triangular` gives one draw per call; `pull` calls a quotation n times and collects the results. The bridge puts the draws on pitches, the range they really have being its second and third arguments.
+`random/triangular` gives one draw per call; `pull` calls a quotation n times and collects the results. The bridge puts the draws on pitches, the range they really have being its second and third arguments.
 
 ```
 mu> 7 rng/seed
@@ -333,7 +333,7 @@ mu> '( 0.0 1.0 0.5 random/triangular ) 12 pull 0.0 1.0 60 73 bridge/numbers->pit
 
 #### 25. Any numbers, rescaled onto a scale
 
-Cookbook recipe 25. Scale the draws to the scale steps you want and round them (`'( round ) map`); `degrees->pitches` spells whole steps in a key and octave. A key name with a hyphen goes in quotes.
+Scale the draws to the scale steps you want and round them (`'( round ) map`); `degrees->pitches` spells whole steps in a key and octave. A key name with a hyphen goes in quotes.
 
 ```
 mu> 7 rng/seed
@@ -344,7 +344,7 @@ mu> '( 0.0 1.0 random/normal ) 12 pull 3 * 4 + '( round ) map "C.pentatonic-majo
 
 #### 26. A random walk, and a biased one
 
-Cookbook recipe 26. `walk/walk` moves by at most `step-bound`; `biased-walk` also leans one way (above 0.5 up). A function that keeps its place is `pull`ed.
+`walk/walk` moves by at most `step-bound`; `biased-walk` also leans one way (above 0.5 up). A function that keeps its place is `pull`ed.
 
 ```
 mu> 7 rng/seed
@@ -357,7 +357,7 @@ mu> 60.0 2.0 0.7 walk/biased-walk 16 pull
 
 #### 27. Chaos: the logistic map, the Lorenz attractor
 
-Cookbook recipe 27. `logistic` gives numbers in (0, 1) from a growth rate and a start; `lorenz` a point per step, `points->pitches` reads one coordinate onto the steps of a key. `pull` also takes a generator that holds a `:value` function, as lorenz does.
+`logistic` gives numbers in (0, 1) from a growth rate and a start; `lorenz` a point per step, `points->pitches` reads one coordinate onto the steps of a key. `pull` also takes a generator that holds a `:value` function, as lorenz does.
 
 ```
 mu> 3.9 0.5 logistic/logistic 12 pull 9 * '( round ) map "C.pentatonic-major" 4 bridge/degrees->pitches
@@ -368,7 +368,7 @@ mu> 10.0 28.0 2.667 1.0 1.0 1.0 0.03 lorenz/lorenz 24 pull 0 -20.0 20.0 "C.penta
 
 #### 28. A Markov chain over scale degrees
 
-Cookbook recipe 28. `markov/chain` walks a table of transitions between states. The table is a map, which mu text cannot write yet, so this one is only shown.
+`markov/chain` walks a table of transitions between states. The table is a map, which mu text cannot write yet, so this one is only shown.
 
 ```
 mu> see markov/chain
@@ -378,7 +378,7 @@ markov/chain ( transitions start-state -- chain )
 
 #### 29. Poisson onsets become durations
 
-Cookbook recipe 29. `poisson` gives event times from a rate and a duration; `onsets->durations` reads the gaps between them as note values, `unit` being the note value of one time unit and `quantum` the grid they are rounded to.
+`poisson` gives event times from a rate and a duration; `onsets->durations` reads the gaps between them as note values, `unit` being the note value of one time unit and `quantum` the grid they are rounded to.
 
 ```
 mu> 7 rng/seed
@@ -389,7 +389,7 @@ mu> 3.0 4.0 process/poisson 1/4 1/32 bridge/onsets->durations penta zip
 
 #### 30. Smooth noise as a rhythm
 
-Cookbook recipe 30. `walk/smooth-noise` makes a curve, a function of t, from `n` random points between `lo` and `hi`; `map` samples it at sixteen places, and `data-rhythm` puts an onset wherever a value is above the median.
+`walk/smooth-noise` makes a curve, a function of t, from `n` random points between `lo` and `hi`; `map` samples it at sixteen places, and `data-rhythm` puts an onset wherever a value is above the median.
 
 ```
 mu> 7 rng/seed
@@ -402,7 +402,7 @@ mu> 0 16 range 3 / 6 0.0 1.0 walk/smooth-noise map "median" 1 data/data-rhythm 1
 
 #### 31. A tala's theka, a named bell pattern
 
-Cookbook recipe 31.
+
 
 ```
 mu> "jhaptal" world/theka 1/16 bridge/pulses->durations penta zip
@@ -413,7 +413,7 @@ mu> '[16 8] "bossanova" world/bell 1/16 bridge/pulses->durations '[60 64 67] zip
 
 #### 32. Fractal rhythms: Cantor set, dragon curve
 
-Cookbook recipe 32.
+
 
 ```
 mu> 2 9 pattern/cantor 1/16 bridge/pulses->durations penta zip
@@ -424,7 +424,7 @@ mu> 3 pattern/dragon 1/16 bridge/pulses->durations penta zip
 
 #### 33. A polyrhythm, one layer per voice
 
-Cookbook recipe 33. `polyrhythm` takes the layers, each `[onsets grid]`, and a length, and gives a list of layers; `0 @` picks one: three against two.
+`polyrhythm` takes the layers, each `[onsets grid]`, and a length, and gives a list of layers; `0 @` picks one: three against two.
 
 ```
 mu> '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '[48 55] zip
@@ -435,7 +435,7 @@ mu> '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[4
 
 #### 34. A polyrhythm as two parts
 
-Cookbook recipe 34. Each layer its own line, each started by its own `|` mark so that `zip` joins only that part; `{2}` puts the two side by side.
+Each layer its own line, each started by its own `|` mark so that `zip` joins only that part; `{2}` puts the two side by side.
 
 ```
 mu> | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '[48] zip | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[55] zip {2}
@@ -444,7 +444,7 @@ mu> | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '
 
 #### 35. Clapping Music: the pattern against itself, shifted
 
-Cookbook recipe 35. `duet` gives the pattern and the same pattern `phase` pulses on; `1 @` picks the shifted one.
+`duet` gives the pattern and the same pattern `phase` pulses on; `1 @` picks the shifted one.
 
 ```
 mu> '[1 1 1 0 1 1 0 1 0 1 1 0] 3 sieve/duet 1 @ 1/16 bridge/pulses->durations '[72] zip
@@ -453,7 +453,7 @@ mu> '[1 1 1 0 1 1 0 1 0 1 1 0] 3 sieve/duet 1 @ 1/16 bridge/pulses->durations '[
 
 #### 36. A genetic rhythm: the fitness function is a quotation
 
-Cookbook recipe 36. A quotation `'( … )` is a function of what it is given, so it can be the fitness function: this one scores a pattern by how close its onset count is to five.
+A quotation `'( … )` is a function of what it is given, so it can be the fitness function: this one scores a pattern by how close its onset count is to five.
 
 ```
 mu> 7 rng/seed
@@ -464,7 +464,7 @@ mu> 16 16 20 '( sum 5 - abs negate ) process/genetic 1/16 bridge/pulses->duratio
 
 #### 37. Swing: a grid becomes onset times, then durations
 
-Cookbook recipe 37. `swing` turns pulses into swung onset times (a ratio and the steps per beat); `onsets->durations` reads them back, a beat being `unit`.
+`swing` turns pulses into swung onset times (a ratio and the steps per beat); `onsets->durations` reads them back, a beat being `unit`.
 
 ```
 mu> 8 8 pattern/euclid 0.67 2 feel/swing 1/4 1/32 bridge/onsets->durations penta zip
@@ -473,7 +473,7 @@ mu> 8 8 pattern/euclid 0.67 2 feel/swing 1/4 1/32 bridge/onsets->durations penta
 
 #### 38. A bouncing ball, in seconds
 
-Cookbook recipe 38. Times in seconds: height, restitution, gravity and duration; `unit` says how long one second is as a note value.
+Times in seconds: height, restitution, gravity and duration; `unit` says how long one second is as a note value.
 
 ```
 mu> 1.0 0.8 9.8 5.0 nature/bounce 1/4 1/64 bridge/onsets->durations '[72 67] zip
@@ -482,7 +482,7 @@ mu> 1.0 0.8 9.8 5.0 nature/bounce 1/4 1/64 bridge/onsets->durations '[72 67] zip
 
 #### 39. Tuplet-like durations by repeated splitting
 
-Cookbook recipe 39. `decompose/split` takes a `ratio`-sized bite of what remains, `depth` times.
+`decompose/split` takes a `ratio`-sized bite of what remains, `depth` times.
 
 ```
 mu> 1 5 2/3 decompose/split penta zip
@@ -491,7 +491,7 @@ mu> 1 5 2/3 decompose/split penta zip
 
 #### 40. Text as rhythm
 
-Cookbook recipe 40. A beat on each word's first syllable; density 1.0 lets every accent sound.
+A beat on each word's first syllable; density 1.0 lets every accent sound.
 
 ```
 mu> "Composing trees of algorithms is plain Clojure." data/text-rhythm 1.0 bridge/weights->pulses 1/16 bridge/pulses->durations penta zip
@@ -500,7 +500,7 @@ mu> "Composing trees of algorithms is plain Clojure." data/text-rhythm 1.0 bridg
 
 #### 41. Vary a rhythm: EMI style, Oblique Strategies
 
-Cookbook recipe 41. `emi` takes a pattern and a similarity (1 leaves it as it is); `oblique` a pattern and the name of a strategy.
+`emi` takes a pattern and a similarity (1 leaves it as it is); `oblique` a pattern and the name of a strategy.
 
 ```
 mu> 7 rng/seed
@@ -513,7 +513,7 @@ mu> 3 8 pattern/euclid "mirror" feel/oblique 1/16 bridge/pulses->durations penta
 
 #### 42. Cross two rhythms
 
-Cookbook recipe 42. `process/crossover` takes the first part of one pattern and the rest of the other, at a point; `child` 0 or 1 says which way round.
+`process/crossover` takes the first part of one pattern and the rest of the other, at a point; `child` 0 or 1 says which way round.
 
 ```
 mu> '[1 0 1 1 0 1 0 0] '[1 0 0 1 0 0 1 0] 4 0 process/crossover 1/16 bridge/pulses->durations penta zip
@@ -526,7 +526,7 @@ mu> '[1 0 1 1 0 1 0 0] '[1 0 0 1 0 0 1 0] 4 1 process/crossover 1/16 bridge/puls
 
 #### 43. A pitch transform
 
-Cookbook recipe 43. A word of your own is an algorithm: `: name ( inputs -- results ) … ;`. This one moves every pitch down an octave, and works on pitches before `zip`.
+A word of your own is an algorithm: `: name ( inputs -- results ) … ;`. This one moves every pitch down an octave, and works on pitches before `zip`.
 
 ```
 mu> : down ( l -- l' ) 12 - ;
@@ -537,7 +537,7 @@ mu> 3 8 pattern/euclid 1/16 bridge/pulses->durations penta down zip
 
 #### 44. Required arguments and their limits
 
-Cookbook recipe 44. Every argument is required: there are no defaults, and a function says how many it needs and what it cannot take.
+Every argument is required: there are no defaults, and a function says how many it needs and what it cannot take.
 
 ```
 mu> 16 16 20 process/genetic
@@ -550,7 +550,7 @@ error: pattern/euclid: refused, it needs <= onsets pulses
 
 #### 45. Two instances of one algo
 
-Cookbook recipe 45. No naming is needed: each call takes its own arguments, so two euclids are two calls.
+No naming is needed: each call takes its own arguments, so two euclids are two calls.
 
 ```
 mu> 2 16 pattern/euclid 5 16 pattern/euclid
@@ -559,7 +559,7 @@ mu> 2 16 pattern/euclid 5 16 pattern/euclid
 
 #### 46. Different algos, same parameter name
 
-Cookbook recipe 46. Arguments are by position, so `onsets` in `euclid` and in `necklaces` cannot meet.
+Arguments are by position, so `onsets` in `euclid` and in `necklaces` cannot meet.
 
 ```
 mu> 5 8 pattern/euclid
@@ -572,7 +572,7 @@ mu> 8 5 1 sieve/necklaces
 
 #### 47. One line, several parameters: a word with inputs
 
-Cookbook recipe 47. The parameters of a word of your own are its `$` inputs.
+The parameters of a word of your own are its `$` inputs.
 
 ```
 mu> : riff ( $onsets $pulses -- notes ) $onsets $pulses pattern/euclid 1/16 bridge/pulses->durations penta zip ;
@@ -585,7 +585,7 @@ mu> 7 8 riff
 
 #### 48. Another word over the same inputs
 
-Cookbook recipe 48. Words that share inputs just share names. `see` shows a word's stack effect with its inputs.
+Words that share inputs just share names. `see` shows a word's stack effect with its inputs.
 
 ```
 mu> see riff
@@ -598,7 +598,7 @@ mu> 2 8 riff 7 lift
 
 #### 49. Defaults are a word
 
-Cookbook recipe 49. A default is a definition that fills in what you leave out; the arguments you give win.
+A default is a definition that fills in what you leave out; the arguments you give win.
 
 ```
 mu> : groove ( $onsets -- pulses ) $onsets 16 pattern/euclid ;
@@ -611,7 +611,7 @@ mu> 7 groove
 
 #### 50. Look inside: see and the stack
 
-Cookbook recipe 50. `see` shows a word's stack effect and what it does; `.s` shows the stack.
+`see` shows a word's stack effect and what it does; `.s` shows the stack.
 
 ```
 mu> see pattern/euclid
@@ -630,7 +630,7 @@ mu> 3 8 pattern/euclid .s
 
 #### 51. A live word, changed while it plays
 
-Cookbook recipe 51. A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, read with `@` and stored with `!`. Shown, not run: nothing sounds when this page is made.
+A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, read with `@` and stored with `!`. Shown, not run: nothing sounds when this page is made.
 
 ```
 mu> 5 8 'riff :bass ->
@@ -642,7 +642,7 @@ mu> stop
 
 #### 52. A transform: reshape any voice's own notes
 
-Cookbook recipe 52. A quotation under a play word runs on the music under it, note by note. Shown, not run.
+A quotation under a play word runs on the music under it, note by note. Shown, not run.
 
 ```
 mu> [c d e g] [~] '( 5 + ) :up ->
@@ -653,7 +653,7 @@ mu> '( 7 + ) :up retree
 
 #### 53. Generated notes become committed musics text
 
-Cookbook recipe 53. `R!` stores what is on the stack under a name; `R@` reads it back, and `write` or `save-session` keeps it.
+`R!` stores what is on the stack under a name; `R@` reads it back, and `write` or `save-session` keeps it.
 
 ```
 mu> 3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip :demo R!

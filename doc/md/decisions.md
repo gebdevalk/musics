@@ -3451,3 +3451,28 @@ well as a string. A word `as` that renamed the namespace required last
 (`"numeric.rng" algorequire 'r as`) was written and dropped: the alias in the
 same line does the same with one mechanism less. The prefix reaches only
 `musics.algo`; another library is still a full name.
+
+## 2026-11-05 — the tree, tctx and registry are gone; the algorithms are called bare
+
+On the `raw-algos` branch (everything old is on `develop`), the machinery that
+composed and set algorithms is removed: `musics.algo.tree` and its lib,
+registry, half products, builder, live and tools; `musics.algo.logic.tree`
+(the type search); `musics.recipe` and `@( )`; `@^{ }` settings and the
+`:TCONTEXT` node; the algo words of `musics.mu.algos` (`raw/`, `pitch/lorenz`
+…); `set`, `unset`, `run` and `compose`; the composer window. About 8,970
+lines, with their tests and the algo cookbook, tree tutorial, bridge table,
+algo-space and algorithms documents. What remains is the raw system: the
+algorithm functions with their `:algo` metadata, the bridges of
+`musics.algo.bridge`, mu's `require`/`algorequire` and `pull`, and live voices
+on one standalone follower (`musics.mu.voice`: a wall fn that plays the next
+leaf of what a function of the voice's inputs gives, cursors kept, replaced
+when an input changes; `musics.mu.inputs`: each voice's inputs, their specs and
+checked stores). A quotation under a play word and a word with `$` inputs both
+use it. A control's range is that of the algo parameter of the same name among
+the loaded `musics.algo.*` namespaces (a scan of the functions' `:algo
+:params`, so a namespace must be required first), the widest when several
+algos read the name. Ideas that were weighed and are not built: the composer as
+an authoring tool that writes mu text, qualified input names
+(`$euclid-onsets`) and a static pass that binds an input to the function it
+feeds; the cost of the removed design was the size of the machinery, its
+benefit was parameters that were always the algo's own.

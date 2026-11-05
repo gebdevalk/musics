@@ -8,7 +8,7 @@ sounding, and keep it.
 
 - For every word that works on music, see `doc/md/mu-tutorial.md`.
 - For algorithms, from single words to recipes playing live, see
-  `doc/md/algo-tree-tutorial.md`.
+  `doc/md/raw-algo-cookbook.md`.
 - For the full notation, see `doc/md/parsing.md`; coming from
   LilyPond, see `doc/md/lilypond.md`.
 - For the architecture underneath, see `CLAUDE.md`.
@@ -228,7 +228,7 @@ note:
 [c d e g] [~] '( 5 + ) :up ->   the loop, a fourth higher
 ```
 
-`doc/md/mu-tutorial.md` (section 16) and `doc/md/algo-tree-tutorial.md`
+`doc/md/mu-tutorial.md` (section 16) and `doc/md/raw-algo-cookbook.md`
 go on from here.
 
 ## Files
@@ -280,7 +280,7 @@ prompt stay two views of the same settings.
 ## Where to go next
 
 - `doc/md/mu-tutorial.md`: every music word, section by section.
-- `doc/md/algo-tree-tutorial.md`: algorithms as words, trees and recipes.
+- `doc/md/raw-algo-cookbook.md`: algorithms as words, trees and recipes.
 - `doc/md/parsing.md`: the full notation.
 - `doc/md/lilypond.md`: LilyPond to musics, construct by construct.
 - `doc/md/setup.md`: sound output, and MIDI input from a keyboard.

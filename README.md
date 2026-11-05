@@ -89,8 +89,8 @@ To get playing:
    files and the GUI.
 4. [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md): sections 0–2 (the
    stack, writing music, listening) first, the rest as you need it.
-5. [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md): when
-   you want algorithms, from `duration/euclid` to recipes playing live.
+5. [doc/md/raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md): when you want
+   algorithms, from `3 8 pattern/euclid` to a word playing live.
 
 Keep at hand: [parsing.md](doc/md/parsing.md) (the notation),
 [instruments.md](doc/md/instruments.md) (instrument, drum and kit
@@ -98,10 +98,9 @@ names), [lilypond.md](doc/md/lilypond.md) (coming from LilyPond), and in
 mu itself `words`, `see dup` and Tab completion.
 
 To understand how it works: [walk-through.md](doc/md/walk-through.md),
-[CLAUDE.md](CLAUDE.md), [domain.md](doc/md/domain.md),
-[algorithms.md](doc/md/algorithms.md) and
+[CLAUDE.md](CLAUDE.md), [domain.md](doc/md/domain.md) and
 [decisions.md](doc/md/decisions.md). The design and history documents
-(`algo-space.md`, `grid.md`, `core-logic.md`, `ideas.md`,
+(`grid.md`, `core-logic.md`, `ideas.md`,
 `doc/md/audits/`) can wait.
 
 ### All documents
@@ -110,11 +109,8 @@ To understand how it works: [walk-through.md](doc/md/walk-through.md),
 |---|---|
 | [doc/md/setup.md](doc/md/setup.md) | Audio setup: once, and every boot |
 | [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step: writing, editing, reading a line and analysing it |
-| [doc/md/algo-tree-tutorial.md](doc/md/algo-tree-tutorial.md) | Algo trees in mu: word by word, to a recipe playing live and the GUI |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
-| [doc/md/algorithms.md](doc/md/algorithms.md) | Algorithms in code: writing and registering an algo, trees in Clojure |
-| [doc/md/algo-cookbook.md](doc/md/algo-cookbook.md) | 53 worked recipes of algo trees in Clojure, each run for real (also as [html](doc/html/algo-cookbook.html), open it locally) |
-| [doc/md/raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) | 26 recipes of the `raw/` words in mu, each run for real, and a table of every raw word |
+| [doc/md/raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) | The algorithms as plain functions in mu: 53 recipes, each run for real |
 | [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: every word (editing, searching, time, analysis, algos, playback) and its design |
 | [doc/md/parsing.md](doc/md/parsing.md) | The text notation and its parser |
 | [doc/md/lilypond.md](doc/md/lilypond.md) | Coming from LilyPond: construct by construct |

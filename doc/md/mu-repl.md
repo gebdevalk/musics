@@ -123,8 +123,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 
 - `: name … ;` defines a word. The colon needs a space after it. The
   name can't be a leaf (`a`, `c4`, `x`, `R` …). It may start with `?`
-  (`?empty`). `@^{ name:value }` is an algo's settings, a value of its
-  own; `?name:value` is refused (music holds `!` keys only).
+  (`?empty`).
 - **The stack effect** `( inputs -- results )` is read as in Forth. An
   input is taken from the stack and stays there, for the stack words
   (`( n -- n' ) dup +`), unless it is written with a **`$`**: `( $a $b -- c )`
@@ -155,7 +154,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   a live voice".
 
 **Namespaces**:
-- a word is qualified as `ns/word` (`music/cycle`, `duration/euclid`);
+- a word is qualified as `ns/word` (`music/cycle`, `pattern/euclid`);
 - `"grid" use` makes a namespace's words usable unqualified, and `"song" in`
   sets where new definitions go;
 - `"musics.algo.numeric.random" require` loads a Clojure namespace while mu runs,
@@ -184,13 +183,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   binding, the repo, help, files), `tool`, `music`, `play` (playback and
   the synthesizers), `rate` (ratings and auditions), `mine`; new words
   go into `mine`;
-- the algos come in by what they deliver, the namespaces the trees use
-  (`doc/md/algo-space.md`, "Algos deliver half products"): the half
-  products `pitch/`, `duration/`, `volume/`, `articulation/` (and
-  `instrument/`, once it has sources), and the products `leaf/` and
-  `parallel/`; and the trees' workshop -- raw material (numbers, pulses,
-  weights, layers), its transforms and the bridges -- as `raw/`
-  (`raw/euclid`, `raw/polyrhythm`, `raw/pulses->durations`).
+- the algorithms come in through `require` (below): `"rhythmic.pattern"
+  algorequire` makes `pattern/euclid` a word.
 
 ## 6. Memory
 
@@ -251,11 +245,10 @@ followed by nothing, a duration or `*n`.
   `:motif :theme rename` gives a stored name another in one step, in the
   node, in `:ROOT`'s children, in every container that holds it, in the
   `:name` of an override marker and the `^{ name: … }` of an inline
-  context, and in the `@( name: … )` of a recipe's text; refused when
+  context, and in a stored text that names it; refused when
   the new name is stored already or is no name (a letter, then letters,
   digits and `_`), and `:ROOT` keeps its name. What plays keeps its
-  snapshot and its voice name, as after any `R!`; a live voice following
-  a recipe by id keeps the old id.
+  snapshot and its voice name, as after any `R!`.
 
 ## 7. The REPL
 
@@ -292,7 +285,7 @@ followed by nothing, a duration or `*n`.
   reported. An unknown word is met with what to write instead: the name it
   used to have (`add` is now `+`), else the words a typo away (`retrogrde`:
   did you mean `retrograde`?), a word of a namespace not in use written
-  with it (`euclid`: `duration/euclid`), else where to look (`words`, `help`).
+  with it, else where to look (`words`, `help`).
 - **Printing is isomorphic to reading**: what is printed can be typed
   back and gives the same value. Brackets are written tight, with no
   space inside them: `[a b c]`, `{[a b] [c d]}`, `repeat 2 [a b c] volta
@@ -337,7 +330,7 @@ followed by nothing, a duration or `*n`.
 
 mu's own words are **tools** (algo space's kind without a manner) and
 the REPL's **kernel**. The **algos** come in through their namespaces
-by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
+as plain functions called by name (`pattern/euclid`): see
 **Algos** below.
 
 ### Kernel
@@ -351,7 +344,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); a word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !`, `:bass ->` starts it again with the inputs as they are (`musics.mu.inputs`); `set` (`:riff @^{ onsets:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **live** | a play word with a quotation `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the quotation); `retree` (`'( 7 + ) :up retree`) gives the voice another quotation, which goes on at its position. A word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !` (checked against the range of the algo parameter of the same name), `:bass settings`, `:bass gui` (a window of its inputs, a control each, under the algo it belongs to), `:bass ->` starts it again with the inputs as they are -- `musics.mu.live`, `musics.mu.voice`, `musics.mu.inputs` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
@@ -407,13 +400,6 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   gives a `:SEQ` back, keeping its context.
 - **Endless input is checked**: an *everything* appetite after an
   *endless* yield (`cycle retrograde`) is refused before running.
-- **Raw material is in `raw/`**: `raw/euclid` gives pulses
-  (`'[1 0 0 1 0 0 1 0]`), `raw/polyrhythm` layers, `raw/lorenz` points; the
-  bridges are words too (`raw/pulses->durations`, `raw/points->pitches`). A
-  stream carries what it is (`:mu :part`), but a bridge isn't checked
-  against it, and its input range defaults to 0..1 -- the half-product
-  words (`pitch/lorenz` is lorenz and its bridge, the range probed from
-  the source) are the finished way.
 - **Selection takes a quotation**, the test, run on each element:
   `[c e g c'] '( pitch 65 < ) filter` keeps the low notes, `remove`
   drops them (the later notes move earlier), `take-while`/`drop-while`
@@ -636,8 +622,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   else the whole stack, each part a stream in the order a leaf holds them --
   durations, pitches (or drums), articulations, dynamics, ornaments,
   tremolos, ties -- then overrides by key (`:volume`, `:instrument`,
-  `:pan` …). A stream a reader or an algo word gave knows its part
-  (`pitches`, `volume/walk`); a `:name` before a stream names it
+  `:pan` …). A stream a reader gave knows its part
+  (`pitches`, `volumes`); a `:name` before a stream names it
   (`:volume '[90 60]`, plurals too); the others take the free parts in
   that order. There is one note per duration; the other parts cycle
   under the durations and step once per note, rests included: at a rest
@@ -658,7 +644,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   written on, keeping its form -- repeats, loops, nested lines,
   instructions, bar lines. Its notes set the length; each part cycles
   and steps once per note, a rest's value unused, and a part given
-  replaces the line's own: `[c d e f] volume/euclid zip` gives each note
+  replaces the line's own: `[c d e f] :volume '[90 60] zip` gives each note
   the next volume, `| [c d e] :duration '[/8] zip` makes them eighths.
   A line under `:name` gives only that part (`| :duration [c4 r e g]
   '[60 62 64 65] zip`); onto a line every stream needs its part known,
@@ -675,22 +661,6 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   again as its parts. It can't sound: the play words, `render`, `par`,
   `{n}` and `[n]` refuse it, saying what it lacks. There is no
   default duration.
-- **A recipe as a tree** (`musics.recipe`): `@( … )`, an algo tree in
-  RPN. Inside, an algo takes its inputs from the top of the recipe's own
-  stack and pushes itself, its params (`onsets:3`) and alias (`'bass`) right
-  before it; `zip`/`par` join the top two or all above a `|`; `dup`
-  `swap` `over` `rot`; data and numbers; a `^{ }` first, the settings for
-  all of it; no music inside -- what the tree needs from below is taken
-  from the stack under the recipe (`[c d e] @( '[0.1 0.9] [~]
-  numbers->volumes zip ) run`). Built in three phases -- every param
-  collected into one flat tctx and checked, the tree associated with it,
-  then run with each param resolved by name (alias, algo, plain,
-  default) -- and lazy: `run` gives a finite result (an `@^{ }` under the
-  recipe its settings), `see` the tree, a play word plays one live
-  (`| @( '[1/8] [~] scale [~] zip ) :sc ->`). It is material: an id first
-  names it (`@( sc: … )`), `R!` stores it as its text (a `:RECIPE` node)
-  and `R@` rebuilds it; a voice playing a stored recipe follows a new one
-  stored under its id, from its next note.
 - **A context from a control**: what changes over time -- volume, tempo,
   pan, the key -- is a context, not a part of each note. `>ctx` takes,
   above a `|` mark, `:duration` and one or more context keys, each a
@@ -699,7 +669,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 
   ```
   | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx    → ^{ !volume:50 !volume:70@1 !volume:90@2 }
-  | :duration '[1/4] [~] volume/walk :volume swap >ctx   an algo's volumes, a new one each quarter
+  | :duration '[1/4] [~] 50.0 4.0 walk/walk 8 pull :volume swap >ctx   a walk's volumes, one each quarter
   [c4 d e f] | :duration '[1/2] :volume '[30 90] :curve '[:lin] >ctx with
   ```
 
@@ -711,10 +681,6 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   instruction is where a point stands, in whole notes from the start
   (`!volume:70@1`, `@3/8`); `./.` in data is idem, the value before once
   more (`'[1/1 ./. 2/1]` is `'[1 1 2]`).
-- **Shared with the trees, not yet one implementation**: mu's tools and
-  the trees' tools (`musics.algo.tree.lib`, `cycle` …) are written
-  separately; `musics.algo.tool`, one set of plain-named tools for both
-  (`doc/md/algo-space.md`, section 0), is still to be built.
 - Namespaces: the form, make, selection, map and access-by-position
   tools and the numeric value tools are in `tool`; the meaning value
   tools (`transpose`, `inversion`), `mute`, the leaf readers, assemble,
@@ -930,57 +896,52 @@ above the prompt. The keys are three neighbours, unshifted to rate
 
 ### Algos
 
-Every algo on a half-product or product shelf is a word in that shelf's
-namespace (`musics.mu.algos`, generated from the registry):
-`pitch/lorenz`, `pitch/walk-degrees`, `duration/euclid`,
-`duration/emi`, `volume/walk`, `articulation/tala`, `leaf/pocket`,
-`parallel/drums`, … — the same names as in trees. A word is its
-algo's registry name: `euclid` is written once (its `:algo` metadata),
-`musics.algo.tree.half-products` derives `:duration/euclid` from it
-(euclid, then `pulses->durations`), and that key is the word
-`duration/euclid`. The namespaces aren't in use, so a word is written qualified, or after `"pitch" use`; `words`
-lists them with their counts, `"duration/emi" see` gives the effect,
-the doc and the settings it reads, `@^{ k n … }`.
+The algorithms of `musics/algo/` are plain Clojure functions, called by name with
+their arguments on the stack (the tutorial and `doc/md/raw-algo-cookbook.md` work
+through them). `"rhythmic.pattern" algorequire` makes the public functions of
+`musics.algo.rhythmic.pattern` words, `pattern/euclid`; a quoted name works too,
+dots and all, and an alias follows it (`'rhythmic.pattern 'p algorequire`).
+`see pattern/euclid` shows the stack effect, read from the function's own
+argument names: `( onsets pulses -- euclid )`.
 
 ```
-duration/euclid                          → '[3/16 3/16 1/8]
-@^{ onsets:5 pulses:16 } duration/euclid            the settings on top are its own
-[c8 d4 e8] dup durations @^{ index:1 } duration/bracelet swap pitches zip
-                                         the rhythm as a bracelet member, a rest's pitch unused
-[!key:D.major c d e f] '( @^{ len:4 } pitch/walk-degrees zip ) :deg ->
-                                         played in a line, a key param follows its !key:
+3 8 pattern/euclid                                    → '[1 0 0 1 0 0 1 0]
+3 8 pattern/euclid 1/16 bridge/pulses->durations      → '[3/16 3/16 1/8]
+3 8 pattern/euclid 1/16 bridge/pulses->durations '[60 64 67] zip
+                                                      → [C4/8. E4 G4/8]
+'( 0.0 1.0 random/normal ) 12 pull                    twelve draws
+60.0 3.0 walk/walk 8 pull                             a walk of eight steps
 ```
 
-- **Inputs**: as many as the algo has (a source none). A line is taken
-  apart into what the algo wants -- durations (a rest as itself),
-  pitches (a chord's lowest, nil for a rest) or leaves; a stream is
-  taken as it is. A repeat or loop around the input stays around the
-  result: the algo runs on what it repeats (`[c8 d e4] [~] durations
-  duration/emi` gives `'[ … ] [~]`, a line's loop a loop of a line);
-  several inputs must repeat by the same count. A repeat inside a line
-  is written out, a loop inside refused.
-- **A shared seed**: `seed:7` in the settings runs the algo on that
-  random seed, so two words with one seed and one source read the same
-  run: `@^{ seed:7 } pitch/walk` and `@^{ seed:7 } volume/walk` rise and
-  fall together.
+- **Arguments, all of them**: an algorithm takes every argument it has, in the
+  order `see` shows (`:algo :arity` says how many when a function has several
+  arities); there are no defaults. A keyword tail is `:key value` pairs written
+  before the word. A function that cannot work with its arguments says what it
+  needs (`99 8 pattern/euclid`: `refused, it needs <= onsets pulses`).
+- **Raw material and bridges**: a source gives a plain list (pulses, numbers,
+  weights, onsets, points); the bridges of `musics.algo.bridge`
+  (`pulses->durations`, `numbers->pitches`, `degrees->pitches`, `weights->pulses`,
+  `points->pitches` …) turn it into durations, pitches, volumes, each with the
+  grid or range it is given, and `zip` puts the parts into notes. Nothing is
+  checked between words: a bridge takes what is on the stack.
+- **`pull`** calls a function n times and gives the list: a quotation that leaves
+  one value (a sampler), a function that keeps its place (`walk/walk`,
+  `logistic/logistic`), or a generator with a `:value` (`lorenz/lorenz`). A
+  quotation is also a function of what it is given, so it can be a fitness
+  function (`'( sum 5 - abs negate ) process/genetic`); `( '( … ) '( … ) )`
+  gathers quotations into a list (the constraints of `melody/constrained`).
+- **A shared seed**: `7 rng/seed` makes the random words after it repeat
+  (`"numeric.rng" algorequire` first).
+- **Live**: a quotation under a play word, or a word written with `$` inputs,
+  plays live (see Live in the table above); an input is read and stored as
+  `:bass/onsets @`, `7 :bass/onsets !`, checked against the range of the algo
+  parameter of the same name, and `:bass settings` and `:bass gui` show them.
 - **Instruments and drums** are two worlds: an instrument is a program,
   its notes pitches; a drum is a key of the kit (`!kit:brush`). Zipped
   onto a line, `:instrument` (programs and names, `'[40 :sea 73]`)
   refuses a drum and `:drum` (`'[:kick :hhc 38]`) a note; `as-drums`
   turns notes into drums, keeping their length, volume and accent.
   `:articulation` takes drums too: an accent is a drum's weight.
-- **Settings** are an algo's own, `@^{ name:value … }` -- the tctx,
-  apart from the music's `^{ }`, which an algo word refuses. A word
-  reads, first found: an `@^{ }` right before it, its own; a live
-  voice's settings (`set`); the head of the recipe it runs in, the
-  `@^{ }` the recipe opens with, which reaches every word in it; then
-  the defaults. Only a key and a meter param read the music -- the
-  line a live voice plays in, `:ROOT`'s otherwise -- after the
-  settings. A setting the algo doesn't read is ignored; a value out of
-  range is an error naming the word.
-- **Results**: streams come back as streams, leaves as a line, parts as
-  `{ }`. `zip` keeps a rest among an algo's durations a rest, its pitch
-  going unused.
 
 ### First set
 
@@ -989,10 +950,8 @@ selection and assemble; from the value tools `map` and `transpose`; the leaf rea
 
 ## 9. Still open
 
-1. **Algos in mu, what's left**: two algos sharing one run (`:as`,
-   pitch and volume of one attractor) -- a context naming an instance
-   is the likely spelling; a tree of several algos as one word
-   (`: riff … ;` composes words already, but runs each on its own).
-2. **A word's several inputs** (with the algo trees): `|` marks also
-   separate them, `| c d e | 1/4 1/8 color-talea`, and the deepest mark
-   a word reaches is where its inputs end.
+1. **Maps from mu text**: a parameter that is a map (Markov transitions, L-system
+   rules) cannot be written yet, so `markov/chain` and `melody/lsys-melody` are
+   only shown.
+2. **A word's several inputs**: `|` marks also separate them, `| c d e | 1/4 1/8
+   color-talea`, and the deepest mark a word reaches is where its inputs end.
