@@ -18,7 +18,8 @@
             [clojure.string :as str]
             [musics.gui.components :as ui]
             [musics.gui.state :as state]
-            [musics.gui.theme :as theme])
+            [musics.gui.theme :as theme]
+            [musics.mu.inputs :as inputs])
   (:import [javafx.application Platform]))
 
 (defonce ^:private windows (atom {}))          ; tctx -> {:state :renderer}
@@ -58,10 +59,10 @@
        (map (fn [[k spec]] [k (get params k) spec]))
        (ui/group-by-algo (fn [[_ _ spec]] (:algo spec)))))
 
-(defn- view [{:keys [tree-text tctx-value preview message live-name showing theme]}]
+(defn- view [{:keys [tree-text title-text tctx-value preview message live-name showing theme]}]
   {:fx/type :stage
    :showing showing
-   :title (str "Params — " (or tree-text "tctx"))
+   :title (str "Params — " (or title-text tree-text "tctx"))
    :width 620
    :height (if tree-text 720 520)
    :on-close-request {:event/type ::close}
@@ -155,3 +156,48 @@
          (refresh! st tree tctx)
          (fx/mount-renderer st r)))
      tctx)))
+
+
+;; -- the inputs of a word voice ---------------------------------------------------
+
+(defonce ^:private input-windows (atom {}))   ; voice -> {:state :renderer}
+
+(declare close-inputs!)
+
+(defn- input-handler [st voice]
+  (fn [event]
+    (case (:event/type event)
+      (:set-tree-param :set-tree-param-text)
+      (report! st #(let [v (ui/param-input event)]
+                     (inputs/put! voice (:key event) (if (string? v) (edn/read-string v) v))))
+      ::close (close-inputs! voice)
+      nil)))
+
+(defn close-inputs!
+  "Close the window of voice's inputs."
+  [voice]
+  (when-let [{:keys [state renderer]} (get @input-windows voice)]
+    (swap! state assoc :showing false)
+    (fx/unmount-renderer state renderer)
+    (swap! input-windows dissoc voice))
+  nil)
+
+(defn open-inputs!
+  "A window of a word voice's inputs, a control each under the algo its parameter
+   belongs to, a value changed here heard on the voice's next note and a change
+   made elsewhere (:bass/onsets !) moving the control. One window a voice."
+  [voice]
+  (Platform/setImplicitExit false)
+  (if-let [{:keys [state]} (get @input-windows voice)]
+    (swap! state assoc :showing true)
+    (let [st (atom {:title-text  (str ":" (name voice))
+                    :tctx-value  (inputs/state voice)
+                    :showing     true
+                    :theme       (:theme @state/*state :dark)})
+          r  (fx/create-renderer
+               :middleware (fx/wrap-map-desc view)
+               :opts {:fx.opt/map-event-handler (input-handler st voice)})]
+      (inputs/watch! voice ::window (fn [_ _] (swap! st assoc :tctx-value (inputs/state voice))))
+      (swap! input-windows assoc voice {:state st :renderer r})
+      (fx/mount-renderer st r)))
+  voice)

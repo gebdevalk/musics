@@ -81,6 +81,7 @@
     [musics.wall :as wall]
     [musics.algo.numeric.random :as rnd]
     [musics.algo.tree :as at]
+    [musics.mu.inputs :as inputs]
     [musics.algo.tree.lib :as tree-lib]
             [musics.algo.tree.tools :as tools]))
 
@@ -1256,17 +1257,24 @@
               (str (name k) " — " (or doc "(no doc)")))))
 
 (defn- tree-controls
-  "Every live tree name with its tctx's params, one control each:
-   [{:name kw :tree text :params [{:key :value :spec}]}]. The tctx is the
-   model; the tree is only its label."
+  "Every live name with its params, one control each:
+   [{:name kw :tree text :params [{:key :value :spec}]}]. A word voice's params
+   are its inputs; a tree's, its tctx's."
   [m]
-  (vec (for [[nm {:keys [tree tctx label]}] (sort-by (comp str first) m) :when tctx]
-         {:name   nm
-          :tree   (or label (pr-str (at/show tree)))
-          :params (let [ps (at/params tctx)]
-                    (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
-                               :when (not= :read (:algo spec))]
-                           {:key k :value (get ps k) :spec spec})))})))
+  (vec (concat
+         (for [[nm {:keys [label inputs]}] (sort-by (comp str first) m) :when inputs]
+           {:name   nm
+            :tree   (or label (str nm))
+            :params (let [{:keys [params specs]} (inputs/state nm)]
+                      (vec (for [[k spec] (sort-by (comp :order val) specs)]
+                             {:key k :value (get params k) :spec spec})))})
+         (for [[nm {:keys [tree tctx label]}] (sort-by (comp str first) m) :when tctx]
+           {:name   nm
+            :tree   (or label (pr-str (at/show tree)))
+            :params (let [ps (at/params tctx)]
+                      (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
+                                 :when (not= :read (:algo spec))]
+                             {:key k :value (get ps k) :spec spec})))}))))
 
 (defn- refresh-wall!
   [& _]
@@ -1282,7 +1290,9 @@
   [nm k v]
   (try
     (let [v (if (string? v) (edn/read-string v) v)]
-      (at/setp! (:tctx (wall/registered nm)) k v)
+      (if (:inputs (wall/registered nm))
+        (inputs/put! nm k v)
+        (at/setp! (:tctx (wall/registered nm)) k v))
       (swap! *state assoc-in [:wall :message] nil))
     (catch Exception e
       (swap! *state assoc-in [:wall :message] (.getMessage e))))

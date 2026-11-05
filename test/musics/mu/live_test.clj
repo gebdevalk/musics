@@ -9,6 +9,7 @@
             [musics.engine :as engine]
             [musics.events :as ev]
             [musics.mu.eval :as e]
+            [musics.mu.inputs :as inputs]
             [musics.mu.live :as live]
             [musics.mu.store]
             [musics.mu.value :as v]
@@ -196,9 +197,12 @@
     (let [o (out-of ":w settings")]
       (is (re-find #":onsets +3 +0\.\.32" o) o)
       (is (re-find #":label +\"x\" +string" o) "an input no algo reads has the type of its value")))
-  (testing "set and gui's model, the tctx, take a value as before"
+  (testing "set takes a value as before, and a value the spec refuses is an error that changes nothing"
     (run ":w @^{ onsets:2 } set")
-    (is (= 2 (:onsets (t/params (live/tctx-of "set" :w))))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 99 should be at most 32" (run "99 :w/onsets !")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 2.5 should be an integer" (run "2.5 :w/onsets !")))
+    (is (= 2 (inputs/value :w "onsets")) "still 2")
+    (is (= 2 (inputs/value :w "onsets"))))
   (testing ":w -> starts it again with the inputs as they are now"
     (run "5 :w/onsets !")
     (run ":w ->")
@@ -215,10 +219,10 @@
 (deftest a-word-voice-input-belongs-to-the-algo-that-owns-the-param
   (run ": thin ( $similarity $label -- l ) [c d e f g a b] 4 take ;")
   (run "0.5 \"x\" 'thin :w ->")
-  (let [specs (t/specs (live/tctx-of "settings" :w))]
+  (let [specs (inputs/specs :w)]
     (is (= :emi (:algo (:similarity specs))) "one algo reads similarity: the control is under it")
     (is (= :thin (:algo (:label specs))) "no algo reads label: it is under the word"))
   (run ": two ( $onsets -- l ) [c d e f g a b] 4 take ;")
   (run "3 'two :v ->")
-  (is (= :two (:algo (:onsets (t/specs (live/tctx-of "settings" :v)))))
+  (is (= :two (:algo (:onsets (inputs/specs :v))))
       "several algos read onsets: it stays under the word, not under a guess"))

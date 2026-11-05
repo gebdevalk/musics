@@ -16,6 +16,7 @@
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
+            [musics.mu.voice :as voice]
             [musics.recipe :as recipe]
             [musics.wall :as wall]))
 
@@ -138,18 +139,30 @@
   "Voice id -> the word it plays (play-word!), to start it again."
   (atom {}))
 
+(defn- algo-params
+  "Every parameter of the algorithms loaded now, [algo-name param-name spec]: each
+   public function of a musics.algo namespace whose :algo metadata lists :params."
+  []
+  (for [ns (all-ns)
+        :when (re-find #"^musics\.algo\." (str (ns-name ns)))
+        [sym var] (ns-publics ns)
+        :let [params (get-in (meta var) [:algo :params])]
+        :when (map? params)
+        [pname spec] params]
+    [(keyword (name sym)) (name pname) spec]))
+
 (defn- param-spec
   "One spec for the algo params called input: when several algos read a param
    by that name, the most common type, its range the widest of them (so no
    value any of them takes is refused), the rest from the first by name. The
    spec names its owner, :algo, only when one algo reads that name."
   [input]
-  (let [found (for [[short {:keys [params via]}] (t/algos) :when (nil? via) p params :when (= input (name (:name p)))] [short p])]
+  (let [found (filter #(= input (second %)) (algo-params))]
     (when (seq found)
-      (let [type (key (apply max-key val (frequencies (map (comp :type second) found))))
-            same (map second (filter #(= type (:type (second %))) found))
-            lo   (keep :min same)
-            hi   (keep :max same)
+      (let [type   (key (apply max-key val (frequencies (map (comp :type #(nth % 2)) found))))
+            same   (map #(nth % 2) (filter #(= type (:type (nth % 2))) found))
+            lo     (keep :min same)
+            hi     (keep :max same)
             owners (distinct (map first found))]
         (cond-> (select-keys (first same) [:type :default :doc :choices])
           (seq lo) (assoc :min (apply min lo))
@@ -178,23 +191,31 @@
   [word voice values ctx join? staged]
   (let [names (mapv first (e/live-inputs word))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))
-        tctx  (inputs/set-inputs! voice (map vector names values) specs)
-        run   (fn [tctx _chain]
-                (let [vals (mapv @(:params-atom tctx) names)
-                      left (e/run-word vals word)]
+        _     (inputs/clear! voice)
+        _     (inputs/set-inputs! voice (map vector names values) specs)
+        run   (fn [vals _chain]
+                (let [left (e/run-word (mapv vals names) word)]
                   (when (empty? left) (e/mu-error word "leaves nothing to play"))
                   (as-leaves (peek left))))]
     (try
       ;; run once now, so a word that fails is refused here, not heard
-      (doall (take 1 (run tctx nil)))
+      (doall (take 1 (run (inputs/values voice) nil)))
       (catch Throwable t (inputs/clear! voice) (throw t)))
     (swap! word-voices assoc voice word)
-    (tree-live/bind-run! voice run (str word) tctx)
+    (voice/follow! voice run (str word))
     (let [form (mt/read-text "repeat ~ [r8]")]
       (if staged
         (mt/stage! form ctx (first staged) join? voice voice)
         (mt/play! form ctx join? voice voice)))
     voice))
+
+(defn input-voice
+  "The id of the word voice that word's voice argument (an id or index) addresses,
+   or nil when it is no word voice."
+  [word voice]
+  (let [id (try (mt/voice-id word voice) (catch Exception _ nil))
+        nm (or (some-> id engine/voice-at :algo) id)]
+    (when (and nm (inputs/has? nm)) nm)))
 
 ;; -- addressing a live voice ----------------------------------------------
 

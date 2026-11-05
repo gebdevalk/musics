@@ -10,6 +10,7 @@
             [musics.engine :as engine]
             [musics.mu.about :as about]
             [musics.mu.eval :as e]
+            [musics.mu.inputs :as inputs]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]))
@@ -121,7 +122,9 @@
    ((requiring-resolve 'musics.gui.core/launch!) :dark)
    (keep-javafx!))
   ([x]
-   (if (t/node? x) (t/gui x) (t/gui (live/tctx-of "gui" x)))
+   (cond (t/node? x)                  (t/gui x)
+         (live/input-voice "gui" x)   ((requiring-resolve 'musics.gui.params/open-inputs!) (live/input-voice "gui" x))
+         :else                        (t/gui (live/tctx-of "gui" x)))
    (keep-javafx!)))
 
 ;; -- live voices: a play word given a recipe (musics.mu.live) ----------------
@@ -134,13 +137,19 @@
     (fail "takes a voice and settings, :riff @^{ onsets:5 } set -- got" (p/show settings)))
   (let [m (live/settings-of settings)]
     (when (empty? m) (fail "the settings are empty -- write @^{ onsets:5 }"))
-    (t/setp! (live/tctx-of "set" voice) m)))
+    (if-let [nm (live/input-voice "set" voice)]
+      (doseq [[k x] m] (inputs/put! nm k x))
+      (t/setp! (live/tctx-of "set" voice) m))))
 
 (defn unset!
   "Leave a live voice's setting to its recipe's head and the defaults again: :riff 'k unset"
   [voice nm]
   (when-not (symbol? nm) (fail "takes a setting's name, 'k -- got" (p/show nm)))
-  (t/unsetp! (live/tctx-of "unset" voice) (str nm)))
+  (if-let [v (live/input-voice "unset" voice)]
+    (if-let [spec (get (inputs/specs v) (keyword (str nm)))]
+      (inputs/put! v nm (:default spec))
+      (fail (str "unset: :" (name v) " has no input") (str nm)))
+    (t/unsetp! (live/tctx-of "unset" voice) (str nm))))
 
 (defn settings!
   "A live voice's settings: each param its recipe reads, its value, range,
@@ -149,7 +158,9 @@
   [voice]
   (if (or (symbol? voice) (string? voice))
     (println (about/settings-text voice))
-    (t/describe (live/tctx-of "settings" voice))))
+    (if-let [nm (live/input-voice "settings" voice)]
+      (inputs/describe nm)
+      (t/describe (live/tctx-of "settings" voice)))))
 
 (defn retree!
   "A new recipe for a live voice, its settings and position kept: '( … ) :riff retree"
