@@ -125,6 +125,14 @@
         :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
 
+(defrecord Ref [label get set])
+;; A place that holds a value, read with @ and written with ! : label is how it is
+;; written (bass/onsets), get a fn of nothing, set a fn of the new value.
+
+(defn ref? [x] (instance? Ref x))
+(defn ref-get [r] ((:get r)))
+(defn ref-set! [r x] ((:set r) x))
+
 (defrecord Recipe [tree tctx source arity])
 ;; :id, assoc'd on, the id it names itself with (@( riff: … )) or is stored under
 

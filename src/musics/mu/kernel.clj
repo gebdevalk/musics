@@ -179,6 +179,18 @@
            (pop (pop s)))))
 
 
+;; -- places ---------------------------------------------------------------
+
+(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (7 bass/onsets !)"
+       (fn [s]
+         (need s 2 "!")
+         (if (v/ref? (peek s))
+           (do (v/ref-set! (peek s) (peek (pop s))) (pop (pop s)))
+           (do (need s 3 "!")
+               (let [[x n y] (take-last 3 s)]
+                 (conj (pop (pop (pop s))) ((requiring-resolve 'musics.tool/put) x n y)))))))
+
+
 ;; -- playback -------------------------------------------------------------
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))

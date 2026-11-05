@@ -82,14 +82,15 @@
 
 (defn nth
   "The element counted n from 0; a path '[1 2] goes down: element 1, then
-   its element 2"
-  {:mu {:names ["@"]}}
-  [x n]
-  (reduce (fn [c i]
-            (let [e (core/nth (mt/elements c) i ::none)]
-              (when (= ::none e) (fail i "is past the end of" (p/show c)))
-              e))
-          x (path-of "nth" n)))
+   its element 2. A reference alone (r @) gives the value it holds"
+  {:mu {:names ["@"] :arity (fn [stack] (if (v/ref? (peek stack)) 1 2))}}
+  ([r] (v/ref-get r))
+  ([x n]
+   (reduce (fn [c i]
+             (let [e (core/nth (mt/elements c) i ::none)]
+               (when (= ::none e) (fail i "is past the end of" (p/show c)))
+               e))
+           x (path-of "nth" n))))
 
 (defn- matching
   "A test of one element: the quotation q, or the value q is, compared as
@@ -339,7 +340,6 @@
 (defn put
   "x with the element at n replaced by y, one element; n a number or a
    path '[1 2]: [c d e] 1 g ! gives [c g e]"
-  {:mu {:names ["!"]}}
   [x n y]
   (edit "put" x n (fn [slots pos i] (assoc slots (present! pos i) [:el y]))))
 

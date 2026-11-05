@@ -134,6 +134,7 @@
   [x]
   (cond
     (v/pcset? x)          (v/pcset-text x)
+    (v/ref? x)            (:label x)
     (v/recipe? x)         (str "@( " (some-> (:id x) name (str ": ")) (:source x) (when (seq (:source x)) " ") ")")
     (:mu/repeat (meta x)) (let [[body n] (:mu/repeat (meta x))]
                             (str (show body) " " (if (= n :infinite) "[~]" (str n " times"))))

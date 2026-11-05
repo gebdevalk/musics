@@ -3338,3 +3338,18 @@ of their formula or a standard quantity stay (`r`, `x`, `a`, `b`, `rho`, `mu`, `
   `transposition`. `sputter`: `max` is `max-length` (it also shadowed `clojure.core/max`).
 - The settings text, tests, docs and cookbooks use the new names; the cookbook's
   clashing-key recipe now clashes on `:onsets` (a `first-onsets` algo).
+
+## 2026-11-05 — @ and ! read and store a reference
+
+First step of replacing the algo settings (tctx) by a live voice's inputs
+(the `$` locals of the word it plays). A reference, `musics.mu.value/Ref`
+(`label`, a `get` and a `set` fn), is a place holding a value, written by
+its label (`bass/onsets` once voices expose their inputs). `r @` gives the
+value, `7 r !` stores one, as Forth's `@` and `!` do; with no reference on
+top they stay `nth` (`x n @`) and `put` (`x n y !`), told apart by `:arity` in
+the word's `:mu` metadata. `!` is a stack word in the kernel because a
+store leaves nothing and `put` leaves its line. Nothing yet produces a
+reference outside tests: voices come next (see the 2026-11-04 bare-params
+notes, and the locals plan below it in the conversation: inputs are the
+word's `$` locals, addressed `voice/input`, started with `5 8 42 'riff :bass
+>>`).

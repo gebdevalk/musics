@@ -13,6 +13,7 @@
             [musics.mu.tools]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
+            [musics.mu.value :as v]
             [musics.repo :as repo]
             [musics.test-support :refer [with-fresh-registries]]))
 
@@ -667,3 +668,21 @@
       (swap! e/state assoc :stack [])
       (e/eval-input "[c d] about tempo")
       (is (= 1 (count (:stack @e/state)))))))
+
+(deftest at-and-bang-read-and-store-a-reference
+  (let [cell (atom 5)
+        r    (v/->Ref "bass/onsets" (fn [] @cell) (fn [x] (reset! cell x)))
+        run  (fn [stack in] (swap! e/state assoc :stack stack) (let [res (e/eval-input in)] (assoc res :stack (:stack @e/state))))]
+    (testing "@ on a reference gives what it holds, ! stores into it"
+      (is (= [5] (:stack (run [r] "@"))))
+      (is (nil? (:error (run [7 r] "!"))))
+      (is (= 7 @cell) "stored")
+      (is (= [] (:stack @e/state)) "! leaves nothing")
+      (is (= [7] (:stack (run [r] "@")))))
+    (testing "a reference prints as its label"
+      (is (= "bass/onsets" (p/show r))))
+    (testing "@ and ! on lines are nth and put as before"
+      (is (= "E4/4" (p/show (first (:stack (run [] "[c d e] 2 @"))))))
+      (is (= "[C4/4 G4 E4]" (p/show (first (:stack (run [] "[c d e] 1 g !")))))))
+    (testing "! with nothing to store into says what it needs"
+      (is (re-find #"needs" (:error (run [] "!")))))))

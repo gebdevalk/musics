@@ -59,7 +59,7 @@
    "delay" "( x t -- x' )", "delays" "( x t -- x' )"
    "interval-vector" "( x -- v )", "key-of" "( x -- key )", "duration" "( x -- t )", "profile" "( x -- l )"
    "pulses" "( x [pulse] -- l )", "setting" "( x k -- v )", "walking-bass" "( chords [n] -- m )"
-   ".." "( n1 n2 -- l )", "range" "( n1 n2 -- l )", "@" "( x n -- elem )", "nth" "( x n -- elem )"
+   ".." "( n1 n2 -- l )", "range" "( n1 n2 -- l )", "@" "( x n -- elem ) or ( ref -- value )", "nth" "( x n -- elem ) or ( ref -- value )"
    "concat" "( x1 x2 -- x3 )", "parts" "( x n -- l )", "partition" "( x n -- l )"
    "head" "( x -- elem )"
    "choose-from" "( x -- l )", "choose-n" "( x how-many -- l )", "length" "( x -- n )"
