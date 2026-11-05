@@ -24,7 +24,7 @@
        (map (fn [[k spec]] [k (get params k) spec]))
        (ui/group-by-algo (fn [[_ _ spec]] (:algo spec)))))
 
-(defn- view [{:keys [title-text inputs-value message showing theme]}]
+(defn- view [{:keys [title-text inputs-value zoom message showing theme]}]
   {:fx/type :stage
    :showing showing
    :title (str "Inputs — " title-text)
@@ -47,7 +47,8 @@
                                   (ui/titled-panel
                                     {:title (str (symbol algo))
                                      :children (vec (for [[k v spec] rows]
-                                                      (ui/param-control {} k v spec)))})))}})
+                                                      (ui/param-control {} k v spec
+                                                                        {:bounds (get zoom k) :event {:event/type ::zoom}})))})))}})
              :v-box/vgrow :always)
       (ui/label {:text (or message "")})
       (ui/button {:text "Close" :on-action {:event/type ::close}})]}}})
@@ -66,6 +67,9 @@
       (:set-tree-param :set-tree-param-text)
       (report! st #(let [v (ui/param-input event)]
                      (inputs/put! voice (:key event) (if (string? v) (edn/read-string v) v))))
+      ::zoom  (let [k (:key event) v (:inputs-value @st)]
+                (swap! st update :zoom assoc k
+                       (ui/zoom-bounds (get-in v [:specs k]) (get-in @st [:zoom k]) (get-in v [:params k]))))
       ::close (close! voice)
       nil)))
 

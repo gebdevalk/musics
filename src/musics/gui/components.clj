@@ -246,14 +246,38 @@
   (let [by (group-by algo-of rows)]
     (vec (for [a (distinct (map algo-of rows))] [a (vec (get by a))]))))
 
+(defn zoom-bounds
+  "The next visible range of a slider whose parameter is possible between the
+   spec's :min and :max, zoomed to `current` ({:min :max}, nil: not zoomed),
+   centred on value: each call halves the smaller distance to a bound, and
+   wraps back out to the full range when it would get too narrow (an integer
+   parameter: under 4 steps; otherwise under 1/64 of the range). Purely a
+   display range, never the value."
+  [{:keys [type min max]} current value]
+  (let [full  {:min (double min) :max (double max)}
+        cur   (or current full)
+        floor (if (= :int type) 4.0 (/ (- (double max) (double min)) 64.0))]
+    (if (or (nil? value) (< value (:min cur)) (> value (:max cur)))
+      full
+      (let [delta (/ (clojure.core/min (- (:max cur) value) (- value (:min cur))) 2.0)
+            lo    (- value delta)
+            hi    (+ value delta)
+            [lo hi] (if (= :int type) [(Math/floor lo) (Math/ceil hi)] [lo hi])]
+        (if (> (- hi lo) floor) {:min (double lo) :max (double hi)} full)))))
+
 (defn param-control
   "One control for one voice input: a slider for a finite numeric range, a
    dropdown for :choices, a note for a function (set in the recipe),
    else a text field applied on Enter -- EDN, or plain text for a
    :string. An unset (##NaN) value is marked required. `ev` is merged
    into every event it sends (e.g. {:name nm}); param-input reads the
-   value back out of one."
-  [ev k v {:keys [type min max choices doc scale]}]
+   value back out of one. A slider is paired with a Z button when `zoom`
+   is given, {:bounds {:min :max} or nil, :event event-map}: the visible
+   range, zoomed, and the event Z sends (with :key); the slider is made
+   afresh for every range, as JavaFX's Slider skin does not redraw a
+   changed one."
+  ([ev k v spec] (param-control ev k v spec nil))
+  ([ev k v {:keys [type min max choices doc scale]} zoom]
   (let [lbl   (str (name k) (when (inputs/nan? v) "  (required)"))
         text  (fn [t] (button-row
                         {:children [(label {:text lbl})
@@ -262,10 +286,18 @@
                                                                        :string? (= :string type)})})]}))]
     (cond
       (and (#{:int :double :ratio} type) (Double/isFinite (double min)) (Double/isFinite (double max)))
-      (slider {:label lbl :min (double min) :max (double max) :scale scale
-               :value (double (if (and (number? v) (not (inputs/nan? v))) v min))
-               :fmt (if (= :int type) "%.0f" "%.3f")
-               :on-change (merge ev {:event/type :set-tree-param :key k :type type})})
+      (let [lo (get (:bounds zoom) :min (double min))
+            hi (get (:bounds zoom) :max (double max))
+            sl (slider {:label lbl :min lo :max hi :scale scale
+                        :value (double (if (and (number? v) (not (inputs/nan? v))) v min))
+                        :fmt (if (= :int type) "%.0f" "%.3f")
+                        :on-change (merge ev {:event/type :set-tree-param :key k :type type})})]
+        (if zoom
+          (button-row
+            {:children
+             [{:fx/type recreate-on-key-changed :key [lo hi] :desc sl}
+              (button {:text "Z" :on-action (merge ev (:event zoom) {:key k})})]})
+          sl))
 
       choices
       (let [shown #(if (string? %) % (pr-str %))]
@@ -278,7 +310,7 @@
                          " -- set in the recipe")})
 
       (= :string type) (text (if (inputs/nan? v) "" v))
-      :else            (text (if (inputs/nan? v) "" (pr-str v))))))
+      :else            (text (if (inputs/nan? v) "" (pr-str v)))))))
 
 (defn param-input
   "What a param-control event carries: a number from a slider (rounded
