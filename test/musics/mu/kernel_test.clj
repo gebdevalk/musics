@@ -8,6 +8,7 @@
             [musics.input.reader.builder :as builder]
             [musics.conductor :as conductor]
             [musics.mu.eval :as e]
+            [musics.mu.inputs :as inputs]
             [musics.mu.kernel :as kernel]
             [musics.mu.library]
             [musics.mu.tools]
@@ -686,3 +687,24 @@
       (is (= "[C4/4 G4 E4]" (p/show (first (:stack (run [] "[c d e] 1 g !")))))))
     (testing "! with nothing to store into says what it needs"
       (is (re-find #"needs" (:error (run [] "!")))))))
+
+(deftest a-voice-input-is-the-reference-colon-voice-slash-input
+  (inputs/set-inputs! :bass [["onsets" 5] ["pulses" 8] ["seed" 42]])
+  (try
+    (let [run (fn [in] (swap! e/state assoc :stack []) (let [res (e/eval-input in)] (assoc res :stack (:stack @e/state))))]
+      (testing "read it, store into it"
+        (is (= [5] (:stack (run ":bass/onsets @"))))
+        (is (nil? (:error (run "7 :bass/onsets !"))))
+        (is (= [7] (:stack (run ":bass/onsets @"))))
+        (is (= 8 (inputs/value :bass "pulses")) "the others are as they were"))
+      (testing "it prints as written"
+        (is (= ":bass/onsets" (p/show (first (:stack (run ":bass/onsets")))))))
+      (testing "a plain :bass is still the id"
+        (is (= [:bass] (:stack (run ":bass")))))
+      (testing "an input that is not there says which are"
+        (is (re-find #"^:bass/pulse: :bass has no input pulse -- onsets, pulses, seed" (:error (run ":bass/pulse @")))))
+      (testing "a voice without inputs says so"
+        (is (re-find #"^:drums/onsets: no voice :drums has inputs -- voices with inputs: :bass" (:error (run ":drums/onsets @")))))
+      (testing "without the colon, an unknown word points at it"
+        (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
+    (finally (inputs/clear! :bass))))

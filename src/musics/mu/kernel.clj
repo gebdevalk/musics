@@ -227,18 +227,37 @@
             :else               [(peek s) r (pop s)]))
     (do (need s 1 word) [(peek s) nil (pop s)])))
 
+(defn- word-voice
+  "[word values stack] when s ends in the quoted name of a word written with
+   $ inputs, the values for them taken from under it; else nil. The voice
+   needs a name: 5 8 42 'riff :bass ->"
+  [s word target]
+  (when (and (seq s) (symbol? (peek s)))
+    (let [w (str (peek s))]
+      (when-let [ins (e/live-inputs w)]
+        (when-not (keyword? target)
+          (e/mu-error (str word ":") "name the voice that plays" w "-- e.g. 5 8 42 '" (str w " :bass ->")))
+        (when-not (every? second ins)
+          (e/mu-error (str word ":") w "has inputs without $ -- a live word takes only $ inputs, which stay changeable"))
+        (let [s (pop s) n (count ins)]
+          (when (< (count s) n)
+            (e/mu-error (str word ":") w "takes" n (if (= 1 n) "input" "inputs") "under its name, the stack has" (count s)))
+          [w (subvec s (- (count s) n)) (subvec s 0 (- (count s) n))])))))
+
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."
   [word join?]
   (fn [s]
     (let [[target s] (target-of s word)
           _          (need s 1 word)
-          [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])
-          [x r s]    (music-and-recipe s word)]
-      (if r
-        (live/play! x r ctx join? target nil)
-        (mt/play! x ctx join? target))
-      s)))
+          [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+      (if-let [[w vals s'] (word-voice s word target)]
+        (do (live/play-word! w target vals ctx join? nil) s')
+        (let [[x r s] (music-and-recipe s word)]
+          (if r
+            (live/play! x r ctx join? target nil)
+            (mt/play! x ctx join? target))
+          s)))))
 
 (word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also ->); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass ->) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
        (play-now "play" false))
@@ -256,12 +275,14 @@
     (let [[target s] (target-of s word)
           [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
-      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])
-            [x r s] (music-and-recipe s word)]
-        (if r
-          (live/play! x r ctx join? target [n])
-          (mt/stage! x ctx n join? target))
-        s))))
+      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+        (if-let [[w vals s'] (word-voice s word target)]
+          (do (live/play-word! w target vals ctx join? [n]) s')
+          (let [[x r s] (music-and-recipe s word)]
+            (if r
+              (live/play! x r ctx join? target [n])
+              (mt/stage! x ctx n join? target))
+            s))))))
 
 (word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also ->>)"
        (staged-word "play-next" false))

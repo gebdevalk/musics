@@ -74,8 +74,9 @@ AssignLit = AssignName <':'> Value RampMark? At?
    as in the text. *)
 Mark = #'\|{1,4}'
 
-(* :motif -- a repo name, pushed as a name (for R! and R@). *)
-IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*'
+(* :motif -- a repo name, pushed as a name (for R! and R@). :bass/onsets --
+   the input of a live voice, a reference: @ reads it, ! stores into it. *)
+IdName = <':'> #'[a-zA-Z][a-zA-Z0-9_]*' (<'/'> #'[a-zA-Z][a-zA-Z0-9_\-?]*')?
 
 (* 'motif -- a name, held: what := binds a value to, or the word execute
    runs: 'dup, '+, 'reverse. \motif, musics text's VarRef, is the

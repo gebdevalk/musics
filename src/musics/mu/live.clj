@@ -12,6 +12,7 @@
             [musics.engine :as engine]
             [musics.mu.algos :as algos]
             [musics.mu.eval :as e]
+            [musics.mu.inputs :as inputs]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.value :as v]
@@ -132,6 +133,31 @@
       (if staged
         (mt/stage! form ctx (first staged) join? named name)
         (mt/play! form ctx join? named name)))))
+
+(defn play-word!
+  "Start voice (a keyword id) from the word `word`, written with : … ; and
+   $ inputs, those inputs holding values (in the order of its stack effect).
+   Each note the voice reaches is the next of the line the word gives with
+   the inputs it holds now; :voice/input reads or stores one. staged:
+   [count] when it waits for a boundary (->>)."
+  [word voice values ctx join? staged]
+  (let [names (mapv first (e/live-inputs word))
+        tctx  (inputs/set-inputs! voice (map vector names values))
+        run   (fn [tctx _chain]
+                (let [vals (mapv @(:params-atom tctx) names)
+                      left (e/run-word vals word)]
+                  (when (empty? left) (e/mu-error word "leaves nothing to play"))
+                  (as-leaves (peek left))))]
+    (try
+      ;; run once now, so a word that fails is refused here, not heard
+      (doall (take 1 (run tctx nil)))
+      (catch Throwable t (inputs/clear! voice) (throw t)))
+    (tree-live/bind-run! voice run (str word) tctx)
+    (let [form (mt/read-text "repeat ~ [r8]")]
+      (if staged
+        (mt/stage! form ctx (first staged) join? voice voice)
+        (mt/play! form ctx join? voice voice)))
+    voice))
 
 ;; -- addressing a live voice ----------------------------------------------
 

@@ -159,3 +159,27 @@
   (run "@( sc: '[1/8] [~] scale [~] zip ) R!" "| :sc R@ :sc ->" ":sc @^{ root:62 } set")
   (run "@( sc: ^{ root:67 } '[1/8] [~] scale [~] zip ) R!")
   (is (= [67 69 71] (pitches "[c d e]" :sc)) "the new recipe, its settings, not what set gave the old one"))
+
+(deftest a-word-with-dollar-inputs-plays-live
+  (run ": pat ( $count -- l ) [c d e f g a b] $count take ;")
+  (testing "start it with its inputs under its name: 3 'pat :w ->"
+    (run "3 'pat :w ->")
+    (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :w))) "each note the next of what the word gives, a short line again")
+    (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count @") @e/state)))
+        "the input is :w/count"))
+  (testing "a store is heard: the word runs again with the new value"
+    (run "2 :w/count !")
+    (is (= [60 62 60 62] (take 4 (pitches "[c c c c c c]" :w)))))
+  (testing "the inputs are named in the order of the stack effect"
+    (run ": two ( $a $b -- l ) [c d e f g a b] $a take $b + ;")
+    (run "5 2 'two :t ->")
+    (is (= [5 2] [(first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/a @") @e/state)))
+                  (first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/b @") @e/state)))]))
+    (is (= [62 64 66 67 69] (take 5 (pitches "[c c c c c c]" :t))))))
+
+(deftest a-live-word-needs-a-voice-name-and-only-dollar-inputs
+  (run ": pat ( $count -- l ) [c d e f g a b] $count take ;")
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"name the voice that plays pat" (run "3 'pat ->")))
+  (run ": mixed ( x $k -- l ) x $k take ;")
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixed has inputs without \$" (run "[c d] 1 'mixed :m ->")))
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pat takes 1 input under its name" (run "'pat :w ->"))))

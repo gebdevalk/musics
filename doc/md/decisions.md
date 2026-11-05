@@ -3353,3 +3353,36 @@ reference outside tests: voices come next (see the 2026-11-04 bare-params
 notes, and the locals plan below it in the conversation: inputs are the
 word's `$` locals, addressed `voice/input`, started with `5 8 42 'riff :bass
 >>`).
+
+## 2026-11-05 — :voice/input names a live voice's input
+
+A voice's inputs are addressed `:bass/onsets`, not `bass/onsets`: the colon
+already says "an id" in mu (`:bass stop`, `:bass playing`), so the name can
+never be read as `ns/word` and no voice has to be refused for sharing a
+namespace's name (`duration`, `raw`, …). `IdName` in `mu.ebnf` takes an
+optional `/input`; evaluating it gives a `musics.mu.value/Ref`
+(`musics.mu.inputs/ref-of`) that `@` reads and `!` stores into, and says
+which inputs or voices there are when one is missing. An unknown word
+`bass/onsets` for a voice that has inputs is answered with the colon form.
+`musics.mu.inputs` holds the registry (voice id -> names in the word's
+order, values); the voices that fill it, started from a word with `$`
+inputs, come next, and Tab completion of `:bass/` after that.
+
+## 2026-11-05 — a defined word with $ inputs plays as a live voice
+
+`: riff ( $onsets $pulses -- notes ) … ;` then `5 8 'riff :bass ->` starts
+the voice `:bass`: the numbers under the quoted name are its inputs, in the
+order of the stack effect, and each note the voice reaches is the next of the
+line the word gives with the inputs it holds now (`musics.mu.live/play-word!`;
+`->>` waits for a boundary as before). The tick keeps the word from running
+at the prompt: the voice stores the name and runs it again on every change.
+Only `$` inputs are allowed — a plain input would need music passed in, which
+a quotation recipe still does (`x '( … ) :up ->`) — and the voice needs a
+name. `musics.mu.inputs` keeps each voice's inputs in an atom shaped like a
+tctx (`{:params-atom a}`), so the existing live machinery
+(`musics.algo.tree.live/bind-run!`) already re-registers the voice when
+`7 :bass/onsets !` changes it, and the voice goes on at its own position;
+that is a stepping stone, the watch moves into `inputs` when the tree and
+tctx are removed. A local is written with its `$` in the body (`$onsets`).
+Not yet: `:bass settings` and `gui` for such a voice, inputs cleared when the
+voice ends, restarting it with `:bass ->`, Tab completion of `:bass/`.

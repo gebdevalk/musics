@@ -14,6 +14,7 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
+            [musics.mu.inputs :as inputs]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
@@ -239,6 +240,13 @@
     (when effect (check-effect! name effect (count stack) args result))
     result))
 
+(defn live-inputs
+  "For a word written with : … ; that has $ inputs: its inputs as [name live?]
+   pairs in the order of its stack effect (live? true for a $ input); else nil."
+  [name]
+  (when-let [in (some-> (lookup @state name) :effect :in)]
+    (when (some binds? in) (mapv (fn [s] [(plain s) (binds? s)]) in))))
+
 (defn run-word
   "Run the word called name on stack."
   [stack name]
@@ -300,7 +308,8 @@
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
-    :IdName    (conj stack (keyword (second node)))
+    :IdName    (let [[_ id input] node]
+                 (conj stack (if input (inputs/ref-of (keyword id) input) (keyword id))))
     :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
