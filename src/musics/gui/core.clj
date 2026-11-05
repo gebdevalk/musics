@@ -798,8 +798,12 @@
                          (if (seq trees)
                            (vec (for [{nm :name :keys [tree params]} trees
                                       c (cons (ui/label {:text (str (name nm) "  " tree)})
-                                              (for [{:keys [key value spec]} params]
-                                                (ui/param-control {:name nm} key value spec)))]
+                                              (for [[algo rows] (ui/group-by-algo (comp :algo :spec) params)
+                                                    c (cons (ui/label {:text (str "  " (some-> algo name))
+                                                                       :style "-fx-font-weight: bold;"})
+                                                            (for [{:keys [key value spec]} rows]
+                                                              (ui/param-control {:name nm} key value spec)))]
+                                                c))]
                                   c))
                            [(ui/label {:text "None yet -- in mu: | '( duration/euclid [c e g] pitches zip [~] ) :riff >"})])})
                       (ui/titled-panel

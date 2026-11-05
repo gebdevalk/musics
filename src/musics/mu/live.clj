@@ -141,27 +141,31 @@
 (defn- param-spec
   "One spec for the algo params called input: when several algos read a param
    by that name, the most common type, its range the widest of them (so no
-   value any of them takes is refused), the rest from the first by name."
+   value any of them takes is refused), the rest from the first by name. The
+   spec names its owner, :algo, only when one algo reads that name."
   [input]
-  (let [found (for [[_ {:keys [params]}] (t/algos) p params :when (= input (name (:name p)))] p)]
+  (let [found (for [[short {:keys [params via]}] (t/algos) :when (nil? via) p params :when (= input (name (:name p)))] [short p])]
     (when (seq found)
-      (let [type (key (apply max-key val (frequencies (map :type found))))
-            same (filter #(= type (:type %)) found)
+      (let [type (key (apply max-key val (frequencies (map (comp :type second) found))))
+            same (map second (filter #(= type (:type (second %))) found))
             lo   (keep :min same)
-            hi   (keep :max same)]
+            hi   (keep :max same)
+            owners (distinct (map first found))]
         (cond-> (select-keys (first same) [:type :default :doc :choices])
           (seq lo) (assoc :min (apply min lo))
-          (seq hi) (assoc :max (apply max hi)))))))
+          (seq hi) (assoc :max (apply max hi))
+          (= 1 (count owners)) (assoc :algo (first owners)))))))
 
 (defn- input-spec
   "The spec of one input of word: that of the algo params called the same (its
-   range, default and doc), else one made from the value it starts with."
+   range, default and doc), else one made from the value it starts with. It
+   belongs to the algo that owns the param, else to the word."
   [word order input value]
   (let [base (or (param-spec input)
                  {:type (cond (integer? value) :int (float? value) :double (string? value) :string
                               (keyword? value) :keyword (boolean? value) :bool :else :any)
                   :default value :doc ""})]
-    (assoc base :own input :param (keyword input) :at [input] :order order :algo (keyword word))))
+    (merge {:algo (keyword word)} base {:own input :param (keyword input) :at [input] :order order})))
 
 (inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
 

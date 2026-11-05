@@ -51,12 +51,12 @@
           (swap! st assoc :preview (preview-text tree tctx)))))))
 
 (defn param-groups
-  "[algo [[key value spec] ...]] in the tctx's own param order."
+  "[algo [[key value spec] ...]] in the tctx's own param order, the params of one
+   algo together under it."
   [{:keys [params specs]}]
   (->> (sort-by (comp :order val) specs)
-       (partition-by (comp :algo val))
-       (map (fn [kvs] [(:algo (val (first kvs)))
-                       (for [[k spec] kvs] [k (get params k) spec])]))))
+       (map (fn [[k spec]] [k (get params k) spec]))
+       (ui/group-by-algo (fn [[_ _ spec]] (:algo spec)))))
 
 (defn- view [{:keys [tree-text tctx-value preview message live-name showing theme]}]
   {:fx/type :stage

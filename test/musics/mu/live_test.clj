@@ -211,3 +211,14 @@
   (is (= 3 (peek (run ":w/onsets @"))))
   (engine/stop!)
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"the voice :w is not playing" (run ":w/onsets @"))))
+
+(deftest a-word-voice-input-belongs-to-the-algo-that-owns-the-param
+  (run ": thin ( $similarity $label -- l ) [c d e f g a b] 4 take ;")
+  (run "0.5 \"x\" 'thin :w ->")
+  (let [specs (t/specs (live/tctx-of "settings" :w))]
+    (is (= :emi (:algo (:similarity specs))) "one algo reads similarity: the control is under it")
+    (is (= :thin (:algo (:label specs))) "no algo reads label: it is under the word"))
+  (run ": two ( $onsets -- l ) [c d e f g a b] 4 take ;")
+  (run "3 'two :v ->")
+  (is (= :two (:algo (:onsets (t/specs (live/tctx-of "settings" :v)))))
+      "several algos read onsets: it stays under the word, not under a guess"))

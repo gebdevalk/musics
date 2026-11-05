@@ -239,6 +239,13 @@
    :fit-to-width true
    :content content})
 
+(defn group-by-algo
+  "rows grouped under the algo each belongs to, in the order the algos first
+   appear: [[algo [row ...]] ...]. algo-of reads an algo from a row."
+  [algo-of rows]
+  (let [by (group-by algo-of rows)]
+    (vec (for [a (distinct (map algo-of rows))] [a (vec (get by a))]))))
+
 (defn param-control
   "One control for one tctx param: a slider for a finite numeric range, a
    dropdown for :choices, a note for a function (set in the recipe),
