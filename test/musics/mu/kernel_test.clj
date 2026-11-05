@@ -437,6 +437,17 @@
         (is (re-find #"with: :zzz isn't a voice" (:error (run ":zzz !tempo:90 with"))))
         (finally (mt/stop-all!))))))
 
+(deftest a-named-line-looping-inside-ends-its-pass-at-the-repeat
+  (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
+    (with-redefs [engine/receiver (atom :silent)]
+      (try
+        (run "'[1/4] [~] '[60 62 64] zip :bass R!")
+        (run ":bass R@ ->")
+        (run ":bass !tempo:140 with")
+        (is (< 1 (count (filter #(= :exit (second %)) (keys (conductor/scheduled)))))
+            "the voice's own end and its repeat's body: either one ends a pass")
+        (finally (mt/stop-all!))))))
+
 (deftest a-voice-alone-plays-its-own-music-again
   (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
     (with-redefs [engine/receiver (atom :silent)]

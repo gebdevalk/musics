@@ -467,9 +467,15 @@
      (conductor/unregister-action! action)
      (swap! staged dissoc target))))
 
-(defn- ends-of [mat]
-  (let [node (v/node mat)]
-    (cond-> #{(:id mat)} (d/iterator? node) (conj (:id (:source node))))))
+(defn- ends-of
+  "The ids whose :exit ends a pass of mat's voice: its own, a repeat's body,
+   and the body of a repeat the line holds (a named line looping inside)."
+  [mat]
+  (let [node (v/node mat)
+        body #(:id (:source %))]
+    (cond-> #{(:id mat)}
+      (d/iterator? node) (conj (body node))
+      (:children node)   (into (comp (filter d/iterator?) (map body)) (:children node)))))
 
 (defn voice-name
   "The voice a value plays as: its own name ([bass: c d] is :bass), a
