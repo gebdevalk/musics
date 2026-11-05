@@ -85,9 +85,11 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 ## 4. Instructions and contexts
 
 - Inside literals, instructions are as in `.mus`: `[!mf c4 d e !vol< f]`.
-- **A loose instruction at the top level is an error**, with a hint:
-  write `[!mf …]`, or give a context, `^{ !mf }`. mu never writes
-  `:ROOT`.
+- **An instruction at the top level is a context** holding it: `!tempo:89`
+  is `^{ !tempo:89 }`, so `[c d] !tempo:89 with` writes it at the start of the
+  line, the same spelling as in a line (`!tempo:4=120`, `!tempo<16:140`,
+  `!allegro`, `!tempo:140@4`). Several: `^{ !mf !tempo:89 } with`. mu never
+  writes `:ROOT`.
 - `^{ … }` is a value like any literal: store it (`:loud R!`), use it
   inside a literal (`[:loud c4 d e]`), apply it with `with` (a new
   value, to keep or store: `[c4 d e] ^{ !pp } with` gives `[!pp C4/4 D4

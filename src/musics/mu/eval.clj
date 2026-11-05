@@ -282,17 +282,6 @@
   (let [x (second node)]
     (if (vector? x) (second x) x)))
 
-(defn- key-hint
-  "For a bare !name that names a context key (!volume, !i, !K) and is no
-   mark: the way to read it, since a bare instruction reads nothing at
-   the top level; else nil."
-  [node]
-  (let [[_ [tag [_ n] & more]] node
-        kw (some-> n keyword)]
-    (when (and (= :BangConst tag) (nil? more) kw (not (data/instruction-context kw))
-               (try (ck/context-key kw) true (catch clojure.lang.ExceptionInfo _ false)))
-      (str "-- the key is read after the music with :" n " setting"))))
-
 (defn- run-item
   "Run one parse node on stack, in env ({:locals :values}): values maps a
    literal node to the value it was read as."
@@ -316,9 +305,9 @@
     :TopCommand
     (mu-error "a command needs a line: write" (str "[" (:source (meta node)) "]")
               "-- or the word after the music: x c d transpose, x [R]")
+    ;; an instruction written alone is a context holding it: x !tempo:89 with
     :LooseInstruction
-    (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
-              "or give a context, ^{" (str (:source (meta node))) "}" (key-hint node))
+    (conj stack ((requiring-resolve 'musics.mu.material/read-text) (str "^{ " (:source (meta node)) " }")))
     :QuotedName (conj stack (symbol (node-name node)))
     :VarRef    (let [n (node-name node) b (:bindings @state)]
                  (if (contains? b n)

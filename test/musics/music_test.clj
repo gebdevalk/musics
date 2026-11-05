@@ -77,10 +77,10 @@
       (is (= 60 (mu (str line " :volume setting")))))
     (testing "a number has no context; a bare !name at the top level reads nothing and says how"
       (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
-      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
-      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] !nothing")))
-      (is (thrown-with-msg? Exception #"the key is read after the music with :volume setting" (e/run-text [] "[c d] !volume")))
-      (is (not (re-find #"setting" (try (e/run-text [] "!mf") "" (catch Exception ex (.getMessage ex))))) "a mark is no key: no hint"))))
+      (is (thrown-with-msg? Exception #"!nothing is no mark" (e/run-text [] "[c d] !nothing with")))
+      (is (thrown-with-msg? Exception #"names a context key|names it|needs a value" (e/run-text [] "[c d] !volume with"))))
+    (testing "an instruction alone is a context, for with"
+      (is (= "[!tempo:89 C4/4 D4]" (run "[c d] !tempo:89 with"))))))
 
 (deftest with-sets-one-key-or-a-context
   (testing "a key and its value in front of a line"

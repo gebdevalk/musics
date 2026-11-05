@@ -77,7 +77,7 @@
     (is (re-find #"can't read" (:error (e/eval-input "[c d ]]"))))
     (is (= [7 8] (:stack @e/state)) "a parse error too"))
   (is (re-find #"unknown word: frobnicate" (:error (run "1 frobnicate"))))
-  (is (re-find #"instruction needs a container" (:error (run "!mf"))))
+  (is (nil? (:error (run "!mf"))) "an instruction alone is a context")
   (is (re-find #"can't read" (:error (run "[c d ]]"))))
   (testing "a word inside a literal is named, with the way to gather"
     (is (re-find #"^\.s is a word \(line 1, column 15\).*\n.*\( \[a b\] \[\?\] \[c d\] \[\?\] \)"
