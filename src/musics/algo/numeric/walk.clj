@@ -114,6 +114,7 @@
   "A smooth continuous noise curve over [0, n-1] from n random lattice points, blended with Perlin's quintic ease (6t^5 - 15t^4 + 10t^3) so segments meet without a seam: value noise, smooth enough for parameter automation. Unlike walk and biased-walk the curve is a pure function of t: any real t in range, in any order, gives the same value; t outside clamps to the nearest end.
      ((smooth-noise 8) 3.5)        ;; the curve 3.5 steps in
      ((smooth-noise 8 20 80) 0)    ;; ranged to e.g. MIDI velocity 20-80"
+  {:mu {:optional {:lo number? :hi number?}}}
   ([n] (smooth-noise n 0.0 1.0))
   ([n lo hi]
    {:pre [(pos? n)]}

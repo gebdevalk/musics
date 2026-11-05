@@ -170,14 +170,15 @@
     :lines ["see melody/lsys-melody"]}
 
    {:title "A constrained walk"
-    :text "Cookbook recipe 19. `melody/constrained` walks a scale under constraints. With none (an empty list) it is a free walk; the constraints themselves are built in Clojure."
+    :text "Cookbook recipe 19. `melody/constrained` walks a scale: each note is drawn from those that every constraint accepts. A constraint is a function of the melody so far and the candidate note, and a quotation is one: `( '( … ) '( … ) )` gathers quotations into the list. Here the first constraint refuses a repeated note (`swap last =` compares the candidate with the last note), the second keeps every step within a whole tone (`swap last - abs 3 <`)."
     :lines ["7 rng/seed"
-            "'[60 62 64 65 67 69 71 72] 12 '[] melody/constrained"]}
+            "'[60 62 64 65 67 69 71 72] 12 '[] melody/constrained"
+            "'[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained"]}
 
    {:title "A melody that modulates"
-    :text "Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`; the result is pitch classes, and `60 +` lifts them to the middle of the keyboard."
+    :text "Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`, and the constraints they share, as in recipe 19. The result is pitch classes of the keys; `60 +` lifts them to the middle of the keyboard."
     :lines ["7 rng/seed"
-            "'[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] '[] melody/modulating 60 +"]}
+            "'[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] ( '( swap last = not ) ) melody/modulating 60 +"]}
 
    {:title "Two-voice counterpoint"
     :text "Cookbook recipe 21. `jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one line per voice."
@@ -226,10 +227,10 @@
     :lines ["7 rng/seed"
             "3.0 4.0 process/poisson 1/4 1/32 bridge/onsets->durations penta zip"]}
 
-   {:title "Noise as a rhythm"
-    :text "Cookbook recipe 30. Pink noise, `pull`ed, then `data-rhythm`: an onset wherever a value is above the median."
+   {:title "Smooth noise as a rhythm"
+    :text "Cookbook recipe 30. `walk/smooth-noise` makes a curve, a function of t, from `n` random points between `lo` and `hi`; `map` samples it at sixteen places, and `data-rhythm` puts an onset wherever a value is above the median."
     :lines ["7 rng/seed"
-            "5 0.0 1.0 walk/pink 16 pull \"median\" 1 data/data-rhythm 1/16 bridge/pulses->durations penta zip"]}
+            "0 16 range 3 / 6 0.0 1.0 walk/smooth-noise map \"median\" 1 data/data-rhythm 1/16 bridge/pulses->durations penta zip"]}
 
    {:group "Rhythm generators"}
 

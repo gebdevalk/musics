@@ -930,3 +930,14 @@
   (testing "refusals say what is wanted"
     (is (re-find #"needs a quotation" (top "5 3 pull")))
     (is (re-find #"needs a count" (top "'( 1 ) -1 pull")))))
+
+(deftest a-group-of-quotations-is-a-list-of-functions
+  (is (= "'['( 1 ) '( 2 )]" (top "( '( 1 ) '( 2 ) )")))
+  (testing "which a function that takes functions can use"
+    (top "\"musics.algo.melodic.melody\" require")
+    (let [r (top "'[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained")
+          ns (map #(Long/parseLong %) (re-seq #"\d+" r))]
+      (is (= 12 (count ns)) r)
+      (is (every? (fn [[a b]] (and (not= a b) (< (abs (- a b)) 3))) (partition 2 1 ns)) "no repeat, steps within a whole tone")))
+  (testing "a group of something else is still refused"
+    (is (re-find #"gathers music into a line, plain values into a '\[ \] or quotations" (top "( \"a\" )")))))

@@ -52,8 +52,11 @@
 (defmulti gathered
   "What the values of a ( … ) group make, decided by the first: music a
    line [ ], a number, keyword or data list a data list '[ ] (of lists, when
-   they are lists). The rest must be of the same kind."
-  (fn [xs] (cond (music-or-marker? (first xs)) :music (plain? (first xs)) :data :else :other)))
+   they are lists), a quotation a list of quotations (for a function that
+   takes functions, such as the constraints of melody/constrained). The rest
+   must be of the same kind."
+  (fn [xs] (cond (music-or-marker? (first xs)) :music (plain? (first xs)) :data
+                 (v/quotation? (first xs)) :quotations :else :other)))
 
 (defn- all-of [pred what into xs]
   (when-let [x (first (remove pred xs))]
@@ -67,8 +70,12 @@
   (all-of plain? "plain values" "a '[ ]" xs)
   (mt/data xs))
 
+(defmethod gathered :quotations [xs]
+  (all-of v/quotation? "quotations" "a list" xs)
+  (vec xs))
+
 (defmethod gathered :other [xs]
-  (e/mu-error "( … ): gathers music into a line or plain values into a '[ ], and left" (p/show (first xs))))
+  (e/mu-error "( … ): gathers music into a line, plain values into a '[ ] or quotations into a list, and left" (p/show (first xs))))
 
 (word! "music" "par" "( | m... -- m )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
        (gather "par" mt/par-of))

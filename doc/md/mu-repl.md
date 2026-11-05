@@ -173,7 +173,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   for a draw, `60.0 2.0 walk/walk 16 pull` for a function that keeps its
   place, a generator with a `:value` (lorenz) too. A quotation `'( … )` is
   also a function of what it is given, so it can be the fitness function of
-  `process/genetic`. A list inside a list is written `'[ '[0 1] '[2] ]`;
+  `process/genetic`, and `( '( … ) '( … ) )` gathers quotations into the list of functions a function wants (the constraints of `melody/constrained`). A list inside a list is written `'[ '[0 1] '[2] ]`;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel` (the stack, quotations, numbers,
   binding, the repo, help, files), `tool`, `music`, `play` (playback and

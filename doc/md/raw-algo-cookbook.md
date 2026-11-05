@@ -265,24 +265,26 @@ melody/lsys-melody ( axiom rules note-map iterations max-notes -- lsys-melody )
 
 #### 19. A constrained walk
 
-Cookbook recipe 19. `melody/constrained` walks a scale under constraints. With none (an empty list) it is a free walk; the constraints themselves are built in Clojure.
+Cookbook recipe 19. `melody/constrained` walks a scale: each note is drawn from those that every constraint accepts. A constraint is a function of the melody so far and the candidate note, and a quotation is one: `( '( … ) '( … ) )` gathers quotations into the list. Here the first constraint refuses a repeated note (`swap last =` compares the candidate with the last note), the second keeps every step within a whole tone (`swap last - abs 3 <`).
 
 ```
 mu> 7 rng/seed
 
 mu> '[60 62 64 65 67 69 71 72] 12 '[] melody/constrained
 '[72 72 65 69 72 67 64 72 72 64 69 67]
+mu> '[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained
+'[60 62 64 65 67 65 64 65 64 62 64 62]
 ```
 
 #### 20. A melody that modulates
 
-Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`; the result is pitch classes, and `60 +` lifts them to the middle of the keyboard.
+Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`, and the constraints they share, as in recipe 19. The result is pitch classes of the keys; `60 +` lifts them to the middle of the keyboard.
 
 ```
 mu> 7 rng/seed
 
-mu> '[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] '[] melody/modulating 60 +
-'[60 60 69 69 71 71 71 67 64 71 64 71]
+mu> '[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] ( '( swap last = not ) ) melody/modulating 60 +
+'[60 64 62 67 62 60 60 71 66 62 67 62]
 ```
 
 #### 21. Two-voice counterpoint
@@ -385,15 +387,15 @@ mu> 3.0 4.0 process/poisson 1/4 1/32 bridge/onsets->durations penta zip
 [C4/8. D4/32 E4 G4/16]
 ```
 
-#### 30. Noise as a rhythm
+#### 30. Smooth noise as a rhythm
 
-Cookbook recipe 30. Pink noise, `pull`ed, then `data-rhythm`: an onset wherever a value is above the median.
+Cookbook recipe 30. `walk/smooth-noise` makes a curve, a function of t, from `n` random points between `lo` and `hi`; `map` samples it at sixteen places, and `data-rhythm` puts an onset wherever a value is above the median.
 
 ```
 mu> 7 rng/seed
 
-mu> 5 0.0 1.0 walk/pink 16 pull "median" 1 data/data-rhythm 1/16 bridge/pulses->durations penta zip
-[C4/8 D4 E4 G4/16 A4/8 C4/16 16:5(D4/1) E4/16]
+mu> 0 16 range 3 / 6 0.0 1.0 walk/smooth-noise map "median" 1 data/data-rhythm 1/16 bridge/pulses->durations penta zip
+[16:5(r1) D4/16 E4 G4 A4 C4 D4 E4 G4/4]
 ```
 
 ### Rhythm generators

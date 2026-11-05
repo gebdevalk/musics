@@ -3426,3 +3426,10 @@ the REPL. Still out of reach from mu text: parameters that are maps
 parameter of two levels is written `'[ '[0 1] '[2] ]`, since a bare inner
 `[ ]` is musics text. `rng/seed` (the trailing `!` left off) seeds the random
 words after it, in place of `seed:N`.
+
+A `( … )` group whose first value is a quotation gathers quotations into a
+list (`( '( swap last = not ) '( swap last - abs 3 < ) )`), so the constraints
+of `melody/constrained` and `melody/modulating` can be written in mu: a
+constraint is a function of the melody so far and a candidate note, which a
+quotation is. `walk/smooth-noise` takes `lo` and `hi` as optional (`:mu
+:optional`), as the other multi-arity functions that are not algorithms need.
