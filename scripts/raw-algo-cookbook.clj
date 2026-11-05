@@ -1,6 +1,6 @@
-;; Generates doc/md/raw-algo-cookbook.md: every recipe's mu input is run here
-;; and the result shown is exactly what came back. The reference table is read
-;; from the registry.
+;; Generates doc/md/raw-algo-cookbook.md: the 53 recipes of the algo cookbook
+;; (doc/md/algo-cookbook.md) written with the raw/ words and mu's own. Every
+;; recipe's mu input is run here and the result shown is exactly what came back.
 ;;
 ;; Run from the repo root, then render it (html and pdf, both git-ignored):
 ;;   lein run -m clojure.main scripts/raw-algo-cookbook.clj
@@ -48,196 +48,325 @@
 ;; A line with :play is shown and not run.
 ;; ---------------------------------------------------------------------------
 
+(def setup
+  "Typed once before the recipes: the Clojure namespaces whose functions the recipes call,
+   each word `namespace/function`, and a seed."
+  ["\"musics.algo.numeric.rng\" require"
+   "\"musics.algo.rhythmic.pattern\" require"
+   "\"musics.algo.rhythmic.sieve\" require"
+   "\"musics.algo.rhythmic.meter\" require"
+   "\"musics.algo.rhythmic.indispensability\" require"
+   "\"musics.algo.rhythmic.process\" require"
+   "\"musics.algo.rhythmic.nature\" require"
+   "\"musics.algo.rhythmic.data\" require"
+   "\"musics.algo.rhythmic.world\" require"
+   "\"musics.algo.rhythmic.feel\" require"
+   "\"musics.algo.rhythmic.decompose\" require"
+   "\"musics.algo.numeric.random\" require"
+   "\"musics.algo.numeric.walk\" require"
+   "\"musics.algo.numeric.markov\" require"
+   "\"musics.algo.numeric.chaos.logistic\" require"
+   "\"musics.algo.numeric.chaos.lorenz\" require"
+   "\"musics.algo.melodic.melody\" require"
+   "\"musics.algo.melodic.serial\" require"
+   "\"musics.algo.counterpoint.jeppesen\" require"
+   "\"musics.algo.bridge\" require"
+   ": penta ( -- l ) '[60 62 64 67 69] ;"])
+
 (def recipes
   [{:group "First steps"}
 
-   {:title "A raw source"
-    :text "A raw word gives raw material, not music: `raw/euclid` is a row of pulses, 1 for an onset and 0 for a rest. Settings go in an `@^{ }` just before the word, `name:value` each; the defaults are `onsets:3 pulses:8`."
-    :lines ["raw/euclid"
-            "@^{ onsets:5 pulses:16 } raw/euclid"]}
+   {:title "A source, a bridge, a scale"
+    :text "The bare form of cookbook recipe 1. `pattern/euclid` is the Clojure function itself: its arguments, `onsets` and `pulses`, come from the stack and `see pattern/euclid` shows them. It gives a row of pulses, 1 for an onset and 0 for a rest. `bridge/pulses->durations` lets each onset last until the next one on a grid of the `pulse` you give it; `zip` puts durations and pitches together. `penta` is a word of our own, the scale the recipes play over."
+    :lines ["see pattern/euclid"
+            "3 8 pattern/euclid"
+            "3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip"]}
 
-   {:title "Pulses become durations"
-    :text "A bridge turns raw material into a half product. `raw/pulses->durations` lets each onset last until the next one, on a grid of `pulse` (1/16 of a whole note by default). It takes the pulses from the stack, so the source comes first, and its settings sit before it."
-    :lines ["raw/euclid raw/pulses->durations"
-            "@^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations"]}
+   {:title "Change a parameter; a precondition guards it"
+    :text "Cookbook recipe 2. Write another number. A function that cannot work with its arguments says what it needs."
+    :lines ["5 8 pattern/euclid 1/16 bridge/pulses->durations penta zip"
+            "5 8 pattern/euclid 1/16 bridge/pulses->durations '[60 63 67 70] zip"
+            "99 8 pattern/euclid"
+            "0 0 pattern/euclid"]}
 
-   {:title "Durations and pitches make notes"
-    :text "`zip` joins a note's parts. A stream a raw word gave knows what it is, so durations and pitches meet in the right place. The pitch list is data (`'[ ]`); it cycles over the notes."
-    :lines ["raw/euclid raw/pulses->durations '[60 62 64 67] zip"
-            "@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] zip"]}
+   {:title "Wrong shapes"
+    :text "Cookbook recipe 3. A word takes what its stack effect says from the stack. Too few arguments are refused; arguments of the wrong kind are not always: a bridge on durations runs and gives nonsense."
+    :lines ["5 pattern/euclid"
+            "3 8 pattern/euclid zip"
+            "3 8 pattern/euclid 1/16 bridge/pulses->durations 1/16 bridge/pulses->durations"]}
 
-   {:title "mu's own words work on raw material"
-    :text "Raw material is a plain list, so the words that act on lists apply: `rotate` moves the front round to the back, `retrograde` reverses, `take` keeps the first n."
-    :lines ["raw/euclid 2 rotate"
-            "raw/euclid retrograde"
-            "raw/fibonacci 8 take"]}
+   {:title "Raw material needs its bridges"
+    :text "Cookbook recipe 4. Pulses become durations with one bridge. Weights (`indisp` ranks) need two: `weights->pulses` keeps the strongest `density` of them, then `pulses->durations`."
+    :lines ["3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip"
+            "'[2 2 3] indispensability/indisp 0.5 bridge/weights->pulses 1/16 bridge/pulses->durations penta zip"]}
 
-   {:group "Rhythm material"}
+   {:title "One run, several parameters"
+    :text "Cookbook recipe 5. `dup` copies what is on the stack, so one run of a walk can be the pitches and the velocities: the higher the note, the louder. `pull` calls a function n times; `walk/walk` gives a function that keeps its place."
+    :lines ["7 rng/seed"
+            "60.0 3.0 walk/walk 8 pull dup 52 68 48 72 bridge/numbers->pitches swap 52 68 40 100 bridge/numbers->volumes"]}
 
-   {:title "Grids from number theory"
-    :text "Each of these is a row of pulses from a formula: Fibonacci numbers, primes, the Cantor set, the golden ratio, the binary digits of a number, a modular formula, an L-system. Rows longer than 16 are shown cut."
-    :lines ["raw/fibonacci"
-            "raw/primes"
-            "raw/cantor"
-            "raw/golden"
-            "@^{ number:13 length:8 } raw/bits"
-            "raw/modular"
-            "@^{ length:8 iterations:3 } raw/lsys-rhythm"]}
+   {:group "Rhythm × melody"}
 
-   {:title "A cellular automaton and a sieve"
-    :text "Two more ways to a row of pulses: an elementary cellular automaton, and a Xenakis sieve (an onset wherever a position is in a residue class of a modulus)."
-    :lines ["raw/ca"
-            "raw/sieve"]}
+   {:title "Euclidean rhythm, rotated, over a reshuffled pentatonic"
+    :text "Cookbook recipe 6. `rotate` and `shuffle` are mu's own list words: they work on a row of pulses and on a list of pitches alike."
+    :lines ["7 rng/seed"
+            "5 16 pattern/euclid 2 rotate 1/16 bridge/pulses->durations penta shuffle zip"]}
 
-   {:title "Weights: what to keep"
-    :text "`raw/indisp` ranks the pulses of a meter by Barlow's indispensability, the downbeat highest. Ranks are weights, and weights go several ways: `weights->pulses` keeps the strongest fraction, `weights->volumes` turns them into velocities."
-    :lines ["raw/indisp"
-            "raw/indisp @^{ density:0.5 } raw/weights->pulses"
-            "raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes"]}
+   {:title "Legato by default, detached by articulation"
+    :text "Cookbook recipe 7. `zip` takes a named part: `:articulation` before a list gives every note it."
+    :lines ["5 8 pattern/euclid 1/16 bridge/pulses->durations penta :articulation '[:staccato] zip"]}
 
-   {:title "Rotations and reflections"
-    :text "`bracelet` picks the index-th pattern among a pattern's rotations and reversals; `phases` gives every rotation as a layer; `necklaces` picks a necklace class of n pulses and k onsets."
-    :lines ["@^{ onsets:3 pulses:8 } raw/euclid @^{ index:3 } raw/bracelet"
-            "raw/euclid raw/phases"
-            "@^{ pulses:8 onsets:3 index:1 } raw/necklaces"]}
+   {:title "A Fibonacci rhythm"
+    :text "Cookbook recipe 8. Every generator of `musics/algo/` is a function you can call."
+    :lines ["16 pattern/fibonacci 1/16 bridge/pulses->durations '[60 62 64 65 67 69 71] zip"]}
 
-   {:title "Layers"
-    :text "A layer is several rows at once. `polyrhythm` and `hemiola` give them; `layer` picks one by `index`; `duet` gives a pattern and the same pattern shifted."
-    :lines ["raw/hemiola"
-            "raw/polyrhythm @^{ index:1 } raw/layer"
-            "raw/euclid raw/duet"]}
+   {:title "A Xenakis sieve as the rhythm"
+    :text "Cookbook recipe 9. The moduli and their residues are lists; a list inside a list is written `'[ '[0 1] '[2] ]`."
+    :lines ["'[3 4] '[ '[0 1] '[2] ] 12 sieve/sieve 1/16 bridge/pulses->durations penta zip"]}
 
-   {:title "Onsets in time"
-    :text "Some sources give times, not a grid: a Poisson process, a Xenakis cloud. `onsets->durations` reads the gaps between them as note values (`unit` is the note value of one time unit)."
-    :lines ["@^{ seed:7 rate:6 duration:4 } raw/poisson"
-            "@^{ seed:7 rate:6 duration:4 } raw/poisson @^{ unit:1/8 } raw/onsets->durations"
-            "@^{ seed:7 num-events:6 duration:2 } raw/cloud"]}
+   {:title "A clave timeline carrying an arpeggio"
+    :text "Cookbook recipe 10. `world/bell` gives a named West African timeline for a meter, `[pulses subdivision]`."
+    :lines ["'[12 8] \"clave\" world/bell 1/16 bridge/pulses->durations '[60 64 67 72] zip"]}
 
-   {:title "Varying a rhythm"
-    :text "Algos that take a pattern and give one back: `emi` mutates it in Cope's style (`similarity` 1 leaves it as it is), `oblique` applies one of Eno's strategies. Each word has its own `seed`."
-    :lines ["@^{ seed:7 } raw/euclid @^{ seed:9 similarity:0.5 } raw/emi"
-            "@^{ seed:7 } raw/euclid @^{ seed:9 } raw/oblique"]}
+   {:group "Isorhythm and durations"}
 
-   {:title "Syllables and strokes"
-    :text "`konnakol` gives each onset of a rhythm a syllable and each rest a dash; `strokes->durations` reads that as note values."
-    :lines ["raw/euclid raw/konnakol"
-            "raw/euclid raw/konnakol raw/strokes->durations"]}
+   {:title "Isorhythm: a 5-note color against a 3-value talea"
+    :text "Cookbook recipe 11. Two loops of different lengths zipped line up after their least common multiple, here 15 notes."
+    :lines ["'[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take"]}
 
-   {:group "Number material"}
+   {:title "Stretch the durations, transpose the pitches"
+    :text "Cookbook recipe 12. `*` stretches the durations of a line and `+` transposes it."
+    :lines ["'[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take 1/2 * 7 +"]}
 
-   {:title "Random draws"
-    :text "Samplers draw `len` numbers from a distribution. Give each a `seed` to repeat it. The ranged ones take `lo` and `hi`; `triangular` peaks at `mode`."
-    :lines ["@^{ seed:7 len:6 } raw/normal"
-            "@^{ seed:7 len:6 lo:48 hi:72 mode:60 } raw/triangular"
-            "@^{ seed:7 len:6 } raw/uniform"]}
+   {:group "Metre and indispensability"}
 
-   {:title "Walks and noise"
-    :text "A random walk moves by at most `step-bound` each step from `start`; pink noise wanders between white noise and a walk, inside [0, 1) by default."
-    :lines ["@^{ seed:7 len:8 start:60 step-bound:3 } raw/walk"
-            "@^{ seed:7 len:8 } raw/pink"]}
+   {:title "Indispensability thins a 12/8 bar"
+    :text "Cookbook recipe 13. `indisp` ranks the pulses of a meter given by its subdivisions, `tilt` turns ranks into probabilities (`adherence` how strongly rank decides), `weights->pulses` keeps the strongest `density` of them."
+    :lines ["'[2 2 3] indispensability/indisp 0.8 indispensability/tilt 0.5 bridge/weights->pulses 1/16 bridge/pulses->durations '[67 64 60] zip"]}
 
-   {:title "Chaos"
-    :text "The logistic map gives numbers in (0, 1); at `r` between 3.57 and 4 it is chaotic. The Lorenz system gives a point per step, [x y z]; `axis` picks one coordinate. (The first steps barely move: `dt` is the step.)"
-    :lines ["@^{ r:3.9 len:8 } raw/logistic"
-            "@^{ len:4 } raw/lorenz"
-            "@^{ len:6 dt:0.1 } raw/lorenz @^{ axis:0 } raw/axis"]}
+   {:title "Swap one stage: strong beats silent"
+    :text "Cookbook recipe 14. `power` in place of `tilt`, with a negative adherence: the weak pulses win."
+    :lines ["'[2 2 3] indispensability/indisp -0.8 indispensability/power 0.5 bridge/weights->pulses 1/16 bridge/pulses->durations '[67 64 60] zip"]}
 
-   {:title "Numbers become music: a bridge needs its range"
-    :text "`numbers->pitches` maps a number's place in `from-lo..from-hi` onto `lo..hi`. Its input range defaults to 0..1, which a walk around 60 is far outside: every number lands on the top pitch. Give the range the numbers really have."
-    :lines ["@^{ seed:7 len:8 start:60 step-bound:3 } raw/walk raw/numbers->pitches"
-            "@^{ seed:7 len:8 start:60 step-bound:3 } raw/walk @^{ from-lo:52 from-hi:68 lo:48 hi:72 } raw/numbers->pitches"]}
+   {:title "One weighted choice"
+    :text "Cookbook recipe 15. `random/weighted-choose` draws one of the values (here the nine pulses `0 9 range`) with the weights it is given."
+    :lines ["7 rng/seed"
+            "0 9 range '[3 3] indispensability/indisp 1.0 indispensability/tilt random/weighted-choose"]}
 
-   {:title "One source, several parameters"
-    :text "`dup` copies what is on the stack, so one run of a walk can be the pitches and the velocities: the higher the note, the louder."
-    :lines ["@^{ seed:7 len:8 start:60 step-bound:3 } raw/walk dup @^{ from-lo:52 from-hi:68 lo:48 hi:72 } raw/numbers->pitches swap @^{ from-lo:52 from-hi:68 lo:40 hi:100 } raw/numbers->volumes"]}
+   {:group "Melody generators"}
 
-   {:title "Scale steps"
-    :text "`degrees->pitches` reads whole numbers as steps of a key from its tonic. `points->pitches` maps a point's coordinate onto the steps of a key over `octaves`."
-    :lines ["'[0 1 2 3 4 5 6 7] @^{ key:D.minor } raw/degrees->pitches"
-            "@^{ seed:7 len:12 dt:0.1 } raw/lorenz @^{ axis:0 from-lo:-20 from-hi:20 key:A.minor octaves:2 } raw/points->pitches"]}
+   {:title "A Markov melody trained on a motif"
+    :text "Cookbook recipe 16. `markov-train` learns the motif (its `order`), `markov-gen` walks the model for `length` notes."
+    :lines ["7 rng/seed"
+            "11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64] 1 melody/markov-train 11 melody/markov-gen zip"]}
 
-   {:title "Instruments"
-    :text "`numbers->instruments` picks from a `palette` of MIDI programs or General MIDI names; an empty palette is all 128."
-    :lines ["@^{ seed:5 len:8 } raw/uniform @^{ from-lo:0 from-hi:1 palette:(violin flute cello) } raw/numbers->instruments"]}
+   {:title "Slonimsky: insertions before, between, after"
+    :text "Cookbook recipe 17. `serial/infra` puts a pattern before each principal tone; `serial/polations` does infra, inter and ultra at once (the last argument: ultra after the last tone too)."
+    :lines ["'[60 64 67 72] '[59 62] serial/infra"
+            "'[60 64 67 72] '[] '[65] '[62] false serial/polations"]}
 
-   {:title "A twelve-tone row"
-    :text "`row` is a random permutation of the twelve pitch classes; `row-form` gives a form of it (P, I, R, RI); `classes->pitches` puts classes on pitches."
-    :lines ["@^{ seed:3 } raw/row"
-            "@^{ seed:3 } raw/row @^{ form:R } raw/row-form"
-            "@^{ seed:3 } raw/row raw/classes->pitches"]}
+   {:title "An L-system melody"
+    :text "Cookbook recipe 18. `melody/lsys-melody` expands an axiom with rules and reads each letter as a note. The rules and the letters' pitches are maps, which mu text cannot write yet, so this one is only shown: `see` gives its parameters."
+    :lines ["see melody/lsys-melody"]}
 
-   {:title "A Markov model"
-    :text "`markov-train` learns what follows each run of `order` notes in a melody; `markov-gen` walks that model for `length` notes. `chain` is a Markov chain over numeric states, with its own transition table."
-    :lines ["'[60 62 64 62 60 64] raw/markov-train @^{ seed:3 } raw/markov-gen"
-            "@^{ seed:3 } raw/chain"]}
+   {:title "A constrained walk"
+    :text "Cookbook recipe 19. `melody/constrained` walks a scale under constraints. With none (an empty list) it is a free walk; the constraints themselves are built in Clojure."
+    :lines ["7 rng/seed"
+            "'[60 62 64 65 67 69 71 72] 12 '[] melody/constrained"]}
 
-   {:group "Putting it together"}
+   {:title "A melody that modulates"
+    :text "Cookbook recipe 20. Segments of `[key length]` pairs, a key being `'[:C :major]`; the result is pitch classes, and `60 +` lifts them to the middle of the keyboard."
+    :lines ["7 rng/seed"
+            "'[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] '[] melody/modulating 60 +"]}
 
-   {:title "A rhythm, pitches and accents"
-    :text "Above a `|` mark `zip` takes every stream with its part: durations, pitches and volumes (written on each note as `\\volume:`). `[~]` loops a stream, so the shorter ones keep cycling."
-    :lines ["| @^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] raw/indisp @^{ lo:50 hi:100 } raw/weights->volumes [~] zip"]}
+   {:title "Two-voice counterpoint"
+    :text "Cookbook recipe 21. `jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one line per voice."
+    :lines ["'[55 57 59 60 62 64 65 67 69 71 72 74 76] 2 1 :auto :auto 1 jeppesen/species"]}
 
-   {:title "A walk plays the pitches"
-    :text "The rhythm is a looped Euclid, the pitches a random walk laid on the notes."
-    :lines ["@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations [~] @^{ seed:7 len:16 start:60 step-bound:2 } raw/walk @^{ from-lo:54 from-hi:66 lo:55 hi:79 } raw/numbers->pitches zip 8 take"]}
+   {:group "Metric generators"}
 
-   {:title "Playing"
-    :text "A recipe that ends in music plays with `->`, a loop of it with `[~]` before. These are shown, not run here: nothing sounds when this page is made."
-    :lines [[:play "@^{ onsets:5 pulses:8 } raw/euclid raw/pulses->durations '[60 62 64 67] [~] zip [~] ->"]
+   {:title "A number's bits, a fraction's expansion"
+    :text "Cookbook recipe 22. 45 is 101101: onsets on bits 0, 2, 3 and 5. A function with a keyword tail takes `:key value` pairs written before it: `:length 8`. π is [3; 7, 15, 1, …]."
+    :lines ["45 :length 8 pattern/bits 1/16 bridge/pulses->durations penta zip"
+            "3.141592653589793 16 pattern/cfrac 1/16 bridge/pulses->durations penta zip"]}
+
+   {:title "Modular arithmetic as a rhythm"
+    :text "Cookbook recipe 23. An onset wherever `multiplier · i + offset` is a multiple of `modulus`: `modulus multiplier length offset`."
+    :lines ["5 2 15 0 pattern/modular 1/16 bridge/pulses->durations penta zip"]}
+
+   {:group "Random sources"}
+
+   {:title "A sampler is a function: pull n draws"
+    :text "Cookbook recipe 24. `random/triangular` gives one draw per call; `pull` calls a quotation n times and collects the results. The bridge puts the draws on pitches, the range they really have being its second and third arguments."
+    :lines ["7 rng/seed"
+            "'( 0.0 1.0 0.5 random/triangular ) 12 pull 0.0 1.0 60 73 bridge/numbers->pitches"]}
+
+   {:title "Any numbers, rescaled onto a scale"
+    :text "Cookbook recipe 25. Scale the draws to the scale steps you want and round them (`'( round ) map`); `degrees->pitches` spells whole steps in a key and octave. A key name with a hyphen goes in quotes."
+    :lines ["7 rng/seed"
+            "'( 0.0 1.0 random/normal ) 12 pull 3 * 4 + '( round ) map \"C.pentatonic-major\" 4 bridge/degrees->pitches"]}
+
+   {:title "A random walk, and a biased one"
+    :text "Cookbook recipe 26. `walk/walk` moves by at most `step-bound`; `biased-walk` also leans one way (above 0.5 up). A function that keeps its place is `pull`ed."
+    :lines ["7 rng/seed"
+            "4.0 1.0 walk/walk 16 pull '( round ) map \"C.pentatonic-major\" 4 bridge/degrees->pitches"
+            "60.0 2.0 0.7 walk/biased-walk 16 pull"]}
+
+   {:title "Chaos: the logistic map, the Lorenz attractor"
+    :text "Cookbook recipe 27. `logistic` gives numbers in (0, 1) from a growth rate and a start; `lorenz` a point per step, `points->pitches` reads one coordinate onto the steps of a key. `pull` also takes a generator that holds a `:value` function, as lorenz does."
+    :lines ["3.9 0.5 logistic/logistic 12 pull 9 * '( round ) map \"C.pentatonic-major\" 4 bridge/degrees->pitches"
+            "10.0 28.0 2.667 1.0 1.0 1.0 0.03 lorenz/lorenz 24 pull 0 -20.0 20.0 \"C.pentatonic-major\" 4 2 bridge/points->pitches"]}
+
+   {:title "A Markov chain over scale degrees"
+    :text "Cookbook recipe 28. `markov/chain` walks a table of transitions between states. The table is a map, which mu text cannot write yet, so this one is only shown."
+    :lines ["see markov/chain"]}
+
+   {:title "Poisson onsets become durations"
+    :text "Cookbook recipe 29. `poisson` gives event times from a rate and a duration; `onsets->durations` reads the gaps between them as note values, `unit` being the note value of one time unit and `quantum` the grid they are rounded to."
+    :lines ["7 rng/seed"
+            "3.0 4.0 process/poisson 1/4 1/32 bridge/onsets->durations penta zip"]}
+
+   {:title "Noise as a rhythm"
+    :text "Cookbook recipe 30. Pink noise, `pull`ed, then `data-rhythm`: an onset wherever a value is above the median."
+    :lines ["7 rng/seed"
+            "5 0.0 1.0 walk/pink 16 pull \"median\" 1 data/data-rhythm 1/16 bridge/pulses->durations penta zip"]}
+
+   {:group "Rhythm generators"}
+
+   {:title "A tala's theka, a named bell pattern"
+    :text "Cookbook recipe 31."
+    :lines ["\"jhaptal\" world/theka 1/16 bridge/pulses->durations penta zip"
+            "'[16 8] \"bossanova\" world/bell 1/16 bridge/pulses->durations '[60 64 67] zip"]}
+
+   {:title "Fractal rhythms: Cantor set, dragon curve"
+    :text "Cookbook recipe 32."
+    :lines ["2 9 pattern/cantor 1/16 bridge/pulses->durations penta zip"
+            "3 pattern/dragon 1/16 bridge/pulses->durations penta zip"]}
+
+   {:title "A polyrhythm, one layer per voice"
+    :text "Cookbook recipe 33. `polyrhythm` takes the layers, each `[onsets grid]`, and a length, and gives a list of layers; `0 @` picks one: three against two."
+    :lines ["'[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '[48 55] zip"
+            "'[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[48 55] zip"]}
+
+   {:title "A polyrhythm as two parts"
+    :text "Cookbook recipe 34. Each layer its own line, each started by its own `|` mark so that `zip` joins only that part; `{2}` puts the two side by side."
+    :lines ["| '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '[48] zip | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[55] zip {2}"]}
+
+   {:title "Clapping Music: the pattern against itself, shifted"
+    :text "Cookbook recipe 35. `duet` gives the pattern and the same pattern `phase` pulses on; `1 @` picks the shifted one."
+    :lines ["'[1 1 1 0 1 1 0 1 0 1 1 0] 3 sieve/duet 1 @ 1/16 bridge/pulses->durations '[72] zip"]}
+
+   {:title "A genetic rhythm: the fitness function is a quotation"
+    :text "Cookbook recipe 36. A quotation `'( … )` is a function of what it is given, so it can be the fitness function: this one scores a pattern by how close its onset count is to five."
+    :lines ["7 rng/seed"
+            "16 16 20 '( sum 5 - abs negate ) process/genetic 1/16 bridge/pulses->durations penta zip"]}
+
+   {:title "Swing: a grid becomes onset times, then durations"
+    :text "Cookbook recipe 37. `swing` turns pulses into swung onset times (a ratio and the steps per beat); `onsets->durations` reads them back, a beat being `unit`."
+    :lines ["8 8 pattern/euclid 0.67 2 feel/swing 1/4 1/32 bridge/onsets->durations penta zip"]}
+
+   {:title "A bouncing ball, in seconds"
+    :text "Cookbook recipe 38. Times in seconds: height, restitution, gravity and duration; `unit` says how long one second is as a note value."
+    :lines ["1.0 0.8 9.8 5.0 nature/bounce 1/4 1/64 bridge/onsets->durations '[72 67] zip"]}
+
+   {:title "Tuplet-like durations by repeated splitting"
+    :text "Cookbook recipe 39. `decompose/split` takes a `ratio`-sized bite of what remains, `depth` times."
+    :lines ["1 5 2/3 decompose/split penta zip"]}
+
+   {:title "Text as rhythm"
+    :text "Cookbook recipe 40. A beat on each word's first syllable; density 1.0 lets every accent sound."
+    :lines ["\"Composing trees of algorithms is plain Clojure.\" data/text-rhythm 1.0 bridge/weights->pulses 1/16 bridge/pulses->durations penta zip"]}
+
+   {:title "Vary a rhythm: EMI style, Oblique Strategies"
+    :text "Cookbook recipe 41. `emi` takes a pattern and a similarity (1 leaves it as it is); `oblique` a pattern and the name of a strategy."
+    :lines ["7 rng/seed"
+            "5 16 pattern/euclid 0.6 feel/emi 1/16 bridge/pulses->durations penta zip"
+            "3 8 pattern/euclid \"mirror\" feel/oblique 1/16 bridge/pulses->durations penta zip"]}
+
+   {:title "Cross two rhythms"
+    :text "Cookbook recipe 42. `process/crossover` takes the first part of one pattern and the rest of the other, at a point; `child` 0 or 1 says which way round."
+    :lines ["'[1 0 1 1 0 1 0 0] '[1 0 0 1 0 0 1 0] 4 0 process/crossover 1/16 bridge/pulses->durations penta zip"
+            "'[1 0 1 1 0 1 0 0] '[1 0 0 1 0 0 1 0] 4 1 process/crossover 1/16 bridge/pulses->durations penta zip"]}
+
+   {:group "Algorithms of your own"}
+
+   {:title "A pitch transform"
+    :text "Cookbook recipe 43. A word of your own is an algorithm: `: name ( inputs -- results ) … ;`. This one moves every pitch down an octave, and works on pitches before `zip`."
+    :lines [": down ( l -- l' ) 12 - ;"
+            "3 8 pattern/euclid 1/16 bridge/pulses->durations penta down zip"]}
+
+   {:title "Required arguments and their limits"
+    :text "Cookbook recipe 44. Every argument is required: there are no defaults, and a function says how many it needs and what it cannot take."
+    :lines ["16 16 20 process/genetic"
+            "99 8 pattern/euclid"]}
+
+   {:group "Two of a kind"}
+
+   {:title "Two instances of one algo"
+    :text "Cookbook recipe 45. No naming is needed: each call takes its own arguments, so two euclids are two calls."
+    :lines ["2 16 pattern/euclid 5 16 pattern/euclid"]}
+
+   {:title "Different algos, same parameter name"
+    :text "Cookbook recipe 46. Arguments are by position, so `onsets` in `euclid` and in `necklaces` cannot meet."
+    :lines ["5 8 pattern/euclid"
+            "8 5 1 sieve/necklaces"]}
+
+   {:group "Parameters as data"}
+
+   {:title "One line, several parameters: a word with inputs"
+    :text "Cookbook recipe 47. The parameters of a word of your own are its `$` inputs."
+    :lines [": riff ( $onsets $pulses -- notes ) $onsets $pulses pattern/euclid 1/16 bridge/pulses->durations penta zip ;"
+            "2 8 riff"
+            "7 8 riff"]}
+
+   {:title "Another word over the same inputs"
+    :text "Cookbook recipe 48. Words that share inputs just share names. `see` shows a word's stack effect with its inputs."
+    :lines ["see riff"
+            ": lift ( $notes $by -- notes' ) $notes $by + ;"
+            "2 8 riff 7 lift"]}
+
+   {:title "Defaults are a word"
+    :text "Cookbook recipe 49. A default is a definition that fills in what you leave out; the arguments you give win."
+    :lines [": groove ( $onsets -- pulses ) $onsets 16 pattern/euclid ;"
+            "5 groove"
+            "7 groove"]}
+
+   {:title "Look inside: see and the stack"
+    :text "Cookbook recipe 50. `see` shows a word's stack effect and what it does; `.s` shows the stack."
+    :lines ["see pattern/euclid"
+            "see bridge/pulses->durations"
+            "3 8 pattern/euclid .s"]}
+
+   {:group "Live"}
+
+   {:title "A live word, changed while it plays"
+    :text "Cookbook recipe 51. A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, read with `@` and stored with `!`. Shown, not run: nothing sounds when this page is made."
+    :lines [[:play "5 8 'riff :bass ->"]
+            [:play ":bass settings"]
+            [:play "3 :bass/onsets !"]
+            [:play ":bass/onsets @"]
             [:play "stop"]]}
 
-   {:group "The functions themselves"}
+   {:title "A transform: reshape any voice's own notes"
+    :text "Cookbook recipe 52. A quotation under a play word runs on the music under it, note by note. Shown, not run."
+    :lines [[:play "[c d e g] [~] '( 5 + ) :up ->"]
+            [:play "'( 7 + ) :up retree"]]}
 
-   {:title "Calling the Clojure function"
-    :text "`require` loads a Clojure namespace and makes its public functions words. This is the function itself: no settings, no defaults, its arguments from the stack. A keyword tail (`& {:keys [length]}`) is `:key value` pairs written before the word, or nothing."
-    :lines ["\"musics.algo.rhythmic.pattern\" 'r require"
-            "3 8 r/euclid"
-            "13 :length 8 r/bits"]}
+   {:group "Material"}
 
-   {:group "When it goes wrong"}
-
-   {:title "A bridge is not checked"
-    :text "A stream carries what it is, but a word does not check it. A wrong pairing fails inside the algo, or gives a bundle that cannot sound. `lorenz` gives points, so `numbers->pitches` is the wrong bridge (`points->pitches` is right):"
-    :lines ["@^{ len:4 } raw/lorenz raw/numbers->pitches"
-            "raw/euclid raw/pulses->durations @^{ len:3 } raw/lorenz zip"]}])
-
-;; ---------------------------------------------------------------------------
-;; The reference table: every raw word, by what it gives
-;; ---------------------------------------------------------------------------
-
-(defn- short-value [v]
-  (cond (and (double? v) (Double/isNaN v)) "required"
-        (and (double? v) (Double/isInfinite v)) (if (pos? v) "∞" "-∞")
-        (nil? v) "nil"
-        (fn? v) "fn"
-        (string? v) (pr-str v)
-        :else (clip (pr-str v) 24)))
-
-(defn- raw-entries []
-  (for [[short e] (t/algos) :when (and (not (:via e)) (= "workshop" (:shelf e)))] [short (t/algo short)]))
-
-(defn- table-row [[short e]]
-  (let [types #(if (seq %) (str/join " " (map name %)) "—")
-        doc   (first (str/split (str/replace (str (:doc e)) #"\s+" " ") #"(?<=\.)\s"))]
-    (str "| `raw/" (name short) "` | " (types (:in e)) " | " (name (:out e)) " | "
-         (str/join ", " (for [p (:params e) :when (not= :extra (:kind p))]
-                          (str "`" (name (:name p)) "` " (short-value (:default p)))))
-         " | " (str/replace (let [d (clip doc 100)] (if (re-find #"[.…]$" d) d (str d " …"))) "|" "\\|") " |")))
-
-(defn- reference []
-  (let [by-out (group-by (comp :out second) (raw-entries))]
-    (str/join "\n\n"
-              (for [ty [:pulse :weight :number :point :onset :layer :stroke :model :index
-                        :pitch :duration :volume :articulation :instrument]
-                    :let [es (sort-by (comp name first) (get by-out ty))]
-                    :when (seq es)]
-                (str "### Gives " (name ty) " (" (count es) ")\n\n"
-                     "| Word | Takes | Gives | Settings (default) | Does |\n|---|---|---|---|---|\n"
-                     (str/join "\n" (map table-row es)))))))
+   {:title "Generated notes become committed musics text"
+    :text "Cookbook recipe 53. `R!` stores what is on the stack under a name; `R@` reads it back, and `write` or `save-session` keeps it."
+    :lines ["3 8 pattern/euclid 1/16 bridge/pulses->durations penta zip :demo R!"
+            ":demo R@"]}])
 
 ;; ---------------------------------------------------------------------------
 ;; The page
 ;; ---------------------------------------------------------------------------
+
+(defn- setup! [] (doseq [l setup] (run l)))
+
+(defn- setup-md []
+  (str "```\n" (str/join "\n" (for [l setup] (str "mu> " l "\n" (clip (run l) 200)))) "\n```\n"))
 
 (defn- recipe-md [n {:keys [title text lines]}]
   (str "#### " n ". " title "\n\n" text "\n\n"
@@ -247,7 +376,7 @@
                        :let [[play? input] (if (vector? l) [true (second l)] [false l])]]
                    (if play?
                      (str "mu> " input)
-                     (str "mu> " input "\n" (clip (run input) 200)))))
+                     (str "mu> " input "\n" (clip (run input) 260)))))
        "\n```\n"))
 
 (defn- recipes-md []
@@ -256,12 +385,16 @@
           (:group r)    (recur more n (conj out (str "### " (:group r) "\n")))
           :else         (recur more (inc n) (conj out (recipe-md n r))))))
 
+(def ^:private meant-to-fail
+  "Recipes whose lines show an error on purpose."
+  #{"Change a parameter; a precondition guards it" "Wrong shapes" "Required arguments and their limits"})
+
 (defn- errors-in-recipes
   "Recipes whose lines fail, other than the ones meant to."
   []
   (for [{:keys [title lines]} (remove :group recipes)
         l lines :when (string? l)
-        :let [r (run l)] :when (and (str/starts-with? r "error:") (not= title "A bridge is not checked"))]
+        :let [r (run l)] :when (and (str/starts-with? r "error:") (not (meant-to-fail title)))]
     [title l r]))
 
 (def n-recipes (count (remove :group recipes)))
@@ -269,36 +402,32 @@
 (defn -main []
   (seed/seed! 2026)
   (fresh!)
+  (setup!)
   (doseq [[title l r] (errors-in-recipes)]
     (binding [*out* *err*] (println "RECIPE ERROR in" title ":" l "=>" r)))
   (fresh!)
-  (let [body (recipes-md)
-        n-words (count (raw-entries))
+  (let [setup-block (setup-md)
+        body (recipes-md)
         md (str "# Raw algo cookbook\n\n"
-                "The `raw/` words of mu, composed with mu's own words: " n-words " algorithms from the source files, one word each, no half-product wrapping. "
-                "Every recipe below was run for real, the line typed at the `mu>` prompt and what came back; each random word has its own `seed`, so the results repeat.\n\n"
+                "The " n-recipes " recipes of the [algo cookbook](algo-cookbook.md), written with the algorithms as plain Clojure functions, called by name with their parameters on the stack. "
+                "Every recipe was run for real, the line typed at the `mu>` prompt and what came back. "
+                "The numbers are the same as in the algo cookbook, so recipe 13 here is recipe 13 there.\n\n"
                 "## The idea\n\n"
-                "An algorithm of `musics/algo/` that makes or changes *raw material* (pulses, numbers, weights, onsets, points, layers, strokes, models) is a word `raw/<name>`. "
-                "It takes what its stack effect says from the stack, its settings from an `@^{ name:value … }` written just before it, and leaves one value. "
-                "The value is a plain list that knows what it is (a `pulse` row, a `number` stream …), so mu's list words work on it and `zip` can tell a rhythm from a melody. "
-                "A **bridge** (`pulses->durations`, `numbers->pitches` …) turns raw material into a half product, a duration, a pitch, a volume; the finished words `duration/euclid` and `pitch/lorenz` are a source and a bridge welded together, with the bridge's range read from the source. "
-                "Here you do the welding yourself, one word at a time, and choose which bridge.\n\n"
+                "An algorithm of `musics/algo/` is an ordinary function with clear argument names. `\"musics.algo.rhythmic.pattern\" require` makes its public functions words, `pattern/euclid`, and a word takes its arguments from the stack in the order `see pattern/euclid` shows them: `3 8 pattern/euclid`. "
+                "There are no settings objects, no defaults and no registry in between: what a function needs, you put on the stack. "
+                "A function that makes *raw material* (pulses, numbers, weights, onsets, points) gives a plain list; a **bridge** from `musics.algo.bridge` (`pulses->durations`, `numbers->pitches` …) turns it into a duration, a pitch or a volume, with the range or the grid you give it; `zip` puts the parts together into notes. "
+                "A function that makes one number per call is called n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`; one that keeps its place (a walk, the logistic map) is `pull`ed as it is.\n\n"
                 "Three things to keep in mind:\n\n"
-                "- **Settings go before their word.** `@^{ onsets:5 pulses:8 } raw/euclid @^{ pulse:1/8 } raw/pulses->durations`: each word reads only its own settings.\n"
-                "- **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right (the table at the end says what each takes and gives), and give a bridge the range its input really has.\n"
-                "- **`seed:N` repeats a word.** A word with no seed draws from the shared generator.\n\n"
+                "- **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right, and give a bridge the range its input really has.\n"
+                "- **`N rng/seed` repeats the random words that follow it**, so the recipes that draw numbers start with `7 rng/seed`.\n"
+                "- **A parameter that is a map** (Markov transitions, L-system rules) cannot be written in mu text yet; those recipes are shown with `see`.\n\n"
+                "## Setup\n\n"
+                "Type these once. Each `require` loads a Clojure namespace; `penta` is a word of our own, the scale the recipes play over.\n\n"
+                setup-block "\n"
                 "## Recipes (" n-recipes ")\n\n"
-                body "\n"
-                "## Every raw word\n\n"
-                "Generated from the registry, so it matches the code. *Takes* are the stack inputs, *Settings* the `@^{ }` names with their defaults.\n\n"
-                (reference) "\n\n"
-                "## Limits worth knowing\n\n"
-                "- **Bridges default to a 0..1 input range** (`from-lo`, `from-hi`). The finished words (`pitch/lorenz`) read the range from their source; here you set it.\n"
-                "- **Types are not checked** between words (see the last recipe); a wrong pairing fails or gives a bundle.\n"
-                "- **Some algos need a value mu text cannot write**: `genetic` needs a `fitness-fn`, `constrained` and `filter` need functions. Use them from Clojure.\n"
-                "- **Long rows are cut** with `…` when printed; the value on the stack is whole.\n")]
+                body "\n")]
     (spit "doc/md/raw-algo-cookbook.md" md)
-    (println "wrote doc/md/raw-algo-cookbook.md," n-recipes "recipes," n-words "raw words")))
+    (println "wrote doc/md/raw-algo-cookbook.md," n-recipes "recipes")))
 
 (-main)
 (shutdown-agents)

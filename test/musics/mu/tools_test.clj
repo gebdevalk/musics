@@ -916,3 +916,17 @@
   (is (= "2" (top "[C4 E4 C4 E4] C4 indexes length")) "a list the number words read")
   (is (= (top "[C4 E4 G4 C5] '( pitch 65 > ) index-of") (top "[C4 E4 G4 C5] '( pitch 65 > ) indexes 0 @")) "the first is index-of")
   (is (re-find #"endless" (top "1 '( 1 + ) iterate '( 5 > ) indexes")) "an endless stream is refused"))
+
+(deftest pull-calls-a-function-n-times
+  (testing "a quotation that leaves one value"
+    (is (= "'[2 2 2]" (top "'( 1 1 + ) 3 pull"))))
+  (testing "a function of nothing keeps its state"
+    (top "\"musics.algo.numeric.walk\" require")
+    (let [walk (top "60.0 2.0 walk/walk 6 pull")]
+      (is (re-matches #"'\[(-?[\d.]+ ?){6}\]" walk) walk)))
+  (testing "a generator with a :value function"
+    (top "\"musics.algo.numeric.chaos.lorenz\" require")
+    (is (= 5 (count (re-seq #"'\[" (top "lorenz/lorenz 4 pull")))) "a list of four points, each a list"))
+  (testing "refusals say what is wanted"
+    (is (re-find #"needs a quotation" (top "5 3 pull")))
+    (is (re-find #"needs a count" (top "'( 1 ) -1 pull")))))

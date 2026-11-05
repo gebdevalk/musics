@@ -3404,3 +3404,25 @@ puts them and the quoted name back on the stack). Inputs are not kept
 beyond the voice: `:bass/onsets` of a voice that no longer plays says so and
 forgets them (`inputs/alive!`, set by `musics.mu.live`, since inputs does not
 know the engine).
+
+## 2026-11-05 — the algorithms called bare: `pull`, full arity, callable quotations
+
+The raw cookbook was written first with the `raw/` words and their `@^{ }`
+settings; the form that belongs to the bare-params plan is the Clojure
+function itself, `3 8 pattern/euclid`, its arguments from the stack. Three
+things were missing for that. (1) `pull` (`( f n -- l )`, `musics.tool`) calls
+a function n times: a quotation that leaves one value, a function of nothing
+that keeps its state (a walk, the logistic map) or a generator with a
+`:value` function (lorenz) -- the `len` the settings form hid. (2) A function
+with several arities (`([] [iterations length])`) was called with its shortest,
+so `2 9 pattern/cantor` took nothing; an algorithm now names its full call in
+`:algo :arity` and mu takes that many arguments when the stack has them
+(`arity-for`), so no per-function `:optional` list is needed. (3) A mu
+quotation is a Clojure function (`Quotation` implements `IFn`), so it can be a
+fitness function (`'( sum 5 - abs negate ) process/genetic`); and a `:pre`
+condition that fails is a refusal naming the function, not an Error that ended
+the REPL. Still out of reach from mu text: parameters that are maps
+(`markov/chain` transitions, L-system rules) and constraint lists. A
+parameter of two levels is written `'[ '[0 1] '[2] ]`, since a bare inner
+`[ ]` is musics text. `rng/seed` (the trailing `!` left off) seeds the random
+words after it, in place of `seed:N`.

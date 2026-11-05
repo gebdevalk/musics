@@ -709,3 +709,10 @@
       (testing "without the colon, an unknown word points at it"
         (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
     (finally (inputs/clear! :bass) (inputs/alive! was)))))
+
+(deftest a-precondition-of-a-function-is-a-refusal-not-a-crash
+  (swap! e/state assoc :stack [])
+  (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
+  (let [r (e/eval-input "99 8 pattern/euclid")]
+    (is (re-find #"^pattern/euclid: refused, it needs <= onsets pulses" (:error r)) (:error r))
+    (is (= [] (:stack @e/state)) "the stack as it was")))

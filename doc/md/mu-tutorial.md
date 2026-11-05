@@ -1120,6 +1120,16 @@ falling together:
 @^{ seed:7 len:6 } volume/walk    → '[64.00… 60.87… 64.11… 65.82… 67.14… 67.05…]
 ```
 
+### The algorithms as plain functions
+
+Underneath the algo words are the Clojure functions themselves. `"musics.algo.rhythmic.pattern" require`
+makes `pattern/euclid` a word, and it takes its arguments from the stack, in the order `see pattern/euclid`
+shows: `3 8 pattern/euclid`. There is no settings object and no default: a bridge from `musics.algo.bridge`
+turns the raw list into durations (`1/16 bridge/pulses->durations`) or pitches (`from-lo from-hi lo hi
+bridge/numbers->pitches`), and `zip` makes notes of them. A function that gives one number per call is called
+n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`, or `60.0 2.0 walk/walk 16 pull` for a walk that keeps
+its place. `doc/md/raw-algo-cookbook.md` has all 53 recipes of the algo cookbook written this way.
+
 ### Noise, masks, rows and automata
 
 From Dodge & Jerse's *Computer Music*, chapter 8. White noise jumps,

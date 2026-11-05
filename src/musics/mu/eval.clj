@@ -156,13 +156,19 @@
   "The fixed arguments of v to call with what stack holds (an arglist up to
    its `&`): the longest one whose arguments past the shortest's all pass
    their :optional test (v's :mu metadata, by argument name) on the values in
-   their places; a longer arity whose arguments have no test is never taken."
+   their places; a longer arity whose arguments have no test is never taken --
+   unless the function is an algorithm that names its full arity (:algo :arity),
+   taken when the stack has that many."
   [v stack]
   (let [lists    (sort-by count (map (comp first split-tail) (:arglists (meta v))))
         base     (count (first lists))
         optional (:optional (:mu (meta v)))
-        choose   (:arity (:mu (meta v)))]
+        choose   (:arity (:mu (meta v)))
+        ;; an algorithm says how many arguments a full call takes (:algo :arity):
+        ;; called as a word it takes them all, its defaults being the registry's
+        full     (:arity (:algo (meta v)))]
     (or (when choose (let [n (choose stack)] (first (filter #(= n (count %)) lists))))
+        (when (and full (<= full (count stack))) (first (filter #(= full (count %)) lists)))
         (last (filter (fn [al]
                         (let [extra (drop base al)]
                           (and (<= (count al) (count stack))
@@ -195,7 +201,11 @@
         tail (some (fn [a] (let [[f t] (split-tail a)] (when (and (= f al) (map? t)) t))) (:arglists (meta v)))
         n    (- (count stack) (count al) (if tail (* 2 (keyword-pairs stack tail (count al))) 0))
         r    (try (apply @v (subvec stack n))
-                  (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))]
+                  (catch clojure.lang.ExceptionInfo ex (throw (named name ex)))
+                  ;; a function's :pre condition, an Error and not an Exception
+                  (catch AssertionError ex
+                    (mu-error (str name ":") "refused, it needs"
+                              (or (second (re-find #"Assert failed: (?:.*\n)?\(?(.*?)\)?\s*$" (str (ex-message ex)))) "its arguments right"))))]
     (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn- binds?

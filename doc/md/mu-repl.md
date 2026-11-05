@@ -166,7 +166,14 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
   an alias. A function with a keyword tail (`& {:keys [length]}`) takes its
   `:key value` pairs written just before the word, or none: `13 r/bits`,
-  `13 :length 8 r/bits`; `see` shows them as `[:length v]`;
+  `13 :length 8 r/bits`; `see` shows them as `[:length v]`. An algorithm
+  of `musics/algo/` takes all its arguments from the stack, as `see` lists
+  them (`3 8 pattern/euclid`; its defaults are the tree's). `pull` calls a
+  function n times and gives the list: `'( 0.0 1.0 random/normal ) 12 pull`
+  for a draw, `60.0 2.0 walk/walk 16 pull` for a function that keeps its
+  place, a generator with a `:value` (lorenz) too. A quotation `'( … )` is
+  also a function of what it is given, so it can be the fitness function of
+  `process/genetic`. A list inside a list is written `'[ '[0 1] '[2] ]`;
 - **an ambiguous name is an error** until qualified;
 - visible by default: `kernel` (the stack, quotations, numbers,
   binding, the repo, help, files), `tool`, `music`, `play` (playback and

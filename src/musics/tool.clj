@@ -43,6 +43,21 @@
   (when-not (and (number? a) (number? b)) (fail "needs two numbers"))
   (core/range a b))
 
+(defn pull
+  "n results of calling f, as a list: a quotation that leaves one value
+   ('( 0.0 1.0 random/normal ) 12 pull), a function of nothing that keeps its
+   state (60.0 2.0 walk/walk 16 pull) or a generator with a :value function
+   (lorenz/lorenz 24 pull)"
+  [f n]
+  (when-not (and (integer? n) (<= 0 n 100000)) (fail "needs a count 0 to 100000 on top, got" (p/show n)))
+  (let [step (cond (v/quotation-record? f) #(let [left (e/call [] f)]
+                                             (when (empty? left) (fail "the quotation leaves nothing"))
+                                             (peek left))
+                   (fn? f)                 f
+                   (and (map? f) (fn? (:value f))) (:value f)
+                   :else (fail "needs a quotation '( … ), a function of nothing or a generator below the count, got" (p/show f)))]
+    (vec (repeatedly n step))))
+
 (defn iterate
   "x, then q of x, then q of that, forever: 1 '( 2 + ) iterate 4 take"
   [x q]

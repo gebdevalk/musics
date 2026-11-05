@@ -41,6 +41,7 @@
   "An element of vals chosen with probability proportional to its weight in weights; weights need not sum to 1 (raw Markov counts work). Also takes one map of val -> weight. Drawn from an RNG atom (default-rng if omitted).
      (weighted-choose [1 2 3 4] [3 2 1 1])
      (weighted-choose {1 3, 2 2, 3 1, 4 1})"
+  {:mu {:arity (fn [stack] (if (map? (peek stack)) 1 2))}}
   ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
   ([vals weights] (weighted-choose default-rng vals weights))
   ([rng-atom vals weights] (step! rng-atom rnd-weighted (vec vals) (vec weights))))

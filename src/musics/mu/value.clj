@@ -20,7 +20,19 @@
 
 (defn material? [x] (instance? Material x))
 
-(defrecord Quotation [body source])
+(defrecord Quotation [body source]
+  ;; a quotation is a function of what it is given, so a Clojure function that
+  ;; takes a fn (a fitness function, a constraint) takes '( … ) as well: the
+  ;; arguments go on a stack of their own, the top of what is left is the result
+  clojure.lang.IFn
+  (invoke [this a]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a] this)))
+  (invoke [this a b]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a b] this)))
+  (invoke [this a b c]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a b c] this)))
+  (applyTo [this args]
+    (peek ((requiring-resolve 'musics.mu.eval/call) (vec args) this))))
 
 
 (defrecord PcSet [kind items])  ; $[047] classes, $(037) prime form, $<001110> interval vector
@@ -44,6 +56,11 @@
 (defrecord Mark [count])  ; | … ||||: a gathering mark, and ->>'s boundary
 (def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
+
+(defn quotation-record?
+  "A quotation '( … ) written in mu, as opposed to a Clojure fn standing in for one."
+  [x]
+  (instance? Quotation x))
 
 (defn quotation?
   "A quotation '( … ), or a Clojure fn standing in for one: it takes the
