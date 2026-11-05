@@ -3386,3 +3386,21 @@ that is a stepping stone, the watch moves into `inputs` when the tree and
 tctx are removed. A local is written with its `$` in the body (`$onsets`).
 Not yet: `:bass settings` and `gui` for such a voice, inputs cleared when the
 voice ends, restarting it with `:bass ->`, Tab completion of `:bass/`.
+
+## 2026-11-05 — settings, restart and lifetime of a word voice's inputs
+
+A word voice's tctx (`musics.mu.inputs`) carries a spec per input on its
+atom's metadata, in the shape `musics.algo.tree/specs` has, so `settings`,
+`set` and the GUI's params window work on it unchanged while the tree and
+tctx still exist. The spec of an input is that of the algo params called
+the same (`onsets` → 0..32, `beats to place`); where several algos read a
+name with different ranges, the most common type and the widest range, so
+no value one of them takes is refused; an input no algo reads gets a spec
+from its value (a slider needs a range, so it is a text field). That lookup
+is the only part still reading the registry; when the registry goes it reads
+the `:algo :params` of the functions' own metadata instead. `:bass ->`
+starts such a voice again with the inputs as they are now (`live/replay`
+puts them and the quoted name back on the stack). Inputs are not kept
+beyond the voice: `:bass/onsets` of a voice that no longer plays says so and
+forgets them (`inputs/alive!`, set by `musics.mu.live`, since inputs does not
+know the engine).

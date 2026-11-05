@@ -134,6 +134,37 @@
         (mt/stage! form ctx (first staged) join? named name)
         (mt/play! form ctx join? named name)))))
 
+(def ^:private word-voices
+  "Voice id -> the word it plays (play-word!), to start it again."
+  (atom {}))
+
+(defn- param-spec
+  "One spec for the algo params called input: when several algos read a param
+   by that name, the most common type, its range the widest of them (so no
+   value any of them takes is refused), the rest from the first by name."
+  [input]
+  (let [found (for [[_ {:keys [params]}] (t/algos) p params :when (= input (name (:name p)))] p)]
+    (when (seq found)
+      (let [type (key (apply max-key val (frequencies (map :type found))))
+            same (filter #(= type (:type %)) found)
+            lo   (keep :min same)
+            hi   (keep :max same)]
+        (cond-> (select-keys (first same) [:type :default :doc :choices])
+          (seq lo) (assoc :min (apply min lo))
+          (seq hi) (assoc :max (apply max hi)))))))
+
+(defn- input-spec
+  "The spec of one input of word: that of the algo params called the same (its
+   range, default and doc), else one made from the value it starts with."
+  [word order input value]
+  (let [base (or (param-spec input)
+                 {:type (cond (integer? value) :int (float? value) :double (string? value) :string
+                              (keyword? value) :keyword (boolean? value) :bool :else :any)
+                  :default value :doc ""})]
+    (assoc base :own input :param (keyword input) :at [input] :order order :algo (keyword word))))
+
+(inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
+
 (defn play-word!
   "Start voice (a keyword id) from the word `word`, written with : … ; and
    $ inputs, those inputs holding values (in the order of its stack effect).
@@ -142,7 +173,8 @@
    [count] when it waits for a boundary (->>)."
   [word voice values ctx join? staged]
   (let [names (mapv first (e/live-inputs word))
-        tctx  (inputs/set-inputs! voice (map vector names values))
+        specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))
+        tctx  (inputs/set-inputs! voice (map vector names values) specs)
         run   (fn [tctx _chain]
                 (let [vals (mapv @(:params-atom tctx) names)
                       left (e/run-word vals word)]
@@ -152,6 +184,7 @@
       ;; run once now, so a word that fails is refused here, not heard
       (doall (take 1 (run tctx nil)))
       (catch Throwable t (inputs/clear! voice) (throw t)))
+    (swap! word-voices assoc voice word)
     (tree-live/bind-run! voice run (str word) tctx)
     (let [form (mt/read-text "repeat ~ [r8]")]
       (if staged
@@ -167,8 +200,11 @@
    playing no recipe."
   [id]
   (let [nm (or (some-> (engine/voice-at id) :algo) id)]
-    (when-let [{:keys [x recipe]} (get @sources nm)]
-      (if (some? x) [x recipe] [recipe]))))
+    (if-let [w (get @word-voices nm)]
+      ;; a word voice: its inputs as they are now, under its name
+      (conj (mapv #(inputs/value nm %) (inputs/names nm)) (symbol w))
+      (when-let [{:keys [x recipe]} (get @sources nm)]
+        (if (some? x) [x recipe] [recipe])))))
 
 (defn live-name
   "The live name of the voice word addresses (an id or index)."

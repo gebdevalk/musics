@@ -690,7 +690,8 @@
 
 (deftest a-voice-input-is-the-reference-colon-voice-slash-input
   (inputs/set-inputs! :bass [["onsets" 5] ["pulses" 8] ["seed" 42]])
-  (try
+  (let [was (inputs/alive! (constantly true))]   ; no engine here: the voice is taken as playing
+   (try
     (let [run (fn [in] (swap! e/state assoc :stack []) (let [res (e/eval-input in)] (assoc res :stack (:stack @e/state))))]
       (testing "read it, store into it"
         (is (= [5] (:stack (run ":bass/onsets @"))))
@@ -707,4 +708,4 @@
         (is (re-find #"^:drums/onsets: no voice :drums has inputs -- voices with inputs: :bass" (:error (run ":drums/onsets @")))))
       (testing "without the colon, an unknown word points at it"
         (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
-    (finally (inputs/clear! :bass))))
+    (finally (inputs/clear! :bass) (inputs/alive! was)))))

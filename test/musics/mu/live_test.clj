@@ -183,3 +183,31 @@
   (run ": mixed ( x $k -- l ) x $k take ;")
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixed has inputs without \$" (run "[c d] 1 'mixed :m ->")))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pat takes 1 input under its name" (run "'pat :w ->"))))
+
+(defn- out-of [in]
+  (swap! e/state assoc :stack [])
+  (let [o (with-out-str (let [r (e/eval-input in)] (when (:error r) (println "ERR:" (:error r)))))]
+    (str/trim-newline o)))
+
+(deftest a-word-voice-has-settings-and-a-restart
+  (run ": pat ( $onsets $label -- l ) [c d e f g a b] $onsets take ;")
+  (run "3 \"x\" 'pat :w ->")
+  (testing "settings lists the inputs; one named like an algo's param has its range"
+    (let [o (out-of ":w settings")]
+      (is (re-find #":onsets +3 +0\.\.32" o) o)
+      (is (re-find #":label +\"x\" +string" o) "an input no algo reads has the type of its value")))
+  (testing "set and gui's model, the tctx, take a value as before"
+    (run ":w @^{ onsets:2 } set")
+    (is (= 2 (:onsets (t/params (live/tctx-of "set" :w))))))
+  (testing ":w -> starts it again with the inputs as they are now"
+    (run "5 :w/onsets !")
+    (run ":w ->")
+    (is (= 5 (peek (run ":w/onsets @"))))
+    (is (= [60 62 64 65 67 60] (take 6 (pitches "[c c c c c c c c]" :w))))))
+
+(deftest inputs-of-a-voice-that-is-gone-are-not-reachable
+  (run ": pat ( $onsets -- l ) [c d e f g a b] $onsets take ;")
+  (run "3 'pat :w ->")
+  (is (= 3 (peek (run ":w/onsets @"))))
+  (engine/stop!)
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"the voice :w is not playing" (run ":w/onsets @"))))
