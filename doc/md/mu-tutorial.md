@@ -1252,6 +1252,58 @@ All play words take a recipe: `->>` from the next boundary (`| '( … ) ||
 and leaves the tree it builds on the stack, a recipe like a quotation
 (`compose :riff ->`); `compose gui` shows its settings with a preview.
 
+### A word as a live voice
+
+A recipe's settings are named by the algos it reads. A **word of your own**
+can have its own: write the numbers you want to change as `$` inputs of a
+definition, and play the word as a voice.
+
+```
+"musics.algo.rhythmic.pattern" 'p require
+: riff ( $onsets $pulses -- notes )
+    $onsets $pulses p/euclid raw/pulses->durations '[60 62 64 67] zip ;
+5 8 riff                           the line it gives: [C4/8 D4/16 E4/8 G4/16 C4/8]
+```
+
+`5 8 riff` runs the word once. To play it live, put the numbers under its
+*quoted* name and give the voice a name:
+
+```
+5 8 'riff :bass ->
+```
+
+- The quote (`'riff`) keeps the word from running now: the voice stores the
+  name and runs it again with the inputs it holds, each time they change.
+- `5` and `8` are the voice's **inputs**, `onsets` and `pulses`, in the order
+  of the stack effect. Each note the voice reaches is the next of the line
+  the word gives; a short line starts again.
+- The voice needs a name (`:bass`), and the word only `$` inputs: a plain
+  input would need music passed in, which a recipe on music under it does
+  (`x '( … ) :up ->`). `->>` waits for a boundary as it does for music.
+
+An input is addressed by its voice and its name, `:bass/onsets`. It is a
+**reference**: `@` reads it and `!` stores into it, as in Forth.
+
+```
+:bass/onsets @            5
+3 :bass/onsets !          three beats, heard from the voice's next note
+:bass/onsets @ :bass/pulses @       3 8
+:bass settings            each input: value, range, default, what it is
+:bass gui                 a window with a slider per input
+:bass ->                  start it again with the inputs as they are now
+stop
+:bass/onsets @            the voice :bass is not playing
+```
+
+`settings` and the sliders take an input's range from the algo parameter of
+the same name: `onsets` is `0..32`, `pulses` `1..32`. Where several algos
+read a name with different ranges the widest is used. An input no algo reads
+(`$label`) has no range, so it is a text field. Two voices may have inputs of
+the same name: `:bass/onsets` and `:lead/onsets` are different places.
+
+A local is written with its `$` in the body, `$onsets`, and a word that
+leaves nothing, or fails when it runs, is refused when the voice starts.
+
 ## 17. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`). The rating words are in the

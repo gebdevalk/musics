@@ -145,6 +145,14 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   numbered when two share one (`n1 n2 -- n3`).
 - **Quotations** are `'( … )`, the quoted counterpart of `'[ … ]` (held
   data): held code, run by `call`, `if`, `each`, `map` …
+- **A live word**: a word whose inputs are all `$` plays as a voice, its
+  inputs the voice's changeable values: `5 8 'riff :bass ->` (the quoted
+  name keeps it from running now; the voice needs a name). `:bass/onsets`
+  is a **reference** to one input (`@` reads it, `!` stores into it, heard
+  from the voice's next note); `:bass settings` and `:bass gui` list them
+  with the range of the algo parameter of the same name; `:bass ->` starts
+  the voice again with the inputs as they are. See the tutorial, "A word as
+  a live voice".
 
 **Namespaces**:
 - a word is qualified as `ns/word` (`music/cycle`, `duration/euclid`);
@@ -331,7 +339,7 @@ by what they deliver (`duration/euclid`, `pitch/lorenz` …): see
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
-| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); `set` (`:riff @^{ onsets:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
+| **live** | a play word with a recipe `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the recipe); a word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !`, `:bass ->` starts it again with the inputs as they are (`musics.mu.inputs`); `set` (`:riff @^{ onsets:5 } set`), `unset` (`:riff 'k unset`), `settings`, `retree` (`'( … ) :riff retree`), `compose` (the composer: a tree, a recipe too), `gui` with a voice or a tree (its settings window); a change reruns only the algo words it reaches, the others keeping their results and random values -- `musics.mu.live` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
@@ -411,6 +419,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   drops it, and `cut` (`[_]`) drops a range like `slice`'s:
   `[c d e] 1 g !` gives `[c g e]`, `[c d e] 1 g insert` `[c g d e]`,
   `[c d e] 1 _` `[c e]`, `[c d e f g] 1 3 [_]` `[c f g]`; `@` is `nth`.
+  With a **reference** (`:bass/onsets`, a live voice's input) on top, `@`
+  alone reads it and `!` stores the value under it: `7 :bass/onsets !`.
   The value stays one element (`[c d] 1 [e f] !` is `[c [e f]]`);
   `splice` spreads. An index may be a path, a data list that goes
   down through nested lines: `[[c d e] [f g a]] '[1 1] x !` replaces

@@ -918,6 +918,21 @@ registry's types: `find-algos` (by category, input, output, param),
 have), `feeds`, `why-not`, `examples` and `surprise` (a random tree
 that type-checks) — see `doc/md/algorithms.md`, "Asking the registry".
 
+**A word as a live voice** (`musics.mu.live/play-word!`, `musics.mu.inputs`):
+a word written `: riff ( $onsets $pulses -- notes ) … ;` plays with
+`5 8 'riff :bass ->` (the quoted name is held, not run; the voice needs a
+name; every input must be a `$`). The voice's inputs are `:bass/onsets`,
+`musics.mu.value/Ref`s (`@` reads, `!` stores; `IdName` in `mu.ebnf` takes
+`/input`), kept by `musics.mu.inputs` in an atom shaped like a tctx so
+`bind-run!`'s watch re-runs the word on a store and the voice goes on at its
+position. The atom's metadata carries a spec per input, that of the algo
+params of the same name (widest range when they differ,
+`live/param-spec`), so `settings`, `set` and the GUI work on it; `:bass ->`
+starts it again with the inputs as they are (`live/replay`); the inputs of
+a voice that is gone are refused and forgotten (`inputs/alive!`). The aim is
+to carry the tree, registry and tctx away (the bare-params plan in
+`doc/md/decisions.md`, 2026-11-05).
+
 ### Recipes: `musics.recipe`
 
 A tree recipe is an algo tree written concatenatively, as mu is, between
