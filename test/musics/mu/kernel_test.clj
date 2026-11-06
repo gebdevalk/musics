@@ -426,7 +426,7 @@
         (run "[bass: !tempo:60 c1 d1] [~] ->")
         (let [staged (atom [])]
           (with-redefs [mt/stage! (fn [x ctx _ join? target] (swap! staged conj [(p/show x) join? target]))]
-            (is (= [:bass] (:ok (run ":bass !tempo:140 with"))) "the id stays")
+            (is (= [] (:ok (run ":bass !tempo:140 with"))) "the id is taken, nothing left")
             (run ":bass !volume:80 with")
             (run ":bass ^{ !mf !tempo:90 } with")
             (is (= [["[!tempo:140 repeat ~ [bass: !tempo:60 C4/1 D4]]" false :bass]

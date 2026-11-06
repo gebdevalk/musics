@@ -795,20 +795,20 @@
 
 (defn- voice-with
   "The voice id playing its own music with settings in front of it, from the
-   end of its pass (as ->> does); id back."
+   end of its pass (as ->> does); leaves nothing on the stack (:mu/nothing)."
   [id settings]
   (let [{:keys [ctx]} (get (mt/live-voices) id)]
     (when-not (get (mt/live-voices) id)
       (fail "with:" (pr-str id) "isn't a voice mu plays -- voices lists them"))
     (mt/stage! (with (mt/playing id) settings) ctx nil false id)
-    id))
+    :mu/nothing))
 
 (defn with
   "x with the settings in front of it (its own come after, so they win): a
    context ^{ !mf }, an instruction alone, !tempo:89 with, or a key D.major; a
    note becomes a line; a { } or a repeat is wrapped. A voice's id as x
    (:bass !tempo:140 with) changes the voice playing, from the end of its
-   pass; the id stays"
+   pass, and leaves nothing on the stack"
   [x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx))

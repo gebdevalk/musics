@@ -206,7 +206,8 @@
                   (catch AssertionError ex
                     (mu-error (str name ":") "refused, it needs"
                               (or (second (re-find #"Assert failed: (?:.*\n)?\(?(.*?)\)?\s*$" (str (ex-message ex)))) "its arguments right"))))]
-    (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
+    ;; a ! function leaves nothing; so does one that answers :mu/nothing
+    (if (or (effect-word? v) (= :mu/nothing r)) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn- binds?
   "Is this stack-effect input one that binds a local ($name)?"

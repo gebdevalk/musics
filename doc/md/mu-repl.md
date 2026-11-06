@@ -93,7 +93,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - **`with` on a voice** changes what plays: `:bass !tempo:140 with`,
   `:bass :Tempo 140 with` or `:bass ^{ !mf !tempo:90 } with` write the settings
   in front of the voice's own music and swap it in at the end of its pass, as
-  `->>` does; the voice's id stays on the stack. Do one change at a time: a
+  `->>` does; the id is taken and nothing is left on the stack. Do one change at a time: a
   second `with` before the pass ends starts again from the music still playing,
   so several settings go in one `^{ }`.
 - `^{ … }` is a value like any literal: store it (`:loud R!`), use it
