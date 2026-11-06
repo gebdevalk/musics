@@ -35,6 +35,16 @@
   (let [r (e/eval-input input)]
     (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
 
+(deftest value-and-variable-are-forths
+  (is (= "5 7" (top "5 value five five 7 to five five")) "a value pushes itself; to changes it")
+  (is (= "5 3" (top "5 variable v v @ 3 v ! v @")) "a variable pushes its place: @ reads, ! stores")
+  (is (= "9" (top "5 variable v : w v ; 9 w ! v @"))
+      "a second name is a definition: the same place, so there is one value, not two kept equal")
+  (is (= "5 6" (top "5 variable left 5 variable right 6 right ! left @ right @")) "two variables are two places")
+  (is (re-find #"c is a note" (top "2 value c")) "a note's name can't be a word")
+  (is (re-find #"write the name after it" (top "2 3 value")))
+  (is (re-find #"v is not a value" (top "5 variable v 7 to v")) "to changes only a value"))
+
 (deftest a-tool-in-a-fresh-session
   (with-fresh-registries
     (is (= "repeat 3 [C4/4 D4]" (top "[c d] 3 [*]")) "no :ROOT stored yet")))

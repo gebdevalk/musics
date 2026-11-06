@@ -9,8 +9,6 @@
    (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
-            [musics.common.context-keys :as ck]
-            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
@@ -53,7 +51,7 @@
   (let [r (g/parse name)]
     (and (not (g/failure? r)) (= 1 (count (rest r))) (v/leaf-node? (second r)))))
 
-(defn- check-name!
+(defn check-name!
   "Refuse a word name that is a leaf: bare it would always
    be the note, never the word."
   [name]
@@ -343,12 +341,13 @@
       (mu-error "can't run" (pr-str (first node))))))
 
 (defn- name-asked-for
-  "When node is help, see, about, marks (or settings, with no voice on top) and the next item is a plain word, that
+  "When node is help, see, about, marks, value (or settings, with no voice on top) and the next item is a plain word, that
    word's name: help dup, see dup and about tempo read the word as Forth's see
-   does, not run it ('dup help and \"dup\" help are the same). Else nil."
+   does, not run it ('dup help and \"dup\" help are the same); 5 value five,
+   5 variable five and 7 to five read the name they define or change. Else nil."
   [stack node following]
   (when (and (vector? node) (= :Word (first node))
-             (or (#{"help" "see" "about" "marks"} (node-name node))
+             (or (#{"help" "see" "about" "marks" "variable" "value" "to"} (node-name node))
                  (and (= "settings" (node-name node))
                       (not (let [t (peek stack)] (or (keyword? t) (integer? t))))))
              (vector? following))

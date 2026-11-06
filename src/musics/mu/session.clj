@@ -2,7 +2,8 @@
   "mu's own state as mu text, for a session file (musics.persist): the
    namespaces it required, the ones in use, the words defined with
    : … ; and the bindings of := -- an input that, run, defines them
-   again. The stack is left out. A definition's literals are written as
+   again, and the values and variables (5 value five, 5 variable v, written
+   with what they hold). The stack is left out. A definition's literals are written as
    their values print, so each reads alone as it read in its input; a
    binding is written only when its value reads back as itself."
   (:require [clojure.string :as str]
@@ -48,17 +49,21 @@
   (let [st      @e/state
         defined (for [[ns words] (sort-by key (:ns st))
                       [nm entry] (sort-by key words)
-                      :when (:body entry)]
+                      :when (or (:body entry) (:cell entry))]
                   [ns nm entry])
+        cells   (into {} (for [[_ nm entry] defined :when (:cell entry)] [nm (written @(:cell entry))]))
         bound   (for [[nm x] (sort-by key (:bindings st))] [nm (written x)])
-        skipped (vec (for [[nm shown] bound :when (nil? shown)] nm))
+        skipped (vec (concat (for [[nm shown] bound :when (nil? shown)] nm)
+                             (for [[nm shown] cells :when (nil? shown)] nm)))
         lines   (concat
                  (for [[alias _] (sort-by key (:required st))]
                    (str (quoted (get-in st [:sources alias] (get-in st [:required alias]))) " '" alias " require"))
                  (for [ns (:use st) :when (not (some #{ns} own-use))]
                    (str (quoted ns) " use"))
-                 (mapcat (fn [[ns _ entry]]
-                           [(str (quoted ns) " in") (definition-text entry)])
+                 (mapcat (fn [[ns nm entry]]
+                           (if-let [shown (and (:cell entry) (get cells nm))]
+                             [(str (quoted ns) " in") (str shown " " (:kind entry) " " nm)]
+                             (when-not (:cell entry) [(str (quoted ns) " in") (definition-text entry)])))
                          defined)
                  [(str (quoted (:in st)) " in")]
                  (for [[nm shown] bound :when (not (some #{nm} skipped))]
@@ -71,8 +76,9 @@
   [text]
   (swap! e/state (fn [st]
                    (-> st
-                       (update :ns #(into {} (for [[ns words] %]
-                                               [ns (into {} (remove (comp :body val) words))])))
+                       (update :ns (fn [nss]
+                                     (into {} (for [[ns words] nss]
+                                                [ns (into {} (remove (comp (some-fn :body :cell) val) words))]))))
                        (assoc :bindings {} :use own-use :in (:in (e/fresh-state))))))
   (when-not (str/blank? text)
     (e/run-text [] text))

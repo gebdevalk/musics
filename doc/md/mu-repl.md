@@ -427,6 +427,15 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `[c d e] 1 _` `[c e]`, `[c d e f g] 1 3 [_]` `[c f g]`; `@` is `nth`.
   With a **reference** (`:bass/onsets`, a live voice's input) on top, `@`
   alone reads it and `!` stores the value under it: `7 :bass/onsets !`.
+  `5 variable five` is Forth's variable, starting with a value (the name is
+  read as `see` reads it): `five` pushes the place, `five @` reads it and
+  `3 five !` stores. A second name for the place is a plain definition,
+  `: six five ;`, and `: speed :bass/onsets ;` does the same for a voice's
+  input: one place under two names, so a store through either is read by
+  both, with no second value to keep equal. `5 value five` is Forth's value:
+  `five` pushes 5, and `7 to five` changes it. `save-session` writes both
+  as `7 value five` and `3 variable v`, with what they hold (one whose value
+  can't be written as text is skipped and named).
   The value stays one element (`[c d] 1 [e f] !` is `[c [e f]]`);
   `splice` spreads. An index may be a path, a data list that goes
   down through nested lines: `[[c d e] [f g a]] '[1 1] x !` replaces

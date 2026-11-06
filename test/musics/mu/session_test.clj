@@ -20,7 +20,7 @@
       (try
         (with-fresh-registries
           (reset! e/state (assoc (e/fresh-state) :ns (into {} (for [[ns words] (:ns saved)]
-                                                                [ns (into {} (remove (comp :body val) words))]))))
+                                                                [ns (into {} (remove (comp #(or (:body %) (:cell %)) val) words))]))))
           (repo/commit-node! :ROOT (get (:repo (builder/empty-session)) :ROOT))
           (t))
         (finally (reset! e/state saved))))))
@@ -44,6 +44,22 @@
                            "\"mine\" in"
                            "'dp 'duration-pulse :=" "'motif [C4/8 E4 G4] :=" "'n 3 :="])
            text))))
+
+(deftest values-and-variables-are-written-with-what-they-hold
+  (top "5 value five" "7 to five" "[c d] variable motif1" "3 variable counter" ": alias counter ;")
+  (let [[text skipped] (session/text)]
+    (is (empty? skipped))
+    (is (str/includes? text "7 value five") "a value as it is now")
+    (is (str/includes? text "3 variable counter"))
+    (is (str/includes? text "[C4/4 D4] variable motif1")))
+  (top "9 alias !")
+  (let [[text _] (session/text)]
+    (session/restore! "")
+    (is (re-find #"unknown word" (top "five")) "restoring replaces them")
+    (session/restore! text)
+    (is (= "7" (top "five")))
+    (is (= "9" (top "counter @")) "a store through the alias was a store of the variable")
+    (is (= "10" (top "10 alias ! counter @")) "the alias is the same place again after restoring")))
 
 (deftest a-definitions-literals-are-written-as-they-read
   (top "[c4 d] : one ( -- y ) e ;")
