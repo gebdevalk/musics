@@ -138,6 +138,16 @@
   [pulses pulse]
   (run-durations #(and % (not= 0 %)) pulses pulse))
 
+(defn pulses->steps
+  "One duration per pulse, all of `pulse`: a note for every onset (any
+   nonzero) and a Rest for every 0 -- the grid as it is, where
+   pulses->durations lets a 0 lengthen the note before it."
+  {:mu {:names ["pul>stp"]}
+   :algo {:category "bridge" :works :value :in [:pulse] :out :duration
+          :params {:pulse pulse-spec}}}
+  [pulses pulse]
+  (map #(if (and % (not= 0 %)) pulse (d/rest* nil nil pulse)) pulses))
+
 (defn strokes->durations
   "A syllable starts a note, \"-\" lengthens it; \"-\" before the first
    syllable is a Rest."
