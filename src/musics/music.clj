@@ -456,7 +456,7 @@
    rounded to a whole number of them, at least one -- what the algos'
    pulses->durations reads back: [c4 d8 e8 f2] pulses gives
    '[1 0 1 1 1 0 0 0]"
-  {:mu {:optional {:pulse number?}}}
+  {:mu {:names ["pul"] :optional {:pulse number?}}}
   ([x] (pulses x nil))
   ([x pulse]
    (when-not (or (mt/leaf? x) (v/material? x))
@@ -609,14 +609,17 @@
 
 (defn pitch
   "The pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum; for a line, pitches"
+  {:mu {:names ["pit"]}}
   [note] (one-note "pitch" "pitches" note-pitch note))
 (defn pitches
   "Each note's pitch, as a stream, a rest's too: x durations x pitches zip is x again"
+  {:mu {:names ["pits"]}}
   [line] (mt/as-part :pitch (each-note "pitches" note-pitch true line)))
 (defn duration
   "How long it is, in whole notes: a note's; a line's as written (jumps not
    followed, [!] first writes them out), a { } its longest part: [c4 d4 e2]
    duration gives 1. durations gives every note's."
+  {:mu {:names ["dur"]}}
   [x]
   (cond
     (mt/leaf? x)    (one-note "duration" "durations" :duration x)
@@ -624,22 +627,28 @@
     :else           (fail "needs a note or a line, got" (p/show x))))
 (defn durations
   "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
+  {:mu {:names ["durs"]}}
   [line] (mt/as-part :duration (each-note "durations" :duration true line)))
 (defn- own-volume [x] (get-in x [:overrides :volume]))
 (defn volume
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a line, volumes"
+  {:mu {:names ["vol"]}}
   [note] (one-note "volume" "volumes" own-volume note))
 (defn volumes
   "Each note's volume, as a stream, a rest's nil: x x volumes zip is x again"
+  {:mu {:names ["vols"]}}
   [line] (mt/as-part :volume (each-note "volumes" own-volume true line)))
 (defn articulation
   "Its articulation (:staccato, :accent …), else nil; for a line, articulations"
+  {:mu {:names ["art"]}}
   [note] (one-note "articulation" "articulations" articulation-name note))
 (defn articulations
   "Each note's articulation, as a stream, a rest's nil: x x articulations zip is x again"
+  {:mu {:names ["arts"]}}
   [line] (mt/as-part :articulation (each-note "articulations" articulation-name true line)))
 (defn instrument
   "Its own instrument (c4\\i:40); nil for a drum or none; for a line, instruments"
+  {:mu {:names ["ins"]}}
   [note] (one-note "instrument" "instruments" instrument-of note))
 (defn instruments
   "Each note's instrument, as a stream, a rest's nil: x x instruments zip is x again"

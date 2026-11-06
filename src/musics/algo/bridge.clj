@@ -119,21 +119,21 @@
 (defn leaves->durations
   "Each note's duration, a rest as itself: a line's rhythm, as a line
    taken apart gives it."
-  {:algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
+  {:mu {:names ["lea>dur"]} :algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
   [leaves]
   (map #(if (d/rest? %) % (:duration %)) leaves))
 
 (defn leaves->pitches
   "Each note's pitch -- a chord's lowest, nil for a rest or a drum -- as a
    line taken apart gives it."
-  {:algo {:category "bridge" :in [:leaf] :out :pitch :works :value}}
+  {:mu {:names ["lea>pit"]} :algo {:category "bridge" :in [:leaf] :out :pitch :works :value}}
   [leaves]
   (map #(some->> (:pitches %) seq (apply min)) leaves))
 
 (defn pulses->durations
   "Each onset lasts until the next one; a 0 lengthens the note before it,
    and 0s before the first onset are one Rest."
-  {:algo {:category "bridge" :works :shape :in [:pulse] :out :duration
+  {:mu {:names ["pul>dur"]} :algo {:category "bridge" :works :shape :in [:pulse] :out :duration
           :params {:pulse pulse-spec}}}
   [pulses pulse]
   (run-durations #(and % (not= 0 %)) pulses pulse))
@@ -141,7 +141,7 @@
 (defn strokes->durations
   "A syllable starts a note, \"-\" lengthens it; \"-\" before the first
    syllable is a Rest."
-  {:algo {:category "bridge" :works :shape :in [:stroke] :out :duration
+  {:mu {:names ["str>dur"]} :algo {:category "bridge" :works :shape :in [:stroke] :out :duration
           :params {:pulse pulse-spec}}}
   [strokes pulse]
   (run-durations #(not= "-" %) strokes pulse))
@@ -150,7 +150,7 @@
   "The time between successive onsets, as note values: :unit is the note
    value of one time unit, rounded to multiples of :quantum. The onsets
    are sorted first, so the stream must be finite."
-  {:algo {:category "bridge" :works :whole :in [:onset] :out :duration
+  {:mu {:names ["ons>dur"]} :algo {:category "bridge" :works :whole :in [:onset] :out :duration
           :params {:unit    (quantity :note-value {:doc "note value of one time unit"})
                    :quantum quantum-spec}}}
   [onsets unit quantum]
@@ -163,7 +163,7 @@
 (defn numbers->durations
   "Each number's place in :from-lo..:from-hi as a note value in
    :lo..:hi, rounded to :quantum."
-  {:algo {:category "bridge" :works :value :in [:number] :out :duration
+  {:mu {:names ["num>dur"]} :algo {:category "bridge" :works :value :in [:number] :out :duration
           :params {:from-lo from-lo-spec :from-hi from-hi-spec
                    :lo dur-lo-spec :hi dur-hi-spec :quantum quantum-spec}}}
   [xs from-lo from-hi lo hi quantum]
@@ -171,7 +171,7 @@
 
 (defn points->durations
   "One coordinate of each point as a note value, like numbers->durations."
-  {:algo {:category "bridge" :works :value :in [:point] :out :duration
+  {:mu {:names ["pnt>dur"]} :algo {:category "bridge" :works :value :in [:point] :out :duration
           :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec
                    :lo dur-lo-spec :hi dur-hi-spec :quantum quantum-spec}}}
   [points axis from-lo from-hi lo hi quantum]
@@ -185,7 +185,7 @@
   "Whole numbers as scale steps of :key from the tonic in :octave: 0 the
    tonic, 7 the tonic an octave up in a seven-note scale, -1 the step
    below."
-  {:algo {:category "bridge" :works :value :in [:number] :out :pitch
+  {:mu {:names ["deg>pit"]} :algo {:category "bridge" :works :value :in [:number] :out :pitch
           :params {:key key-spec :octave octave-spec}}}
   [degrees key octave]
   (key-steps key)                        ; a bad key fails here, not lazily
@@ -193,7 +193,7 @@
 
 (defn numbers->pitches
   "Each number's place in :from-lo..:from-hi as a pitch in :lo..:hi."
-  {:algo {:category "bridge" :works :value :in [:number] :out :pitch
+  {:mu {:names ["num>pit"]} :algo {:category "bridge" :works :value :in [:number] :out :pitch
           :params {:from-lo from-lo-spec :from-hi from-hi-spec
                    :lo (quantity :pitch {:default 48 :doc "lowest pitch"})
                    :hi (quantity :pitch {:default 84 :doc "highest pitch"})}}}
@@ -203,7 +203,7 @@
 (defn points->pitches
   "One coordinate of each point, its place in :from-lo..:from-hi, onto
    the steps of :key over :octaves from the tonic in :octave."
-  {:algo {:category "bridge" :works :value :in [:point] :out :pitch
+  {:mu {:names ["pnt>pit"]} :algo {:category "bridge" :works :value :in [:point] :out :pitch
           :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec
                    :key key-spec :octave octave-spec
                    :octaves {:type :int :min 1 :max 4 :default 2 :doc "octaves spanned"}}}}
@@ -221,14 +221,14 @@
 (defn numbers->volumes
   "Each number's place in :from-lo..:from-hi as a volume in :lo..:hi
    (the !vol: 0-100 scale)."
-  {:algo {:category "bridge" :works :value :in [:number] :out :volume
+  {:mu {:names ["num>vol"]} :algo {:category "bridge" :works :value :in [:number] :out :volume
           :params {:from-lo from-lo-spec :from-hi from-hi-spec :lo vol-lo-spec :hi vol-hi-spec}}}
   [xs from-lo from-hi lo hi]
   (map #(number->volume % from-lo from-hi lo hi) xs))
 
 (defn points->volumes
   "One coordinate of each point as a volume, like numbers->volumes."
-  {:algo {:category "bridge" :works :value :in [:point] :out :volume
+  {:mu {:names ["pnt>vol"]} :algo {:category "bridge" :works :value :in [:point] :out :volume
           :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec :lo vol-lo-spec :hi vol-hi-spec}}}
   [points axis from-lo from-hi lo hi]
   (map #(number->volume (nth % axis) from-lo from-hi lo hi) points))
@@ -261,14 +261,14 @@
 (defn numbers->instruments
   "Each number's place in :from-lo..:from-hi as an instrument of
    :palette (a MIDI program; all of General MIDI when empty)."
-  {:algo {:category "bridge" :works :value :in [:number] :out :instrument
+  {:mu {:names ["num>ins"]} :algo {:category "bridge" :works :value :in [:number] :out :instrument
           :params {:from-lo from-lo-spec :from-hi from-hi-spec :palette palette-spec}}}
   [xs from-lo from-hi palette]
   (let [ps (programs palette)] (map #(number->instrument % from-lo from-hi ps) xs)))
 
 (defn points->instruments
   "One coordinate of each point as an instrument, like numbers->instruments."
-  {:algo {:category "bridge" :works :value :in [:point] :out :instrument
+  {:mu {:names ["pnt>ins"]} :algo {:category "bridge" :works :value :in [:point] :out :instrument
           :params {:axis axis-spec :from-lo from-lo-spec :from-hi from-hi-spec :palette palette-spec}}}
   [points axis from-lo from-hi palette]
   (let [ps (programs palette)] (map #(number->instrument (nth % axis) from-lo from-hi ps) points)))
@@ -313,7 +313,7 @@
    one per note pulses->durations makes (nil for its leading Rest):
    :metric by its place in the bar (the downbeat loudest), :agogic by
    its length (longer louder)."
-  {:algo {:category "bridge" :works :shape :in [:pulse] :out :volume
+  {:mu {:names ["pul>vol"]} :algo {:category "bridge" :works :shape :in [:pulse] :out :volume
           :params {:accent accent-spec :pulse pulse-spec :meter meter-spec :lo vol-lo-spec :hi vol-hi-spec}}}
   [pulses accent pulse meter lo hi]
   (map #(when % (+ lo (* % (- hi lo)))) (onset-weights pulses accent pulse meter)))
@@ -323,7 +323,7 @@
    bands a weight: :metric by its place in the bar, :agogic by its
    length; one per note pulses->durations makes (nil for its leading
    Rest)."
-  {:algo {:category "bridge" :works :shape :in [:pulse] :out :articulation
+  {:mu {:names ["pul>art"]} :algo {:category "bridge" :works :shape :in [:pulse] :out :articulation
           :params {:accent accent-spec :pulse pulse-spec :meter meter-spec
                    :levels {:type :vector :default [:ghost nil :accent :marcato]
                             :doc "articulation per band, weakest first"}}}}
@@ -339,14 +339,14 @@
   "The strongest :density fraction of the pulses on, the rest off -- a
    meter thinned to its most indispensable pulses. A weight of 0 or
    less is never on, so at :density 1.0 every accented pulse sounds."
-  {:algo {:category "bridge" :works :whole :in [:weight] :out :pulse
+  {:mu {:names ["wei>pul"]} :algo {:category "bridge" :works :whole :in [:weight] :out :pulse
           :params {:density {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "fraction of pulses kept"}}}}
   [weights density]
   (mapv (fn [on w] (if (pos? w) on 0)) (indisp/density-grid weights density) weights))
 
 (defn counts->pulses
   "Thin each bar's weights to a count of notes: a number n in the stream keeps the n strongest pulses of the bar (rounded, within 0..bar length), the bars one after another. A rising window of counts (tendency's mask) gives a bar that fills up; n = the bar's length keeps every pulse."
-  {:algo {:category "bridge" :works :whole :in [:weight :number] :out :pulse}}
+  {:mu {:names ["cnt>pul"]} :algo {:category "bridge" :works :whole :in [:weight :number] :out :pulse}}
   [weights counts]
   (let [n (count weights)]
     (into [] (mapcat #(indisp/density-grid weights (/ (-> (Math/round (double %)) (max 0) (min n)) (double n)))) counts)))
@@ -354,7 +354,7 @@
 (defn weights->volumes
   "The weights' own range onto volumes :lo..:hi (the !vol: 0-100
    scale): strong pulses louder."
-  {:algo {:category "bridge" :works :whole :in [:weight] :out :volume
+  {:mu {:names ["wei>vol"]} :algo {:category "bridge" :works :whole :in [:weight] :out :volume
           :params {:lo vol-lo-spec :hi vol-hi-spec}}}
   [weights lo hi]
   (mapv #(+ lo (* % (- hi lo))) (unit weights)))
@@ -363,7 +363,7 @@
   "The weights' own range split into as many bands as :levels, weakest
    first; nil plays plain. Levels are musics.common.music-data/articulations'
    names."
-  {:algo {:category "bridge" :works :whole :in [:weight] :out :articulation
+  {:mu {:names ["wei>art"]} :algo {:category "bridge" :works :whole :in [:weight] :out :articulation
           :params {:levels {:type :vector :default [:ghost nil :accent :marcato]
                             :doc "articulation per band, weakest first"}}}}
   [weights levels]
