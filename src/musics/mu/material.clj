@@ -459,7 +459,7 @@
   (atom {}))
 
 (defn cancel-staged!
-  "Forget a ->> still waiting for its boundary: one target's, or all."
+  "Forget a -|> still waiting for its boundary: one target's, or all."
   ([] (doseq [t (keys @staged)] (cancel-staged! t)))
   ([target]
    (when-let [{:keys [keys action]} (get @staged target)]
@@ -601,7 +601,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
-  "Stop what plays, a staged ->> and whatever stoppers hold."
+  "Stop what plays, a staged -|> and whatever stoppers hold."
   []
   (cancel-staged!)
   (reset! voices {})

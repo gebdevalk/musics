@@ -176,14 +176,14 @@ repeat 2 [c4 d e f]
 
 ## Playing it back
 
-`->` plays now and stops what plays; `->>` plays at the next boundary;
+`->` plays now and stops what plays; `-|>` plays at the next boundary;
 a `+` joins instead of replacing. `stop` (or Alt+.) stops everything,
 `pause` (Alt+,) pauses and goes on.
 
 ```
 [c d e f g] ->
 [c d e f g] [~] ->          loop it until stop
-[e f g a b] ->>             takes over at the end of the current pass
+[e f g a b] -|>             takes over at the end of the current pass
 [c d] [e f] {2} ->          two parts at once
 ```
 
@@ -205,15 +205,15 @@ voice plays the music it was given, so you can prepare a change at
 leisure and let it take over at a moment you choose:
 
 ```
-[bass: f2 c] [~] ->>         :bass changes at the end of its pass
-[mel: g8 a b c] [~] | ->>    at the next bar line instead
+[bass: f2 c] [~] -|>         :bass changes at the end of its pass
+[mel: g8 a b c] [~] | -|>    at the next bar line instead
 :mel hush                   silence :mel, keeping its place; again to undo
 :bass solo                  only :bass sounds; again to undo
-3 <- 12 + 3 ->>               voice 3, an octave up, at its boundary
+3 <- 12 + 3 -|>               voice 3, an octave up, at its boundary
 ```
 
 `3 <-` puts what voice 3 plays on the stack, `12 +` moves it up an
-octave, and `3 ->>` plays it as voice 3. Voices go by index from low to
+octave, and `3 -|>` plays it as voice 3. Voices go by index from low to
 high (`1` the lowest), the drums from `0` down.
 
 A voice can also play a **recipe**: a quotation that makes the music,

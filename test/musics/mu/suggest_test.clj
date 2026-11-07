@@ -51,7 +51,7 @@
 (deftest help-shows-the-way-in-explains-a-word-and-searches
   (let [guide (out "help")]
     (is (str/includes? guide "mu: music is written as text"))
-    (is (str/includes? guide "->   ->>   ->+") "the play words as they are written now")
+    (is (str/includes? guide "->   -|>   ->+") "the play words as they are written now")
     (is (str/includes? guide "doc/md/mu-tutorial.md")))
   (is (= (out "\"dup\" see") (out "\"dup\" help")) "a word: as see")
   (is (= (out "'dup see") (out "'dup help")))

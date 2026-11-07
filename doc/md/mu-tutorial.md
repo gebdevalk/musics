@@ -154,22 +154,22 @@ instead of waiting; `doc/md/setup.md` has what to do.
 |---|---|
 | `->` or `play` | play now, stopping what plays |
 | `->+` or `play+` | play now, joining what plays |
-| `->>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
-| `x \| ->>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
-| `->>+` or `play-next+` | join at the next boundary |
+| `-\|>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
+| `x \| -\|>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
+| `-\|>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
 | `voices` or `<<-` | what plays, the highest voice on top: each voice's index (`highest` … `1 lowest`, `0 drums` …), id and music |
 | `:bass playing` or `:bass <-` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
-`->` plays now, `->>` at the next boundary; a `+` joins what plays
+`->` plays now, `-|>` at the next boundary; a `+` joins what plays
 instead of replacing it.
 
 ```
 [c d e f g] ->
 [c d e f g] [~] ->        loop it until stop
-[e f g a b] ->>           takes over at the end of the current pass
+[e f g a b] -|>           takes over at the end of the current pass
 ```
 
 Music with a name plays as a voice of that name, and playing it again
@@ -178,7 +178,7 @@ replaces only that voice, the others going on:
 ```
 [bass: c2 g] [~] ->           the voice :bass
 [mel: e8 f g a] [~] ->        a second voice, :mel; :bass goes on
-[bass: f2 c] [~] ->>          :bass changes at the end of its pass
+[bass: f2 c] [~] -|>          :bass changes at the end of its pass
 :mel hush                    silence :mel, keeping its place
 :mel hush                    and back
 ```
@@ -195,7 +195,7 @@ the id leaves nothing on the stack:
 :bass !volume:80 with         any ! instruction, a context ^{ } or a key (D.major)
 ```
 
-Leave off a trailing `->>`: it would cancel the change.
+Leave off a trailing `-|>`: it would cancel the change.
 
 Voices also go by index, low to high: `1` the lowest voice, `2` the
 next …, and the drum voices from `0` down (`0`, `-1` …, lowest drum key
@@ -204,10 +204,10 @@ its own, with no music under it, the voice starts its own music again:
 
 ```
 1 <-                  what the lowest voice plays
-3 <- 12 + 3 ->>        voice 3 an octave up, at its boundary
+3 <- 12 + 3 -|>        voice 3 an octave up, at its boundary
 0 hush               silence the drums
 1 ->                  voice 1 from its start, now
-:bass ->>             :bass from its start, at the end of its pass
+:bass -|>             :bass from its start, at the end of its pass
 ```
 
 `echo` prints each note as it sounds; `echo` again stops it.
@@ -477,7 +477,7 @@ its bars, as written, so a swung part stays in step with a straight one.
 [!shuffle c8 d e f g a b c] [~] ->
 [!laidBack c16 d e f g a b c d e f g a b c d] [~] ->
 [!M:223 !accent:metric c8 c c c c c c c c c c c] [~] ->
-[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] ->>
+[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] -|>
 ```
 
 The last two are the same twelve eighths: `223` is heard as four
@@ -1171,7 +1171,7 @@ voice reaches the next of what it gives now:
 
 `|` under the quotation says it starts from nothing; without it, the music under the
 quotation is what it runs on. `:riff` is the voice, as for any play word, and `retree` gives
-it another quotation while it goes on from its place. All play words take one: `->>` from
+it another quotation while it goes on from its place. All play words take one: `-|>` from
 the next boundary, `->+` joining what plays.
 
 ### A word as a live voice
@@ -1201,7 +1201,7 @@ the definition, and play the word as a voice.
   the word gives; a short seq starts again.
 - The voice needs a name (`:bass`), and the word only `$` inputs: a plain
   input would need music passed in, which a quotation on music under it does
-  (`x '( … ) :up ->`). `->>` waits for a boundary as it does for music.
+  (`x '( … ) :up ->`). `-|>` waits for a boundary as it does for music.
 
 An input is addressed by its voice and its name, `:bass/onsets`. It is a
 **reference**: `@` reads it and `!` stores into it, as in Forth.

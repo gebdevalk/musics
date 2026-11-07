@@ -3520,3 +3520,10 @@ entries here keep the word they were written with, including the removed word
 The word that requires a `musics.algo.` namespace is now `reqalgo`, a
 shorter name that still reads as "require" first (`"numeric.rng" reqalgo`).
 Earlier entries keep the old name as written.
+
+## 2026-11-07 — `->>` and `->>+` are `-|>` and `-|>+`
+
+The words that play at the next boundary are written `-|>` and `-|>+`: the
+bar line `|` in the arrow, since `x | -|>` is how a bar line is waited for.
+`play-next` and `play-next+` are unchanged. Earlier entries keep the old
+spelling as written.

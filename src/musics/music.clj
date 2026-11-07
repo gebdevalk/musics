@@ -804,7 +804,7 @@
 
 (defn- voice-with
   "The voice id playing its own music with settings in front of it, from the
-   end of its pass (as ->> does); leaves nothing on the stack (:mu/nothing)."
+   end of its pass (as -|> does); leaves nothing on the stack (:mu/nothing)."
   [id settings]
   (let [{:keys [ctx]} (get (mt/live-voices) id)]
     (when-not (get (mt/live-voices) id)

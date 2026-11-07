@@ -245,7 +245,7 @@
    ""
    "  [c d e f]            a seq, now on the stack (a note alone is a value too)"
    "  7 +   2 *   [R]      up a fifth, twice as long, backwards: a word takes what lies under it"
-   "  ->   ->>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
+   "  ->   -|>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
    "  [bass: c2 g] [~] ->  a named seq is a voice of that name;  :bass stop,  :bass <- is what it plays"
    "  dup drop swap over   the stack is Forth's;  .s shows it,  clear empties it"
    "  see  words  help     \"dup\" see explains a word, words lists them, \"chord\" help searches"

@@ -287,21 +287,21 @@ a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
 music-data/drum-kits`) picks the kit, sent by the engine and `render`
 when it changes. Playback: `->`
-now, stopping what plays; `->>` in its place at the next boundary
-(`x | ->>` at the next `|`); `->+` joining now, `->>+` at the next
+now, stopping what plays; `-|>` in its place at the next boundary
+(`x | -|>` at the next `|`); `->+` joining now, `-|>+` at the next
 boundary; `stop` (Alt+.), `pause` (Alt+,; again resumes); `,` (`edit`) takes the top into the next prompt as its printed text (`musics.mu.kernel/edit-text`, read by `mu.clj`'s `readLine`). Named music
 is a voice of that name (`[bass: c d] ->`, a loop of it too): playing it
-replaces only that voice (`->` now, `->>` at the end of its own pass), the
+replaces only that voice (`->` now, `-|>` at the end of its own pass), the
 others going on (`musics.engine/play-at!`); unnamed music stops
 everything or joins under an engine id. `voices` (`<<-`), `:bass stop`,
 `:bass playing` (`:bass <-`), `:bass hush`, `:bass solo`; an index
 addresses a voice too, by mean pitch (1 the lowest with pitch .. n, the
 drum voices 0, -1 … by lowest drum key: `musics.mu.material/voice-id`),
 and a voice's id or index on top of a play word is the voice to play as
-(`3 <- 12 + 3 ->>`) (`engine/stop-voice!`,
+(`3 <- 12 + 3 -|>`) (`engine/stop-voice!`,
 `hush!`, `solo!`: a hushed voice keeps its place, sounding nothing). Most bracket signs
 have a named twin, a name Clojure could carry too (`[R]` `retrograde`,
-`[~]` `cycle`, `->>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
+`[~]` `cycle`, `-|>` `play-next`, `[*]` `times`, `[H]` `head`, `**` `spread` -- a value's elements onto the stack, `[/]`'s parts too, ...). Printing is isomorphic to
 reading (`musics.mu.print`). `musics.mu.eval` runs the stack, words in
 namespaces (late binding), `: name ( $a b -- c ) … ;` (a `$` input a local, the results checked) and
 `'( … )` quotations, `( … )` a group (run now, what it leaves
@@ -319,7 +319,7 @@ pass their `:mu :optional` test), pushing the one value it returns --
 nothing for a `!` function -- and naming an error by the word; it
 calls the var, so a redefinition changes the word everywhere. The words that read the stack's shape stay stack
 words: the stack, quotations, `:=` and printing the stack, and the play
-words with their optional context, mark and voice (`->`, `->>`, …) in
+words with their optional context, mark and voice (`->`, `-|>`, …) in
 `musics.mu.kernel`; `split-at` (two values), `par` `{n}` `[n]`
 `chord` `volta` `vary` `[|]` `[\]` in `musics.mu.tools`. `musics.mu.material`
 holds what they all share. The prompt is `mu<n>` (the
@@ -439,7 +439,7 @@ it, just passes it through.
 - Every signal carries `:at`, when it is due (`System/nanoTime`), so
   an action can start material exactly there:
   `musics.engine/play-from!` replaces what plays with a voice whose
-  `:t` 0 is that moment (or, joining, adds one) — mu's `->>`/`->>+`
+  `:t` 0 is that moment (or, joining, adds one) — mu's `-|>`/`-|>+`
   (`musics.mu.material/stage!`).
 - **`musics.engine/schedule-tx!`** — the primary use case: `(schedule-tx!
   id phase)` moves every voice that crosses `[id phase]` onto whatever

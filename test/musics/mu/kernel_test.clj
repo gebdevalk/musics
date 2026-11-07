@@ -90,7 +90,7 @@
     (is (re-find #"^>: needs two numbers, got \[C4/4 D4\] and 5 -- to order by something, give a key: c d '\( pitch \) >; to play, write ->" (:error (run "[c d] 5 >"))))
     (is (re-find #"^<: needs 2 items on the stack, has 1 -- what a voice plays is <-" (:error (run ":bass <")))))
   (testing "the old play signs say what replaced them"
-    (is (re-find #"^>>: isn't a word; write ->>" (:error (run "[c] >>"))))
+    (is (re-find #"^>>: isn't a word; write -|>" (:error (run "[c] >>"))))
     (is (re-find #"^<<: isn't a word; write <<-" (:error (run "<<"))))
     (is (re-find #"^>\+: isn't a word; write ->\+" (:error (run "[c] >+")))))
   (testing "the names are gone"
@@ -346,16 +346,16 @@
     (with-redefs [engine/receiver (atom :silent)]
       (binding [engine/*engine* eng]
         (run "[!tempo:240 c16 d | e f | g a] ->")
-          (run "[b16 c] | ->>")
+          (run "[b16 c] | -|>")
           (is (= [[:mark 1] :enter] (first (keys (conductor/scheduled)))) "waits for the next |")
           (Thread/sleep 300)
           (is (empty? (conductor/scheduled)) "taken at the bar line")
           (run "[!tempo:240 c16 d | e f | g a b c d e f g] ->")
-          (run "[c16 d] | ->>+")
+          (run "[c16 d] | -|>+")
           (Thread/sleep 300)
-          (is (empty? (conductor/scheduled)) "->>+ is taken at the bar line too")
+          (is (empty? (conductor/scheduled)) "-|>+ is taken at the bar line too")
           (is (= 2 (count @(:voices eng))) "and joins: the first voice goes on")
-          (run "[c d] ->>")
+          (run "[c d] -|>")
           (run "stop")
           (is (empty? (conductor/scheduled)) "stop also forgets a staged play")
           (is (not (musics.engine/busy? eng)))))))
@@ -413,9 +413,9 @@
           (run "[bass: !tempo:60 c1 d1] [~] ->")
           (is (contains? (ids) :bass) "a loop plays as the seq it repeats")
           (run "[mel: !tempo:60 e1 f1] ->")
-          (run "[bass: !tempo:60 g1] ->>")
+          (run "[bass: !tempo:60 g1] -|>")
           (is (= [[:bass :exit]] (filter #(= :bass (first %)) (keys (conductor/scheduled))))
-              "->> on a named voice waits for that voice's own pass")
+              "-|> on a named voice waits for that voice's own pass")
           (is (not-any? #(= :mel (first %)) (keys (conductor/scheduled))) "not for the others'"))
         (finally (mt/stop-all!))))))
 
@@ -460,7 +460,7 @@
                         mt/stage! (fn [x ctx _ join? target] (swap! played conj [x ctx join? target]))]
             (run "1 play")
             (run ":mel ->")
-            (run "2 ->>")
+            (run "2 -|>")
             (is (= [["repeat ~ [bass: !tempo:60 C4/1 D4]" false :bass]
                     ["[mel: !tempo:60 E5/1 F5]" true :mel]
                     ["[mel: !tempo:60 E5/1 F5]" true :mel]]
@@ -479,7 +479,7 @@
         (try
           (run "[bass: !tempo:240 c16 d] [~] ->")
           (run "[mel: !tempo:60 e1 f1] ->")
-          (run "[bass: !tempo:240 g16 a] [~] ->>")
+          (run "[bass: !tempo:240 g16 a] [~] -|>")
           (is (= "[bass: !tempo:240 C4/16 D4]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "not yet")
           (Thread/sleep 400)
           (is (= "[bass: !tempo:240 G3/16 A3]" (re-find #"\[bass: [^\]]*\]" (p/show (mt/playing :bass)))) "changed at the end of its pass")
@@ -554,7 +554,7 @@
         (try
           (mt/stop-all!)
           (engine/play [(first (:ids (store/read! "[!tempo:60 c1 d1]")))])
-          (run "[e f] ->>")
+          (run "[e f] -|>")
           (is (empty? (conductor/scheduled)) "mu knows no pass of what plays: no wait for a | that may never come")
           (is (= 1 (count (mt/live-voices))))
           (finally (mt/stop-all!)))))))
@@ -613,7 +613,7 @@
 
 
 (deftest the-dotted-play-signs-say-what-replaced-them
-  (doseq [[old new] [[".>" "->"] [".>+" "->+"] [".>>" "->>"] [".>>+" "->>+"] [".<" "<-"] [".<<" "<<-"]]]
+  (doseq [[old new] [[".>" "->"] [".>+" "->+"] [".>>" "-|>"] [".>>+" "-|>+"] [".<" "<-"] [".<<" "<<-"]]]
     (is (= (str old ": isn't a word; write " new) (:error (run (str "[c] " old)))) old)))
 
 ;; R! refuses to redefine an id other stored parts use; R!! does it and says which

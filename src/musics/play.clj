@@ -2,7 +2,7 @@
   "mu's play words as Clojure functions, done for their effect: stopping,
    the voices, hushing, pausing, echoing, the synthesizer (its soundfonts are musics.soundfont's) and the GUI --
    registered into mu's play namespace by musics.mu.library. Starting
-   music (play, ->, play-next, ->>, …) reads the stack's shape -- a
+   music (play, ->, play-next, -|>, …) reads the stack's shape -- a
    context under the music, a mark, a voice on top -- and stays a stack
    word in musics.mu.kernel."
   (:require [clojure.string :as str]
@@ -56,7 +56,7 @@
                            (if (> (count shown) 60) (str (subs shown 0 59) "…") shown) mark)))))))
 
 (defn playing
-  "What a voice plays, to change and play again: :bass playing 5 + ->>,
+  "What a voice plays, to change and play again: :bass playing 5 + -|>,
    1 <- (the lowest)"
   {:mu {:names ["<-"]}}
   [voice]
