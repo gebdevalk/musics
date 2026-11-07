@@ -154,11 +154,11 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   data): held code, run by `call`, `if`, `each`, `map` …
 - **`loop`** is Forth's `do … loop` with a quotation for its body:
   `limit start '( … ) loop` runs the body once for each whole number from
-  `start` up to, not including, `limit`, with `i` the index and `j` the index
-  of the loop around it. `3 0 '( i ) loop` leaves `0 1 2`, `0 5 0 '( i + ) loop`
+  `start` up to, not including, `limit`, with `i` the index, `j` the index of the
+  loop around it and `k` the one around that. `3 0 '( i ) loop` leaves `0 1 2`, `0 5 0 '( i + ) loop`
   adds them (10), and `2 0 '( 3 0 '( i j 10 * + ) loop ) loop` leaves
-  `0 1 2 10 11 12`. A start not below the limit runs it no times, and `i` or
-  `j` outside a loop is an error.
+  `0 1 2 10 11 12`. A start not below the limit runs it no times, and `i`, `j` or
+  `k` outside enough loops is an error.
 - **A live word**: a word whose inputs are all `$` plays as a voice, its
   inputs the voice's changeable values: `5 8 'riff :bass ->` (the quoted
   name keeps it from running now; the voice needs a name). `:bass/onsets`
@@ -355,7 +355,7 @@ as plain functions called by name (`pattern/euclid`): see
 | **stack** | `dup` `drop` `swap` `over` `rot` `-rot` `nip` `tuck` `pick` `roll` `2dup` `2drop` `1+` `1-` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
 | **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `negate` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers, or anything by a key); `true` `false` `and` `or` `xor` `not` |
-| **quotations** | `call` `loop` (`i` `j`) `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
+| **quotations** | `call` `loop` (`i` `j` `k`) `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `->>` or `play-next` (in its place, from the next boundary), `->>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |

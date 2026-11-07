@@ -41,6 +41,8 @@
   (is (= "10" (top "0 5 0 '( i + ) loop")) "the body works on the stack as it is")
   (is (= "" (top "0 0 '( i ) loop")) "a start not below the limit runs it no times")
   (is (= "0 1 2 10 11 12" (top "2 0 '( 3 0 '( i j 10 * + ) loop ) loop")) "j is the index of the loop around")
+  (is (= "0 1 10 11 100 101 110 111" (top "2 0 '( 2 0 '( 2 0 '( i j 10 * + k 100 * + ) loop ) loop ) loop")) "k is two loops out")
+  (is (re-find #"k: is the index of the loop two around" (top "2 0 '( 2 0 '( k ) loop ) loop")) "two loops have no third index")
   (is (= "7" (top "3 0 '( i ) loop drop drop drop 7")) "nothing of the loop is left running")
   (is (re-find #"i: is the index of a do loop" (top "i")))
   (is (re-find #"j: is the index of the loop around" (top "2 0 '( j ) loop")) "one loop has no outer index")

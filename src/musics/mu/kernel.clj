@@ -159,6 +159,11 @@
          (when (< (count *loops*) 2) (e/mu-error "j:" "is the index of the loop around the running one, and there are not two: 2 0 '( 3 0 '( i j ) loop ) loop"))
          (conj s (peek (pop *loops*)))))
 
+(word! "kernel" "k" "( -- n )  the index of the do loop two around the one running now"
+       (fn [s]
+         (when (< (count *loops*) 3) (e/mu-error "k:" "is the index of the loop two around the running one, and there are not three: 2 0 '( 2 0 '( 2 0 '( i j k ) loop ) loop ) loop"))
+         (conj s (peek (pop (pop *loops*))))))
+
 (word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation, as call)"
        (fn [s]
          (need s 1 "execute")
