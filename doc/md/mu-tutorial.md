@@ -187,6 +187,16 @@ Music without a name is no voice of its own: `->` stops everything,
 `->+` adds it under an id the engine gives (`:TA` …), shown by
 `voices`.
 
+A playing voice is changed with `with`, from the end of its pass, and
+the id leaves nothing on the stack:
+
+```
+:bass !tempo:140 with         the voice goes on at 140
+:bass !volume:80 with         any ! instruction, a context ^{ } or a key (D.major)
+```
+
+Leave off a trailing `->>`: it would cancel the change.
+
 Voices also go by index, low to high: `1` the lowest voice, `2` the
 next …, and the drum voices from `0` down (`0`, `-1` …, lowest drum key
 first). An index or id on top of a play word plays as that voice; on
@@ -987,10 +997,44 @@ and play it, or rate them (section 17).
 :mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
 ```
 
+Forth's `value` and `variable` keep a number or a thing under a name:
+
+```
+5 value five                  five → 5
+7 to five                     five → 7
+3 variable v                  v is a place
+4 v !   v @                   store 4, read it → 4
+```
+
+Both are saved in a session as mu text (`7 value five`, `3 variable v`).
+A second name for the same place is a plain definition: `: w v ;`.
+
+### Counted loops
+
+`limit start '( … ) loop` runs the quotation for each whole number from
+`start` up to, not including, `limit`. `i` is the index, `j` the index of
+the loop around it and `k` the one around that:
+
+```
+3 0 '( i ) loop                                  → 0 1 2
+2 0 '( 3 0 '( i j 10 * + ) loop ) loop           → 0 1 2 10 11 12
+```
+
 `rename` follows the name wherever it is written, so a part that used
 `:mel` now uses `:tune`; `forget` refuses a name that is still used, and
 says by whom (`:mel is still used by :song`), so nothing is left pointing
 at nothing.
+
+### Short names
+
+The leaf readers and the bridges have three-letter names, one for each
+kind of material: `pul` pulses, `pit` pitches, `pnt` points, `dur`
+durations, `deg` degrees, `vol` volumes, `art` articulations, `wei`
+weights, `num` numbers, `ons` onsets, `str` steps, `cnt` counts, `lea`
+leaves, `ins` instruments. A bridge is `from>to`, a plural reader adds an
+`s` (`pits`, `durs`, `vols`, `arts`): `bridge/pul>dur`, `x pits`.
+`pul>stp` gives one duration per pulse, a note for every onset and a rest
+for every 0; `pul>dur` lets a note last until the next onset.
 
 ## 14. The color-talea
 

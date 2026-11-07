@@ -3476,3 +3476,41 @@ an authoring tool that writes mu text, qualified input names
 (`$euclid-onsets`) and a static pass that binds an input to the function it
 feeds; the cost of the removed design was the size of the machinery, its
 benefit was parameters that were always the algo's own.
+
+## 2026-11-07 — one way to change a setting: `with`
+
+A tempo (or any setting) used to have several spellings in a line, a leading
+context, `:bass/tempo !` and a key-and-value `with`. They are one now: a `!`
+instruction is a value in mu (alone at the top level it pushes the context
+`^{ !tempo:89 }`), and `with` takes an instruction, a context or a key. On a
+voice's id, `with` changes the voice from the end of its pass and leaves
+nothing on the stack (the word answers `:mu/nothing`). The key-and-value form
+(`x :Tempo 140 with`) was removed. A trailing `->>` after it cancels the staged
+change, so it is left off.
+
+## 2026-11-07 — `value`, `variable`, `to` as Forth has them
+
+A pair of coupled variables (change one, the other follows, guarded against
+oscillation) was weighed and dropped for Forth's own words: `5 value five`,
+`7 to five`, `3 variable v` with `@` and `!`. Different names for one place
+are a plain definition (`: w v ;`), so halves can never differ. They are saved
+in a session as mu text. Replacing `:=` and `\name` by `value` was weighed and
+left: `\name` is a separate namespace that would be lost, and more names
+would collide. Note-like names (`a`, `p1`) are refused for words.
+
+## 2026-11-07 — three-letter names, `pul>stp`, `loop`
+
+Material kinds have three-letter names (`pul pit pnt dur deg vol art wei num
+ons str cnt lea ins`), the readers' plurals add an `s`, and a bridge is
+`from>to`. `pul>stp` is the bridge that keeps rests for the 0s. `limit start
+'q loop` is Forth's `do … loop` with a quotation body and `i` `j` `k` for the
+three innermost loops; Factor's `times`, `each` and `while`/`until` are not
+added for now. A user word named `loop` clashes with the built-in.
+
+## 2026-11-07 — a seq, not a line
+
+A piece of musics text in `[ ]` is called a seq everywhere in prose and
+messages, as its type `:SEQ` and grammar rule `Sequence` already did. "Line"
+stays for a bar line and a line of text (parse errors, `readLine`). Older
+entries here keep the word they were written with, including the removed word
+`line`.
