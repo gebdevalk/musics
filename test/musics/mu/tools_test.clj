@@ -35,6 +35,13 @@
   (let [r (e/eval-input input)]
     (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
 
+(deftest +loop-steps-up-or-down
+  (is (= "5 4 3 2 1" (top "0 5 -1 '( i ) +loop")) "a negative step counts down, limit left out")
+  (is (= "0 3 6 9" (top "10 0 3 '( i ) +loop")))
+  (is (= "" (top "5 0 -1 '( i ) +loop")) "stepping away from the limit runs it no times")
+  (is (= "2 1 0" (top "-1 2 -1 '( i ) +loop")))
+  (is (re-find #"the step is a whole number but not 0" (top "5 0 0 '( i ) +loop"))))
+
 (deftest loop-runs-a-quotation-for-each-index
   (is (= "0 1 2" (top "3 0 '( i ) loop")) "limit start: from start up to, not including, limit")
   (is (= "2 3 4" (top "5 2 '( i ) loop")))

@@ -137,17 +137,27 @@
   "The indices of the do loops running now, outermost first."
   [])
 
+(defn- counted [s name step]
+  (let [q (peek s) start (peek (pop s)) limit (peek (pop (pop s)))]
+    (when-not (v/quotation? q) (e/mu-error (str name ":") "the body is a quotation '( … ), got" (p/show q)))
+    (when-not (and (integer? limit) (integer? start))
+      (e/mu-error (str name ":") "needs whole numbers, limit and start, got" (p/show limit) "and" (p/show start)))
+    (let [more? (if (pos? step) < >)]
+      (loop [st (pop (pop (pop s))) n start]
+        (if (more? n limit)
+          (recur (binding [*loops* (conj *loops* n)] (e/call st q)) (+ n step))
+          st)))))
+
 (word! "kernel" "loop" "( limit start 'q -- ... )  Forth's do ... loop with a quotation for its body: run q once for each whole number from start up to, not including, limit, i giving the index and j the index of the loop around; start not below limit runs it no times: 3 0 '( i ) loop leaves 0 1 2"
+       (fn [s] (need s 3 "loop") (counted s "loop" 1)))
+
+(word! "kernel" "+loop" "( limit start step 'q -- ... )  loop by a step, a whole number but not 0: a negative step counts down, from start to, not including, limit: 0 5 -1 '( i ) +loop leaves 5 4 3 2 1; 10 0 3 '( i ) +loop leaves 0 3 6 9"
        (fn [s]
-         (need s 3 "loop")
-         (let [q (peek s) start (peek (pop s)) limit (peek (pop (pop s)))]
-           (when-not (v/quotation? q) (e/mu-error "loop:" "the body is a quotation '( … ), got" (p/show q)))
-           (when-not (and (integer? limit) (integer? start))
-             (e/mu-error "loop:" "needs whole numbers, limit and start, got" (p/show limit) "and" (p/show start)))
-           (loop [st (pop (pop (pop s))) n start]
-             (if (< n limit)
-               (recur (binding [*loops* (conj *loops* n)] (e/call st q)) (inc n))
-               st)))))
+         (need s 4 "+loop")
+         (let [step (peek (pop s))]
+           (when-not (and (integer? step) (not (zero? step)))
+             (e/mu-error "+loop:" "the step is a whole number but not 0, got" (p/show step)))
+           (counted (conj (pop (pop s)) (peek s)) "+loop" step))))
 
 (word! "kernel" "i" "( -- n )  the index of the do loop running now"
        (fn [s]

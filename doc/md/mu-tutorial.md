@@ -1020,6 +1020,12 @@ the loop around it and `k` the one around that:
 2 0 '( 3 0 '( i j 10 * + ) loop ) loop           → 0 1 2 10 11 12
 ```
 
+`limit start step '( … ) +loop` takes a step, a negative one counting down:
+
+```
+0 5 -1 '( i ) +loop                              → 5 4 3 2 1
+```
+
 `rename` follows the name wherever it is written, so a part that used
 `:mel` now uses `:tune`; `forget` refuses a name that is still used, and
 says by whom (`:mel is still used by :song`), so nothing is left pointing
