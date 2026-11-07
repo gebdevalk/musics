@@ -131,6 +131,34 @@
 (word! "kernel" "call" "( q -- ... )  run the quotation"
        (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
 
+;; -- loop (Forth's do … loop) -------------------------------------------------------------
+
+(def ^:private ^:dynamic *loops*
+  "The indices of the do loops running now, outermost first."
+  [])
+
+(word! "kernel" "loop" "( limit start 'q -- ... )  Forth's do ... loop with a quotation for its body: run q once for each whole number from start up to, not including, limit, i giving the index and j the index of the loop around; start not below limit runs it no times: 3 0 '( i ) loop leaves 0 1 2"
+       (fn [s]
+         (need s 3 "loop")
+         (let [q (peek s) start (peek (pop s)) limit (peek (pop (pop s)))]
+           (when-not (v/quotation? q) (e/mu-error "loop:" "the body is a quotation '( … ), got" (p/show q)))
+           (when-not (and (integer? limit) (integer? start))
+             (e/mu-error "loop:" "needs whole numbers, limit and start, got" (p/show limit) "and" (p/show start)))
+           (loop [st (pop (pop (pop s))) n start]
+             (if (< n limit)
+               (recur (binding [*loops* (conj *loops* n)] (e/call st q)) (inc n))
+               st)))))
+
+(word! "kernel" "i" "( -- n )  the index of the do loop running now"
+       (fn [s]
+         (when (empty? *loops*) (e/mu-error "i:" "is the index of a do loop, and none is running: 3 0 '( i ) loop"))
+         (conj s (peek *loops*))))
+
+(word! "kernel" "j" "( -- n )  the index of the do loop around the one running now"
+       (fn [s]
+         (when (< (count *loops*) 2) (e/mu-error "j:" "is the index of the loop around the running one, and there are not two: 2 0 '( 3 0 '( i j ) loop ) loop"))
+         (conj s (peek (pop *loops*)))))
+
 (word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation, as call)"
        (fn [s]
          (need s 1 "execute")

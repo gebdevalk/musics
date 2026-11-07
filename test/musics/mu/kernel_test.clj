@@ -562,7 +562,7 @@
 (deftest endless-each-and-runaway-words
   (is (re-find #"each: an endless stream" (:error (run "'[1 2] [~] '( drop ) each"))))
   (is (re-find #"reduce: an endless stream" (:error (run "'[1 2] [~] 0 '( + ) reduce"))))
-  (is (re-find #"overflowed" (:error (run ": loop ( -- ) loop ; loop"))) "a word calling itself ends in an error, not a crash"))
+  (is (re-find #"overflowed" (:error (run ": spin ( -- ) spin ; spin"))) "a word calling itself ends in an error, not a crash"))
 
 
 (deftest forgetting-and-renaming-a-stored-name

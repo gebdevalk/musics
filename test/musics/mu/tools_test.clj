@@ -35,6 +35,18 @@
   (let [r (e/eval-input input)]
     (if (:error r) (:error r) (str/join " " (map p/show (:ok r))))))
 
+(deftest loop-runs-a-quotation-for-each-index
+  (is (= "0 1 2" (top "3 0 '( i ) loop")) "limit start: from start up to, not including, limit")
+  (is (= "2 3 4" (top "5 2 '( i ) loop")))
+  (is (= "10" (top "0 5 0 '( i + ) loop")) "the body works on the stack as it is")
+  (is (= "" (top "0 0 '( i ) loop")) "a start not below the limit runs it no times")
+  (is (= "0 1 2 10 11 12" (top "2 0 '( 3 0 '( i j 10 * + ) loop ) loop")) "j is the index of the loop around")
+  (is (= "7" (top "3 0 '( i ) loop drop drop drop 7")) "nothing of the loop is left running")
+  (is (re-find #"i: is the index of a do loop" (top "i")))
+  (is (re-find #"j: is the index of the loop around" (top "2 0 '( j ) loop")) "one loop has no outer index")
+  (is (re-find #"the body is a quotation" (top "3 0 5 loop")))
+  (is (re-find #"needs whole numbers" (top "2.5 0 '( i ) loop"))))
+
 (deftest value-and-variable-are-forths
   (is (= "5 7" (top "5 value five five 7 to five five")) "a value pushes itself; to changes it")
   (is (= "5 3" (top "5 variable v v @ 3 v ! v @")) "a variable pushes its place: @ reads, ! stores")

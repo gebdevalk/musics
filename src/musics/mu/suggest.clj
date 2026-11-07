@@ -13,7 +13,7 @@
    "lt" "<", "gt" ">", "le" "<=", "ge" ">=", "eq" "=", "ne" "<>", "neg" "negate"
    "pop" "drop", "up" "+", "down" "-", "stretch" "*", "shrink" "/"
    "reverse" "retrograde", "rest" "tail", "first" "head", "size" "length", "len" "length", "count" "length"
-   "print" ".", "show" "see", "quit" "bye", "exit" "bye", "loop" "cycle"
+   "print" ".", "show" "see", "quit" "bye", "exit" "bye"
    "repeat" "times", "context-of" "setting"
    "line" "[2] [3] … (the count in the sign: [c d] [e f] [2])", "together" "{2} {3} … (the count in the sign)", "beside" "{+}"
    "ROT" "rotate (the stack's is rot)", "SFL" "shuffle", "TRP" "transpose"})
