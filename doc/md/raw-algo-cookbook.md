@@ -14,48 +14,48 @@ Three things to keep in mind:
 
 ## Setup
 
-Type these once. `algorequire` loads a Clojure namespace of `musics.algo`, named without that start and quoted (`'rhythmic.pattern algorequire` is `"musics.algo.rhythmic.pattern" require`; a second quoted name, `'rhythmic.pattern 'p algorequire`, is its alias); `penta` is a word of our own, the scale the recipes play over.
+Type these once. `reqalgo` loads a Clojure namespace of `musics.algo`, named without that start and quoted (`'rhythmic.pattern reqalgo` is `"musics.algo.rhythmic.pattern" require`; a second quoted name, `'rhythmic.pattern 'p reqalgo`, is its alias); `penta` is a word of our own, the scale the recipes play over.
 
 ```
-mu> 'numeric.rng algorequire
+mu> 'numeric.rng reqalgo
 musics.algo.numeric.rng as rng/ (9 words)
-mu> 'rhythmic.pattern algorequire
+mu> 'rhythmic.pattern reqalgo
 musics.algo.rhythmic.pattern as pattern/ (12 words)
-mu> 'rhythmic.sieve algorequire
+mu> 'rhythmic.sieve reqalgo
 musics.algo.rhythmic.sieve as sieve/ (13 words)
-mu> 'rhythmic.meter algorequire
+mu> 'rhythmic.meter reqalgo
 musics.algo.rhythmic.meter as meter/ (5 words)
-mu> 'rhythmic.indispensability algorequire
+mu> 'rhythmic.indispensability reqalgo
 musics.algo.rhythmic.indispensability as indispensability/ (6 words)
-mu> 'rhythmic.process algorequire
+mu> 'rhythmic.process reqalgo
 musics.algo.rhythmic.process as process/ (13 words)
-mu> 'rhythmic.nature algorequire
+mu> 'rhythmic.nature reqalgo
 musics.algo.rhythmic.nature as nature/ (6 words)
-mu> 'rhythmic.data algorequire
+mu> 'rhythmic.data reqalgo
 musics.algo.rhythmic.data as data/ (3 words)
-mu> 'rhythmic.world algorequire
+mu> 'rhythmic.world reqalgo
 musics.algo.rhythmic.world as world/ (9 words)
-mu> 'rhythmic.feel algorequire
+mu> 'rhythmic.feel reqalgo
 musics.algo.rhythmic.feel as feel/ (6 words)
-mu> 'rhythmic.decompose algorequire
+mu> 'rhythmic.decompose reqalgo
 musics.algo.rhythmic.decompose as decompose/ (2 words)
-mu> 'numeric.random algorequire
+mu> 'numeric.random reqalgo
 musics.algo.numeric.random as random/ (41 words)
-mu> 'numeric.walk algorequire
+mu> 'numeric.walk reqalgo
 musics.algo.numeric.walk as walk/ (8 words)
-mu> 'numeric.markov algorequire
+mu> 'numeric.markov reqalgo
 musics.algo.numeric.markov as markov/ (1 words)
-mu> 'numeric.chaos.logistic algorequire
+mu> 'numeric.chaos.logistic reqalgo
 musics.algo.numeric.chaos.logistic as logistic/ (1 words)
-mu> 'numeric.chaos.lorenz algorequire
+mu> 'numeric.chaos.lorenz reqalgo
 musics.algo.numeric.chaos.lorenz as lorenz/ (1 words)
-mu> 'melodic.melody algorequire
+mu> 'melodic.melody reqalgo
 musics.algo.melodic.melody as melody/ (10 words)
-mu> 'melodic.serial algorequire
+mu> 'melodic.serial reqalgo
 musics.algo.melodic.serial as serial/ (12 words)
-mu> 'counterpoint.jeppesen algorequire
+mu> 'counterpoint.jeppesen reqalgo
 musics.algo.counterpoint.jeppesen as jeppesen/ (5 words)
-mu> 'bridge algorequire
+mu> 'bridge reqalgo
 musics.algo.bridge as bridge/ (25 words)
 mu> : penta ( -- l ) '[60 62 64 67 69] ;
 

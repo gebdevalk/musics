@@ -182,11 +182,11 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   heard at once; a mu namespace of its own (`kernel`, `pitch` …) can't be
   an alias. A function with a keyword tail (`& {:keys [length]}`) takes its
   `:key value` pairs written just before the word, or none: `13 r/bits`,
-  `13 :length 8 r/bits`; `see` shows them as `[:length v]`. `algorequire` is
+  `13 :length 8 r/bits`; `see` shows them as `[:length v]`. `reqalgo` is
   `require` for the namespaces of `musics.algo`, named without that start:
-  `"numeric.rng" algorequire` is `"musics.algo.numeric.rng" require`. A name
+  `"numeric.rng" reqalgo` is `"musics.algo.numeric.rng" require`. A name
   may be quoted instead of written in a string, dots and all, and an alias
-  follows it: `'bridge 'b algorequire`, `'numeric.rng 'r algorequire`
+  follows it: `'bridge 'b reqalgo`, `'numeric.rng 'r reqalgo`
   (`require` takes a quoted name too). An algorithm
   of `musics/algo/` takes all its arguments from the stack, as `see` lists
   them (`3 8 pattern/euclid`; its defaults are the tree's). `pull` calls a
@@ -201,7 +201,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   the synthesizers), `rate` (ratings and auditions), `mine`; new words
   go into `mine`;
 - the algorithms come in through `require` (below): `"rhythmic.pattern"
-  algorequire` makes `pattern/euclid` a word.
+  reqalgo` makes `pattern/euclid` a word.
 
 ## 6. Memory
 
@@ -921,9 +921,9 @@ above the prompt. The keys are three neighbours, unshifted to rate
 
 The algorithms of `musics/algo/` are plain Clojure functions, called by name with
 their arguments on the stack (the tutorial and `doc/md/raw-algo-cookbook.md` work
-through them). `"rhythmic.pattern" algorequire` makes the public functions of
+through them). `"rhythmic.pattern" reqalgo` makes the public functions of
 `musics.algo.rhythmic.pattern` words, `pattern/euclid`; a quoted name works too,
-dots and all, and an alias follows it (`'rhythmic.pattern 'p algorequire`).
+dots and all, and an alias follows it (`'rhythmic.pattern 'p reqalgo`).
 `see pattern/euclid` shows the stack effect, read from the function's own
 argument names: `( onsets pulses -- euclid )`.
 
@@ -963,7 +963,7 @@ argument names: `( onsets pulses -- euclid )`.
   function (`'( sum 5 - abs negate ) process/genetic`); `( '( … ) '( … ) )`
   gathers quotations into a list (the constraints of `melody/constrained`).
 - **A shared seed**: `7 rng/seed` makes the random words after it repeat
-  (`"numeric.rng" algorequire` first).
+  (`"numeric.rng" reqalgo` first).
 - **Live**: a quotation under a play word, or a word written with `$` inputs,
   plays live (see Live in the table above); an input is read and stored as
   `:bass/onsets @`, `7 :bass/onsets !`, checked against the range of the algo

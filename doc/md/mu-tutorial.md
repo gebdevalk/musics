@@ -1082,15 +1082,15 @@ applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 ## 15. Algorithms as functions
 
 The algorithms are plain Clojure functions, and mu calls them by name with their
-parameters on the stack. `'rhythmic.pattern algorequire` (that is
+parameters on the stack. `'rhythmic.pattern reqalgo` (that is
 `"musics.algo.rhythmic.pattern" require`, short for the namespaces of `musics.algo`)
 makes the public functions of that namespace words, `pattern/euclid`, and `see` shows
 what one takes, read from its own argument names. There is no settings object and no
 default: you say every parameter.
 
 ```
-'rhythmic.pattern algorequire
-'bridge algorequire
+'rhythmic.pattern reqalgo
+'bridge reqalgo
 see pattern/euclid                                    → pattern/euclid ( onsets pulses -- euclid )
 3 8 pattern/euclid                                    → '[1 0 0 1 0 0 1 0]
 3 8 pattern/euclid 1/16 bridge/pulses->durations      → '[3/16 3/16 1/8]
@@ -1114,9 +1114,9 @@ A function that gives one number per call is called n times with `pull`, which t
 quotation, or a function that keeps its place:
 
 ```
-'numeric.rng algorequire
-'numeric.random algorequire
-'numeric.walk algorequire
+'numeric.rng reqalgo
+'numeric.random reqalgo
+'numeric.walk reqalgo
 7 rng/seed                                            the random words after it repeat
 '( 0.0 1.0 random/normal ) 12 pull                    twelve draws
 60.0 3.0 walk/walk 8 pull                             a walk of eight steps, from 60
@@ -1126,7 +1126,7 @@ A quotation is also a function of what it is given, so it can be the fitness fun
 Clojure function wants; and a group of quotations, `( '( … ) '( … ) )`, is a list of them:
 
 ```
-'melodic.melody algorequire
+'melodic.melody reqalgo
 '[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained
 ```
 
@@ -1180,8 +1180,8 @@ A **word of your own** can be played with changeable numbers: write them as `$` 
 the definition, and play the word as a voice.
 
 ```
-'rhythmic.pattern algorequire
-'bridge algorequire
+'rhythmic.pattern reqalgo
+'bridge reqalgo
 : riff ( $onsets $pulses -- notes )
     $onsets $pulses pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 67] zip ;
 5 8 riff                           the seq it gives: [C4/8 D4/16 E4/8 G4/16 C4/8]

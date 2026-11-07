@@ -281,7 +281,7 @@ part: `>ctx` (`musics.mu.material/control->ctx`) turns a control above a
 `smooth` `in` `out`) -- into a `^{ }` of points at their times (`|
 :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx` is `^{ !volume:50
 !volume:70@1 !volume:90@2 }`), the longest finite column setting how
-many steps, the shorter ones cycling; `with` lays it under a seq. The algorithms are plain functions called by name (`"rhythmic.pattern" algorequire`, `3 8 pattern/euclid`, `pull` for a sampler or a walk; see "The algorithms" below) and `zip` puts the streams back onto a seq, a value per note. Instruments and drums stay apart: `instruments`/
+many steps, the shorter ones cycling; `with` lays it under a seq. The algorithms are plain functions called by name (`"rhythmic.pattern" reqalgo`, `3 8 pattern/euclid`, `pull` for a sampler or a walk; see "The algorithms" below) and `zip` puts the streams back onto a seq, a value per note. Instruments and drums stay apart: `instruments`/
 `:instrument` are programs (a drum has none), `drums`/`:drum`
 a drum's key of the kit, `as-drums` turns notes into drums; `!kit:brush`
 (`:kit`, the drum channel's program, by name from `musics.common.
@@ -665,8 +665,8 @@ plays unchanged (identity).
 An algorithm of `musics/algo/` is an ordinary Clojure function with clear
 argument names (`euclid [onsets pulses]`); there is no registry, tree or
 settings object between it and its caller. mu calls it by name with its
-arguments on the stack: `"rhythmic.pattern" algorequire` (or `"musics.algo.rhythmic.pattern"
-require`, a quoted name with dots too: `'rhythmic.pattern 'p algorequire`)
+arguments on the stack: `"rhythmic.pattern" reqalgo` (or `"musics.algo.rhythmic.pattern"
+require`, a quoted name with dots too: `'rhythmic.pattern 'p reqalgo`)
 makes its public functions words, `pattern/euclid`, and `3 8 pattern/euclid`
 runs one (`musics.kernel/require!`, `run-var`, `see` shows the stack effect).
 A function with several arities that names its full call in

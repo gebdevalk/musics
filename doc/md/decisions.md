@@ -3514,3 +3514,9 @@ messages, as its type `:SEQ` and grammar rule `Sequence` already did. "Line"
 stays for a bar line and a line of text (parse errors, `readLine`). Older
 entries here keep the word they were written with, including the removed word
 `line`.
+
+## 2026-11-07 — `algorequire` is `reqalgo`
+
+The word that requires a `musics.algo.` namespace is now `reqalgo`, a
+shorter name that still reads as "require" first (`"numeric.rng" reqalgo`).
+Earlier entries keep the old name as written.

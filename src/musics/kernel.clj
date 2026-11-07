@@ -198,12 +198,12 @@
      ((requiring-resolve 'musics.mu.library/register!) sym alias)
      (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
 
-(defn algorequire!
+(defn reqalgo!
   "Load a namespace of musics.algo, named without that start:
-   \"numeric.rng\" algorequire is \"musics.algo.numeric.rng\" require, and
-   'numeric.rng 'r algorequire gives it the alias r"
+   \"numeric.rng\" reqalgo is \"musics.algo.numeric.rng\" require, and
+   'numeric.rng 'r reqalgo gives it the alias r"
   {:mu {:optional {:alias short-name?}}}
-  ([ns] (algorequire! ns nil))
+  ([ns] (reqalgo! ns nil))
   ([ns alias] (require! (str "musics.algo." (name-of ns)) alias)))
 
 (defn in!
