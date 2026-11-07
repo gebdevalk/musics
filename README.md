@@ -10,10 +10,10 @@ mu, the musical REPL, and a GUI beside it.
 - **mu** — a stack-based musical REPL (`lein mu`) in which that text is
   a literal: `[c4 d e] 2 + [R] ->` transposes, reverses and plays. A
   `.mus` file is mu input too.
-- **Edit and analyse** — a line is a list you can address:
+- **Edit and analyse** — a seq is a list you can address:
   `[c d e] 1 g !` puts a note at an index (or down a path `'[1 2]`),
   `insert`, `_` and `[_]` delete, `concat` joins, `x 1/4 delay` starts
-  it late, settings written in the middle of a line stay with their
+  it late, settings written in the middle of a seq stay with their
   notes. Ask it things: `duration`, `at`, `bar`, `find`, `indexes`, `pulses`
   (its rhythm as a grid), `classes` and `prime-form` (`$[047]` `$(037)`,
   pitch-class sets), `key-of`, `chord-name` (`<c e g>1` is `"C:M"`),
@@ -45,7 +45,7 @@ lein mu
 R@ ->                              fetch it and play it
 @^{ onsets:3 pulses:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip ->
 stop
-help                              mu in a few lines ("chord" help searches the words)
+help                              mu in a few seqs ("chord" help searches the words)
 "song.mus" load                   read a file (.mus, .ly, .abc, .gmn)
 x "x.mid" render                  write a MIDI file
 gui                               the GUI beside mu
@@ -108,7 +108,7 @@ To understand how it works: [walk-through.md](doc/md/walk-through.md),
 | Document | What it covers |
 |---|---|
 | [doc/md/setup.md](doc/md/setup.md) | Audio setup: once, and every boot |
-| [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step: writing, editing, reading a line and analysing it |
+| [doc/md/mu-tutorial.md](doc/md/mu-tutorial.md) | mu, step by step: writing, editing, reading a seq and analysing it |
 | [doc/md/tutorial.md](doc/md/tutorial.md) | A guided tour: write, play, inspect, change while it plays |
 | [doc/md/raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) | The algorithms as plain functions in mu: 53 recipes, each run for real |
 | [doc/md/mu-repl.md](doc/md/mu-repl.md) | mu, the musical REPL: every word (editing, searching, time, analysis, algos, playback) and its design |

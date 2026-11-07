@@ -71,9 +71,9 @@
   (filter #(some (partial same? t) (key-names %)) (vals (ck/context-keys))))
 
 (def ^:private leaf-properties
-  "What a note, chord, rest or drum carries of its own, and for a duration also what a line has."
+  "What a note, chord, rest or drum carries of its own, and for a duration also what a seq has."
   {"pitch" "a note or chord"
-   "duration" "a note, chord or rest, or the length of a line"
+   "duration" "a note, chord or rest, or the length of a seq"
    "articulation" "a note or chord"})
 
 (defn- property [t]

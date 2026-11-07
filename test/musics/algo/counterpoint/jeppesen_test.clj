@@ -41,7 +41,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest first-species-rules
-  (is (empty? (rules [[[69 1] [69 1] [73 1] [74 1]] cf4] above)) "a correct line")
+  (is (empty? (rules [[[69 1] [69 1] [73 1] [74 1]] cf4] above)) "a correct seq")
   (is (contains? (rules [[[69 1] [72 1] [71 1] [74 1]] cf4] above) :parallel-perfects))
   (is (contains? (rules [[[74 1] [81 1] [76 1] [74 1]] cf4] above) :hidden-perfects)
       "similar motion into the octave, in two voices")

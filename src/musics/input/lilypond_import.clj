@@ -734,7 +734,7 @@
    Note's own trailing slots (musics.ebnf) -- unlike LilyPond, which
    allows e.g. a fermata glued straight onto a rest (`r4\\fermata`, a
    real, confirmed case: the final bar of bwv-988-v12.ly's own soprano
-   line). The tokens are still fully consumed either way (peel-suffix's
+   seq). The tokens are still fully consumed either way (peel-suffix's
    own loop doesn't change), only the ACCUMULATED text gets dropped for
    a rest's own head -- same 'best-effort, drop what has no equivalent'
    philosophy as every other unrepresentable decoration this converter
@@ -1204,7 +1204,7 @@
    \\times/\\tuplet body that converted to nothing at all (most concretely:
    the body was only ever a reference to a variable whose own defining
    \\include never got expanded -- a real, confirmed case in this corpus,
-   see bwv1007.ly, whose \\allemande/\\courante/\\sarabande \\include lines
+   see bwv1007.ly, whose \\allemande/\\courante/\\sarabande \\include seqs
    sit inside a %{ ... %} comment and so are correctly never expanded)
    can be dropped cleanly instead of emitted as an invalid, contentless
    `{  }`/`\\transpose x y {  }` -- same 'drop cleanly, don't emit
@@ -1761,7 +1761,7 @@
           ;; (and only) :brace unwrapped to its own children -- real
           ;; LilyPond's own `name = { ... }` spelling means \"this
           ;; variable's value is exactly this Sequence\", what mu's
-          ;; binding of a line means too ('name [ body ] :=). var-defs
+          ;; binding of a seq means too ('name [ body ] :=). var-defs
           ;; (ly-text->mus-text) already supplies THAT wrapping bracket
           ;; itself when it emits the binding,
           ;; so calling emit-stream on the raw :brace token directly
@@ -1771,7 +1771,7 @@
           ;; real, if harmless (both reparse fine), redundant-nesting
           ;; artifact this was silently producing before it became
           ;; visible once pretty-print-mus started giving each bracket
-          ;; its own line. A value that ISN'T a single bare brace (e.g.
+          ;; its own seq. A value that ISN'T a single bare brace (e.g.
           ;; \\relative c' { ... }) already avoids this on its own --
           ;; relative-block-text's own inner text is the body's children
           ;; directly, no extra wrap -- so this only ever applies to the
@@ -1825,12 +1825,12 @@
    #6 ('pretty printed for #{ ... \\n } [ .... \\n ]', both from
    musics-DSL's own CLAUDE.md, adapted to musics.ebnf's own current
    bracket vocabulary -- #{ }/Parallel is now bare { }, see emit-voice.
-   '['/'{'/'(' always starts a fresh, deeper-indented line; ']'/'}'/')'
-   always closes back onto its own line at the OPENING bracket's own
+   '['/'{'/'(' always starts a fresh, deeper-indented seq; ']'/'}'/')'
+   always closes back onto its own seq at the OPENING bracket's own
    (shallower) indent; a run of chunk-size or more plain tokens in a
    row (not itself a bracket) wraps onto a new line at the current
    depth, so a long, flat passage of notes doesn't end up as one giant
-   line. Safe to rely on brackets always being their own, space-
+   seq. Safe to rely on brackets always being their own, space-
    delimited tokens -- every '['/']'/'{'/'}'/'('/')' this converter
    ever emits (emit-stream/emit-voice) is already surrounded by spaces
    in the source string, by construction, never glued onto an adjacent

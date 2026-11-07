@@ -831,7 +831,7 @@
 (defn- walk-bareword
   "name: -- names the container it opens. Inside a body that is never
    stored under a name (nameless), the name would be lost, so it is
-   refused, pointing to a line of its own inside it."
+   refused, pointing to a seq of its own inside it."
   [state children]
   (let [name-val (some (fn [c]
                          (cond
@@ -842,7 +842,7 @@
       (let [idx (dec (count (:stack state)))]
         (when-let [what (nameless (:type (peek (:stack state))))]
           (throw (ex-info (str (name name-val) ": a name inside " what " would be lost -- "
-                               "name a line inside it instead, [" (name name-val) ": … ]")
+                               "name a seq inside it instead, [" (name name-val) ": … ]")
                           {:id name-val :in what})))
         (update-in state [:stack idx :id] (constantly name-val)))
       state)))
@@ -883,7 +883,7 @@
 (defn- point-time
   "When an instruction's point is: its @ time, from the start of the
    container it is written in (a ^{ }, or a line: with puts a context's
-   instructions at a line's start), else where it is written."
+   instructions at a seq's start), else where it is written."
   [state children]
   (or (at-time children) (duration state)))
 
@@ -1398,7 +1398,7 @@
 ;; leaf run.
 
 (defn- walk-shuffle
-  "shuffle [ … ] -- a line of its own, marked :shuffle, so playback
+  "shuffle [ … ] -- a seq of its own, marked :shuffle, so playback
    orders it anew each time (musics.compose/play-order)."
   [state children]
   (let [seq-node (find-child children :Sequence)
@@ -1408,7 +1408,7 @@
         (walk-children (rest seq-node))
         flat/pop-container)))
 
-;; the elements a reorder moves: notes, lines and repeats -- instructions,
+;; the elements a reorder moves: notes, seqs and repeats -- instructions,
 ;; bar lines and jumps keep their places (as musics.compose/play-order)
 (defn- movable? [c]
   (or (keyword? c) (d/iterator? c) (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c)))))
@@ -1425,7 +1425,7 @@
 (defn- signed-int [node] (Long/parseLong (str/replace (second node) #"^\+" "")))
 
 (defn- walk-shuffle-now
-  "shuffle ( … ) -- its notes, lines and repeats in a random order, now
+  "shuffle ( … ) -- its notes, seqs and repeats in a random order, now
    (musics.algo.numeric.random, so a seed repeats it)."
   [state children]
   (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
@@ -1433,7 +1433,7 @@
     (-> (update-in s [:stack idx :children] reorder-movable rnd/shuffle) flat/pop-container)))
 
 (defn- walk-rotate-now
-  "rotate n ( … ) -- its notes, lines and repeats rotated n places, now."
+  "rotate n ( … ) -- its notes, seqs and repeats rotated n places, now."
   [state children]
   (let [n (signed-int (find-child children :SignedInt))
         s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
@@ -1441,7 +1441,7 @@
     (-> (update-in s [:stack idx :children] reorder-movable (partial rotated n)) flat/pop-container)))
 
 (defn- walk-rotate
-  "rotate n [ … ] -- a line of its own, marked :rotate n, so playback
+  "rotate n [ … ] -- a seq of its own, marked :rotate n, so playback
    rotates it n places further each time it is entered
    (musics.compose/play-order)."
   [state children]
@@ -1453,7 +1453,7 @@
         flat/pop-container)))
 
 (defn- marked-line
-  "A line of its own, marked with mark, its body the Sequence among
+  "A seq of its own, marked with mark, its body the Sequence among
    children: a part playback orders as it plays (musics.compose/play-order)."
   [state children mark]
   (let [s   (flat/push-container state :SEQ)
@@ -1650,7 +1650,7 @@
             t          (d/written-duration (:repo s2) (peek (:stack s2)))
             ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
-            ;; every note at any depth -- nested lines, referenced parts (as
+            ;; every note at any depth -- nested seqs, referenced parts (as
             ;; copies), repeats -- moves by the interval, its name spelled in
             ;; the key transposed with it (C -> D for transpose c d);
             ;; :key-shift records by how much, so playback transposes the

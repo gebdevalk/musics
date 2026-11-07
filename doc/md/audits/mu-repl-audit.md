@@ -5,7 +5,7 @@ prompt: the grammar (`mu.ebnf`), the word registry as `musics.mu.library`
 builds it, and how words behave on real input. No code was changed.
 
 Method: the live registry was dumped (606 words) and about 110 inputs were run
-through `musics.mu.eval/eval-input`, so every "evidence" line below is real
+through `musics.mu.eval/eval-input`, so every "evidence" seq below is real
 output, not reading. Not covered: Tab completion, key bindings (Alt+...),
 history and the JLine layer (they need a real terminal), the GUI, and the 336
 generated algo words beyond their naming scheme.
@@ -34,13 +34,13 @@ Each finding names the yardstick it serves:
 
 **H1. Any error empties the whole stack (A fine, B hurts).**
 `[c d e] 7 +`, then `1 2`, then `foo`, then `depth` gives `0`. The music built
-over several lines is gone because of one typo. `eval-input` documents this
+over several seqs is gone because of one typo. `eval-input` documents this
 ("after which the stack is empty"), and it matches Forth's ABORT, but a mu
 stack holds composed material, not scratch numbers.
 Fix: restore the stack to what it was before the failing input.
 
 **H2. The `drop` rename is silent for old scripts (B).**
-`[c d e f] 2 drop` is now valid: it discards the `2` and leaves the line
+`[c d e f] 2 drop` is now valid: it discards the `2` and leaves the seq
 untouched, with no error. Before the rename it cut two elements. The rename
 itself is right (A); the failure mode is the problem.
 Fix options: (a) `drop` refuses a number lying on music or data, saying "to
@@ -78,7 +78,7 @@ Fix: allow `'` in `EffectName` (one character in `mu.ebnf`).
 
 ### Medium
 
-**M1. Case twins (A).** `ROT` (rotate a line) and `rot` (stack) differ only in
+**M1. Case twins (A).** `ROT` (rotate a seq) and `rot` (stack) differ only in
 case and mean unrelated things. `SFL` and `TRP` are further upper-case
 shorthands. A name pair that differs only in case is a typo trap and cannot be
 spoken. Fix: drop `ROT`/`SFL`/`TRP` from mu (they belong to the text
@@ -97,13 +97,13 @@ help says "also times, [*]" while `times`'s says "also [*]". `context-of` and
 `store`/`R!`, `fetch`/`R@` do cross-reference. Pick a rule: either every
 twin lists the others, or only one is registered.
 
-**M4. Four ways to build a line, four to build a parallel (A).**
-`[n]`, `line`, `| ... seq`, `( ... )` for a line; `{n}`, `together`,
+**M4. Four ways to build a seq, four to build a parallel (A).**
+`[n]`, `seq`, `| ... seq`, `( ... )` for a seq; `{n}`, `together`,
 `| ... par` for a parallel, plus `{+}`/`beside` to merge. All work, all tested.
 `( )` and `| seq` overlap fully for the common case. This is the largest
 doublure by usage frequency.
 
-**M5. `chord` takes all notes on top; `line` and `together` take a count
+**M5. `chord` takes all notes on top; `seq` and `together` take a count
 (A, B).** `c4 e g <>` works; `c e g 3 chord` fails with "needs notes on top
 of the stack". Same job (gather the top), two conventions.
 
@@ -206,9 +206,9 @@ edit loop at the prompt is short.
 
 Where compactness is bought with doublures: 45 alias groups. Where it is
 missing: the broadcast over streams (`'( 12 add ) map` is 14 characters for
-what `12 +` does on a line), the "make a line from n things" idiom (four
+what `12 +` does on a seq), the "make a seq from n things" idiom (four
 spellings, none shorter than `[n]`), and reading a setting (`:volume setting`
-is 16 characters; `volume` works on a note but refuses a line).
+is 16 characters; `volume` works on a note but refuses a seq).
 
 Bracket signs (`[R]`, `[I]`, `[T]`, `[||]`) are short to read but cost three
 keystrokes each on most layouts (two shifted brackets plus the letter), so
@@ -236,7 +236,7 @@ it is spelled and how it fails.
 2. H2 (`drop` guard) and H3 (data arithmetic): decide refuse versus broadcast.
 3. M7 (`help`, did-you-mean for words): the machinery exists for marks.
 4. M1, M2, M3: small renames or removals, but breaking, so batch them.
-5. H4 (type-dispatched `+ - * /`) and M4 (collapsing line builders): design
+5. H4 (type-dispatched `+ - * /`) and M4 (collapsing seq builders): design
    discussions, not edits.
 
 ## Open questions for the author
@@ -244,7 +244,7 @@ it is spelled and how it fails.
 - Is a failing input meant to cost the stack (H1), or is that only the
   Forth heritage?
 - Should the signs `+ - * /` dispatch on type, or stay musical-only (H4)?
-- Is the third and fourth way to build a line (`( )` and `| seq`) kept for a
+- Is the third and fourth way to build a seq (`( )` and `| seq`) kept for a
   reason, or did they arrive one at a time (M4)?
 - Are `ROT`/`SFL`/`TRP` wanted in mu at all (M1)?
 
@@ -259,8 +259,8 @@ it is spelled and how it fails.
 | H5 `x'` in definitions | done |
 | M1 case twins | done: `ROT` `SFL` `TRP` `ALT` `CHS` gone, grammar included |
 | M2 `[%]` | done: `[%]` is `rotating` |
-| M3 doublures | done: `repeat`, `context-of`, `line`, `together`, `beside` gone |
-| M4 line and parallel builders | done: `[n]` `{n}` `( )`; the words taking as many values as you like (`zip` `>ctx` `par` `chord` `()`) gather from the `\|` mark, else the whole stack; `seq` gone |
+| M3 doublures | done: `repeat`, `context-of`, `seq`, `together`, `beside` gone |
+| M4 seq and parallel builders | done: `[n]` `{n}` `( )`; the words taking as many values as you like (`zip` `>ctx` `par` `chord` `()`) gather from the `\|` mark, else the whole stack; `seq` gone |
 | M5 `chord` | done: the same rule |
 | M6 naming | done: `head` is the first element, `first` gone |
 | M7 `help`, did-you-mean | done |

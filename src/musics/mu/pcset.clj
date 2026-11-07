@@ -1,6 +1,6 @@
 (ns musics.mu.pcset
   "Sets of pitch classes as mu values: $[047] the classes of a chord, a
-   line, $(037) a prime form, $<001110> an interval vector. A value is a
+   seq, $(037) a prime form, $<001110> an interval vector. A value is a
    musics.mu.value/PcSet, its kind and its numbers; what reads a list
    reads its numbers (musics.mu.material/elements), what changes them
    gives a plain list back, so the kind lasts only while the numbers are

@@ -77,7 +77,7 @@ LilyPond:
 
 ```
 frag = \relative bes { <as bes des f>8. <bes c es g> c }
-line = { \tempo 4 = 68 \key f \minor \frag \frag }
+seq = { \tempo 4 = 68 \key f \minor \frag \frag }
 ```
 
 musics:

@@ -116,7 +116,7 @@
 (defn play-word!
   "Start voice (a keyword id) from the word `word`, written with : … ; and
    $ inputs, those inputs holding values (in the order of its stack effect).
-   Each note the voice reaches is the next of the line the word gives with
+   Each note the voice reaches is the next of the seq the word gives with
    the inputs it holds now; :voice/input reads or stores one. staged:
    [count] when it waits for a boundary (->>)."
   [word voice values ctx join? staged]

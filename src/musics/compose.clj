@@ -46,7 +46,7 @@
 
 (defn over?
   "Whether a chain link is an override: a context written before the
-   music (a play arg's leading ^{ }, or one in front of a line in the
+   music (a play arg's leading ^{ }, or one in front of a seq in the
    text), which stays first in the chain -- in front of the music's own
    contexts and of each note's baked ones -- so it wins for the keys it
    sets (doc/md/decisions.md, 2026-10-15)."
@@ -76,7 +76,7 @@
 (defn play-order
   "children (resolved nodes) in the order part plays them, entered for
    the n-th time (0 the first): as written; for a shuffle [ … ] its
-   notes, lines and repeats in a new random order (musics.algo.numeric.random,
+   notes, seqs and repeats in a new random order (musics.algo.numeric.random,
    so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
    choose [ … ] one of them, picked at random (as often as its :weights
    say, if it has them); for an alternate [ … ] the
@@ -656,7 +656,7 @@
 
 (defn display
   "Which voice (play form) or (play form :algo name) would give which
-   material, as musics text -- one line per top-level voice, labelled
+   material, as musics text -- one seq per top-level voice, labelled
    as play names it, a { } branch labelled with its own voice, an :algo
    shown where it applies. Notes are spelled absolutely (C4/4); nothing
    is timed or transformed -- see display-timed for onsets."

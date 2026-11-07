@@ -43,13 +43,13 @@
       (conj below (f xs)))))
 
 (defn- music-or-marker?
-  "Music, or a bar line or jump mark among a line's elements."
+  "Music, or a bar line or jump mark among a seq's elements."
   [x]
   (or (mt/music? x) (mt/marker? x)))
 
 (defmulti gathered
   "What the values of a ( … ) group make, decided by the first: music a
-   line [ ], a number, keyword or data list a data list '[ ] (of lists, when
+   seq [ ], a number, keyword or data list a data list '[ ] (of lists, when
    they are lists), a quotation a list of quotations (for a function that
    takes functions, such as the constraints of melody/constrained). The rest
    must be of the same kind."
@@ -61,7 +61,7 @@
     (e/mu-error "( … ):" "gathers" what "into" (str into ", and left") (p/show x))))
 
 (defmethod gathered :music [xs]
-  (all-of music-or-marker? "music" "a line" xs)
+  (all-of music-or-marker? "music" "a seq" xs)
   (mt/line xs))
 
 (defmethod gathered :data [xs]
@@ -73,7 +73,7 @@
   (vec xs))
 
 (defmethod gathered :other [xs]
-  (e/mu-error "( … ): gathers music into a line, plain values into a '[ ] or quotations into a list, and left" (p/show (first xs))))
+  (e/mu-error "( … ): gathers music into a seq, plain values into a '[ ] or quotations into a list, and left" (p/show (first xs))))
 
 (word! "music" "par" "( | m... -- m )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
        (gather "par" mt/par-of))
@@ -88,7 +88,7 @@
       (let [items (subvec s (- (count s) n))]
         (run! #(mt/sounding! w %) items)
         (when-let [bad (first (remove #(or (mt/leaf? %) (v/material? %)) items))]
-          (e/mu-error (str w ":") "takes music (notes, lines, parallels), got" (p/show bad)
+          (e/mu-error (str w ":") "takes music (notes, seqs, parallels), got" (p/show bad)
                       "-- numbers gather into a list with ( 1 2 )"))
         (conj (subvec s 0 (- (count s) n)) (f items))))))
 
@@ -97,13 +97,13 @@
 (word! "music" "[n]" "( x... n -- m )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
-(word! "music" "{+}" "( m1 m2 -- m3 )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a line is one part"
+(word! "music" "{+}" "( m1 m2 -- m3 )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a seq is one part"
        (fn [s]
          (need s 2 "{+}")
          (let [b (peek s) a (peek (pop s))]
            (doseq [x [a b]]
              (when-not (or (v/material? x) (mt/leaf? x))
-               (e/mu-error "{+}: joins parallels, a line being one part -- got" (p/show x))))
+               (e/mu-error "{+}: joins parallels, a seq being one part -- got" (p/show x))))
            (let [bs (if (= :PAR (mt/kind b)) (mt/elements b) [b])]
              (conj (pop (pop s))
                    (if (= :PAR (mt/kind a))
@@ -120,7 +120,7 @@
 
 ;; -- zip: leaves from their parts ------------------------------------------------
 
-(word! "music" "zip" "( durations pitches -- m ) or ( | [:part] stream... -- m )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed line is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
+(word! "music" "zip" "( durations pitches -- m ) or ( | [:part] stream... -- m )  a note's parts joined: the top two, or all above a | mark -- durations, pitches (or drums), articulations, dynamics, ornaments or tremolos, ties, then overrides (:volume :instrument :pan …). A stream a reader or algo word gave knows its part, a :name before one names it, the rest take the free parts in that order. One note per duration, the other parts cycling and stepping once per note; at a rest (r, or a nil pitch) their values go unused, and a nil writes nothing. Durations in a loop give a loop: | [c8 d e] [~] durations [c e g a] pitches volume/walk zip. An unnamed seq is written on, keeping its form, a part given replacing its own: [c d e] volume/walk zip. Without durations and pitches it gives a bundle, the parts as columns, each as long as it is: '[:pitch '[60 62 64] :volume '[90 70]] -- zip takes it again as its parts"
        (fn [s]
          (let [[below xs] (e/to-mark s)]
            (when (and (< (count xs) 2) (not (some mt/bundle-columns xs)))

@@ -48,14 +48,14 @@
   (is (= "[C4/4 D4]" @kernel/edit-text) ", leaves the top's text for the next prompt"))
 
 (deftest spreading
-  (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d e] spread")))) "a line's notes, one an item")
+  (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d e] spread")))) "a seq's notes, one an item")
   (is (= ["[C4/4 D4]" "[E4/4]"] (map p/show (:ok (run "{[c d] [e]} **")))) "** is spread: a parallel's parts")
   (is (= [1 2 3] (:ok (run "'[1 2 3] spread"))) "data's values")
   (is (= [7 1 2] (:ok (run "7 '[1 2] **"))) "what lies under stays")
   (is (= ["C4/4" "D4/4" "E4/4"] (map p/show (:ok (run "[c d | e] spread")))) "bar lines left out")
   (is (= ["C4/4" "D4/4"] (map p/show (:ok (run "[c $ d DS] spread")))) "jump marks left out")
   (is (re-find #"spread: .*endless" (:error (run "'[1 2] cycle spread"))) "an endless stream refused")
-  (is (re-find #"^spread: needs a line, a list or a stream" (:error (run "7 spread"))) "an error named by the word"))
+  (is (re-find #"^spread: needs a seq, a list or a stream" (:error (run "7 spread"))) "an error named by the word"))
 
 (deftest numbers
   (is (= [3 1/4 6 1/2 2 -3 3 2 4 3 0.75 3/4]
@@ -162,7 +162,7 @@
     (is (repo/current :theme)))
   (testing "an auto id"
     (is (re-matches #":s\d+" (str (first (:ok (run "[e f] R!")))))))
-  (testing "a leaf is stored as a one-leaf line"
+  (testing "a leaf is stored as a one-leaf seq"
     (is (= "" (out "c4 :one R!")))
     (is (= "[one: C4/4]" (p/show (first (:ok (run ":one R@")))))))
   (testing "R! leaves the id on the stack"
@@ -289,7 +289,7 @@
 
 (deftest an-inherited-duration-is-left-out
   (is (= "[C4/4 D4/8 E4 F4/4]" (p/show (first (:ok (run "[c4 d8 e f4]"))))) "only where it changes")
-  (is (= "[C4/8 [D4 E4] F4]" (p/show (first (:ok (run "[c8 [d e] f]"))))) "across nested lines, as the reader inherits")
+  (is (= "[C4/8 [D4 E4] F4]" (p/show (first (:ok (run "[c8 [d e] f]"))))) "across nested seqs, as the reader inherits")
   (is (= "{[C4/8 D4] [E4 F4/4]}" (p/show (first (:ok (run "{[c8 d] [e f4]}"))))))
   (is (= "C4/4" (p/show (first (:ok (run "c4"))))) "the first is always written")
   (doseq [t ["[c4 d8 e f4]" "[c8 [d e] f]" "{[c8 d] [e f4]}" "[c4 r x\\36 <c e g>8 d]"]]
@@ -301,7 +301,7 @@
   (is (= "[5:4(A3/16 B3 C4 D4 E4)]" (p/show (first (:ok (run "[5:4( a16 b c d e )]"))))))
   (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8 d e] 2/3 *"))))) "mu's * as a tuplet")
   (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "[c8*2/3 d e]"))))) "a note's own factor too")
-  (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "3:2( c8 d e )"))))) "typed at the top level, a line")
+  (is (= "[3:2(C4/8 D4 E4)]" (p/show (first (:ok (run "3:2( c8 d e )"))))) "typed at the top level, a seq")
   (is (= "[3:2(C4/8 r x)]" (p/show (first (:ok (run "[3:2( c8 r8 x8 )]"))))) "rests and drums in the group")
   (doseq [t ["[a 3:2( c8 d e ) f]" "[c4 d e] 1/3 *" "[3:2( c8 3:2( d16 e f ) g8 )]" "[3:2( c8. d16 e8 )]"]]
     (let [shown (p/show (first (:ok (run t))))]
@@ -323,9 +323,9 @@
 
 (deftest hairpins
   (is (= "[!vol:50< C4/4 D4 E4 F4 !vol:90]" (p/show (first (:ok (run "[c d e f] 90 cresc")))))
-      "a crescendo from the line's volume (here the defaults') to 90")
+      "a crescendo from the seq's volume (here the defaults') to 90")
   (is (= "[!mf !vol:60> C4/4 D4 !vol:30]" (p/show (first (:ok (run "[!mf c d] 30 dim")))))
-      "a decrescendo from the line's own mf, after its leading instructions")
+      "a decrescendo from the seq's own mf, after its leading instructions")
   (let [shown (p/show (first (:ok (run "[c d e f] 90 cresc"))))]
     (is (= shown (p/show (first (:ok (run shown))))) "reads back the same"))
   (is (re-find #"target volume 0-100" (:error (run "[c d] 200 cresc")))))
@@ -411,7 +411,7 @@
           (run "[!tempo:60 c1] ->")
           (is (= 1 (count (ids))) "unnamed -> stops everything")
           (run "[bass: !tempo:60 c1 d1] [~] ->")
-          (is (contains? (ids) :bass) "a loop plays as the line it repeats")
+          (is (contains? (ids) :bass) "a loop plays as the seq it repeats")
           (run "[mel: !tempo:60 e1 f1] ->")
           (run "[bass: !tempo:60 g1] ->>")
           (is (= [[:bass :exit]] (filter #(= :bass (first %)) (keys (conductor/scheduled))))
@@ -522,23 +522,23 @@
 
 (deftest a-group-is-one-line
   (let [show #(p/show (first (:ok (run %))))]
-    (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered into a line")
+    (is (= "[[C4/4 D4] [E4 F4]]" (show "( [c d] [e f] )")) "what it leaves, gathered into a seq")
     (is (= "[C4/4 D4 E4]" (show "( c d e )")))
     (is (= "[!K:D&.major repeat 2 [D&4/4 E&4] volta [[F4] [G&4]]]" (show "( [c d] 2 times [e] [f] volta ) 1 +"))
-        "one line, so a word reaches all of it: the key covers the endings too")
+        "one seq, so a word reaches all of it: the key covers the endings too")
     (is (= "[D4/4 D4]" (show ": twice ( $x -- y ) ( $x $x ) ; d4 twice")) "inside a definition, with locals")
     (is (= "[C4/4 D4 E4]" (show "c d e ()")) "() alone gathers the stack")
     (is (= "'[60 62]" (show "60 62 ()")))
     (is (= ["C4/4" "D4/4" "'[60 62]"] (map p/show (:ok (run "c d | 60 62 ()")))) "only what lies above a |")
     (is (re-find #"nothing on the stack" (:error (run "()"))))
-    (is (= "[!M:3/4 C4/4 D4 E4]" (show "[c d e] M:3/4 with")) "a setting alone lies under a line with with")
+    (is (= "[!M:3/4 C4/4 D4 E4]" (show "[c d e] M:3/4 with")) "a setting alone lies under a seq with with")
     (is (= "[!T:8=200 C4/4 D4 E4]" (show "[c d e] T:8=200 with")))
     (is (= "<C4 D#4 G4 A#4>4" (show "c:m7")) "a chord symbol is still a chord")
     (is (= "'[1 2]" (show "( 1 2 )")) "numbers gather into a data list")
     (is (= "'[1/4 1/8]" (show "( 1/4 1/8 )")))
     (is (= "'[72 62]" (show "( 60 12 + 62 )")) "computed values")
     (is (= "'['[1 2] '[3 4]]" (show "( '[1 2] '[3 4] )")) "data lists gather into a list of lists")
-    (is (re-find #"gathers music into a line, and left 1" (:error (run "( c 1 )"))) "the first value decides")
+    (is (re-find #"gathers music into a seq, and left 1" (:error (run "( c 1 )"))) "the first value decides")
     (is (re-find #"gathers plain values into a '\[ \], and left C4" (:error (run "( 1 c )"))))
     (run "( [c d] 2 times [e] [f] volta ) 1 + ^{ !K:D.major } with :grouped R!")
     (is (= [61 63 65 61 63 66] (mapv (comp first :pitches) (filter #(= :note (:kind %)) (ev/events (repo/registry) :grouped))))
@@ -602,7 +602,7 @@
   (is (= "(not stored under :ROOT -- its own context only)\n  Tempo=90@0\n" (out "[!T:90 c d] ctx")) "its own settings, where they begin")
   (run "[a: !T:90 c d] R! drop")
   (is (= ":a: Tempo=90@0\n" (out ":a ctx")) "a stored name, its chain")
-  (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the line fetched with R@")
+  (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the seq fetched with R@")
   (is (re-find #"something stored" (:error (run "7 ctx"))) "anything else is refused"))
 
 (deftest java-s-first-run-preferences-line-is-quiet
@@ -663,7 +663,7 @@
       (is (= "tempo is a musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ]." (run-out "about tempo"))))
     (testing "pitch, duration and articulation are properties of leaves"
       (is (re-find #"^pitch is a property of a note or chord\.\npitch is a word of mu" (run-out "about pitch")))
-      (is (= "duration is a property of a note, chord or rest, or the length of a line." (first (str/split-lines (run-out "about duration"))))))
+      (is (= "duration is a property of a note, chord or rest, or the length of a seq." (first (str/split-lines (run-out "about duration"))))))
     (testing "a mark, an instrument, a drum, a scale, an articulation"
       (is (= "!allegro is a mark (it sets Tempo to 138) and can appear in ^{ }, { } and [ ]." (run-out "about allegro")))
       (is (= "violin is an instrument (vln, program 40) and can appear in ^{ }, { } and [ ]." (run-out "about violin")))

@@ -121,7 +121,7 @@
       (is (= (mapv :duration base) (mapv :duration rev))
           "same durations, just in reverse order along with everything else"))))
 
-;; transpose and reverse reach into nested lines, references and repeats
+;; transpose and reverse reach into nested seqs, references and repeats
 ;; (builder/deep-children!); a part referenced from outside changes as a copy.
 
 (deftest reverse-recurses-into-nested-lines
@@ -130,13 +130,13 @@
         inner (get tree :inner)]
     (is (= [65 :inner 60] (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
         "the top level reversed")
-    (is (= [[64] [62]] (mapv :pitches (:children inner))) "and the line inside it too")))
+    (is (= [[64] [62]] (mapv :pitches (:children inner))) "and the seq inside it too")))
 
 (deftest transpose-recurses-and-copies-a-reference
   (let [{:keys [tree]} (v/read-domain "[mot: c4 d4] [song: transpose c d ( e4 [inner: f4] :mot repeat 2 [g4] )]")
         song (get tree :song)
         [_ inner-id copy-id it] (:children song)]
-    (is (= [[67]] (mapv :pitches (:children (get tree inner-id)))) "a nested line moves")
+    (is (= [[67]] (mapv :pitches (:children (get tree inner-id)))) "a nested seq moves")
     (is (not= :mot copy-id) "a referenced part is copied")
     (is (= [[62] [64]] (mapv :pitches (:children (get tree copy-id)))) "and the copy moves")
     (is (= [[60] [62]] (mapv :pitches (:children (get tree :mot)))) "the original keeps its pitches")
@@ -145,7 +145,7 @@
 (deftest a-name-inside-a-nameless-body-is-refused
   (doseq [t ["[transpose c d ( x: c4 d4 )]" "[retrograde ( x: c4 d4 )]" "[3:2( x: c8 d e )]"]]
     (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (v/read-domain t)) t))
-  (testing "a line of its own inside it keeps its name"
+  (testing "a seq of its own inside it keeps its name"
     (is (contains? (:tree (v/read-domain "[transpose c d ( [x: c4 d4] )]")) :x))))
 
 (defn- pitches-of [text id] (mapv (comp first :pitches) (:children (get (:tree (v/read-domain text)) id))))
@@ -481,7 +481,7 @@
     (is (= [60 63 67 70 74 81] (:pitches (first-wrapped-token "C4:m13^11")))
         "m13 keeps its 11 by default (see chord-symbol-extended-qualities), removed here explicitly")))
 
-;; ── Chord symbols in a line ─────────────────────────────────
+;; ── Chord symbols in a seq ─────────────────────────────────
 ;; A note with a ':' quality is a chord, its quality
 ;; required. A tremolo is 8/16/32/64/128, never a quality, so the two
 ;; can't meet.
@@ -872,7 +872,7 @@
     (is (= [62] (:pitches (first (:children (get tree :b))))))))
 
 (deftest a-bound-lines-instruction-sticks-forward-via-replay
-  (testing "!f inside the bound line reaches the reference site's context
+  (testing "!f inside the bound seq reaches the reference site's context
             and sticks forward, as transpose/a grace decoration do"
     (let [vctx (:context (get (read-mu "'motif [!f c4 d4] := [v: \\motif e4]") :v))]
       (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))

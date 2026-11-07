@@ -41,7 +41,7 @@
 (defn biased-walk
   "Like walk but with directional bias.
    bias > 0.5 trends upward, < 0.5 trends downward.
-   Use for melodic lines with intentional contour."
+   Use for melodic seqs with intentional contour."
   {:algo {:pull {} :in [] :out :number
           :params {:start      (assoc num-spec :default 60.0 :doc "first value")
                    :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
@@ -78,7 +78,7 @@
 
 (defn tendency
   "Koenig's tendency mask: :len values, each drawn uniformly between a
-   lower and an upper bound that move in a straight line from their
+   lower and an upper bound that move in a straight seq from their
    start to their end values, so a texture narrows, widens or drifts."
   {:algo {:in [] :out :number
           :params {:len      {:type :int :min 1 :max 1024 :default 16 :doc "how many values"}

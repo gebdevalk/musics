@@ -45,7 +45,7 @@
 
 (defn- up
   "x with every pitch up n semitones, its key with it (!K: at the start of its
-   line); a key moves up too."
+   seq); a key moves up too."
   [x n]
   (if (mt/key? x)
     (do (whole! n) (el/transpose-key x n))
@@ -70,7 +70,7 @@
 (defn- through
   "x, a data list or stream, with f of each element: a finite one's worked
    out at once (so an error comes with the word), an endless one's lazily.
-   A seq, not a vector: a vector would print as a line."
+   A seq, not a vector: a vector would print as a seq."
   [x f]
   (let [lazy? (mt/endless? (mt/streamed x))]
     (mt/reshape x (fn [els] (if lazy? (map f els) (doall (map f els)))))))

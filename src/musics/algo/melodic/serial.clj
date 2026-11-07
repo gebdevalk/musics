@@ -14,7 +14,7 @@
      (interval-vector [0 4 7])      [0 0 1 1 1 0]
 
    And Slonimsky's polations (Thesaurus of Scales and Melodic Patterns,
-   1947), relative to a line of principal tones:
+   1947), relative to a seq of principal tones:
      (infra p ins)            ins before each tone
      (ultra p ins)            ins after each tone
      (inter p ins)            ins between neighbouring tones

@@ -28,7 +28,7 @@
 
 (defonce state (atom (fresh-state)))
 
-(defonce ^{:doc "How a line printed while mu waits for input reaches the terminal:
+(defonce ^{:doc "How a seq printed while mu waits for input reaches the terminal:
    println, or the line reader's printAbove (above the prompt)."}
   print-above (atom println))
 
@@ -328,7 +328,7 @@
                (let [[below xs] (to-mark stack)]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
-               ;; what it makes follows its first value: music a line, plain values a '[ ]
+               ;; what it makes follows its first value: music a seq, plain values a '[ ]
                (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
@@ -451,7 +451,7 @@
           shown    (take 12 literals)]
       (str "can't read this (line " line ", column " column "):\n" src "\n" (apply str (repeat (dec (or column 1)) \space)) "^"
            (when (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))
-             "\na { } holds lines, one a voice: {[c] [d]}; <c d> is a chord, [c d] a line")
+             "\na { } holds seqs, one a voice: {[c] [d]}; <c d> is a chord, [c d] a seq")
            (when (and (seq shown) (not (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))))
              (str "\nexpected " (str/join " " (map #(str "`" % "`") shown)) (when (> (count literals) 12) " …")
                   ", or more music or a word"))

@@ -47,12 +47,12 @@
 
 (defn strip-prompts
   "text without the prompts of a session copied along with it: each
-   line's leading mu<n> or continuation ... (not part of any input)."
+   seq's leading mu<n> or continuation ... (not part of any input)."
   [text]
   (str/replace text #"(?m)^[ \t]*(?:mu<\d+>|\.\.\.)[ \t]?" ""))
 
 (defn run-loop
-  "The REPL loop over read-input, a fn of a prompt returning one line, a
+  "The REPL loop over read-input, a fn of a prompt returning one seq, a
    complete input, or nil at the end. Continues an unfinished input
    itself when the reader doesn't."
   [read-input]
@@ -117,7 +117,7 @@
       (.build)))
 
 (def prompt-keys
-  "Keys that act at the prompt without touching the line being typed:
+  "Keys that act at the prompt without touching the seq being typed:
    [widget-name key f]. Playback: . stops, , pauses. Rating
    (doc/md/feedback.md), three neighbours on the home row: j dislike,
    k meh, l like; shifted they move through an audition: J prev,
@@ -175,7 +175,7 @@
     (try
       (run-loop (fn [p]
                   (.setVariable reader LineReader/SECONDARY_PROMPT_PATTERN (continuation p))
-                  (try (let [^Character no-mask nil] ; what , left, if anything, starts the line
+                  (try (let [^Character no-mask nil] ; what , left, if anything, starts the seq
                          (.readLine ^LineReader reader ^String p nil no-mask ^String (first (reset-vals! kernel/edit-text nil))))
                        (catch UserInterruptException _ ::abandon)
                        (catch EndOfFileException _ nil))))

@@ -79,7 +79,7 @@
   (run ": pat ( $count -- l ) [c d e f g a b] $count take ;")
   (testing "start it with its inputs under its name: 3 'pat :w ->"
     (run "3 'pat :w ->")
-    (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :w))) "each note the next of what the word gives, a short line again")
+    (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :w))) "each note the next of what the word gives, a short seq again")
     (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count @") @e/state)))
         "the input is :w/count"))
   (testing "a store is heard: the word runs again with the new value"

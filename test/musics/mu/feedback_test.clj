@@ -60,7 +60,7 @@
   (is (= [] (fb/ratings)))
   (reset! mt/last-played (value "[c d]"))
   (top "like")
-  (is (= [] (fb/ratings)) "a line isn't a sound"))
+  (is (= [] (fb/ratings)) "a seq isn't a sound"))
 
 (deftest rating-the-sound-last-played
   (reset! mt/last-played (value "c4\\i:40,73"))
@@ -97,7 +97,7 @@
   (is (str/includes? (with-out-str (top "taste")) "x\\36 Bass Drum 1")))
 
 (deftest auditioning-needs-sounds
-  (is (re-find #"audition: needs a line of notes" (top "'[1 2] audition"))))
+  (is (re-find #"audition: needs a seq of notes" (top "'[1 2] audition"))))
 
 (defn- wait-until [pred ms]
   (loop [n (quot ms 10)] (cond (pred) true (zero? n) false :else (do (Thread/sleep 10) (recur (dec n))))))

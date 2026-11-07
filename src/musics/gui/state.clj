@@ -240,7 +240,7 @@
          ;; immediately (see musics.mu.store/read!'s own docstring -- no
          ;; separate stage/commit step). :ids is whatever the most
          ;; recent parse introduced/changed, :message the panel's own
-         ;; status/error line. See the Editor section below.
+         ;; status/error seq. See the Editor section below.
          :editor {:text "" :load-path "" :ids nil :message nil}
          ;; Repo browser panel -- :ids is kept live-synced with
          ;; musics.repo's own registry (see start-browser-sync!, unlike
@@ -1246,7 +1246,7 @@
 (defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
 
 (defn- fmt-registered
-  "musics.wall/registered's {name -> entry} as one line per algo: its
+  "musics.wall/registered's {name -> entry} as one seq per algo: its
    name and doc -- for a live voice, what it follows."
   [m]
   (str/join "\n"
@@ -1343,7 +1343,7 @@
   (str/join "\n" (sort (map name ids))))
 
 (defn- fmt-schedule-table
-  "{[id phase] -> action-id} -> one \"id phase -> action-id\" line per
+  "{[id phase] -> action-id} -> one \"id phase -> action-id\" seq per
    entry, sorted -- shared by the one-shot and repeating displays,
    both the same shape (musics.conductor/scheduled, scheduled-repeating)."
   [m]
@@ -1720,7 +1720,7 @@
 (defn transform-commit!
   "Commit :last-result (Preview's own stashed material -- see its own
    docstring on why this isn't recomputed) as a brand new :SEQ
-   container under :new-id -- same {:type :SEQ ...} shape a parsed line has."
+   container under :new-id -- same {:type :SEQ ...} shape a parsed seq has."
   []
   (let [{:keys [new-id last-result]} (:transform @*state)
         id-text (str/trim (or new-id ""))]

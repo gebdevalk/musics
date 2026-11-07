@@ -110,7 +110,7 @@
    auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
    {:values [v …] :ids [id …] :auto-ids …}, one value and the id it was
    read under per node: a leaf map for a bare leaf (its id the one-leaf
-   line parse would wrap it in), a Material for a composite. The auto-ids advance, so a later
+   seq parse would wrap it in), a Material for a composite. The auto-ids advance, so a later
    input never reuses an id."
   ([nodes text repo auto-ids] (read-literals nodes text repo auto-ids {}))
   ([nodes text repo auto-ids bindings]
@@ -124,7 +124,7 @@
        {:values (mapv (fn [node id]
                         (cond
                           (leaf-node? node) (first (:children (get tree id)))
-                          ;; a repeat is read inside a line of its own;
+                          ;; a repeat is read inside a seq of its own;
                           ;; its value is the repeat, held inline there
                           (#{:repeat :RepeatBars} (first node))
                           (let [it (first (:children (get tree id)))]

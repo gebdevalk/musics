@@ -117,7 +117,7 @@
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
-(word! "kernel" "spread" "( x -- elem... )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
+(word! "kernel" "spread" "( x -- elem... )  x's elements on the stack, one after another: a seq's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
        (fn [s]
          (need s 1 "spread")
          (let [xs (try (mt/elements (peek s))
@@ -219,7 +219,7 @@
 
 (word! "kernel" "clear" "( ... -- )  clear the stack" (fn [_] []))
 
-(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts, ---- under the last"
+(word! "kernel" ".s" "( -- )  the stack, one item a seq, top first, numbered as pick counts, ---- under the last"
        (fn [s]
          (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
          (when (seq s) (println "----"))

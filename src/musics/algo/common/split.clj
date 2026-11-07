@@ -2,7 +2,7 @@
   "Voice-splitting canon/heterophony generator: start from one slow, low
    melody, and each split-off cycle spins a new voice off the CURRENT
    HIGHEST one -- its pitches move up an octave, its durations halve,
-   and the resulting line plays twice back to back. Building each new
+   and the resulting seq plays twice back to back. Building each new
    voice from the previous split's own (already-doubled) result, rather
    than from the original melody directly, is what keeps every voice
    the same total length: halving a voice's own durations then playing
@@ -47,7 +47,7 @@
 (defn- pair-step [[pitch duration]] [(+ pitch 12) (/ duration 2)])
 
 (defn split
-  "melody: a seq of [pitch duration] pairs, the original low/slow line.
+  "melody: a seq of [pitch duration] pairs, the original low/slow seq.
    n: how many times to split a new voice off the current highest one.
    Returns a vector of (inc n) voices -- see namespace docstring for the
    recipe."
@@ -71,7 +71,7 @@
 
 (defn split-leafs
   "leafs: a seq of real Leaf/Rest/Drum records, the original low/slow
-   line. n: how many times to split a new voice off the current highest
+   seq. n: how many times to split a new voice off the current highest
    one. Returns a vector of (inc n) voices, each a vector of real
    Leaf/Rest/Drum-shaped records -- same recipe as split above, just one
    level later (real parts, not bare pairs)."
@@ -79,7 +79,7 @@
   (splits* leaf-step leafs n))
 
 (defn split-leaf-voice
-  "Split a new voice off the highest one n times and return one layer of leafs (the original line's Leaf/Rest/Drum content): voice-index 0..n, default n, the final and fastest. Call once per voice-index and play the layers in parallel."
+  "Split a new voice off the highest one n times and return one layer of leafs (the original seq's Leaf/Rest/Drum content): voice-index 0..n, default n, the final and fastest. Call once per voice-index and play the layers in parallel."
   ([n leafs] (split-leaf-voice n n leafs))
   ([n voice-index leafs]
    (nth (split-leafs leafs n) voice-index)))

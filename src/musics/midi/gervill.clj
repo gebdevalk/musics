@@ -101,7 +101,7 @@
 
 (defn output-available?
   "Does Java know any audio output that can play 16-bit stereo? (A default
-   device that accepts lines with no hardware behind it still counts; only
+   device that accepts seqs with no hardware behind it still counts; only
    opening tells.)"
   []
   (let [info (DataLine$Info. SourceDataLine (AudioFormat. 44100 16 2 true false))]

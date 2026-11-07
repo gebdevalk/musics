@@ -43,7 +43,7 @@
 (defn hocket
   "Interleave two or more part-sequences into one, alternating single
    elements from each in turn -- the medieval hocket technique: a single
-   melodic line split across voices, one note/group at a time. A thin
+   melodic seq split across voices, one note/group at a time. A thin
    named wrapper over interleave -- the value here is the name, not new
    logic."
   [& parts-seqs]

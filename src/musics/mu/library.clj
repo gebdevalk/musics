@@ -53,7 +53,7 @@
    "+" "( x n -- x' )", "-" "( x n -- x' )", "*" "( x n -- x' )", "/" "( x n -- x' )"
    ">list" "( x -- l )", "repeats" "( x -- x' )", "measures" "( x -- l )"
    "chord?" "( leaf -- flag )", "drum?" "( leaf -- flag )", "note?" "( leaf -- flag )", "rest?" "( leaf -- flag )"
-   "as-drums" "( line drums -- line' )", "at" "( x t -- note )", "bar" "( x n -- m )", "bars" "( x start end -- m )"
+   "as-drums" "( seq drums -- seq' )", "at" "( x t -- note )", "bar" "( x n -- m )", "bars" "( x start end -- m )"
    "chord-name" "( x -- name )", "classes" "( x -- set )", "prime-form" "( x -- set )"
    "combos" "( leaf numbers k -- l )", "sounds" "( leaf numbers -- l )", "degrees" "( numbers key -- l )"
    "delay" "( x t -- x' )", "delays" "( x t -- x' )"

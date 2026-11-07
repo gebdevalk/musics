@@ -19,7 +19,7 @@
 
    Every action is recorded with musics.registries/log! by the function
    its :var names, under its own key or :logs (test/musics/assist_test.clj
-   holds that line)."
+   holds that seq)."
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== all conde conso emptyo fresh membero
                                         nafc or* run run* fail]]

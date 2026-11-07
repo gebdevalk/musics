@@ -239,7 +239,7 @@
       (is (= 2 (:line f)) "error on line 2")
       (is (= 1 (:column f)) "at column 1 — ` can't start any element")))
 
-  (testing "Unclosed sequence spanning lines"
+  (testing "Unclosed sequence spanning seqs"
     ;; Already wrapped from the start -- c4/d4/e4/f4 here are ordinary
     ;; Elements inside an (unclosed) Sequence, not bare TopElements, so
     ;; this one was never affected by the TopElement restriction at all.
@@ -249,7 +249,7 @@
       (is (expects? f "]") "expected closing ]")))
 
   (testing "Bare bang on line 3"
-    ;; Every line wrapped in its own [ ] to keep c4 d4/e4 f4 each grouped
+    ;; Every seq wrapped in its own [ ] to keep c4 d4/e4 f4 each grouped
     ;; as one Sequence (unwrapped, each pair would be its own separate
     ;; top-level Sequence -- see musics.ebnf's own TopElement comment on
     ;; that consequence) -- the failure itself is still right after the

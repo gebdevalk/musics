@@ -25,7 +25,7 @@
     (is (= [:MultiRest] (tags "R1*4")))
     (is (= [[:Word "R!"] [:Word "R@"]] (items "R! R@")) "R! and R@ are words, not rests")
     (is (= [[:Retrograde]] (items "[R]")) "exactly [R] is the retrograde")
-    (is (= [:Sequence :Sequence :Sequence] (tags "[ R ] [R1] [R*2]")) "a line with a rest otherwise")
+    (is (= [:Sequence :Sequence :Sequence] (tags "[ R ] [R1] [R*2]")) "a seq with a rest otherwise")
     (is (= [:MultiRest :Word] (mapv first (items "R R!"))) "a rest, then the store word")
     (is (= [:Drum] (tags "x8\\36")))
     (is (= [:Drum] (tags "x")) "x is a drum"))
@@ -43,10 +43,10 @@
       (is (= [[:Word w]] (items w)) w))))
 
 (deftest an-empty-line-and-the-measures-word
-  (is (= [:Sequence] (tags "[]")) "an empty line is the Sequence with nothing in it")
+  (is (= [:Sequence] (tags "[]")) "an empty seq is the Sequence with nothing in it")
   (is (= [:Sequence] (tags "[ ]")))
   (is (= [:Measures] (tags "[[]]")) "[[]] is the measures word, before the literals")
-  (is (g/failure? (g/parse "[c [] d]")) "musics text still needs an element: the empty line is mu's"))
+  (is (g/failure? (g/parse "[c [] d]")) "musics text still needs an element: the empty seq is mu's"))
 
 (deftest key-literals
   (is (= [[:KeyValue "D.major"] [:KeyValue "B&.minor"] [:KeyValue "f#.harmonic-minor"]] (items "D.major B&.minor f#.harmonic-minor")))
@@ -73,10 +73,10 @@
   (is (= [[:PcSet [:PcClasses [:PcNums "047"]]]] (items "$[ 047 ]")) "spaces inside")
   (testing "nothing else changes"
     (is (= [[:Local "a"]] (items "$a")) "$ and a name is a local")
-    (is (= [[:Lines "47"]] (items "[47]")) "[n] is still the word that makes a line of the top n")
+    (is (= [[:Lines "47"]] (items "[47]")) "[n] is still the word that makes a seq of the top n")
     (is (= [:Sequence] (tags "[c e g]")))
     (is (= [[:Quotation [:PcSet [:PcClasses [:PcNums "047"]]] [:Word [:WordName "count"]]]] (items "'( $[047] count )")) "inside a quotation too"))
-  (is (g/failure? (g/parse "[$[047] c]")) "mu's, not musics text's: a line holds no set"))
+  (is (g/failure? (g/parse "[$[047] c]")) "mu's, not musics text's: a seq holds no set"))
 
 (deftest mu-items
   (is (= [[:SignedInt "7"] [:SignedRatio "1/4"] [:SignedFloat "0.5"] [:SignedInt "-12"] [:StringLit "t"]]

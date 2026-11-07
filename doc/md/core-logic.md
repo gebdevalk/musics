@@ -97,7 +97,7 @@ way out:
 | Need | How |
 |---|---|
 | Recorded MIDI, written as text | `midi->spelling` spells from the key, using the relation in §3, instead of always using sharps |
-| Export (LilyPond / ABC / GUIDO) | Spell each pitch from its leaf's `:key` (`el/key-pitch-name`), with §3's ranked choice for chromatic pitches: in key first, then fewest accidentals, then the direction of the line |
+| Export (LilyPond / ABC / GUIDO) | Spell each pitch from its leaf's `:key` (`el/key-pitch-name`), with §3's ranked choice for chromatic pitches: in key first, then fewest accidentals, then the direction of the seq |
 | Intervals with their quality | `[steps semis]` from two spelled pitches, so `c`–`eb` (minor third) and `c`–`d#` (augmented second) stay distinct; counterpoint rules need that |
 | Markov states and intervals | §4 |
 
@@ -194,7 +194,7 @@ The ordered rules (in key, then few accidentals, then anything) are a
 ```
 
 The "sharp before flat" order should come from the key's signature sign
-(or from whether the line is going up or down), not be fixed. That is a
+(or from whether the seq is going up or down), not be fixed. That is a
 detail of how the `conda` clauses are put together. `midi_record`'s
 spelling and `respell-fn` could both be built on this.
 
@@ -216,7 +216,7 @@ model is against how much data it needs:
 | Interval | `->interval` on consecutive pairs | Independent of transposition: train in D, generate in F. Keeps diatonic meaning, so a minor third and an augmented second are different states | Needs a start pitch, and drift has to be checked (below) |
 
 The interval view is where spelling pays off most. With MIDI, an
-interval is only a semitone count, so the generated line has to be
+interval is only a semitone count, so the generated seq has to be
 spelled again afterwards (the guessing `respell-fn` does today). With
 spelled pitches, the interval carries its letter distance and the
 output is already correctly spelled:
@@ -621,7 +621,7 @@ actions instead of algos.
 - **Dependency.** `[org.clojure/core.logic "1.1.0"]` (pure Clojure, small).
   It adds no runtime cost unless it is called.
 - **When not to use it.** If a rule needs scoring ("prefer the smoothest
-  line") rather than accept/reject, core.logic has no built-in
+  seq") rather than accept/reject, core.logic has no built-in
   optimisation. Use `run k` and rank the results in Clojure, or keep the
   weighted-random generators already in `musics/algo/`.
 

@@ -83,7 +83,7 @@
     (when (or a b) (max (or a -1) (or b -1)))))
 
 (defn- turning-point
-  "Where the line in `notes` last changed direction, walking back from
+  "Where the seq in `notes` last changed direction, walking back from
    its last note (its first note when it never did)."
   [notes]
   (let [n (count notes)]
@@ -157,7 +157,7 @@
 (defn- v [rule e & {:as more}] (merge {:rule rule :bar (inc (:bar e)) :on (:on e)} more))
 
 (defn melodic-violations
-  "Rules of a single line, for attack e of added part p."
+  "Rules of a single seq, for attack e of added part p."
   [ctx st p e]
   (let [prev  (attacks st p)
         a1    (peek prev)

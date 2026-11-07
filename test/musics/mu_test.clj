@@ -23,7 +23,7 @@
 (use-fixtures :each fresh)
 
 (defn- session
-  "Run the loop over lines; [prompts shown, what was printed]."
+  "Run the loop over seqs; [prompts shown, what was printed]."
   [& lines]
   (let [prompts (atom []) more (atom lines)]
     [(with-out-str
@@ -57,7 +57,7 @@
     (is (= ["mu<0> " "  ... " "mu<1> " "mu<1> "] prompts))
     (is (= [1] (map count [(:stack @e/state)]))))
   (let [[out _] (session "mu<0> 1\nmu<1> 2\nmu<2> .s")]
-    (is (str/includes? out "0> 2\n1> 1\n") "a pasted block, one line per prompt")))
+    (is (str/includes? out "0> 2\n1> 1\n") "a pasted block, one seq per prompt")))
 
 (deftest errors-are-reported
   (let [[out prompts] (session "5 6" "1 2 drop drop drop drop drop" "7")]

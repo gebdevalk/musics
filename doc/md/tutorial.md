@@ -30,7 +30,7 @@ To hear anything, connect a synthesizer once:
 Without either, everything below still works; you just don't hear it.
 
 A few words for finding your way:
-- `help` is mu in a few lines, and `"chord" help` lists the words that mention chord;
+- `help` is mu in a few seqs, and `"chord" help` lists the words that mention chord;
 - `words` lists every word;
 - `"dup" see` says what one word does (`dup ( a -- a a )  copy the top`);
 - a word mu does not know says what it is now called or what is close to it.
@@ -42,8 +42,8 @@ A few words for finding your way:
 [verse: !mf c4 d e f] ->
 ```
 
-This is one line with two parts. `[verse: !mf c4 d e f]` is music: a
-line named `verse`, at mezzo-forte, of four quarter notes. Typed at the
+This is one seq with two parts. `[verse: !mf c4 d e f]` is music: a
+seq named `verse`, at mezzo-forte, of four quarter notes. Typed at the
 prompt, it becomes a value on the stack. `->` plays the top of the
 stack, now.
 
@@ -135,7 +135,7 @@ mu prints every value back in full, as shown after the `→`.
 [x8\snare-> x8\snare-^ x8\snare\ghost]    accented, marcato, ghost
 ```
 
-### Lines and parallel parts
+### Seqs and parallel parts
 
 ```
 [melody: c4 d e f]                          [ ] one note after another
@@ -152,7 +152,7 @@ mu prints every value back in full, as shown after the `→`.
 [!tempo:3/8=90 !allegro c4]         a note value = BPM; a named tempo
 ```
 
-An instruction always belongs inside a line or a `^{ }` context; at the
+An instruction always belongs inside a seq or a `^{ }` context; at the
 prompt on its own, `!mf` is refused.
 
 ### Tuplets, repeats, grace notes, ornaments, chord symbols

@@ -111,7 +111,7 @@
 
 (defn ctx!
   "A part's context chain: each ancestor's own settings, nearest first; a
-   line not stored: its own settings, where they begin"
+   seq not stored: its own settings, where they begin"
   [x]
   (r/ctx (if (and (v/material? x) (not (repo/current (:id x)))) (v/node x) (stored-id x))))
 
@@ -243,10 +243,10 @@
 (def ^:private guide
   ["mu: music is written as text and goes on the stack; words change it, join it and play it."
    ""
-   "  [c d e f]            a line, now on the stack (a note alone is a value too)"
+   "  [c d e f]            a seq, now on the stack (a note alone is a value too)"
    "  7 +   2 *   [R]      up a fifth, twice as long, backwards: a word takes what lies under it"
    "  ->   ->>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
-   "  [bass: c2 g] [~] ->  a named line is a voice of that name;  :bass stop,  :bass <- is what it plays"
+   "  [bass: c2 g] [~] ->  a named seq is a voice of that name;  :bass stop,  :bass <- is what it plays"
    "  dup drop swap over   the stack is Forth's;  .s shows it,  clear empties it"
    "  see  words  help     \"dup\" see explains a word, words lists them, \"chord\" help searches"
    "  Tab                  completes words, ids, instruments and keys;  bye leaves (Ctrl+D too)"
@@ -279,7 +279,7 @@
   (println (about/marks-text (str topic))))
 
 (defn help!
-  "mu in a few lines; with a word, as see explains it; with other text,
+  "mu in a few seqs; with a word, as see explains it; with other text,
    the words that mention it: help, help dup, \"chord\" help, \"transpose\" help"
   {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
   ([] (run! println guide))

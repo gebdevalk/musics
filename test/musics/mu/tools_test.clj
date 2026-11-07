@@ -1,5 +1,5 @@
 (ns ^:repl musics.mu.tools-test
-  "mu's first tools: they keep the form (a line gives a line), endless
+  "mu's first tools: they keep the form (a seq gives a seq), endless
    streams are refused where all of a stream is needed."
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing use-fixtures]]
@@ -73,12 +73,12 @@
 
 (deftest bar-lines-through-the-tools
   (is (= "[C4/4 D4 E4]" (top "( [c d | e] '( ) each )")) "elements are notes: the bar is not one")
-  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the line whole"))
+  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the seq whole"))
 
 (deftest times-and-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 times")) "3 times is the text's repeat 3 [a b]")
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 [*]")))
-  (is (= "repeat 2 [C4/4]" (top "c 2 times")) "a note is repeated as a line")
+  (is (= "repeat 2 [C4/4]" (top "c 2 times")) "a note is repeated as a seq")
   (is (re-find #"times: needs 1 or more times" (top "[a b] 0 times")))
   (is (re-find #"unknown word: repeat -- it is now written times" (top "[a b] 3 repeat")) "one word for it, as the sign [*]")
   (is (= "[: A3/4 B3 :]" (top "[a b] repeats")) "repeats: in repeat signs, played twice")
@@ -94,7 +94,7 @@
   (is (= "repeat 3 [!K:D.major B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
   (is (= "[E4/4 repeat 2 [B3 A3] C4]" (top "[c repeat 2 [a b] e] retrograde"))
-      "an element of a line, its body backwards")
+      "an element of a seq, its body backwards")
   (is (re-find #"volta: needs a repeat below" (top "[c] volta")))
   (is (re-find #"volta: has nothing above the repeat" (top "[c] 2 times volta")))
   (is (re-find #"volta: the repeat has its endings already" (top "[c] 2 times [d] volta [e] volta")))
@@ -120,7 +120,7 @@
 (deftest repeat-stores-as-parse-stores-it
   (swap! e/state assoc :stack [])
   (let [id (first (:ok (e/eval-input "[a b] 2 times R!")))]
-    (is (re-matches #"s\d+" (name id)) "in a line of its own, as parse wraps a bare repeat")
+    (is (re-matches #"s\d+" (name id)) "in a seq of its own, as parse wraps a bare repeat")
     (is (= "[repeat 2 [A3/4 B3]]" (top (str id " R@"))))))
 
 (deftest form-tools-keep-the-form
@@ -188,15 +188,15 @@
   (is (= "[!pp C4/4 D4]" (top "[c d] ^{ !pp } with"))))
 
 (deftest with-puts-the-settings-in-front
-  (is (= "[!ff D4/4 E4 C4]" (top "[c d e] ^{ !ff } with 1 rotate")) "the line stays a line of notes")
+  (is (= "[!ff D4/4 E4 C4]" (top "[c d e] ^{ !ff } with 1 rotate")) "the seq stays a seq of notes")
   (is (= "[!tempo:60 !ff !tempo:90 C4/4 D4 E4]" (top "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
   (swap! e/state assoc :stack [])
   (let [x   (first (:ok (e/eval-input "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
         ctx (:context (v/node x))]
-    (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)) "the line's own setting, after, still wins")
+    (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)) "the seq's own setting, after, still wins")
     (is (= 80.0 (double (c/ctx-value-chain [ctx] :volume 0))) "and the inserted !ff fills what it leaves open"))
-  (is (= "[!ff <C4 E4 G4>4]" (top "<c e g>4 ^{ !ff } with")) "a note becomes a line")
-  (is (= "[mel: !ff C4/4 D4]" (top "[mel: c d] ^{ !ff } with")) "a named line keeps its name")
+  (is (= "[!ff <C4 E4 G4>4]" (top "<c e g>4 ^{ !ff } with")) "a note becomes a seq")
+  (is (= "[mel: !ff C4/4 D4]" (top "[mel: c d] ^{ !ff } with")) "a named seq keeps its name")
   (is (= "[!ff {[C4/4 D4] [E4 F4]}]" (top "{[c d] [e f]} ^{ !ff } with")) "a { } is wrapped")
   (is (= "[!ff repeat 2 [C4/4 D4]]" (top "[c d] 2 times ^{ !ff } with")) "a repeat is wrapped"))
 
@@ -225,10 +225,10 @@
                              ["[+]" "concat" "[c] [d]"]
                              ["[%]" "rotating" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
     (is (= (top (str input " " sign)) (top (str input " " word))) word))
-  (testing "line, together and beside are the signs only"
-    (doseq [[w in] [["line" "[c] [d] 2 line"] ["together" "[c] [d] 2 together"] ["beside" "{[c] [d]} [e] beside"]]]
+  (testing "seq, together and beside are the signs only"
+    (doseq [[w in] [["seq" "[c] [d] 2 seq"] ["together" "[c] [d] 2 together"] ["beside" "{[c] [d]} [e] beside"]]]
       (is (re-find (re-pattern (str "unknown word: " w " -- it is now written")) (top in)) w))
-    (is (= "{[C4/4] [D4] [E4]}" (top "{[c] [d]} [e] {+}")) "{+} joins a parallel and a line"))
+    (is (= "{[C4/4] [D4] [E4]}" (top "{[c] [d]} [e] {+}")) "{+} joins a parallel and a seq"))
   (is (= (top "[c d e f] [H]") (top "[c d e f] head")))
   (is (= (top "[c d] :st R! R@") (top "[c d] :st store fetch")) "store, fetch")
   (is (= (top "[c d e f] [T]") (top "[c d e f] tail"))))
@@ -239,7 +239,7 @@
       "what the instructions change is written into the notes, so it sounds backwards")
   (is (= "[!mf D4/4 C4]" (top "[!mf c d] [R]")) "a setting from the start stays one")
   (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")))
-  (is (= "[F4/4 [E4 D4] C4]" (top "[c [d e] f] [R]")) "a nested line too")
+  (is (= "[F4/4 [E4 D4] C4]" (top "[c [d e] f] [R]")) "a nested seq too")
   (is (= "[A4/4 {[E4 D4] [G4 F4]} C4]" (top "[c {[d e] [f g]} a] [R]")) "a parallel's parts each")
   (is (= "repeat 2 [D4/4 C4]" (top "[c d] 2 times [R]")) "a repeat stays a repeat")
   (is (= "repeat ~ [D4/4 C4]" (top "[c d] [~] [R]")) "a loop too")
@@ -290,22 +290,22 @@
 (deftest errors-say-what-is-wrong-and-where
   (testing "a count is 0 or more"
     (is (re-find #"^take: needs a count \(a whole number, 0 or more\) on top, got -1" (top "[c d e] -1 take")))
-    (is (re-find #"^head: needs a line, a list or a stream, got -1" (top "[c d e] -1 head")) "head takes no count: n take is the first n"))
+    (is (re-find #"^head: needs a seq, a list or a stream, got -1" (top "[c d e] -1 head")) "head takes no count: n take is the first n"))
   (testing "[n] and {n} take music, and say how numbers gather"
-    (is (re-find #"^\[2\]: takes music \(notes, lines, parallels\), got 1 -- numbers gather into a list with \( 1 2 \)" (top "1 2 [2]")))
+    (is (re-find #"^\[2\]: takes music \(notes, seqs, parallels\), got 1 -- numbers gather into a list with \( 1 2 \)" (top "1 2 [2]")))
     (is (re-find #"^\{2\}: takes music .* got 1 " (top "1 2 {2}")))
     (is (= "'[1 2]" (top "( 1 2 )")) "and they do"))
   (testing "with says every form it takes"
     (is (re-find #"^with: needs an instruction \(!tempo:89\), a context \^\{ … \} or a key \(D.major\) on top"
                  (top "[c d e] 70 with"))))
   (testing "an error is named by the word once"
-    (is (re-find #"^insert: needs a line, a list or a stream, got 1" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
+    (is (re-find #"^insert: needs a seq, a list or a stream, got 1" (top "[c d e] 1 2 3 insert")) "a bare message gets the word")
     (is (re-find #"^insert: needs a whole number from 0" (top "[c d e] :a 1 insert")) "not insert: insert:")
     (is (re-find #"^nth: needs a whole number from 0" (top "[c d e] -1 @")) "a message naming another word is left as it is")))
 
 (deftest head-and-tail
   (is (= "C4/4" (top "[c d e f] [H]")) "without a count, the first element")
-  (is (re-find #"^\[H\]: needs a line, a list or a stream, got 1" (top "[c d e f] 1 [H]")) "no count: 1 take is the first one as a line")
+  (is (re-find #"^\[H\]: needs a seq, a list or a stream, got 1" (top "[c d e f] 1 [H]")) "no count: 1 take is the first one as a seq")
   (is (re-find #"unknown word: first -- it is now written head" (top "[c d] first")) "first is head")
   (is (= "[D4/4 E4 F4]" (top "[c d e f] [T]")) "and the rest")
   (is (= "[C4/4 D4]" (top "[c d e f] 2 take")) "the first n is take")
@@ -327,7 +327,7 @@
   (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d e f] 2 [/]")) "[/] splits into n parts")
   (is (= "[[C4/4 D4] [E4]]" (top "[c d e] 2 [/]")) "the longer part first")
   (is (re-find #"can't split 2 elements into 3 parts" (top "[c d] 3 [/]")))
-  (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two lines")
+  (is (= "[C4/4 D4 E4 F4]" (top "[c d] [e f] [+]")) "[+] joins two seqs")
   (is (= "rotate 1 [C4/4 D4 E4 F4]" (top "[c d e f] 1 [%]")) "[%] rotates as it plays, like [?] shuffles")
   (is (= "[D4/4 E4 F4 C4]" (top "[c d e f] 1 rotate")) "rotate does it now")
   (is (= "'[2 3 1]" (top "'[1 2 3] 1 [%]")) "data has no playing: rotated now")
@@ -347,7 +347,7 @@
   (is (= "[[C4/4] [D4] [E4]]" (top "[c] [d] [e] [3]")))
   (is (re-find #"\[1\]: takes 2 or more" (top "[c] [1]")))
   (is (= "{[C4/4] [D4] [E4] [F4]}" (top "{[c] [d]} {[e] [f]} {+}")) "{+} joins the parts of two parallels")
-  (is (= "{[C4/4 D4] [E4] [F4]}" (top "[c d] {[e] [f]} {+}")) "a line is one part")
+  (is (= "{[C4/4 D4] [E4] [F4]}" (top "[c d] {[e] [f]} {+}")) "a seq is one part")
   (is (= "{!ff [C4/4] [D4] [E4] [F4]}" (top "{!ff [c] [d]} {[e] [f]} {+}")) "the first keeps its settings"))
 
 (deftest repeat-signs-written-out-and-barred
@@ -369,7 +369,7 @@
   (is (= "[x8\\35 x\\36 x\\37]" (top "x8 35 38 .. sounds")) ".. is range")
   (is (= "[C4/4\\instrument:0 C4\\instrument:40]" (top "c4 '[0 40] sounds")) "a note's instrument")
   (is (= "[<C4 E4 G4>2\\instrument:3 <C4 E4 G4>\\instrument:4]" (top "<c e g>2 3 5 range sounds")) "a chord's")
-  (is (= "repeat ~ [x4\\36 x\\38]" (top "x4 '[36 38] sounds [~]")) "a line like any other")
+  (is (= "repeat ~ [x4\\36 x\\38]" (top "x4 '[36 38] sounds [~]")) "a seq like any other")
   (is (re-find #"sounds: needs a note, chord or drum" (top "r4 '[1 2] sounds")))
   (is (re-find #"sounds: needs whole numbers 0-127" (top "c4 '[128] sounds")))
   (is (re-find #"endless" (top "c4 '[1] cycle sounds"))))
@@ -386,10 +386,10 @@
   (is (= "D4/4" (top "D.major tonic")))
   (is (= "E.major" (top "D.major 2 +")) "+ moves a key")
   (is (= "G.major" (top "B&.major 3 -")))
-  (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a line's own key")
+  (is (= "A.minor" (top "[!key:A.minor a b c] key")) "a seq's own key")
   (is (= "C.major" (top "[c d e] key")) "else the defaults'")
   (is (= "C.major" (top "c4 key")) "the key a note was written in")
-  (is (= "[!K:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a line in a key"))
+  (is (= "[!K:G.major C4/4 D4 E4 F#4 G4]" (top "[c d e f g] G.major with")) "with plays a seq in a key"))
 
 (deftest every-key-a-tonic-can-name
   (doseq [k ["C#.major" "C&.major" "G#.minor" "D#.minor" "A#.minor"]]
@@ -413,8 +413,8 @@
   (is (= "3/16" (top "c8. duration")))
   (is (= "90" (top "c4\\vol:90 volume")))
   (is (= "true true true true" (top "c4 note? <c e>4 chord? r4 rest? x drum?")))
-  (is (re-find #"pitch: reads one note; for every note of a line, use pitches" (top "[c d] pitch")))
-  (is (re-find #"note\?: reads one note; for every note of a line, use '\( note\? \) map" (top "[c d] note?")))
+  (is (re-find #"pitch: reads one note; for every note of a seq, use pitches" (top "[c d] pitch")))
+  (is (re-find #"note\?: reads one note; for every note of a seq, use '\( note\? \) map" (top "[c d] note?")))
   (is (re-find #"pitch: reads a note" (top "5 pitch")))
   (is (= "C4/4 E4/4 D4/4 3" (top "[c d e] head [c d e] last [c d e] 1 nth [c d e] length")))
   (is (re-find #"nth: 5 is past the end" (top "[c d e] 5 nth")))
@@ -457,7 +457,7 @@
   (is (= "'[1 1 1]" (top "'[1 1 1] choose-from"))))
 
 (deftest map-each-element
-  (is (= "[C5/4 E5 G5]" (top "[c e g] '( 12 + ) map")) "notes give the line back")
+  (is (= "[C5/4 E5 G5]" (top "[c e g] '( 12 + ) map")) "notes give the seq back")
   (is (= "'[60 64 67]" (top "[c e g] '( pitch ) map")) "anything else a stream")
   (is (= "'[10 20]" (top "'[1 2] '( 10 * ) map"))))
 
@@ -477,23 +477,23 @@
   (is (= "'[60 62 64] [~]" (top "[c d e] [~] pitches")) "a loop of the values")
   (is (= "'[60 62] 3 times" (top "[c d] 3 times pitches")) "a repeat of the values")
   (is (= "'[60 62 60 62 60]" (top "[c d] [~] pitches 5 take")) "taken from as a stream")
-  (is (= "'[57 60 62 60 62 59]" (top "[a repeat 2 [c d] b] pitches")) "a repeat inside a line written out")
-  (is (re-find #"loop inside a line" (top "[a repeat ~ [c d]] pitches")))
+  (is (= "'[57 60 62 60 62 59]" (top "[a repeat 2 [c d] b] pitches")) "a repeat inside a seq written out")
+  (is (re-find #"loop inside a seq" (top "[a repeat ~ [c d]] pitches")))
   (is (= "repeat ~ [C4/8 D4/4 G4/8 A4 C4/4 D4/8 G4 A4/4 C4/8 D4 G4/4 A4/8]"
          (top "[c8 d4 e8] [~] durations [c d g a] [~] pitches zip"))
       "two loops zip into a loop of the notes they take to line up again")
   (is (= "repeat ~ [C4/4 D4 C4 D4 C4 D4]" (top "[c d e] [~] durations [c d] pitches zip"))
       "looping durations give a loop, a finite part cycling in it")
   (is (= "repeat ~ [C4/8 D4/4 C4/8 D4 C4/4 D4/8]" (top "| :duration [c8 d4 | e8] [~] [c d] [~] pitches zip"))
-      "a loop of a line gives its notes, not its bar lines")
-  (is (= "repeat ~ [C4/8 D4 G4/4]" (top "| :duration [[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested lines")
+      "a loop of a seq gives its notes, not its bar lines")
+  (is (= "repeat ~ [C4/8 D4 G4/4]" (top "| :duration [[c8 d] e4] [~] [c d g] [~] pitches zip")) "nor its nested seqs")
   (is (re-find #"take some first" (top "1 '( 1 + ) iterate dup zip")) "endless, not loops"))
 
 (deftest zip-builds-leaves-from-their-parts
   (testing "the durations set the length, the other parts cycle"
     (is (= "[C4/4 D4/8 C4/4 D4]" (top "'[/4 /8 /4 /4] '[60 62] zip"))))
   (testing "at a rest every part steps on, its value unused"
-    (is (= "[C4/4 r E4 F4]" (top "| :duration [c4 r e g] '[60 62 64 65] zip")) "a rest among the durations, a named line giving them")
+    (is (= "[C4/4 r E4 F4]" (top "| :duration [c4 r e g] '[60 62 64 65] zip")) "a rest among the durations, a named seq giving them")
     (is (= "[C4/4\\volume:90 r E4\\volume:30]" (top "| '[/4 /4 /4] '[60 nil 64] :volume '[90 60 30] zip")) "a nil pitch"))
   (testing "above a | mark: a :name names a part, a reader's or algo word's stream knows its own"
     (is (= "[C4/4->\\volume:90 D4-. E4->\\volume:30]"
@@ -558,7 +558,7 @@
   (is (= (top "[c d e f g] 1 3 [_]") (top "[c d e f g] 1 3 [] splice")) "= splicing in nothing")
   (is (re-find #"0 <= n < 3" (top "[c d e] 3 _")) "nothing at the count to delete")
   (is (re-find #"0 <= n <= 3" (top "[c d e] 4 g insert")))
-  (is (= "[]" (top "[c d e] 0 _ 0 _ 0 _")) "all gone leaves the empty line"))
+  (is (= "[]" (top "[c d e] 0 _ 0 _ 0 _")) "all gone leaves the empty seq"))
 
 (deftest the-empty-line
   (is (= "[]" (top "[]")))
@@ -567,7 +567,7 @@
   (is (= "[C4/4 D4]" (top "[] [c d] concat")) "the start of a joining")
   (is (= "[C4/4 D4]" (top "[c d] [] concat")))
   (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")) "[[]] is still the measures")
-  (is (re-find #"empty line loops" (top "[] [~]")) "an endless loop of nothing is refused"))
+  (is (re-find #"empty seq loops" (top "[] [~]")) "an endless loop of nothing is refused"))
 
 (deftest measures-split-a-line-by-its-meter
   (is (= "[[C4/2 D4] [E4]]" (top "[c2 d2 e2] [[]]")))
@@ -581,7 +581,7 @@
   (is (= "[!pp C4/2 D4 | !ff E4 F4]" (top "[!pp c2 d2 !ff e2 f2] [||]"))))
 
 (deftest zip-writes-onto-a-line
-  (testing "an unnamed line is written on, each part cycling and stepping once per note"
+  (testing "an unnamed seq is written on, each part cycling and stepping once per note"
     (is (= "[C4/4\\volume:90 r E4\\volume:70 F4\\volume:90]" (top "| [c r e f] :volume '[90 50 70] zip")) "a rest's value unused")
     (is (re-find #"a volume is 0..100" (top "| [c d] :volume '[90 120] zip")))
     (is (re-find #"a volume is 0..100" (top "| '[/4] '[60] :volume '[-1] zip")))
@@ -593,9 +593,9 @@
     (is (= "[C4/4\\instrument:122 D4\\instrument:11]" (top "| [c d] :instrument '[:sea :vib] zip")) "short names in lowercase: vib the vibraphone")
     (is (= "[x8\\42 x\\49]" (top "| [x8\\bd1 x8\\sna] :drum '[:hhc 49] zip")) "a drum takes a drum's key or short name")
     (is (= "'[:accent :ghost]" (top "| [x8\\bd1 x8\\sna] :articulation '[:accent :ghost] zip articulations")) "drums take accents")
-    (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "| [c d] [~] :volume '[90 40] [~] zip")) "the line keeps its form")
+    (is (= "repeat ~ [C4/4\\volume:90 D4\\volume:40]" (top "| [c d] [~] :volume '[90 40] [~] zip")) "the seq keeps its form")
     (is (= "[!ff C4/4\\volume:90 | D4\\volume:40]" (top "| [!ff c | d] :volume '[90 40] zip")) "its instructions and bar lines too"))
-  (testing "a part given replaces the line's own"
+  (testing "a part given replaces the seq's own"
     (is (= "[C4/8 D4 E4]" (top "| [c d e] :duration '[/8] zip")))
     (is (= "[G4/4 A4 G4]" (top "| [c d e] :pitch '[67 69] zip")))
     (is (= "[C4/4\\volume:20 D4\\volume:20]" (top "| [c\\vol:90 d] :volume '[20] zip")))
@@ -604,8 +604,8 @@
     (is (re-find #"a drum has no instrument" (top "| [x8\\bd1] :instrument '[40] zip")) "the two worlds stay apart")
     (is (re-find #"as-drums" (top "| [c d] :drum '[:kick] zip")) "a note is no drum")
     (is (re-find #"not an articulation" (top "| [c d] :articulation '[:nonsense] zip")))
-    (is (re-find #"name each stream's part" (top "[c d] '[90 40] zip")) "an untagged stream onto a line")
-    (is (re-find #"two lines to write on" (top "[c d] [e f] zip"))))
+    (is (re-find #"name each stream's part" (top "[c d] '[90 40] zip")) "an untagged stream onto a seq")
+    (is (re-find #"two seqs to write on" (top "[c d] [e f] zip"))))
   (is (= "'[:accent nil]" (top "[c8-> d] '[:kick :sna] as-drums articulations")) "as-drums keeps a note's accent")
   (is (= "[x8\\36 x\\42\\volume:90 r x\\38]" (top "[c8 d\\vol:90 r e] '[:kick :hhc nil :sna] as-drums"))
       "as-drums: notes made drums, keeping length and volume")
@@ -630,7 +630,7 @@
     (is (= (top "| '[/4 /4 /4 /4 /4 /4] :pitch '[60 62 64] :volume '[90 70] zip")
            (top "| :pitch '[60 62 64] :volume '[90 70] zip '[/4 /4 /4 /4 /4 /4] swap zip"))
         "a bundle zipped later is its parts zipped now: each cycles on its own, a color against a talea")
-    (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a line"))
+    (is (= "[C4/4->\\volume:90 D4\\volume:70 E4->\\volume:90]" (top "[c d e] | :volume '[90 70] :articulation '[:accent nil] zip zip")) "onto a seq"))
   (testing "it can't sound"
     (doseq [in ["| :pitch '[60] zip [c d] {2}" "| | :pitch '[60] zip [c d] par" "| :pitch '[60] zip [c d] [2]"]]
       (is (re-find #"can't sound -- it has no durations" (top in)) in))
@@ -661,7 +661,7 @@
   (into {} (for [[l pc] {"C" 0 "D" 2 "E" 4 "F" 5 "G" 7 "A" 9 "B" 11} [a d] {"" 0 "&" -1 "#" 1}] [(str l a) (+ pc d)])))
 
 (defn- bass-notes
-  "[pitch-class octave] of each note of a printed bass line."
+  "[pitch-class octave] of each note of a printed bass seq."
   [text]
   (for [[_ n o] (re-seq #"([A-G][&#]?)(\d)" text)] [(mod (pitch-of n) 12) (Integer/parseInt o)]))
 
@@ -731,7 +731,7 @@
   (is (= "'[1 1 2]" (top "'[1/1 ./. 2/1]")))
   (is (= "'[50 50 50 70]" (top "'[50 ./. ./. 70]")) "again and again")
   (is (re-find #"idem repeats the value before it" (top "'[./. 1]")))
-  (is (= "[C4/4 D4 | ./. | E4]" (top "[c d | ./. | e]")) "in a line still the bar before"))
+  (is (= "[C4/4 D4 | ./. | E4]" (top "[c d | ./. | e]")) "in a seq still the bar before"))
 
 (deftest a-point-at-a-time
   (let [vel #(map second (take 4 (velocities %)))]
@@ -760,7 +760,7 @@
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] concat")) "concat writes the second's settings where it begins")
   (is (= "[!mf C4/4 D4 !pp E4 F4]" (top "[!mf c d] [!pp e f] [2] flatten")) "flatten is what concat does")
   (is (= "[C4/4 [D4 E4] F4]" (top "c [d e] [2] [f] [2] flatten")) "one level only")
-  (is (= "'[1 2 3]" (top "'[1 '[2] 3] flatten")) "data opens the data inside it, music the lines"))
+  (is (= "'[1 2 3]" (top "'[1 '[2] 3] flatten")) "data opens the data inside it, music the seqs"))
 
 (defn- value
   "The value the last input leaves on the stack."
@@ -788,27 +788,27 @@
 
 ;; an error says what was wanted and where, not how the machinery failed
 (deftest errors-say-what-was-wanted
-  (is (re-find #"^sum: needs a line, a list or a stream, got 3 -- numbers gather into a list with" (top "1 2 3 sum")))
+  (is (re-find #"^sum: needs a seq, a list or a stream, got 3 -- numbers gather into a list with" (top "1 2 3 sum")))
   (testing "a stored name is not its content"
     (top "[a: c d] R!")
-    (is (re-find #"^retrograde: needs a line, a list or a stream, got :a -- :a is a stored name: :a R@ reads it"
+    (is (re-find #"^retrograde: needs a seq, a list or a stream, got :a -- :a is a stored name: :a R@ reads it"
                  (top ":a retrograde"))))
   (testing "a word written in Clojure with word! is named too"
-    (is (re-find #"^reduce: needs a line, a list or a stream, got 0" (top "0 '[1 2 3] '( + ) reduce"))))
+    (is (re-find #"^reduce: needs a seq, a list or a stream, got 0" (top "0 '[1 2 3] '( + ) reduce"))))
   (testing "nothing to repeat is said so, not as a failed rebuild"
-    (is (re-find #"^times: an empty line has nothing to repeat" (top "[] 2 [*]")))
-    (is (re-find #"^\[:\]: an empty line has nothing to repeat" (top "[] [:]"))))
+    (is (re-find #"^times: an empty seq has nothing to repeat" (top "[] 2 [*]")))
+    (is (re-find #"^\[:\]: an empty seq has nothing to repeat" (top "[] [:]"))))
   (testing "data stays data: a note is refused where a list of numbers is"
     (is (re-find #"^!: a data list holds numbers, names and lists, not music: C4" (top "'[1 2 3] 1 c !")))
     (is (= "'[1 9 3]" (top "'[1 2 3] 1 9 !"))))
-  (testing "a parse error shows the line and where, and the symbols that could follow"
+  (testing "a parse error shows the seq and where, and the symbols that could follow"
     (let [m (top "c/4")]
       (is (re-find #"^can't read this \(line 1, column 2\):\nc/4\n \^" m))
       (is (not (re-find #"#\"" m)) "no grammar regexes"))))
 
 ;; a key the registry gives a range holds a number in it; volume is a whole number 0-100
 ;; a bar line is real and of no duration, but it is no element: not counted, not fetched,
-;; and a word that selects, inserts, splits or reorders gives back a line without it
+;; and a word that selects, inserts, splits or reorders gives back a seq without it
 (deftest bar-lines-are-no-elements
   (is (= "4" (top "[c d | e f] length")))
   (is (= "E4/4" (top "[c d | e f] 2 @")) "an index counts notes")
@@ -817,7 +817,7 @@
     (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d | e f] 2 [/]")))
     (is (= "[[C4/4 D4] [E4 F4]]" (top "[c d | e f] 2 partition")))
     (is (= "[[C4/4] [D4] [E4]]" (top "[c d | e] 3 [/]"))))
-  (testing "select, insert, reorder: the line comes back without them"
+  (testing "select, insert, reorder: the seq comes back without them"
     (is (= "[D4/4 E4 F4]" (top "[c d | e f] tail")))
     (is (= "[C4/4 D4 E4]" (top "[c d | e f] 3 take")))
     (is (= "[D4/4 E4]" (top "[c d | e f] 1 3 slice")))
@@ -827,7 +827,7 @@
     (is (= 4 (count (re-seq #"[A-G]" (top "[c d | e f] shuffle")))))
     (is (not (re-find #"\|" (top "[c d | e f] 1 rotate"))))
     (is (= "[F4/4 E4 D4 C4]" (top "[c d | e f] retrograde")) "turned round, the bar would sit between other notes"))
-  (testing "a word that only changes each note keeps the line whole, bars too"
+  (testing "a word that only changes each note keeps the seq whole, bars too"
     (is (= "[!K:D.major D4/4 E4 | F#4 G4]" (top "[c d | e f] 2 +")))
     (is (= "[C4/2 D4 | E4 F4]" (top "[c d | e f] 2 *")))
     (is (re-find #"jumps can't be played backwards" (top "[c d $ e DC] [R]")) "a jump can't be turned round, and is not silently dropped")
@@ -836,7 +836,7 @@
 ;; any two values are ordered by a key, a quotation on top that reads a number from each
 (deftest a-key-orders-anything
   (is (= "true" (top "c d '( pitch ) <")))
-  (is (= "true" (top "[c d] [e f g] '( duration ) <")) "a line by how long it is")
+  (is (= "true" (top "[c d] [e f g] '( duration ) <")) "a seq by how long it is")
   (is (= "true" (top "[c d e] [e f] '( length ) >")) "or by how many notes")
   (is (= "true" (top "c d '( pitch ) <=")))
   (is (= "false" (top "c d '( pitch ) >=")))
@@ -848,16 +848,16 @@
     (is (re-find #"^<: the key must read a number from each, got '\[60\] and '\[62\]" (top "c d '( pitches ) <"))))
   (testing "sort orders music by the same key"
     (is (= "[C4/4 D4 E4]" (top "[e c d] '( pitch ) sort")))
-    (is (= "[[E4/4] [C4 D4] [F4 G4 A4]]" (top "[[c d] [e] [f g a]] '( length ) sort")) "lines by how many notes")
+    (is (= "[[E4/4] [C4 D4] [F4 G4 A4]]" (top "[[c d] [e] [f g a]] '( length ) sort")) "seqs by how many notes")
     (is (= "[!mf C4/4 D4 E4]" (top "[e !mf c d] '( pitch ) sort")) "a setting stays in front of its note")
     (is (= "'[3 2 1]" (top "'[3 1 2] '( negate ) sort")) "numbers by a key too")
     (is (= "'[1 2 3]" (top "'[3 1 2] sort")) "and without a key as before")
     (is (re-find #"^sort: needs numbers, got .* -- to sort music, give a key: x '\( pitch \) sort" (top "[e c d] sort")))))
 
 (deftest nothing-is-not-changed
-  (is (= "[]" (top "[] 2 +")) "transposing an empty line writes no key")
+  (is (= "[]" (top "[] 2 +")) "transposing an empty seq writes no key")
   (is (= "[]" (top "[] 7 transpose")))
-  (is (= "[!K:D.major D4/4 E4]" (top "[c d] 2 +")) "a line with notes still does")
+  (is (= "[!K:D.major D4/4 E4]" (top "[c d] 2 +")) "a seq with notes still does")
   (is (re-find #"^with: needs music under the context, got \^\{ !mf \}" (top "[c d] ^{ !mf } ^{ !f } with"))
       "a context is no subject: it goes on top of music"))
 
@@ -877,7 +877,7 @@
   (is (= "[C4/4 D4]" (top "[c d !mf e f] 2 take")) "none follows: dropped")
   (is (= "[C4/4 x !mf E4 F4]" (top "[c d !mf e f] 1 2 [x] splice")))
   (is (= "[!mf !pp E4/4 F4]" (top "[!mf c d !pp e f] '( pitch 63 < ) remove")) "both wait for e")
-  (is (= "[!mf !pp E4/4 F4 C4 D4]" (top "[!mf c d !pp e f] 2 rotate")) "the line's own stay at its start")
+  (is (= "[!mf !pp E4/4 F4 C4 D4]" (top "[!mf c d !pp e f] 2 rotate")) "the seq's own stay at its start")
   (is (= "[E4/4 !pp F4 C4 !mf D4]" (top "[c !mf d e !pp f] 2 rotate")) "the others travel with their notes")
   (is (= ["[!mf !pp E4/4 F4]" "[!mf C4/4 D4]"] (mapv #(p/show %) (reverse (:ok (do (swap! e/state assoc :stack []) (e/eval-input "[!mf c d !pp e f] 2 split-at"))))))
       "split-at, both halves")
@@ -886,7 +886,7 @@
 (deftest arithmetic-on-a-stream-of-numbers
   (is (= "6" (top "'[1 2 3] sum")))
   (is (= "0" (top "'[] sum")) "nothing adds to 0")
-  (is (= "3/8" (top "[c8 d e] durations sum")) "a line's durations: its length")
+  (is (= "3/8" (top "[c8 d e] durations sum")) "a seq's durations: its length")
   (is (= "191/3" (top "[c e g] pitches mean")) "exact, float converts")
   (is (= "'[1 2 3]" (top "'[3 1 2] sort")) "smallest first, data stays data")
   (is (= "'[4 3]" (top "[c e g] pitches intervals")) "each minus the one before")
@@ -920,7 +920,7 @@
   (is (= "G4/4" (top "[C4 E4 G4 C5] dup '( pitch 65 > ) index-of nth")) "the place reads back with nth"))
 
 (deftest splice-and-within-bring-the-settings-of-what-they-put-in
-  (is (= "[C4/4 !pp A4 B4 F4]" (top "[c d e f] 1 3 [!pp A4 B4] splice")) "a line brings its own settings")
+  (is (= "[C4/4 !pp A4 B4 F4]" (top "[c d e f] 1 3 [!pp A4 B4] splice")) "a seq brings its own settings")
   (is (= "[C4/4 !mf A4 B4 F4]" (top "[c !mf d e f] 1 3 [A4 B4] splice")) "the one before the first replaced stays in front")
   (is (= "[C4/4 A4 B4 !mf F4]" (top "[c d !mf e f] 1 3 [A4 B4] splice")) "one between the replaced waits for the next that stays")
   (is (= "[C4/4 A4 !mf E4 F4]" (top "[c d !mf e f] 1 2 [A4] splice")) "one element replaced: the next one's stays")
@@ -928,7 +928,7 @@
   (is (= "[C4/4 D4 E4 !pp A4]" (top "[c d e] 3 3 [!pp A4] splice")) "at the end appends")
   (is (= "[C4/4 A4 B4 C5 F4 G4]" (top "[c d e f g] 1 3 [a b c] splice")) "no settings: as before")
   (is (= "[C4/4 F4 E4 D4 G4]" (top "[c d e f g] 1 4 '( [R] ) within")))
-  (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( drop [!pp A4 B4 C5] ) within")) "a chunk changed into a line with a setting keeps it")
+  (is (= "[C4/4 !pp A4 B4 C5 G4]" (top "[c d e f g] 1 4 '( drop [!pp A4 B4 C5] ) within")) "a chunk changed into a seq with a setting keeps it")
   (is (= "'[1 9 9 4]" (top "'[1 2 3 4] 1 3 '[9 9] splice")) "data as before"))
 
 (deftest every-place-a-test-or-a-value-matches
@@ -964,4 +964,4 @@
       (is (= 12 (count ns)) r)
       (is (every? (fn [[a b]] (and (not= a b) (< (abs (- a b)) 3))) (partition 2 1 ns)) "no repeat, steps within a whole tone")))
   (testing "a group of something else is still refused"
-    (is (re-find #"gathers music into a line, plain values into a '\[ \] or quotations" (top "( \"a\" )")))))
+    (is (re-find #"gathers music into a seq, plain values into a '\[ \] or quotations" (top "( \"a\" )")))))

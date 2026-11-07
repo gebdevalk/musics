@@ -1,6 +1,6 @@
 # Algo cookbook
 
-The algorithms of `musics/algo/` as plain Clojure functions, called by name with their parameters on the stack: 53 recipes. Every recipe was run for real, the line typed at the `mu>` prompt and what came back. 
+The algorithms of `musics/algo/` as plain Clojure functions, called by name with their parameters on the stack: 53 recipes. Every recipe was run for real, the seq typed at the `mu>` prompt and what came back. 
 
 ## The idea
 
@@ -191,7 +191,7 @@ mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take
 
 #### 12. Stretch the durations, transpose the pitches
 
-`*` stretches the durations of a line and `+` transposes it.
+`*` stretches the durations of a seq and `+` transposes it.
 
 ```
 mu> '[1/4 1/8 1/8] [~] '[60 62 64 65 67] [~] zip 15 take 1/2 * 7 +
@@ -289,7 +289,7 @@ mu> '[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] ( '( swap last = not ) ) melody/m
 
 #### 21. Two-voice counterpoint
 
-`jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one line per voice.
+`jeppesen/species` takes the cantus, the number of voices, the species of the added voice, which part holds the cantus, the mode (`:auto` finds both) and a seed for the search. It gives one seq per voice.
 
 ```
 mu> '[55 57 59 60 62 64 65 67 69 71 72 74 76] 2 1 :auto :auto 1 jeppesen/species
@@ -435,7 +435,7 @@ mu> '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[4
 
 #### 34. A polyrhythm as two parts
 
-Each layer its own line, each started by its own `|` mark so that `zip` joins only that part; `{2}` puts the two side by side.
+Each layer its own seq, each started by its own `|` mark so that `zip` joins only that part; `{2}` puts the two side by side.
 
 ```
 mu> | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 0 @ 1/16 bridge/pulses->durations '[48] zip | '[ '[3 8] '[2 8] ] 24 meter/polyrhythm 1 @ 1/16 bridge/pulses->durations '[55] zip {2}
@@ -570,7 +570,7 @@ mu> 8 5 1 sieve/necklaces
 
 ### Parameters as data
 
-#### 47. One line, several parameters: a word with inputs
+#### 47. One seq, several parameters: a word with inputs
 
 The parameters of a word of your own are its `$` inputs.
 

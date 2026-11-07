@@ -26,7 +26,7 @@ raised leading tone at cadences).
 
 ## Interface
 
-In mu, `parallel/species` takes the cantus from the stack (a line of
+In mu, `parallel/species` takes the cantus from the stack (a seq of
 whole notes), its settings on top, and gives the parts side by side:
 
 ```
@@ -135,7 +135,7 @@ counted from the lowest sounding voice unless noted.
 | `:leap-recovery` | After a leap of a fourth or more, move by step in the opposite direction. | hard (≥ 5th), soft (4th) |
 | `:consecutive-leaps` | Two leaps in one direction only if they outline a triad and the larger is below (ascending: larger first); never three. | hard |
 | `:outlined-dissonance` | No tritone or seventh outlined between the turning points of a melodic span. | hard |
-| `:range` / `:span` | Within the voice's range; a line spans at most a tenth. | hard |
+| `:range` / `:span` | Within the voice's range; a seq spans at most a tenth. | hard |
 | `:climax` | One highest note, not repeated. | soft |
 | `:repetition` | A note repeated only whole against whole (1st kind), never three times. | hard |
 | `:steps` | Mostly stepwise; leaps balanced by steps. | soft |

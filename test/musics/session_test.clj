@@ -467,7 +467,7 @@
     (is (re-find #":inner" out) "inner's own authored value shows")
     (is (re-find #":verse" out) "ancestor's authored value shows too")
     (is (not (re-find #":ROOT" out)) ":ROOT itself is excluded")
-    ;; nearest-first: :inner's own line comes before :verse's
+    ;; nearest-first: :inner's own seq comes before :verse's
     (is (< (.indexOf out ":inner") (.indexOf out ":verse")))))
 
 (deftest ctx-on-unregistered-id-prints-not-found

@@ -182,7 +182,7 @@
 (defn text-area
   "A multi-line text block -- record-midi's own generated-text-for-
    inspection-and-alteration panel, the one place a plain text-field's
-   single line isn't enough. on-text-changed fires on every keystroke,
+   single seq isn't enough. on-text-changed fires on every keystroke,
    same contract as text-field's own -- and, same as text-field's own
    on-action, omitted from the description entirely when the caller
    doesn't pass one, rather than sent through as a literal nil (cljfx's

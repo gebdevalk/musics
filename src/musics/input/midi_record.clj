@@ -13,13 +13,13 @@
    user against General MIDI/Yamaha's differing C1=36); that note is
    itself never recorded.
 
-   The recorded performance is reduced to a SINGLE line of chords/
+   The recorded performance is reduced to a SINGLE seq of chords/
    rests (group-chords/->segments below), not independent overlapping
    voices -- a deliberate scope limit, not an oversight: two notes
    whose onsets are more than chord-window-ms apart are always two
    separate segments in program order, even if they were actually held
    simultaneously on the keyboard. Fine for the common 'hum/play one
-   line, possibly with chords' case this exists for.
+   seq, possibly with chords' case this exists for.
 
    Rhythm is quantized in two passes: find-pulse picks a single
    best-fit tempo for the whole recording (a duration-weighted grid

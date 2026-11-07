@@ -8,7 +8,7 @@
    the invariants its owning namespace enforces are documented there,
    not duplicated here.
 
-   THE INVENTORY -- every var this file declares, one line each (full
+   THE INVENTORY -- every var this file declares, one seq each (full
    detail is on each var's own docstring below):
 
      Var                          Owner            What it holds

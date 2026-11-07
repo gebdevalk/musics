@@ -118,7 +118,7 @@ articulation, instrument, and also panning or transposition) are
 writes them as Modifiers. So instead of a field per material:
 - **The domain:** a Leaf carries one sparse map, `:overrides` (say
   `{:volume 90 :instrument 40}`), keyed by canonical context keys.
-  `resolve-common` merges it over the sampled values: one line, and it
+  `resolve-common` merges it over the sampled values: one seq, and it
   covers every played key. The leaf's `:articulation` is the existing
   precedent.
 - **The walker:**

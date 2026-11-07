@@ -50,7 +50,7 @@
      major vs \\key<\"d\">minor -- both confirmed live against Grame's
      own \\key tag reference), \\tempo<...> (a string that may embed a
      '[n/d] = bpm' marker) -- all converted to !Meter:/!key:/!tempo:.
-   - Bar lines (|), comments (% to end of line, (* ... *) block).
+   - Bar lines (|), comments (% to end of seq, (* ... *) block).
 
    OUT OF SCOPE (dropped silently, not a bug -- matches lilypond_import/
    abc_import's own established 'known gaps documented, not silently

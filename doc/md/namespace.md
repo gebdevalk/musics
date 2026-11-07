@@ -3,7 +3,7 @@
 Every namespace under `src/`, by directory, with its size in lines and its
 role. The program is used through **mu** (`musics.mu`, `lein mu`) and the
 **GUI** (`musics.gui.core`, mu's `gui`); *unreached* marks a namespace
-neither of them loads (only tests do). about 109 namespaces, 32,000 lines.
+neither of them loads (only tests do). about 109 namespaces, 32,000 seqs.
 
 ## The tree
 
@@ -141,7 +141,7 @@ musics.mu                    182   mu, the musical REPL: the prompt loop (JLine)
 ├── mu.eval                  415   the evaluator: literals read up to each :=, items run on the stack
 ├── mu.value                 168   what a literal becomes: a leaf or a Material, not stored
 ├── mu.print                 153   printing, isomorphic to reading
-├── mu.material             1098   what the words share: elements, lines, repeats, zip's leaves and bundles, storing, playing
+├── mu.material             1098   what the words share: elements, seqs, repeats, zip's leaves and bundles, storing, playing
 ├── mu.store                  56   text read into the repo: a file, the GUI editor (commits :ROOT)
 ├── mu.library                52   registers the word namespaces below as mu words
 ├── mu.kernel                222   stack words: dup swap … quotations, :=, the play words

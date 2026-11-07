@@ -1,11 +1,11 @@
 (ns musics.algo.harmonic.walking-bass
-  "A walking bass under a line of chords: a quarter note a beat, the
+  "A walking bass under a seq of chords: a quarter note a beat, the
    chord's root on its first beat, the last beat before the next chord
    an approach to that chord's root (a half step below or above, a
    step of the scale, or its fifth), and the beats between walking
    from the one towards the other on the chord's scale, chord tones
    preferred on the strong beats. Rests stay rests. Drawn from
-   musics.algo.numeric.random, so a seed repeats a line.
+   musics.algo.numeric.random, so a seed repeats a seq.
 
    A chord is {:pitches [...] :duration d}, as a leaf holds them; its
    lowest pitch is the root, so an inversion (C4:M/E) walks
@@ -52,7 +52,7 @@
 (defn- next-root
   "The next chord's root, pitch class pc: up or down from ref, at most a
    fifth, the way back towards the middle of lo..hi weighed up, so the
-   line doesn't climb or sink away."
+   seq doesn't climb or sink away."
   [pc ref lo hi]
   (let [mid   (/ (+ lo hi) 2)
         all   (in-range #{pc} lo hi)
@@ -106,7 +106,7 @@
    value (see defaults), :choruses the times through the chords (1),
    :start the pitch the bass begins near (lo + 12), :end (true) the last
    chord an ending, played once after the choruses, its root held.
-   Without an end the line leads into :then -- a chord, or the very
+   Without an end the seq leads into :then -- a chord, or the very
    pitch to arrive at -- or, without one, back to the first chord, so it
    loops. Its metadata's :next is the pitch it leads into."
   ([chords] (walk chords {}))
@@ -144,7 +144,7 @@
 
 (defn- flat-chords
   "The chords and rests under node, in the order they're written (nested
-   lines included, a repeat left out)."
+   seqs included, a repeat left out)."
   [reg node]
   (vec (mapcat #(cond (d/leaf? %)         [{:pitches (:pitches %) :duration (:duration %) :token (str (:id %))}]
                       (= :REST (:type %)) [{:pitches nil :duration (:duration %)}]
@@ -154,12 +154,12 @@
 
 (defn chords-of
   "The chords and rests of the part id, in the order they're written
-   (nested lines included), as walk takes them."
+   (nested seqs included), as walk takes them."
   [id]
   (let [reg @(repo/registry)] (flat-chords reg (get reg id))))
 
 (defn form-of
-  "The part id's form: {:chords [...]} for a line, or, for a part that
+  "The part id's form: {:chords [...]} for a seq, or, for a part that
    is one repeat, {:count n :body [...] :endings [[...] ...]} -- its
    volta endings, none, one or several."
   [id]
@@ -223,15 +223,15 @@
     (and (str/includes? t "&") (not (str/includes? t "#")))))
 
 (defn line->mus
-  "The walking bass under chords (walk's, e.g. a line's leaves) as a
-   line of musics text, `[!i:acousticBass F2/4 ... ]`, spelled with
+  "The walking bass under chords (walk's, e.g. a seq's leaves) as a
+   seq of musics text, `[!i:acousticBass F2/4 ... ]`, spelled with
    flats when the chords were. opts as walk's."
   [chords opts]
   (str "[!i:acousticBass " (notes-text (walk chords opts) (flats? chords) (volatile! nil)) "]"))
 
 (defn ->mus
   "The walking bass under the chords of the part id as musics text, in
-   the part's form -- a line, or a repeat with its volta endings
+   the part's form -- a seq, or a repeat with its volta endings
    (walk-repeat) -- named name (:bass) and played on an acoustic bass,
    ready for musics.mu.store/read!; then (play #{id :bass}). opts as walk's."
   ([id] (->mus id {}))

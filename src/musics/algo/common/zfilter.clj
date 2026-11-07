@@ -81,7 +81,7 @@
 (defn interval-gain
   "Multiply every interval between consecutive values by factor --
    factor > 1 exaggerates the melodic contour (bigger leaps, same
-   overall shape), factor < 1 compresses it toward a flat line, factor
+   overall shape), factor < 1 compresses it toward a flat seq, factor
    = 1 is a no-op, negative factor inverts the contour. A sequence of
    fewer than 2 values passes through unchanged."
   [factor xs]

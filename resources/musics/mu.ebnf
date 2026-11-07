@@ -106,7 +106,7 @@ EmptyLine = <'['> <ws>? <']'>
 (* {2} {3} … {n} -- the top n side by side, a { } of n parts; no musics
    text, since a bare number is no element. *)
 Parallels = <'{'> #'[0-9]+' <'}'>
-(* [2] [3] … [n] -- the top n one after another, a line of n elements. *)
+(* [2] [3] … [n] -- the top n one after another, a seq of n elements. *)
 Lines = <'['> #'[0-9]+' <']'>
 (* A word: a name or one of the symbol words, either possibly ns/…; a
    name may start with + (+octave, say), ? or > before a letter (>ctx). *)

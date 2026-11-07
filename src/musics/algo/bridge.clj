@@ -117,7 +117,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn leaves->durations
-  "Each note's duration, a rest as itself: a line's rhythm, as a line
+  "Each note's duration, a rest as itself: a seq's rhythm, as a seq
    taken apart gives it."
   {:mu {:names ["lea>dur"]} :algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
   [leaves]
@@ -125,7 +125,7 @@
 
 (defn leaves->pitches
   "Each note's pitch -- a chord's lowest, nil for a rest or a drum -- as a
-   line taken apart gives it."
+   seq taken apart gives it."
   {:mu {:names ["lea>pit"]} :algo {:category "bridge" :in [:leaf] :out :pitch :works :value}}
   [leaves]
   (map #(some->> (:pitches %) seq (apply min)) leaves))

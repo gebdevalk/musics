@@ -393,7 +393,7 @@
 (defn rising
   "Returns random float between lo and hi with upward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors high values.
-   Use for crescendos, rising pitch lines, or increasing density."
+   Use for crescendos, rising pitch seqs, or increasing density."
   {:algo (sampler {:lo lo :hi hi :bias bias})}
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
@@ -405,7 +405,7 @@
 (defn falling
   "Returns random float between lo and hi with downward bias.
    bias=0.0 → uniform, bias=1.0 → strongly favors low values.
-   Use for decrescendos, falling pitch lines, or fading effects."
+   Use for decrescendos, falling pitch seqs, or fading effects."
   {:algo (sampler {:lo lo :hi hi :bias bias})}
   [lo hi bias]
   (let [b (max 0 (min 1 bias))]
