@@ -86,7 +86,7 @@
 ;; ID generation
 ;; ============================================================
 
-(def ^:private id-prefixes
+(def id-prefixes
   "Short lowercase prefix per container type for auto-generated ids
    (:SEQ -> :s1, :PAR -> :p1, :CONTEXT -> :c1, etc.) instead of the
    verbose :SEQ.1/:CONTEXT.1 style."

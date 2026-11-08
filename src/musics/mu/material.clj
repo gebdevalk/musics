@@ -401,6 +401,19 @@
 
 ;; -- the repo -------------------------------------------------------------
 
+(defn- spend-auto-ids!
+  "Move the auto-id counters past the auto ids just stored (:s33, :c1 …),
+   so a value read afterwards never gets one that is stored."
+  [ids]
+  (let [type-of (into {} (map (fn [[t p]] [p t])) builder/id-prefixes)]
+    (swap! reg/session update :auto-ids
+           (fn [counts]
+             (reduce (fn [m id]
+                       (let [[_ prefix n] (re-matches #"([a-z]+)(\d+)" (name id))
+                             t (type-of prefix)]
+                         (if t (update m t #(max (or % 0) (parse-long n))) m)))
+                     counts ids)))))
+
 (defn store-all!
   "Store each [x name] of pairs at once, as store! does one; returns the
    ids, in order. An id it redefines that a part it doesn't store also
@@ -425,6 +438,7 @@
           (e/mu-error (str word ":") (str/join "; " used) "-- R!! stores it anyway, changing them too; or give it a new id")
           (println (str word ":") (str (str/join "; " used) ", so storing it changes them too")))))
     (repo/commit-many! edits)
+    (spend-auto-ids! (keys edits))
     (let [root (or (repo/current :ROOT) (get (:repo (builder/empty-session)) :ROOT))
           new  (for [{:keys [id top]} parts
                      :when (and top (not= :CONTEXT (:type top)) (not (some #{id} (:children root))))]

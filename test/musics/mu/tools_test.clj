@@ -194,6 +194,12 @@
     (is (re-matches #"\{parTest: :s\d+ :s\d+\}" (top ":parTest R@")) "two parts, each under an id of its own")
     (is (= "3/4" (top ":parTest R@ duration")))))
 
+(deftest storing-spends-the-auto-ids
+  (testing "a context made after a store never gets the id of a stored one"
+    (let [ctx "| :duration '[1] :Tempo '[1] 120 * >ctx"]
+      (is (= "^{ !Tempo:120 }" (top (str ctx " [c] par :pt R! drop " ctx)))
+          "it has an id of its own, so it prints"))))
+
 (deftest a-mark-prints-as-a-bar
   (is (= "1 | 2" (top "1 | 2")))
   (is (= "<A3 C4 E4>4" (top "a c e chord")) "a chord from the whole stack")
