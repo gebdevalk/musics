@@ -32,7 +32,7 @@
 'spiral 24 :=                         % passes in one swell-and-fade of the colour wheel
 'tempo 96 :=                          % quarter notes a minute
 'spread 1.0 :=                        % panning of the two groups, -spread and +spread (0 .. 1)
-'lag 1/8 :=                          % how late group B is, in whole notes (1/32: half a pulse)
+'lag 1/8 :=                          % how late group B is, as a note length (1/32: half a pulse of 1/16)
 'soft 60 :=                           % the volume it starts at (mf) ...
 'loud 90 :=                           % ... and climbs to at the climax (fff)
 'melody '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69] :=   % E dorian, a rising and falling line
@@ -40,7 +40,7 @@
 % ---- the process ---------------------------------------------------------
 
 % notes the incarnation number sounds: 1 .. steps .. 1
-: dens ( $number -- density ) \steps  \steps 1- $number - abs  - ;
+: density ( $number -- density ) \steps  \steps 1- $number - abs  - ;
 
 % which incarnation a pass belongs to
 : incarnation ( $pass -- number ) $pass \reps / int ;
@@ -65,17 +65,17 @@
   | $density \steps p/euclid 1/16 b/pul>stp  \melody \steps take
   :volume ones $volume *  :instrument ones $instrument *  :pan ones $pan *  zip ;
 
-% the whole length of one pass, in whole notes
+% the length of one pass, as a note length (steps/16)
 : pass-length ( -- t ) \steps 16 / ;
 
 % pass k of one instrument: sounding once the density has reached thr, else a rest
 : melody-at ( $pass $phase $threshold $instrument $pan -- seq )
-  $pass incarnation dens  $threshold >=
-  '( $pass incarnation dens  $pass $phase vol-at  $instrument $pan  melody-pass )
+  $pass incarnation density  $threshold >=
+  '( $pass incarnation density  $pass $phase vol-at  $instrument $pan  melody-pass )
   '( [] pass-length delay )
   if ;
 
-% every pass of the piece for one instrument, starting lead whole notes late (0: on time)
+% every pass of the piece for one instrument, starting lead late, a note length (0: on time)
 : melody-line ( $phase $threshold $instrument $pan $lead -- seq )
   | $lead 0 >  '( [] $lead delay ) when
     \reps \steps 2 * 1- *  0  '( i $phase $threshold $instrument $pan melody-at )  loop ( ) ;
@@ -96,14 +96,14 @@
 
 % pass k of a percussive line: sounding from density thr, hits = the density divided by div (at least 1)
 : perc-at ( $pass $threshold $divisor $rotation $drum $louder -- seq )
-  $pass incarnation dens  $threshold >=
-  '( $pass incarnation dens $divisor / int 1 max  $rotation $drum  $pass base-vol $louder + round  drum-pass )
+  $pass incarnation density  $threshold >=
+  '( $pass incarnation density $divisor / int 1 max  $rotation $drum  $pass base-vol $louder + round  drum-pass )
   '( [] pass-length delay )
   if ;
 
 : chord-at ( $pass $threshold $divisor $rotation $louder -- seq )
-  $pass incarnation dens  $threshold >=
-  '( $pass incarnation dens $divisor / int 1 max  $rotation  $pass base-vol $louder + round  chord-pass )
+  $pass incarnation density  $threshold >=
+  '( $pass incarnation density $divisor / int 1 max  $rotation  $pass base-vol $louder + round  chord-pass )
   '( [] pass-length delay )
   if ;
 
