@@ -27,12 +27,12 @@
 
 % ---- settings ------------------------------------------------------------
 
-'steps 8  :=                          % pulses of a pass: 8 or 16 (a melody of that many pitches)
+'steps 16 :=                          % pulses of a pass: 8 or 16 (a melody of that many pitches)
 'reps 4 :=                            % times each incarnation is played
 'spiral 24 :=                         % passes in one swell-and-fade of the colour wheel
-'tempo 96 :=                          % quarter notes a minute
+'tempo 60 :=                          % quarter notes a minute
 'spread 1.0 :=                        % panning of the two groups, -spread and +spread (0 .. 1)
-'lag 1/8 :=                          % how late group B is, as a note length (1/32: half a pulse of 1/16)
+'lag 1/4 :=                          % how late group B is, as a note length (1/32: half a pulse of 1/16)
 'soft 60 :=                           % the volume it starts at (mf) ...
 'loud 90 :=                           % ... and climbs to at the climax (fff)
 'melody '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69] :=   % E dorian, a rising and falling line
@@ -132,7 +132,7 @@
     0.00 1  12 hocket-line      % marimba
     0.25 4  11 hocket-line      % vibraphone
     0.50 8  62 hocket-line      % synth brass
-    0.75 12 30 hocket-line      % distortion guitar
+    0.75 12 40 hocket-line      % distortion guitar
     kick-line snare-line piano-line
   par ;
 
