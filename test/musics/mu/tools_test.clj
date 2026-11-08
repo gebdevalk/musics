@@ -185,6 +185,15 @@
   (is (re-find #"nothing on the stack to gather" (top "()")))
   (is (re-find #"unknown word: seq -- " (top "| c d seq")) "seq is gone: a group gathers"))
 
+(deftest par-keeps-parts-with-the-same-auto-ids-apart
+  (testing "parts read apart each use :s1, :s2 …; side by side they stay different"
+    (is (= "{[[C4/4 D4] [E4]] [[F4] [G4 A4]]}" (top "| ( [c d] [e] ) ( [f] [g a] ) par")))
+    (is (= "2" (top "| ( [c d] [e] ) ( [f] [g a] ) par length"))))
+  (testing "stored, the whole piece and all its parts come back"
+    (top "| ( [c d] [e] ) ( [f] [g a] ) par :parTest R!")
+    (is (re-matches #"\{parTest: :s\d+ :s\d+\}" (top ":parTest R@")) "two parts, each under an id of its own")
+    (is (= "3/4" (top ":parTest R@ duration")))))
+
 (deftest a-mark-prints-as-a-bar
   (is (= "1 | 2" (top "1 | 2")))
   (is (= "<A3 C4 E4>4" (top "a c e chord")) "a chord from the whole stack")

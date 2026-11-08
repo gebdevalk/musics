@@ -884,8 +884,28 @@
   [ks pitches]
   (read-text (str "[" (str/join " " (map #(str (lp/spell-pitch % nil ks) "4") pitches)) "]")))
 
-(defn par-of [xs]
-  (read-text (str "{" (apply str (interpose " " (map #(p/show (->material (sounding! "par" %))) xs))) "}")))
+(defn- literal-of
+  "The one literal node a text reads as."
+  [text]
+  (let [nodes (filterv v/literal? (rest (g/parse text)))]
+    (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
+    (first nodes)))
+
+(defn par-of
+  "The parallel of xs. Each part is parsed on its own (parsing one long
+   text takes far more than the sum of its parts) and read into the repo
+   the parts before it made, so their auto ids stay apart; then one small
+   parallel holds them by id."
+  [xs]
+  (let [read1 (fn [[repo auto-ids ids] text]
+                (let [r (v/read-literals [(literal-of text)] text repo auto-ids)]
+                  [(:repo (first (:values r))) (:auto-ids r) (conj ids (first (:ids r)))]))
+        texts (map #(p/show (->material (sounding! "par" %))) xs)
+        base  (e/current-repo)
+        [tree auto-ids ids] (reduce read1 [base (:auto-ids @reg/session) []] texts)
+        text (str "{" (str/join " " ids) "}")]
+    ;; :base stays the repo before the parts, so storing it stores them too
+    (as-value (assoc (first (:values (v/read-literals [(literal-of text)] text tree auto-ids))) :base base))))
 
 ;; -- what play shares with the prompt ----------------------------------------
 
