@@ -45,3 +45,31 @@
 
 (deftest sawr-completes-one-cycle-per-period
   (is (= (trig/sawr 1 3 5 4) (trig/sawr 5 3 5 4))))
+
+(deftest waves-between-lo-and-hi
+  (is (= [75.0 90.0 75.0 60.0] (mapv #(trig/sine % 60 90 8) [0 2 4 6])))
+  (is (= [90.0 75.0 60.0 75.0] (mapv #(trig/cosine % 60 90 8) [0 2 4 6])))
+  (is (< (Math/abs (- 90.0 (trig/triangle 2 60 90 8))) 1e-9))
+  (is (< (Math/abs (- 60.0 (trig/triangle 6 60 90 8))) 1e-9))
+  (is (= [90.0 90.0 60.0 60.0] (mapv #(trig/square % 60 90 8) [1 3 5 7])))
+  (is (= [75.0 82.5 67.5] (mapv #(trig/saw % 60 90 8) [0 2 6]))))
+
+(deftest the-shorter-calls-leave-out-what-is-one-or-zero
+  (is (= 1.0 (trig/sine 0.25)) "idx alone: a period of one, an amplitude of one")
+  (is (= 1.0 (trig/sine 1 4)) "a period")
+  (is (= 3.0 (trig/sine 2 3 8)) "an amplitude, then the period")
+  (is (= -3.0 (trig/sine 6 3 8)) "between -amp and amp")
+  (is (= 90.0 (trig/sine 2 60 90 8)) "lo, hi, period")
+  (is (= (trig/sine 2 60 90 0 8) (trig/sine 2 60 90 8)) "a phase of 0 left out")
+  (is (= 1.0 (trig/cosine 0)))
+  (is (= 1.0 (trig/square 0.25)))
+  (is (= 0.5 (trig/saw 0.25)) "a ramp from -1 to 1: a quarter of the way up from the middle"))
+
+(deftest phase-moves-the-wave-by-a-part-of-a-cycle
+  (is (= 90.0 (trig/sine 0 60 90 0.25 8)) "a quarter of a cycle ahead: the sine begins at hi")
+  (is (= 60.0 (trig/cosine 0 60 90 0.5 8)))
+  (is (< (Math/abs (- (trig/sine 3 60 90 0.25 8) (trig/sine 5 60 90 8))) 1e-9) "phase 0.25 of 8 is 2 idxs"))
+
+(deftest waves-stay-between-lo-and-hi
+  (doseq [f [trig/sine trig/cosine trig/triangle] i (range 0 16) ph [0 0.3 0.7]]
+    (let [v (f i 60 90 ph 8)] (is (<= 59.999 v 90.001)))))
