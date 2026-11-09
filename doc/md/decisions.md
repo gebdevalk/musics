@@ -3527,3 +3527,41 @@ The words that play at the next boundary are written `-|>` and `-|>+`: the
 bar line `|` in the arrow, since `x | -|>` is how a bar line is waited for.
 `play-next` and `play-next+` are unchanged. Earlier entries keep the old
 spelling as written.
+
+## 2026-11-09 — the raw algos replace the tree on `develop`; `tree-approach` marks the last tree version
+
+`develop` was fast-forwarded to the `hoketus` branch (58 commits, 231 files):
+the tree, tctx, registry, recipes, composer and algo words are gone, and an
+algorithm is a plain function called by name (`3 8 pattern/euclid`), its
+results turned into notes by the bridges and `zip`. The first piece, `hoketus.mus`,
+is composed with nothing else. The local tag `tree-approach` (`90b4f4d`) marks
+the last `develop` that had the tree; reviving it means merging from there.
+
+Why: the tree put a registry and a settings object between an algorithm and
+its caller, so every feature was written twice, once for the function and once
+for the tree. Plain functions with clear argument names are the thing any caller
+needs, mu text today and Clojure tomorrow.
+
+Not built, but the reason to keep the functions plain: a Clojure facade for
+people who do not want to think in a stack. Each mu word would be wrapped as a
+function (arguments pushed, word run, top of the stack returned), generated from
+the word table, so `->` threading works with music as the first argument. The
+words that read the stack's shape (`zip`, `par`, `chord`, the play words) would
+need hand-made signatures. Decided against, for now: a second, pure-data music
+representation in Clojure; it would bring back two vocabularies, which the
+2026-10-23 entry removed.
+
+## 2026-11-09 — `call` is gone, `execute` runs a quotation
+
+`execute` already ran a quotation as `call` did, and it takes a quoted word name
+as well (`2 60 90 0 8 'tr/sine execute`), as Forth's `' word execute` does. Two
+words for one job was one too many. Nothing in the tests, docs or `.mus` files
+used `call` beyond three tests, now written with `execute`.
+
+## 2026-11-09 — notes in a data list: relative, absolute or a class
+
+In `'[ ]` a lowercase note is relative to the pitch before it (`'[c d e]` is
+60 62 64), a capital with an octave is absolute (`C4` is 60), and a capital
+alone is a pitch class, 0 to 11 (`'[C D E]` is 0 2 4), an `:int` list, so a list
+cannot mix classes and pitches. A bare letter takes the key's implied
+accidental as any note does; a written accidental always wins.
