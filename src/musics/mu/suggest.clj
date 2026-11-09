@@ -3,7 +3,8 @@
    the words that are a typo away (same letters but for one or two), else
    where to look. Pure: it reads the namespaces and the ones in use from
    the state it is given."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [musics.mu.inputs :as inputs]))
 
 (def renamed
   "Names mu used to have, or that another language has, and what is
@@ -12,9 +13,9 @@
    "lt" "<", "gt" ">", "le" "<=", "ge" ">=", "eq" "=", "ne" "<>", "neg" "negate"
    "pop" "drop", "up" "+", "down" "-", "stretch" "*", "shrink" "/"
    "reverse" "retrograde", "rest" "tail", "first" "head", "size" "length", "len" "length", "count" "length"
-   "print" ".", "show" "see", "quit" "bye", "exit" "bye", "loop" "cycle"
+   "print" ".", "show" "see", "quit" "bye", "exit" "bye"
    "repeat" "times", "context-of" "setting"
-   "line" "[2] [3] … (the count in the sign: [c d] [e f] [2])", "together" "{2} {3} … (the count in the sign)", "beside" "{+}"
+   "seq" "[2] [3] … (the count in the sign: [c d] [e f] [2])", "together" "{2} {3} … (the count in the sign)", "beside" "{+}"
    "ROT" "rotate (the stack's is rot)", "SFL" "shuffle", "TRP" "transpose"})
 
 (defn distance
@@ -65,13 +66,17 @@
 (defn hint
   "What to add after `unknown word: name`, or nil."
   [st name]
-  (if-let [now (renamed name)]
-    (str "it is now written " now)
-    (if (contains? (:bindings st) name)
+  (let [[_ voice input] (re-matches #"([a-zA-Z]\w*)/([a-zA-Z][\w\-?]*)" name)]
+    (cond
+      (renamed name)
+      (str "it is now written " (renamed name))
+      (and voice (inputs/has? (keyword voice)))
+      (str "did you mean :" voice "/" input "? a voice's input has a colon")
+      (contains? (:bindings st) name)
       (str name " is a value, not a word: \\" name " puts it on the stack")
+      :else
       (let [close (close-words st name 3)]
-      (if (seq close)
-        (str "did you mean " (str/join ", " close) "?")
-        (if (re-matches #"[a-zA-Z][a-zA-Z0-9_-]*" name)
-          (str "about " name " looks for it; words lists them")
-          "words lists them, help shows the way"))))))
+        (cond
+          (seq close) (str "did you mean " (str/join ", " close) "?")
+          (re-matches #"[a-zA-Z][a-zA-Z0-9_-]*" name) (str "about " name " looks for it; words lists them")
+          :else "words lists them, help shows the way")))))

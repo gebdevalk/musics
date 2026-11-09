@@ -343,7 +343,7 @@
             error -- a bare Ratio primitive and a :duration atom can't
             be told apart once appended, so this has to be caught here"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"mixes :duration and :pitch"
-          (walk "'[ /4 C ]"))))
+          (walk "'[ /4 C4 ]"))))
 
   (testing "a recognized `type` prefix matching its own elements is fine,
             and lands as :data-type on the committed container"
@@ -361,7 +361,7 @@
 
   (testing ":data-type is auto-derived from the elements alone when no
             explicit `type` prefix is given"
-    (let [{:keys [tree root-id]} (walk "'[ C E G ]")
+    (let [{:keys [tree root-id]} (walk "'[ C4 E4 G4 ]")
           data-id (first (:children (get tree root-id)))
           data    (get tree data-id)]
       (is (= :pitch (:data-type data))))))

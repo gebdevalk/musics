@@ -15,7 +15,7 @@
 (def parser (insta/parser grammar :start :MuInput :string-ci false))
 
 (defn parse
-  "The parse tree of one input, or an instaparse failure. An empty line,
+  "The parse tree of one input, or an instaparse failure. An empty seq,
    [], is the Sequence with nothing in it."
   [text]
   (let [tree (insta/parse parser text)]

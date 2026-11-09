@@ -4,10 +4,10 @@ mu is musics' concatenative, real-time, interactive REPL: you type
 music, and it lands on a stack where words change it, combine it and
 play it, while it plays. This tutorial walks
 through the words that work on music, from writing a note to building
-a color-talea. Every example was run in mu; the line under `→` is what
+a color-talea. Every example was run in mu; the seq under `→` is what
 mu printed.
 
-Start mu with `lein mu`; its first line shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
+Start mu with `lein mu`; its first seq shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
 ## 0. The stack
@@ -34,11 +34,40 @@ around on it, and you'll need them throughout:
 | `about` | `( ["name"] -- )` | what a name is and where it can appear, one sentence: `about tempo`, `about violin`, `about allegro` |
 | `settings` | `( "name" -- )` | a parameter's range, default and how it is written: `settings tempo` (a voice on top: its live settings) |
 | `marks` | `( "name" -- )` | the marks that set a parameter, by value: `marks tempo` |
-| `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
+| `help` | `( ["text"] -- )` | mu in a few seqs; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside
 are optional: `'(12 +)` is `'( 12 + )`.
+
+### Asking mu
+
+After each input mu prints `ok`, or `error:` and the reason, and an error leaves the
+stack as it was. The words that look things up read the word after them, as Forth's `see`
+does, so `help dup` and `see dup` do not run `dup`:
+
+```
+help dup                 → dup ( x -- x x )
+                           copy the top
+about tempo              → tempo is a musical parameter (Tempo|T) and can appear in ^{ }, { } and [ ].
+about pitch              → pitch is a property of a note or chord.
+                           pitch is a word of mu ( note -- pitch ).
+settings tempo           → 30..300, default 100, Beats per minute. Written !tempo:100, or on a seq: x !tempo:100 with
+marks tempo              → !adagissimo !larghissimo !grave !largo … !presto !prestissimo
+```
+
+`about` says in a sentence what a name is: a parameter, a mark, a word, an instrument, a drum, a
+scale, a chord quality, an articulation or a rule of the grammar (written as the grammar writes it,
+`about Leaf`), and where it can appear (notes only in `[ ]`). `settings` and `marks` say more about a
+parameter: its range and default, and the named values that set it, slowest to fastest, loudest
+last. A mistake explains itself when it can:
+
+```
+[1 2 3]                  → numbers in a list are data: '[1 2 3]
+'n 5 :=
+n                        → unknown word: n -- n is a value, not a word: \n puts it on the stack
+\n                       → 5
+```
 
 ### Numbers, comparison, conditions
 
@@ -60,7 +89,7 @@ either side; two lists work in step, as long as the shorter.
 Comparison is Forth's: `= <> < > <= >=`, giving `true` or `false`. The order
 signs take numbers, ratios and durations (`/4 /8 >` is true), or anything by a
 key, a quotation on top that reads a number from each (`c d '( pitch ) <`,
-`[c d] [e f g] '( duration ) <`, and `[e c d] '( pitch ) sort` orders a line); `=` and `<>`
+`[c d] [e f g] '( duration ) <`, and `[e c d] '( pitch ) sort` orders a seq); `=` and `<>`
 take any two values, two numbers by value (`1 1.0 =`), music by its notes
 (`[c d] [c d] =`), data element by element.
 
@@ -82,7 +111,7 @@ flag's place is refused, naming it.
 0 not                              → ERR not: needs a flag (true or false), got 0
 ```
 
-An error leaves the stack as it was before the input, so a typo costs the line,
+An error leaves the stack as it was before the input, so a typo costs the seq,
 not what you built. A word mu does not know says what it is now called, or
 what is close to it, and `help` shows the way in:
 
@@ -105,7 +134,7 @@ c4                  → C4/4
 {[c d] [e f]}       → {[C4/4 D4] [E4 F4]}
 ```
 
-- `[ ]` is a line (notes one after another), `{ }` lines at once,
+- `[ ]` is a seq (notes one after another), `{ }` seqs at once,
   `< >` a chord, `r` a rest.
 - A duration carries over: `d8 e` makes `e` an eighth too.
 - A lowercase letter is relative: it lands as close as it can to the
@@ -125,22 +154,22 @@ instead of waiting; `doc/md/setup.md` has what to do.
 |---|---|
 | `->` or `play` | play now, stopping what plays |
 | `->+` or `play+` | play now, joining what plays |
-| `->>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
-| `x \| ->>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
-| `->>+` or `play-next+` | join at the next boundary |
+| `-\|>` or `play-next` | play in place of what plays, at its next boundary: the end of it, or of its repeat's pass |
+| `x \| -\|>` | the same, at the next bar line (`\|\|` … `\|\|\|\|` for stronger ones) |
+| `-\|>+` or `play-next+` | join at the next boundary |
 | `stop` | stop everything (or Alt+., even mid-typing); `:bass stop` stops one voice |
 | `pause` | pause; `pause` again goes on (or Alt+,) |
 | `voices` or `<<-` | what plays, the highest voice on top: each voice's index (`highest` … `1 lowest`, `0 drums` …), id and music |
 | `:bass playing` or `:bass <-` | the music the voice `:bass` plays, onto the stack |
 | `:bass hush` / `:bass solo` | silence a voice / let only it sound, keeping its place; again to undo |
 
-`->` plays now, `->>` at the next boundary; a `+` joins what plays
+`->` plays now, `-|>` at the next boundary; a `+` joins what plays
 instead of replacing it.
 
 ```
 [c d e f g] ->
 [c d e f g] [~] ->        loop it until stop
-[e f g a b] ->>           takes over at the end of the current pass
+[e f g a b] -|>           takes over at the end of the current pass
 ```
 
 Music with a name plays as a voice of that name, and playing it again
@@ -149,7 +178,7 @@ replaces only that voice, the others going on:
 ```
 [bass: c2 g] [~] ->           the voice :bass
 [mel: e8 f g a] [~] ->        a second voice, :mel; :bass goes on
-[bass: f2 c] [~] ->>          :bass changes at the end of its pass
+[bass: f2 c] [~] -|>          :bass changes at the end of its pass
 :mel hush                    silence :mel, keeping its place
 :mel hush                    and back
 ```
@@ -158,6 +187,16 @@ Music without a name is no voice of its own: `->` stops everything,
 `->+` adds it under an id the engine gives (`:TA` …), shown by
 `voices`.
 
+A playing voice is changed with `with`, from the end of its pass, and
+the id leaves nothing on the stack:
+
+```
+:bass !tempo:140 with         the voice goes on at 140
+:bass !volume:80 with         any ! instruction, a context ^{ } or a key (D.major)
+```
+
+Leave off a trailing `-|>`: it would cancel the change.
+
 Voices also go by index, low to high: `1` the lowest voice, `2` the
 next …, and the drum voices from `0` down (`0`, `-1` …, lowest drum key
 first). An index or id on top of a play word plays as that voice; on
@@ -165,10 +204,10 @@ its own, with no music under it, the voice starts its own music again:
 
 ```
 1 <-                  what the lowest voice plays
-3 <- 12 + 3 ->>        voice 3 an octave up, at its boundary
+3 <- 12 + 3 -|>        voice 3 an octave up, at its boundary
 0 hush               silence the drums
 1 ->                  voice 1 from its start, now
-:bass ->>             :bass from its start, at the end of its pass
+:bass -|>             :bass from its start, at the end of its pass
 ```
 
 `echo` prints each note as it sounds; `echo` again stops it.
@@ -181,36 +220,36 @@ it leaves mu running, and `gui` opens it again.
 
 | Word | Stack | Does |
 |---|---|---|
-| `[2]` `[3]` … | `( a … -- line )` | the top n one after another |
-| `( … )` | `( -- line )` | what runs inside, gathered into one line (or a data list, for numbers) |
+| `[2]` `[3]` … | `( a … -- seq )` | the top n one after another |
+| `( … )` | `( -- seq )` | what runs inside, gathered into one seq (or a data list, for numbers) |
 | `{2}` `{3}` … | `( a … -- parallel )` | the top n at once |
 | `par` | `( \| … -- parallel )` | everything above a `\|` mark side by side: `\| [c d] [e f] par` |
-| `[+]` or `concat` | `( a b -- line )` | two lines joined into one |
+| `[+]` or `concat` | `( a b -- seq )` | two seqs joined into one |
 | `{+}` | `( a b -- parallel )` | the parts of two parallels in one |
 | `[H]` or `head`, `[T]` or `tail` | `( x -- elem )`, `( x -- x' )` | the first element (`head`) and all after it (`tail`); `take` is the first n |
 | `chord` | `( \| notes -- chord )` | the notes above the nearest `\|` mark, else the whole stack, as a chord |
-| `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a line's notes or a parallel's parts |
+| `spread` or `**` | `( x -- a b … )` | the other way round: x's elements on the stack, a seq's notes or a parallel's parts |
 
 The pairs differ in what they take and what they make of it:
 
 - `( … )` gathers **whatever runs inside it**, as many as you like, each
-  staying an element of its own: music into a line, numbers into a data
+  staying an element of its own: music into a seq, numbers into a data
   list. `par` (and `zip`, `>ctx`, `chord`) gather **everything above a
   `|` mark**, or the whole stack when there is none, instead: `| [c d] [e f] par` is the
-  parallel of the two lines.
+  parallel of the two seqs.
 - `[n]` and `{n}` take **the top n**, `[2]`, `[3]`, … and `{2}`, `{3}`,
   …, each staying an element (a part) of its own.
-- `[+]` and `{+}` **join** the top two: `[+]` two lines into one flat
-  line, `{+}` the parts of two parallels into one `{ }` (a line counts
+- `[+]` and `{+}` **join** the top two: `[+]` two seqs into one flat
+  seq, `{+}` the parts of two parallels into one `{ }` (a seq counts
   as one part).
 
-`[ ]` makes or acts on a line, `{ }` makes or acts on a parallel.
+`[ ]` makes or acts on a seq, `{ }` makes or acts on a parallel.
 
 ```
 ( c d e )               → [C4/4 D4 E4]
-( [c d] [e f] )         → [[C4/4 D4] [E4 F4]]       two lines, one after the other
+( [c d] [e f] )         → [[C4/4 D4] [E4 F4]]       two seqs, one after the other
 [c d] [e f] [2]         → [[C4/4 D4] [E4 F4]]       the same, counted
-[c d] [e f] [+]         → [C4/4 D4 E4 F4]           one line of four notes
+[c d] [e f] [+]         → [C4/4 D4 E4 F4]           one seq of four notes
 | [c d] [e f] [g a] par → {[C4/4 D4] [E4 F4] [G4 A4]}
 [c d] [e f] {2}         → {[C4/4 D4] [E4 F4]}
 [c] [e] [g] {3}         → {[C4/4] [E4] [G4]}
@@ -220,26 +259,26 @@ The pairs differ in what they take and what they make of it:
 [c d e f] 2 take        → [C4/4 D4]
 c e g chord             → <C4 E4 G4>4
 [c d | e] spread        → C4/4 D4/4 E4/4            three notes, the bar line left out
-{[c d] [e f]} **        → [C4/4 D4] [E4/4 F4]       two lines
+{[c d] [e f]} **        → [C4/4 D4] [E4/4 F4]       two seqs
 [c d e] spread swap [3] → [C4/4 E4 D4]              the last two exchanged
 ```
 
 `spread` undoes `[n]` and `{n}`: the elements come onto the stack one
 by one, where the stack words reach each of them, and `[n]` or `{n}`
 puts them back together. Bar lines and jump marks are left out, since
-they mean nothing outside their line.
+they mean nothing outside their seq.
 
-A group makes one line of what would be several values, so the next word
+A group makes one seq of what would be several values, so the next word
 reaches all of it: `( [c d] 2 times [e] [f] volta ) 1 +` moves the repeat
 and its endings together, under one key.
 
-Both lines play the same four notes; the first keeps the two
-lines apart, so a word can still treat them as two (`[R]` swaps the
-lines, where on the flat line it reverses the notes).
+Both seqs play the same four notes; the first keeps the two
+seqs apart, so a word can still treat them as two (`[R]` swaps the
+seqs, where on the flat seq it reverses the notes).
 
 ### Parts that enter late
 
-`delay` puts a rest in front of a line, a length in whole notes, any
+`delay` puts a rest in front of a seq, a length in whole notes, any
 rational. `delays` does it for the parts of a `{ }`: a number delays part
 k by k times it, a canon at that distance, and a data list gives each
 part its own delay, one for each part:
@@ -259,7 +298,7 @@ whole number among ratios is a ratio, so `'[0 1/3]` is a list of ratios.)
 ## 4. Changing pitch
 
 A bare symbol works on every note; the same symbol in brackets works
-on the line as a whole.
+on the seq as a whole.
 
 | Word | Stack | Does |
 |---|---|---|
@@ -282,12 +321,12 @@ on the line as a whole.
 ```
 
 Moving music moves its key with it: `+`, `-` and `transpose` write the
-moved key at the start of the line (its own `!K:` moved, else the one
+moved key at the start of the seq (its own `!K:` moved, else the one
 it is in), so the notes stay what they were in their key and play so
 under any other; whole octaves leave the key alone.
 
 These are the serial row forms: R, I and RI, transposed with `+` (I5 is
-`[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a line
+`[I] 5 +`). Exactly `[R]` is the word; `[ R ]`, with spaces, is a seq
 holding one bar's rest.
 
 ## 5. Keys
@@ -299,9 +338,9 @@ A key is a value too: write it as `!K:` does, a tonic and a scale
 | Word | Stack | Does |
 |---|---|---|
 | `tonic` | `( key -- note )` | the key's tonic, in octave 4 |
-| `scale` | `( key -- line )` | one octave of its scale |
-| `degrees` | `( numbers key -- line )` | scale steps from the tonic: 0 the tonic, 7 an octave up |
-| `key` | `( note\|line -- key )` | the key a note or line was written in |
+| `scale` | `( key -- seq )` | one octave of its scale |
+| `degrees` | `( numbers key -- seq )` | scale steps from the tonic: 0 the tonic, 7 an octave up |
+| `key` | `( note\|seq -- key )` | the key a note or seq was written in |
 | `with` | `( x key -- x )` | played in that key |
 
 ```
@@ -324,8 +363,8 @@ plays C♯ and `f` F♯ in D major.
 |---|---|---|
 | `*` | `( x f -- x )` | every duration times f; `*` also multiplies numbers and the numbers of a list |
 | `/` | `( x f -- x )` | every duration divided by f: `3 /` fits three notes in the time of one; `/` also divides numbers, exactly (`1 4 /` is `1/4`) |
-| `[\|\|]` or `barred` | `( x -- line )` | barred by its meter: a bar line every bar, a note across one cut and tied |
-| `[[]]` or `measures` | `( x -- line )` | split by its meter into its measures, each a line of its own |
+| `[\|\|]` or `barred` | `( x -- seq )` | barred by its meter: a bar line every bar, a note across one cut and tied |
+| `[[]]` or `measures` | `( x -- seq )` | split by its meter into its measures, each a seq of its own |
 
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
@@ -353,7 +392,7 @@ in sixteenths. The grouping is what the accents and the groove hear
 In the `[||]` example the `d2` doesn't fit in what is left of the first bar
 (a quarter), so `[||]` cuts it at the bar line: a quarter, tied (`~`),
 and a quarter in the next bar. It still sounds as one half note.
-`[[]]` cuts the same way but makes each measure a line of its own,
+`[[]]` cuts the same way but makes each measure a seq of its own,
 ready for a word that works per measure (`'( [R] ) map` reverses each
 bar). A setting such as `!ff` still carries on into the measures after
 it; a ramp (`!vol<`) ends with its measure.
@@ -383,14 +422,14 @@ names its beat as a note value: `!T:8=120` (eighths), `!T:4.=80` and
 
 `!swing` and the other settings of feel are below, in "Feel".
 
-`with` writes the settings at the start of the line, in front of the
-line's own. Of two settings for the same thing, the later one counts,
-so the line's own still win: in the third example it plays at 90, its
+`with` writes the settings at the start of the seq, in front of the
+seq's own. Of two settings for the same thing, the later one counts,
+so the seq's own still win: in the third example it plays at 90, its
 own `!tempo:90` coming after the inserted `!tempo:60`, and takes `!ff`,
-because it sets no volume of its own. The result is an ordinary line
+because it sets no volume of its own. The result is an ordinary seq
 of notes, so the words that follow (`rotate`, `within`, `durations` …)
-work on its notes as before. A single note becomes a one-note line. A
-`{ }` or a repeat has no line to write into, so it is wrapped in one
+work on its notes as before. A single note becomes a one-note seq. A
+`{ }` or a repeat has no seq to write into, so it is wrapped in one
 that holds the settings.
 
 ### Filling in, or coming first
@@ -407,19 +446,19 @@ Just before a play word, on top of the stack:
 [c d !ff e f] ^{ !pp } with ^{ !mf } ->    every note mf: with filled in pp, -> puts mf first
 ```
 
-Inside a line, from where it is written, nested lines included:
+Inside a seq, from where it is written, nested seqs included:
 
 ```
 [c d ^{ !mf } e [!ff f g]]                c d at the default, e f g mf
 ```
 
 The difference in one sentence: `with` changes the music (its result
-is a new line, stored or played later), a context before `->` or in
+is a new seq, stored or played later), a context before `->` or in
 front of notes is how that music is played here, and so it wins.
 
 ### Feel: swing, groove, accents
 
-These settings change only what you hear: the line prints, and counts
+These settings change only what you hear: the seq prints, and counts
 its bars, as written, so a swung part stays in step with a straight one.
 
 | Setting | Does |
@@ -438,7 +477,7 @@ its bars, as written, so a swung part stays in step with a straight one.
 [!shuffle c8 d e f g a b c] [~] ->
 [!laidBack c16 d e f g a b c d e f g a b c d] [~] ->
 [!M:223 !accent:metric c8 c c c c c c c c c c c] [~] ->
-[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] ->>
+[!M:232 !accent:metric c8 c c c c c c c c c c c] [~] -|>
 ```
 
 The last two are the same twelve eighths: `223` is heard as four
@@ -468,8 +507,8 @@ the text's `alternate [ … ]`. Weights go on top, one per alternative:
 times as often as the second.
 
 | `volta` | `( repeat ending … -- repeat )` | endings above a repeat, one after each pass |
-| `vary` | `( repeat q … -- line )` | each pass changed by a quotation, one for all or one a pass |
-| `[!]` or `unfold` | `( x -- line )` | written out as it plays |
+| `vary` | `( repeat q … -- seq )` | each pass changed by a quotation, one for all or one a pass |
+| `[!]` or `unfold` | `( x -- seq )` | written out as it plays |
 
 The number is how often it plays: `3 times` plays three times, as
 `repeat 3 [ ]` does in the text and in LilyPond.
@@ -494,7 +533,7 @@ second, and so on.
 
 `[!]` writes music out **as it plays**: repeats become their passes,
 endings follow the pass they belong to, jumps are taken. What you get
-is a plain line with nothing left to follow:
+is a plain seq with nothing left to follow:
 
 ```
 [c d] 2 times [e] [f] volta [!]          → [[C4/4 D4] [E4] [C4 D4] [F4]]
@@ -509,13 +548,13 @@ that should work on every note as heard (a `[||]`, a `mute`).
 
 A note is made of half products: its pitch, its duration, its volume,
 its articulation, its instrument. Each has two words: the singular
-reads **one note**, the plural reads **every note of a line**, as a
+reads **one note**, the plural reads **every note of a seq**, as a
 stream (a list).
 
 | One note | Every note | Gives |
 |---|---|---|
 | `pitch` | `pitches` | the pitch: `60`, a chord's pitches `'[60 64 67]`, nil for a rest or drum |
-| `duration` | `durations` | the length, in whole notes (a line's too: `[c4 d4 e2] duration` is 1) |
+| `duration` | `durations` | the length, in whole notes (a seq's too: `[c4 d4 e2] duration` is 1) |
 | `volume` | `volumes` | its own volume (`c4\f`, `c4\vol:90`), else nil |
 | `articulation` | `articulations` | its articulation (`:accent`, `:staccato` …), else nil |
 | `instrument` | `instruments` | its own instrument (`c4\i:40`), else nil (a drum has none) |
@@ -534,17 +573,17 @@ c4\i:40 instrument       → 40
 c4 note? <c e>4 chord?   → true   true
 ```
 
-The singular on a line is an error that names the plural:
+The singular on a seq is an error that names the plural:
 
 ```
-[c d] pitch              → ERR pitch: reads one note; for every note of a line, use pitches
+[c d] pitch              → ERR pitch: reads one note; for every note of a seq, use pitches
 ```
 
 ### What a note plays with
 
 `volume`, `instrument` and `articulation` read only what the note says
 itself, so most notes give nil. `setting` reads what it plays with: put a
-key after the note or the line, and it leaves the note's own value if it
+key after the note or the seq, and it leaves the note's own value if it
 has one, else the context's where it sits. Any context key works, by its
 aliases (`:vol`, `:i`, `:K`, `:pan`):
 
@@ -555,8 +594,8 @@ aliases (`:vol`, `:i`, `:K`, `:pan`):
 [!i:40 !K:D.major c d] :K setting               → D.major
 ```
 
-A line gives its context at its start, and a note the value where it
-sits, a ramp followed along the line:
+A seq gives its context at its start, and a note the value where it
+sits, a ramp followed along the seq:
 
 ```
 [!T:90 !M:3/4 c d e] :Tempo setting             → 90
@@ -567,32 +606,32 @@ sits, a ramp followed along the line:
                                           Tempo=90@0
 ```
 
-(`ctx` prints a line's own settings; a stored name's chain too.) A drum's
+(`ctx` prints a seq's own settings; a stored name's chain too.) A drum's
 `:instrument` is its key of the kit (`x8\38` gives 38), and `:articulation`
 is the note's name, or the context's factor under the name it equals, else
 the number (`0.9` by default). `@` is `nth`, the element counted from 0.
 
-`with` writes one the same way, a key and its value before the word:
+`with` writes one the same way, the instruction as the seq would hold it, before the word:
 
 ```
-[c d] :volume 70 with           → [!volume:70 C4/4 D4]
-[c d] :Tempo 3/2 with           → [!Tempo:3/2 C4/4 D4]
-[c d] :Key D.major with         → [!Key:D.major C#4/4 D4]
-[c d] :volume 70 with :volume setting   → 70
+[c d] !volume:70 with           → [!volume:70 C4/4 D4]
+[c d] !Tempo:3/2 with           → [!Tempo:3/2 C4/4 D4]
+[c d] !Key:D.major with         → [!Key:D.major C#4/4 D4]
+[c d] !volume:70 with :volume setting   → 70
 ```
 
-A note becomes a line, the line's own settings still come after so they
+A note becomes a seq, the seq's own settings still come after so they
 win, and a number key refuses a name (only `:instrument` and `:kit` take
 one). `with` still takes a whole context, `^{ !mf } with`, or a key,
-`D.major with`. Inside a line a bare `!name` must be a mark: `[!mff c]` is
+`D.major with`. Inside a seq a bare `!name` must be a mark: `[!mff c]` is
 refused ("did you mean !ff or !mf?"), and so is `[!volume c]`, which needs
 its value, `!volume:70`.
 
 ### By time and by bar
 
-`duration` is a line's length in whole notes, as written. `at` is the note
+`duration` is a seq's length in whole notes, as written. `at` is the note
 sounding that long into it, a note sounding until the next starts, and
-`bar` the n-th measure by the line's meter, counted from 0 as `nth`
+`bar` the n-th measure by the seq's meter, counted from 0 as `nth`
 counts:
 
 ```
@@ -605,8 +644,8 @@ counts:
 [c2 d2 e2 f2 c2 d2] 1 3 bars            → [E4/2 F4 C4 D4]
 ```
 
-`bars` gives several measures as one line. A bar carries the settings in
-effect where it begins, so it plays as it did in its line, with its
+`bars` gives several measures as one seq. A bar carries the settings in
+effect where it begins, so it plays as it did in its seq, with its
 meter too:
 
 ```
@@ -616,7 +655,7 @@ meter too:
 
 ### Numbers of a stream
 
-What a line gives with `pitches`, `durations` or `volumes` is a list of
+What a seq gives with `pitches`, `durations` or `volumes` is a list of
 numbers, and these read it: `sum`, `mean`, `max`, `min`, `sort` and
 `intervals` (each number minus the one before):
 
@@ -631,10 +670,10 @@ numbers, and these read it: `sum`, `mean`, `max`, `min`, `sort` and
 ```
 
 `max` and `min` are still the two-number words when two numbers are on
-top (`3 5 max` is `5`). A line itself is refused with a pointer to
+top (`3 5 max` is `5`). A seq itself is refused with a pointer to
 `pitches`, and `mean` is exact, so `float` converts it.
 
-`classes` turns a line into the set of its pitch classes: each pitch's
+`classes` turns a seq into the set of its pitch classes: each pitch's
 place above C in the octave, every one once, the smallest first. It is a
 value of its own, written `$[047]` (the numbers glued together, `T` for 10
 and `E` for 11), and the words above read it as the list it holds:
@@ -660,7 +699,7 @@ counts the six interval classes between them:
 [c e g] interval-vector      → $<001110>   one third, one minor third, one fifth
 ```
 
-`key-of` guesses the key a line is in, from how long each class sounds,
+`key-of` guesses the key a seq is in, from how long each class sounds,
 by correlating them with the usual shape of a major and a minor key from
 every tonic. It gives a key, so the key words read it:
 
@@ -672,9 +711,9 @@ every tonic. It gives a key, so the key words read it:
 ```
 
 It is a guess: a short phrase can fit a major key and its relative minor
-nearly alike. `key` still reads the key a line was written in.
+nearly alike. `key` still reads the key a seq was written in.
 
-`pulses` writes a line's rhythm as a grid of pulses, a 1 where a note
+`pulses` writes a seq's rhythm as a grid of pulses, a 1 where a note
 starts and a 0 while it holds or a rest is silent. The pulse is the largest
 note value every length is a whole number of, or the one you give:
 
@@ -699,7 +738,7 @@ a slash and that note:
 <e g c'>1 chord-name           → "C:M/E"      the first inversion
 <c e g a>1 chord-name          → "C:6"        the lowest note is the root
 $[0479] chord-name             → "A:m7"       a set has no lowest note
-[c e g c'] chord-name          → "C:M"        a line is read as an arpeggio
+[c e g c'] chord-name          → "C:M"        a seq is read as an arpeggio
 ```
 
 The name reads back: `[C:M7]` is the chord it names.
@@ -717,12 +756,12 @@ scaled so the strongest is 1, as exact ratios:
 [<c e g>2 <f a c'>2] profile → '[1 0 0 0 1/2 1/2 0 1/2 0 1/2 0 0]
 ```
 
-The biggest score is the note the line leans on. Rests count for nothing,
+The biggest score is the note the seq leans on. Rests count for nothing,
 and the octave does not matter.
 
-## 10. Taking a line apart
+## 10. Taking a seq apart
 
-The plurals take a line apart into its half products, and `zip` puts
+The plurals take a seq apart into its half products, and `zip` puts
 durations and pitches back together:
 
 ```
@@ -739,7 +778,7 @@ them (section 15): at a rest the value goes unused.
 
 A chord's list zips back into a chord, nil into a rest. So
 `x durations x pitches zip` gives `x` back, and anything you do in
-between changes just that half of the line:
+between changes just that half of the seq:
 
 ```
 [c8 d4 e8 g4] dup durations swap pitches zip           → [C4/8 D4/4 E4/8 G4/4]
@@ -747,7 +786,7 @@ between changes just that half of the line:
 ```
 
 The second keeps the melody and plays the rhythm backwards. (`dup`
-copies the line; `swap` brings the original back on top.)
+copies the seq; `swap` brings the original back on top.)
 
 A loop stays a loop: `[c d e] [~] pitches` is `'[60 62 64] [~]`. Two
 loops of different lengths zip into one long loop, the notes they take
@@ -769,7 +808,7 @@ G4] =` is true, however each was written).
 | Word | Does |
 |---|---|
 | `filter` | keeps the notes that pass |
-| `remove` | drops them: the line gets shorter, later notes move earlier |
+| `remove` | drops them: the seq gets shorter, later notes move earlier |
 | `mute` | turns them into rests of the same length: the rhythm stays |
 
 ```
@@ -801,7 +840,7 @@ length` is how many notes match.
 (A bare `e` or `c` as the value reads relative to the notes before it in
 the same input, as everywhere; capital letters say which.)
 
-### Changing part of a line
+### Changing part of a seq
 
 `within` takes the elements from a start up to (not including) an end,
 counted from 0, runs a quotation on them and puts the result back:
@@ -828,8 +867,8 @@ several steps.
 [c d e] 1 @                             → D4/4
 ```
 
-The value stays one element: `[c d] 1 [e f] !` is a line of a note and a
-line. An index can be a path, a list that goes down through nested lines:
+The value stays one element: `[c d] 1 [e f] !` is a seq of a note and a
+seq. An index can be a path, a list that goes down through nested seqs:
 
 ```
 [[c d e] [f g a]] '[1 1] @              → G4/4
@@ -839,11 +878,11 @@ line. An index can be a path, a list that goes down through nested lines:
 To change a value the way you typed it, `,` takes it back into the prompt
 as text: `[c d e] ,` leaves `mu0> [C4/4 D4 E4]` to edit and run again.
 
-### Joining lines
+### Joining seqs
 
-`concat` joins two lines into one, each keeping its own settings where it
-begins. `flatten` opens the lines inside a line, one level, and `[2]`
-(`[2]`) is the other way, a line of two lines. `[]` is the empty line,
+`concat` joins two seqs into one, each keeping its own settings where it
+begins. `flatten` opens the seqs inside a seq, one level, and `[2]`
+(`[2]`) is the other way, a seq of two seqs. `[]` is the empty seq,
 the place to start building from:
 
 ```
@@ -854,17 +893,17 @@ the place to start building from:
 [c d e] 1 _ 1 _ 0 _                     → []
 ```
 
-`concat` is the text of both written together, so a line with no settings
-of its own takes on what came before it; `[2]` keeps each line's own
-apart. (`[]` is mu's alone: inside a line, `[c [] d]` is not read.)
+`concat` is the text of both written together, so a seq with no settings
+of its own takes on what came before it; `[2]` keeps each seq's own
+apart. (`[]` is mu's alone: inside a seq, `[c [] d]` is not read.)
 
 ### Settings stay with their notes
 
-An instruction in the middle of a line stays in front of the note it was
+An instruction in the middle of a seq stays in front of the note it was
 written before, whatever these words do to the notes around it. When its
 note is gone it waits for the next one that stays, and when notes are
 reordered it travels with its note. Settings before the first note are
-the line's own and stay at its start:
+the seq's own and stay at its start:
 
 ```
 [c d !mf e f] 1 3 slice                 → [D4/4 !mf E4]
@@ -877,7 +916,7 @@ the line's own and stay at its start:
 An instrument is a General MIDI program, by number (`\i:40` is a
 violin), by name (`!i:seashore`, `\i:birdTweet`) or by its short name
 (`!i:sea`, `\i:vib`), or the start of a name that can only mean one
-(`!i:trump`, `!i:pizz`), set on a note or for a whole line; `"viol"
+(`!i:trump`, `!i:pizz`), set on a note or for a whole seq; `"viol"
 find-instrument`, `"cr" find-drum` and `"s" find-kit` list what a
 start of a name can mean (`""` all of them), and Tab completes a name
 as you write it -- after `!i:` or `\i:`, a drum's `x8\` or `!kit:` --
@@ -887,8 +926,8 @@ key or an instruction after `!` (`!swingU` to `!swingUnit:`, `!mo` to
 `!moderato`), what a note takes after `\` (`c4\tri` to `c4\trill`,
 `c4\vo` to `c4\vol:`), a dynamic after `!vol:`, and a scale after a
 key's tonic (`!K:F.ma` to `!K:F.major`), a stored part after `:` (`:blu`
-to `:blues`) and a word (`walk` to `walking-bass`, `pitch/lo` to
-`pitch/lorenz`), each listed with its stack effect; a list plays
+to `:blues`) and a word (`walk` to `walking-bass`, `pattern/eu` to
+`pattern/euclid`, once required), each listed with its stack effect; a list plays
 several at once. A drum is `x` with its key or name; a bare `x`
 repeats the last one. `!kit:` picks the drum kit: `standard`, `room`,
 `power`, `electronic`, `tr808`, `jazz`, `brush`, `orchestra`, `sfx`
@@ -907,11 +946,11 @@ sound. So the words keep them apart:
 
 | Word | Stack | Does |
 |---|---|---|
-| `instruments` | `( line -- stream )` | each note's own program; nil for a drum |
-| `drums` | `( line -- stream )` | each drum's key; nil for a note |
-| `zip` with `:instrument` | `( \| line :instrument programs -- line )` | each note's instrument from the stream in turn; a drum is refused |
-| `zip` with `:drum` | `( \| line :drum keys -- line )` | each drum's sound in turn; a note is refused |
-| `as-drums` | `( line keys -- line )` | each note made a drum, keeping its length, volume and accent |
+| `instruments` | `( seq -- stream )` | each note's own program; nil for a drum |
+| `drums` | `( seq -- stream )` | each drum's key; nil for a note |
+| `zip` with `:instrument` | `( \| seq :instrument programs -- seq )` | each note's instrument from the stream in turn; a drum is refused |
+| `zip` with `:drum` | `( \| seq :drum keys -- seq )` | each drum's sound in turn; a note is refused |
+| `as-drums` | `( seq keys -- seq )` | each note made a drum, keeping its length, volume and accent |
 
 ```
 | [c d e] :instrument '[40 :sea 73] zip  → [C4/4\instrument:40 D4\instrument:122 E4\instrument:73]
@@ -924,8 +963,8 @@ can stand side by side.
 
 | Word | Stack | Does |
 |---|---|---|
-| `sounds` | `( note numbers -- line )` | a copy per number: instruments for a note, keys for a drum |
-| `combos` | `( note numbers k -- line )` | a copy per k of the numbers layered |
+| `sounds` | `( note numbers -- seq )` | a copy per number: instruments for a note, keys for a drum |
+| `combos` | `( note numbers k -- seq )` | a copy per k of the numbers layered |
 
 ```
 c4 '[40 73 0] sounds        → [C4/4\instrument:40 C4\instrument:73 C4\instrument:0]
@@ -933,7 +972,7 @@ x8\36 '[36 38 42] sounds    → [x8\36 x\38 x\42]
 x8\36 '[36 38 42] 2 combos  → [x8\36,38 x\36,42 x\38,42]
 ```
 
-`sounds` is the way to audition a soundfont: build a line of sounds
+`sounds` is the way to audition a soundfont: build a seq of sounds
 and play it, or rate them (section 17).
 
 ## 13. Keeping things
@@ -958,12 +997,52 @@ and play it, or rate them (section 17).
 :mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
 ```
 
+Forth's `value` and `variable` keep a number or a thing under a name:
+
+```
+5 value five                  five → 5
+7 to five                     five → 7
+3 variable v                  v is a place
+4 v !   v @                   store 4, read it → 4
+```
+
+Both are saved in a session as mu text (`7 value five`, `3 variable v`).
+A second name for the same place is a plain definition: `: w v ;`.
+
+### Counted loops
+
+`limit start '( … ) loop` runs the quotation for each whole number from
+`start` up to, not including, `limit`. `i` is the index, `j` the index of
+the loop around it and `k` the one around that:
+
+```
+3 0 '( i ) loop                                  → 0 1 2
+2 0 '( 3 0 '( i j 10 * + ) loop ) loop           → 0 1 2 10 11 12
+```
+
+`limit start step '( … ) +loop` takes a step, a negative one counting down:
+
+```
+0 5 -1 '( i ) +loop                              → 5 4 3 2 1
+```
+
 `rename` follows the name wherever it is written, so a part that used
 `:mel` now uses `:tune`; `forget` refuses a name that is still used, and
 says by whom (`:mel is still used by :song`), so nothing is left pointing
 at nothing.
 
-## 14. One tree: the color-talea
+### Short names
+
+The leaf readers and the bridges have three-letter names, one for each
+kind of material: `pul` pulses, `pit` pitches, `pnt` points, `dur`
+durations, `deg` degrees, `vol` volumes, `art` articulations, `wei`
+weights, `num` numbers, `ons` onsets, `str` steps, `cnt` counts, `lea`
+leaves, `ins` instruments. A bridge is `from>to`, a plural reader adds an
+`s` (`pits`, `durs`, `vols`, `arts`): `bridge/pul>dur`, `x pits`.
+`pul>stp` gives one duration per pulse, a note for every onset and a rest
+for every 0; `pul>dur` lets a note last until the next onset.
+
+## 14. The color-talea
 
 A **color-talea** is the medieval isorhythm: a list of pitches (the
 *color*) and a list of durations (the *talea*) of different lengths,
@@ -988,7 +1067,7 @@ It's worth a word of its own. `$talea`, `$color` and `$n` are the
 word's inputs, taken off the stack by the `$` in its stack effect:
 
 ```
-: isorhythm ( $talea $color $n -- line ) $talea cycle $n take $color cycle $n take zip ;
+: isorhythm ( $talea $color $n -- seq ) $talea cycle $n take $color cycle $n take zip ;
 
 '[/4 /8 /8] [c d e f g] pitches 15 isorhythm [||]
 → [C4/4 D4/8 E4 F4/4 G4/8 C4 | D4/4 E4/8 F4 G4/4 C4/8 D4 | E4/4 F4/8 G4]
@@ -997,181 +1076,77 @@ word's inputs, taken off the stack by the `$` in its stack effect:
 ```
 
 Barring it with `[||]` shows the shift: each bar starts on another note
-of the color. The result is an ordinary line, so everything above
+of the color. The result is an ordinary seq, so everything above
 applies: `5 +`, `[R]`, `'( … ) mute`, `1 4 '( [R] ) within`.
 
-## 15. Algos as words
+## 15. Algorithms as functions
 
-The algos of the trees are mu words too, named by what they deliver:
-`duration/euclid` gives durations, `pitch/lorenz` pitches,
-`volume/walk` volumes, `parallel/drums` a `{ }` of drum parts. `words`
-lists them by namespace with their counts, and `"duration/euclid" see`
-says what one does and which settings it reads:
-
-```
-"duration/euclid" see
-duration/euclid ( [@^{ … }] -- durations )
-  Distribute k beats evenly among n pulses (Bjorklund's algorithm). …  @^{ k n rotation duration-pulse }
-```
-
-A source takes nothing from the stack. Settings on top, `@^{ … }`, are
-its own, each written `name:value` -- an algo's settings, kept apart
-from the music's `^{ }`:
+The algorithms are plain Clojure functions, and mu calls them by name with their
+parameters on the stack. `'rhythmic.pattern reqalgo` (that is
+`"musics.algo.rhythmic.pattern" require`, short for the namespaces of `musics.algo`)
+makes the public functions of that namespace words, `pattern/euclid`, and `see` shows
+what one takes, read from its own argument names. There is no settings object and no
+default: you say every parameter.
 
 ```
-duration/euclid                                        → '[3/16 3/16 1/8]
-@^{ k:5 n:8 duration-pulse:1/8 } duration/euclid     → '[1/4 1/8 1/4 1/8 1/4]
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [c e g] pitches zip
-                                                       → [C4/4. E4 G4/4]
+'rhythmic.pattern reqalgo
+'bridge reqalgo
+see pattern/euclid                                    → pattern/euclid ( onsets pulses -- euclid )
+3 8 pattern/euclid                                    → '[1 0 0 1 0 0 1 0]
+3 8 pattern/euclid 1/16 bridge/pulses->durations      → '[3/16 3/16 1/8]
+3 8 pattern/euclid 1/16 bridge/pulses->durations '[60 64 67] zip
+                                                      → [C4/8. E4 G4/8]
 ```
 
-Three beats among eight eighths is the tresillo. A setting the `@^{ }`
-doesn't give takes the algo's default. Only two settings read the
-music, a key and a meter: played in a line, an algo that turns scale
-steps into pitches plays in the line's `!key:`.
-
-An algo that varies something takes it from the stack, a line taken
-apart into what it wants: durations, pitches or the notes themselves.
-`duration/necklace` gives a rotation of a rhythm on its grid:
-
-```
-[c4. d8 e4] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
-                                                       → '[r4 1/8 1/4 1/8]
-```
-
-A loop around what it is given stays around what it gives -- the algo
-works on what the loop repeats -- so a loop of a rhythm varied is a
-loop of the varied rhythm, ready to zip with a loop of pitches:
+Three beats among eight sixteenths is the tresillo. What a function makes is *raw
+material*, a plain list (pulses here); a **bridge** from `musics.algo.bridge` turns it
+into durations (`pulses->durations`, with the pulse you give it), pitches
+(`numbers->pitches`, with the range the numbers really have: `from-lo from-hi lo hi`),
+volumes and so on, and `zip` makes notes of them. A list inside a list is written
+`'[ '[0 1] '[2] ]`. Nothing is checked between words, so pair the kinds right; `see`
+says what each word takes. A function that cannot work with what it is given says so:
 
 ```
-[c4. d8 e4] [~] durations @^{ index:1 duration-pulse:1/8 } duration/necklace
-    → '[r4 1/8 1/4 1/8] [~]
-@^{ k:3 n:8 duration-pulse:1/8 } duration/euclid [~] [c e g a] [~] pitches zip
-    → repeat ~ [C4/4. E4 G4/4 A4/4. C4 E4/4 G4/4. A4 C4/4 E4/4. G4 A4/4]
+99 8 pattern/euclid           → pattern/euclid: refused, it needs <= onsets pulses
 ```
 
-The tresillo's three notes against four pitches line up again after
-twelve: the melody keeps landing on another beat, the color-talea of
-section 14 written with an algo.
-
-A volume, articulation or instrument stream goes back onto a line with
-`zip`, a value per note in turn, cycling (a rest's going unused): given
-a line, `zip` writes the stream's part on each note and keeps the
-line's form. With eight beats among eight eighths, `volume/euclid`
-gives the meter's accents:
+A function that gives one number per call is called n times with `pull`, which takes a
+quotation, or a function that keeps its place:
 
 ```
-[c8 d e f g a b c] @^{ k:8 n:8 volume-pulse:1/8 volume-lo:50 volume-hi:80 } volume/euclid zip
-    → [C4/8\volume:80.0 D4\volume:50.0 E4\volume:67.14… F4\volume:58.57… …]
+'numeric.rng reqalgo
+'numeric.random reqalgo
+'numeric.walk reqalgo
+7 rng/seed                                            the random words after it repeat
+'( 0.0 1.0 random/normal ) 12 pull                    twelve draws
+60.0 3.0 walk/walk 8 pull                             a walk of eight steps, from 60
 ```
 
-Without durations and pitches, `zip` gives a bundle: the parts side by
-side as columns, each as long as it is. It is data, waiting for what
-it lacks -- a contour with its dynamics waiting for a rhythm -- and
-`zip` takes it again as its parts:
+A quotation is also a function of what it is given, so it can be the fitness function a
+Clojure function wants; and a group of quotations, `( '( … ) '( … ) )`, is a list of them:
 
 ```
-| :pitch '[60 62 64] :volume '[90 70] zip   → '[:pitch '[60 62 64] :volume '[90 70]]
-'[/8 /4] swap zip                          → [C4/8\volume:90 D4/4\volume:70]
+'melodic.melody reqalgo
+'[60 62 64 65 67 69 71 72] 12 ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained
 ```
 
-A bundle can't sound: playing it is refused, saying what it lacks.
-
-What changes over time -- volume, tempo, panning, the key -- isn't a
-part of each note but a context, `^{ }`. `>ctx` makes one from a
-control: above a `|` mark, `:duration` and one or more context keys,
-each a stream. Each value holds from where the durations put it until
-the next:
-
-```
-| :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx    → ^{ !volume:50 !volume:70@1 !volume:90@2 }
-```
-
-`./.` in data is idem, the value before once more, and `@1` after an
-instruction puts its point a whole note from the start (`@3/8` three
-eighths in). A looping duration gives a step of that length each time,
-`'[1/1] [~]` a new value every bar, and the longest finite column sets
-how many steps there are, the shorter ones cycling. With `:curve '[:lin]`
-(or `:smooth`, `:in`, `:out`; `:step` holds) each value glides to the
-next. `with` lays the context under a line:
-
-```
-[c4 d e f g a b c] | :duration '[1/1 1/1] :volume '[30 90] :curve '[:lin :step] >ctx with ->
-| :duration '[1/4] [~] @^{ len:8 } volume/uniform :volume swap >ctx    an algo's volumes, a new one each quarter
-```
-
-A long setting name gets a short one with `:=`, a name bound to a
-name: from then on the short one is read as the long one in an `@^{ }`,
-which keeps, and shows, the long one:
-
-```
-'vp 'volume-pulse :=
-@^{ vp:1/8 }                       → @^{ volume-pulse:1/8 }
-```
-
-A random algo runs differently each time. `seed:7` in its settings
-runs it on that seed, so two words with one seed and one source read
-the same run -- a walk heard as pitch and as volume, rising and
-falling together:
-
-```
-@^{ seed:7 len:6 } pitch/walk     → '[70 67 70 71 72 72]
-@^{ seed:7 len:6 } volume/walk    → '[64.00… 60.87… 64.11… 65.82… 67.14… 67.05…]
-```
-
-### Noise, masks, rows and automata
-
-From Dodge & Jerse's *Computer Music*, chapter 8. White noise jumps,
-pink noise (Voss's dice: `dice`, more is slower) wanders but keeps its
-range, a walk (brown) drifts; `boundary:reflect` bounces it off its
-clip bounds, given as its pitch range too:
-
-```
-[c8] [~] durations @^{ len:16 } pitch/uniform zip ->
-[c8] [~] durations @^{ len:16 dice:5 } pitch/pink zip ->
-[c8] [~] durations @^{ len:16 step-bound:3 clip-lo:48 clip-hi:84 boundary:reflect pitch-from-lo:48 pitch-from-hi:84 pitch-lo:48 pitch-hi:84 } pitch/walk zip ->
-@^{ seed:4 len:16 } duration/pink @^{ seed:5 len:16 } pitch/pink zip ->
-```
-
-A tendency mask draws between two bounds that move, here closing from
-48..84 onto 66 (`lo-start lo-end hi-start hi-end`):
-
-```
-[c16] [~] durations @^{ len:32 } pitch/tendency zip ->
-```
-
-`pitch/row-classes` is a twelve-tone row (`kind:allInterval`: every
-interval once), its forms the row forms of section 4 on the line. One
-seed reads one row, so it can be rhythm too -- Babbitt's time points --
-and volume:
-
-```
-@^{ kind:allInterval } pitch/row-classes [c8] [~] durations swap zip [RI] 5 + ->
-@^{ seed:3 kind:allInterval } duration/row-time-points @^{ seed:3 kind:allInterval } pitch/row-classes zip ->
-@^{ seed:3 kind:allInterval } pitch/row-classes [c8] [~] durations swap zip @^{ seed:3 kind:allInterval volume-lo:40 volume-hi:100 volume-from-hi:11 } volume/row zip ->
-```
-
-`duration/ca` is a cellular automaton, a bar of `width` pulses per
-generation (`rule:90` Sierpinski, `30` chaos, `110` structure,
-`start:random`), as notes or drums:
-
-```
-@^{ rule:90 width:16 steps:4 duration-pulse:1/16 } duration/ca [c e g] [~] pitches zip ->
-@^{ rule:30 width:16 steps:4 duration-pulse:1/16 } duration/ca [c] [~] pitches zip '[:kick :sna] [~] as-drums ->
-```
+draws twelve notes of the scale, none repeated and none more than a whole tone from the
+one before. `doc/md/raw-algo-cookbook.md` has 53 recipes written this way, every one run
+for real: rhythms from number theory, sieves and polyrhythms, melodies from Markov chains,
+walks and chaos, counterpoint, swing and variation, and a word of your own.
 
 ### Chords and a walking bass
 
 A chord symbol is a root and a quality, absolute or relative, its
 duration carrying on as a note's does (`F3/1:7`, `b&:7`, `c2.:m7`).
-`walking-bass` takes a line of chords and makes a bass under it as you
+`walking-bass` takes a seq of chords and makes a bass under it as you
 run it, a new one each time: a quarter a beat, each chord's root on its
 first beat, the beat before the next chord a step into it. Repeats are
-walked pass by pass, each with its own line.
+walked pass by pass, each with its own seq.
 
 A number says how many times: `x 4 walking-bass` is as long as `x 4
 times`, each time walked anew, the last chord held. Without a number it
-is an ostinato: one line whose last beat leads back into its first, to
+is an ostinato: one seq whose last beat leads back into its first, to
 loop with the chords.
 
 ```
@@ -1183,73 +1158,76 @@ dup 1 walking-bass {2} ->          once through, the end held
 `dup` keeps the chords, `walking-bass` makes the bass from the copy,
 `{2}` sets the two side by side.
 
-## 16. Live recipes
+## 16. Live
 
-A play word can take a **recipe** as well as music: a quotation that
-makes the music. Then the voice plays live -- each note it reaches is
-the next note of what the recipe gives now -- and changing the recipe's
-settings changes what you hear on the next note, without starting over.
+Two things play live. A **quotation** under a play word makes the music, each note the
+voice reaches the next of what it gives now:
 
 ```
-| '( duration/euclid [c e g] pitches zip [~] ) :riff ->
+| '( [c d e] ) :riff ->           from nothing: the quotation's own seq, again and again
+[c d e g] [~] '( 5 + ) :up ->     the music under it, changed: the loop a fourth higher
+'( 7 + ) :up retree               … now a fifth, from the next note
 ```
 
-- `'( … )` is the recipe: euclid's rhythm with the pitches of `[c e g]`,
-  looped (`[~]`). The voice plays what it gives -- once, or, as here,
-  endlessly.
-- `|` under the recipe says it starts from nothing; without it, the music
-  under the recipe is what it runs on (below).
-- `:riff` is the voice, as for any play word; it names the recipe's
-  settings too.
+`|` under the quotation says it starts from nothing; without it, the music under the
+quotation is what it runs on. `:riff` is the voice, as for any play word, and `retree` gives
+it another quotation while it goes on from its place. All play words take one: `-|>` from
+the next boundary, `->+` joining what plays.
+
+### A word as a live voice
+
+A **word of your own** can be played with changeable numbers: write them as `$` inputs of
+the definition, and play the word as a voice.
 
 ```
-:riff @^{ k:5 } set        five beats instead of the default three, heard at once
-:riff settings             every setting the recipe's algos read: value, range, default
-:riff 'k unset             back to the recipe's head or the default
-'( duration/euclid [c e g a] pitches shuffle zip [~] ) :riff retree    a new recipe, the same settings, the voice going on
-:riff gui                  a window with a slider per setting
-:riff stop
+'rhythmic.pattern reqalgo
+'bridge reqalgo
+: riff ( $onsets $pulses -- notes )
+    $onsets $pulses pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 67] zip ;
+5 8 riff                           the seq it gives: [C4/8 D4/16 E4/8 G4/16 C4/8]
 ```
 
-A recipe that opens with an `@^{ }` has it as its head: it reaches every
-algo word in the recipe, and it is what `settings` shows and `set`
-changes. An `@^{ }` right before one word is that word's alone, winning
-over the head. A setting given with `set` comes before the head as
-written; `unset` goes back to it. The voice keeps its place, so a change
-goes on from where it is, not from the start.
+`5 8 riff` runs the word once. To play it live, put the numbers under its
+*quoted* name and give the voice a name:
 
 ```
-| '( @^{ seed:7 len:16 } duration/euclid pitch/walk zip @^{ len:8 } volume/walk zip [~] ) :swell ->
+5 8 'riff :bass ->
 ```
 
-Here `seed` and `len` reach every word, and `volume/walk` alone reads
-`len:8`.
+- The quote (`'riff`) keeps the word from running now: the voice stores the
+  name and runs it again with the inputs it holds, each time they change.
+- `5` and `8` are the voice's **inputs**, `onsets` and `pulses`, in the order
+  of the stack effect. Each note the voice reaches is the next of the seq
+  the word gives; a short seq starts again.
+- The voice needs a name (`:bass`), and the word only `$` inputs: a plain
+  input would need music passed in, which a quotation on music under it does
+  (`x '( … ) :up ->`). `-|>` waits for a boundary as it does for music.
 
-With music under it, the recipe runs on that music, and the voice plays
-the music's notes as the recipe changes them:
-
-```
-[c d e g] [~] '( 5 + ) :up ->     the loop a fourth higher
-'( 7 + ) :up retree              … now a fifth, from the next note
-```
-
-A recipe can also be a tree, written between `@(` and `)` in RPN: each
-algo takes its inputs from the recipe's own stack, its settings written
-right before it, `zip` joins the top two (the algo tree tutorial,
-section 8, has the rest). No music is written inside; a tree that needs
-music takes it from under the recipe:
+An input is addressed by its voice and its name, `:bass/onsets`. It is a
+**reference**: `@` reads it and `!` stores into it, as in Forth.
 
 ```
-| @( '[1/8] [~] scale [~] zip ) :sc ->                     from nothing
-[c d e] @( '[0.1 0.9] [~] numbers->volumes zip ) :vol ->   on the music under it
-@^{ k:5 } @( duration/euclid '[60] [~] zip ) run          settings from outside; run puts a finite one on the stack
-@( arp: k:3 euclid '[60 64 67] [~] zip ) R!               stored as :arp, as its text; :arp R@ gives it back
+:bass/onsets @            5
+3 :bass/onsets !          three beats, heard from the voice's next note
+:bass/onsets @ :bass/pulses @       3 8
+:bass settings            each input: value, range, default, what it is
+:bass gui                 a window with a slider per input
+:bass ->                  start it again with the inputs as they are now
+stop
+:bass/onsets @            the voice :bass is not playing
 ```
 
-All play words take a recipe: `->>` from the next boundary (`| '( … ) ||
-:riff ->>`), `->+` joining what plays. `compose` opens the composer window
-and leaves the tree it builds on the stack, a recipe like a quotation
-(`compose :riff ->`); `compose gui` shows its settings with a preview.
+`settings` and the sliders take an input's range from the algo parameter of
+the same name: `onsets` is `0..32`, `pulses` `1..32`, once the namespace that
+reads them is loaded. A value outside it is refused (`99 :bass/onsets !`:
+`onsets: 99 should be at most 32`). Where several algos read a name with different
+ranges the widest is used. An input no algo reads (`$label`) has no range, so it is
+a text field. The window files each control under the algo that owns the
+parameter. Two voices may have inputs of the same name: `:bass/onsets` and
+`:lead/onsets` are different places.
+
+A local is written with its `$` in the body, `$onsets`, and a word that
+leaves nothing, or fails when it runs, is refused when the voice starts.
 
 ## 17. Rating what you hear
 
@@ -1261,11 +1239,11 @@ work either way.
 | Word | Does |
 |---|---|
 | `like` `meh` `dislike` | rate what was just heard (Alt+l Alt+k Alt+j at the prompt) |
-| `audition` | `( line -- )` play its sounds one by one, in the background, to rate each |
+| `audition` | `( seq -- )` play its sounds one by one, in the background, to rate each |
 | `gap` | `( ms -- )` the silence between an audition's sounds, 150 by default |
 | `next` `prev` `again` | move through an audition (Alt+L Alt+J Alt+K) |
 | `taste` | your ratings, per sound and per instrument |
-| `liked` / `disliked` | the sounds you rated, as a line |
+| `liked` / `disliked` | the sounds you rated, as a seq |
 
 ```
 c4 '[0 40 73] sounds audition
@@ -1276,28 +1254,30 @@ c4 '[0 40 73] sounds audition
 | Word | Stack |
 |---|---|
 | `chord` | `( \| notes -- chord )` |
-| `[2]` `[3]` … `[n]`, `n line` | `( a … -- line )` |
+| `[2]` `[3]` … `[n]`, `n seq` | `( a … -- seq )` |
 | `{2}` `{3}` … `{n}` | `( a … -- parallel )` |
 | `**` `spread` | `( x -- a b … )` |
 | `{+}` | `( a b -- parallel )` |
-| `[!]` `unfold` | `( x -- line )` |
+| `[!]` `unfold` | `( x -- seq )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
 | `[:]` `repeats` | `( x -- [: x :] )` |
-| `[\|\|]` `barred`, `[[]]` `measures` | `( x -- line )` |
+| `[\|\|]` `barred`, `[[]]` `measures` | `( x -- seq )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |
 | `+` `-` `*` `/` | `( x n -- x )` |
 | `cresc` `dim` | `( x volume -- x )` |
 | `pitch` `duration` `volume` `articulation` `instrument` `drum` | `( note -- value )` |
-| `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( line -- stream )` |
-| `as-drums` | `( line stream -- line )` |
+| `pitches` `durations` `volumes` `articulations` `instruments` `drums` | `( seq -- stream )` |
+| `as-drums` | `( seq stream -- seq )` |
 | `chord?` `drum?` `note?` `rest?` | `( note -- flag )` |
-| `combos` | `( note numbers k -- line )` |
-| `delay` | `( x d -- line )` |
+| `combos` | `( note numbers k -- seq )` |
+| `pull` | `( f n -- list )` |
+| `@` `!` | `( ref -- value )` `( value ref -- )`; `( x n -- elem )` `( x n y -- x' )` |
+| `delay` | `( x d -- seq )` |
 | `delays` | `( parallel d\|list -- parallel )` |
-| `setting` | `( note\|line :key -- value )` |
-| `degrees` | `( numbers key -- line )` |
-| `key` | `( note\|line -- key )` |
+| `setting` | `( note\|seq :key -- value )` |
+| `degrees` | `( numbers key -- seq )` |
+| `key` | `( note\|seq -- key )` |
 | `duration` | `( x -- t )` |
 | `length` | `( x -- n )` |
 | `classes`, `prime-form`, `interval-vector` | `( x -- set )` |
@@ -1306,17 +1286,17 @@ c4 '[0 40 73] sounds audition
 | `chord-name` | `( x -- string )` |
 | `pulses` | `( x [pulse] -- list )` |
 | `profile` | `( x -- list )` |
-| `at` | `( line t -- note )` |
-| `bar` `bars` | `( line n -- line )`, `( line start end -- line )` |
+| `at` | `( seq t -- note )` |
+| `bar` `bars` | `( seq n -- seq )`, `( seq start end -- seq )` |
 | `mute` | `( x q -- x )` |
 | `par` | `( \| … -- parallel )` |
-| `sounds` | `( note numbers -- line )` |
+| `sounds` | `( note numbers -- seq )` |
 | `tonic` | `( key -- note )` |
 | `transpose` | `( x from to -- x )` |
-| `vary` | `( repeat q … -- line )` |
+| `vary` | `( repeat q … -- seq )` |
 | `volta` | `( repeat ending … -- repeat )` |
 | `with` | `( x ^{ }\|key -- x )` or `( x :key value -- x )` |
-| `zip` | `( durations pitches -- line )`, `( line stream -- line )`, `( \| parts … -- line\|bundle )` |
+| `zip` | `( durations pitches -- seq )`, `( seq stream -- seq )`, `( \| parts … -- seq\|bundle )` |
 
 `"word" see` shows any of them with what it does; `words` lists them
 all.

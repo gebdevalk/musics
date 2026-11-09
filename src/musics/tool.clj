@@ -1,7 +1,7 @@
 (ns musics.tool
   "mu's tool words as Clojure functions: making, reading and reshaping
-   any material -- a line, a parallel, data, a stream -- keeping its form
-   (a line gives a line, a stream a stream). Registered as the words of
+   any material -- a seq, a parallel, data, a stream -- keeping its form
+   (a seq gives a seq, a stream a stream). Registered as the words of
    mu's tool namespace by musics.mu.library, as musics.music's are as
    music's; their names are mu's, so clojure.core's own are written in
    full here."
@@ -10,7 +10,7 @@
                             iterate range concat flatten sort find])
   (:require [clojure.core :as core]
             [clojure.string :as str]
-            [musics.algo.random :as random]
+            [musics.algo.numeric.random :as random]
             [musics.common.music-elements :as el]
             [musics.mu.eval :as e]
             [musics.mu.material :as mt]
@@ -43,6 +43,21 @@
   (when-not (and (number? a) (number? b)) (fail "needs two numbers"))
   (core/range a b))
 
+(defn pull
+  "n results of calling f, as a list: a quotation that leaves one value
+   ('( 0.0 1.0 random/normal ) 12 pull), a function of nothing that keeps its
+   state (60.0 2.0 walk/walk 16 pull) or a generator with a :value function
+   (lorenz/lorenz 24 pull)"
+  [f n]
+  (when-not (and (integer? n) (<= 0 n 100000)) (fail "needs a count 0 to 100000 on top, got" (p/show n)))
+  (let [step (cond (v/quotation-record? f) #(let [left (e/call [] f)]
+                                             (when (empty? left) (fail "the quotation leaves nothing"))
+                                             (peek left))
+                   (fn? f)                 f
+                   (and (map? f) (fn? (:value f))) (:value f)
+                   :else (fail "needs a quotation '( … ), a function of nothing or a generator below the count, got" (p/show f)))]
+    (vec (repeatedly n step))))
+
 (defn iterate
   "x, then q of x, then q of that, forever: 1 '( 2 + ) iterate 4 take"
   [x q]
@@ -50,7 +65,7 @@
   (mt/endless (core/iterate #(peek (e/call [%] q)) x)))
 
 (defn scale
-  "A key's scale, one octave up from its tonic, as a line; or a root
+  "A key's scale, one octave up from its tonic, as a seq; or a root
    pitch number and intervals as the pitches."
   {:mu {:optional {:intervals (complement mt/key?)}}}
   ([key]
@@ -82,14 +97,15 @@
 
 (defn nth
   "The element counted n from 0; a path '[1 2] goes down: element 1, then
-   its element 2"
-  {:mu {:names ["@"]}}
-  [x n]
-  (reduce (fn [c i]
-            (let [e (core/nth (mt/elements c) i ::none)]
-              (when (= ::none e) (fail i "is past the end of" (p/show c)))
-              e))
-          x (path-of "nth" n)))
+   its element 2. A reference alone (r @) gives the value it holds"
+  {:mu {:names ["@"] :arity (fn [stack] (if (v/ref? (peek stack)) 1 2))}}
+  ([r] (v/ref-get r))
+  ([x n]
+   (reduce (fn [c i]
+             (let [e (core/nth (mt/elements c) i ::none)]
+               (when (= ::none e) (fail i "is past the end of" (p/show c)))
+               e))
+           x (path-of "nth" n))))
 
 (defn- matching
   "A test of one element: the quotation q, or the value q is, compared as
@@ -124,7 +140,7 @@
 
 (defn sum
   "The numbers of a stream added: '[1 2 3] sum gives 6; x durations sum is
-   a line's length"
+   a seq's length"
   [x]
   (reduce + 0 (mt/numbers-of "sum" x)))
 
@@ -154,12 +170,12 @@
 
 (defn intervals
   "The steps between a stream's numbers, each minus the one before:
-   '[60 64 67] intervals gives '[4 3]; x pitches intervals for a line"
+   '[60 64 67] intervals gives '[4 3]; x pitches intervals for a seq"
   [x]
   (each x (fn [_] (let [ns (mt/numbers-of "intervals" x)] (core/map - (core/rest ns) ns)))))
 
 (defn length
-  "How many elements (duration is the time a line takes)"
+  "How many elements (duration is the time a seq takes)"
   [x]
   (core/count (mt/finite! "length" (mt/elements x))))
 
@@ -214,7 +230,7 @@
 
 (defn- grouped
   "The groups of x's elements as x's form gives them: data of data for
-   data, a line of lines for music, else the groups."
+   data, a seq of seqs for music, else the groups."
   [x groups]
   (cond (vector? x)                         (with-meta (mapv #(with-meta (vec %) (meta x)) groups) {:data-type nil})
         (or (v/material? x) (mt/leaf? x))   (mt/line (core/map mt/line groups))
@@ -257,7 +273,7 @@
   (each x (comp random/sputter vec #(mt/finite! "sputter" %))))
 
 (defn- joined
-  "a and b as lines of one: every instruction of both stays where it is
+  "a and b as seqs of one: every instruction of both stays where it is
    written, so b's settings begin where b does (and carry on after it, as
    they would in text); anything else by elements."
   [a b]
@@ -267,18 +283,18 @@
       (each a #(core/concat % (mt/elements b))))))
 
 (defn concat
-  "a followed by b, one line, as the text of both written together:
+  "a followed by b, one seq, as the text of both written together:
    [!mf c d] [!pp e f] concat gives [!mf c d !pp e f]"
   {:mu {:names ["[+]"]}}
   [a b]
   (joined a b))
 
 (defn flatten
-  "x with the lines inside it opened into it, one level: a b [2] flatten is a
+  "x with the seqs inside it opened into it, one level: a b [2] flatten is a
    b concat; data opens the data inside it: '[1 '[2 3]] flatten is '[1 2 3]"
   [x]
   (let [data? (sequential? x)
-        ;; a list inside data is a sequence, a line inside music a :SEQ
+        ;; a list inside data is a sequence, a seq inside music a :SEQ
         open? #(if data?
                  (and (sequential? %) (not (v/material? %)))
                  (and (v/material? %) (= :SEQ (mt/kind %))))]
@@ -315,7 +331,7 @@
 (defn- edit
   "x with f applied to its slots at the end of path (f: slots, element
    positions, index -> slots), the instructions staying where written; a
-   path goes down through the nested lines."
+   path goes down through the nested seqs."
   [word x idx f]
   (let [path (path-of word idx)
         slots (or (mt/items x) (mapv (fn [e] [:el e]) (mt/finite! word (mt/elements x))))
@@ -339,7 +355,6 @@
 (defn put
   "x with the element at n replaced by y, one element; n a number or a
    path '[1 2]: [c d e] 1 g ! gives [c g e]"
-  {:mu {:names ["!"]}}
   [x n y]
   (edit "put" x n (fn [slots pos i] (assoc slots (present! pos i) [:el y]))))
 
@@ -378,8 +393,8 @@
       (each x (fn [_] (core/map second slots'))))))
 
 (defn- put-back
-  "x with its elements start..end replaced by y's. On a line the
-   instructions stay as written, and a line y brings its own: those
+  "x with its elements start..end replaced by y's. On a seq the
+   instructions stay as written, and a seq y brings its own: those
    before the first element replaced stay in front of y, those between
    the replaced elements wait after it for the next element to stay."
   [x start end y]
@@ -435,7 +450,7 @@
   [x q] (by-test "filter" core/filter x q))
 
 (defn remove
-  "x without the elements q drops; on a line the later notes move earlier"
+  "x without the elements q drops; on a seq the later notes move earlier"
   [x q] (by-test "remove" (fn [t xs] (core/remove t xs)) x q))
 
 (defn take-while

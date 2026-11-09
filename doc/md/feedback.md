@@ -32,8 +32,8 @@ is lost and a later analysis can derive anything from it.
 
 ### The ratings file
 
-`~/.mu-feedback.edn`, one map per line, only ever appended. A second
-rating of the same sound is another line, so a mean shows taste
+`~/.mu-feedback.edn`, one map per seq, only ever appended. A second
+rating of the same sound is another seq, so a mean shows taste
 changing over time. The path is an atom (`musics.feedback/file`); tests
 point it at a scratch file.
 
@@ -48,7 +48,7 @@ point it at a scratch file.
 | Alt+K | `again` | play it again |
 | Alt+L | `next` | the next item |
 
-A key works mid-typing: it leaves the line alone and confirms above the
+A key works mid-typing: it leaves the seq alone and confirms above the
 prompt, as `echo` prints. The keys are three neighbours on the home row,
 unshifted to rate (`j` dislike, `k` meh, `l` like) and shifted to move
 (`J` prev, `K` again, `L` next). Alt+. stops and Alt+, pauses. They need Alt because these characters are part of
@@ -59,7 +59,7 @@ played with `->`/`play` when that is a single note, chord or drum.
 
 ### Auditions and combinations
 
-- `audition` ( line -- ) plays the line's items one by one, in the
+- `audition` ( seq -- ) plays the seq's items one by one, in the
   background, so the prompt stays free. In auto mode each item plays,
   then a short gap, then the next. A rating moves on at once.
 - `gap` ( ms -- ) sets that gap, 150 ms by default: `0 gap` goes
@@ -76,7 +76,7 @@ played with `->`/`play` when that is a single note, chord or drum.
   group's (`"horn"`). Each is shown with the number `soundfont` takes
   its soundfont by; a soundfont is loaded when its first instrument is
   reached. A rating records the soundfont with x.
-- `combos` ( leaf numbers k -- line ) gives every k-instrument layer of
+- `combos` ( leaf numbers k -- seq ) gives every k-instrument layer of
   the numbers: `c4 '[40 41 71 73] 2 combos audition` plays every pair,
   and on a drum it layers keys.
 - `ask` toggles a prompt to rate when what was played ends, as `echo`
@@ -88,7 +88,7 @@ played with `->`/`play` when that is a single note, chord or drum.
   - per sound;
   - per instrument or drum key, where every layer it is part of counts
     for it.
-- `liked` and `disliked` ( -- line ) give back the sounds whose mean is
+- `liked` and `disliked` ( -- seq ) give back the sounds whose mean is
   above or below zero, to play or audition again.
 
 ## Planned
@@ -100,7 +100,7 @@ played with `->`/`play` when that is a single note, chord or drum.
   so signatures are recomputed from `:what` when the layout changes.
   This waits for the material's dimensions, worked out separately from
   `doc/md/algo-space.md`, whose D1-D8 describe algos rather than material.
-- **All of musics.** Notes, lines and pieces rated as trials, with one
+- **All of musics.** Notes, seqs and pieces rated as trials, with one
   signature per bar and one for the whole. How the material was made
   (which algos) could become a dimension too.
 - **Rules (miniKanren).** The ratings feed a rule-based system in
@@ -132,7 +132,7 @@ played with `->`/`play` when that is a single note, chord or drum.
     `suggesto` runs them and gives untried sounds, each with the rule
     that gave it; `whyo` gives the facts behind one.
   - **In mu:**
-    - `suggest` ( leaf n -- line ) gives n untried sounds on the leaf,
+    - `suggest` ( leaf n -- seq ) gives n untried sounds on the leaf,
       so `c4 8 suggest audition` closes the loop of hear, rate, suggest,
       hear;
     - `why` ( leaf -- ) gives the rule and facts behind a sound, or why

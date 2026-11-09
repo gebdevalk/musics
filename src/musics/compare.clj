@@ -18,8 +18,8 @@
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
 
 (defn- same?
-  "a and b equal: two numbers by value; music (a line or a note) when it
-   prints the same, its names left out, so two lines of the same notes
+  "a and b equal: two numbers by value; music (a seq or a note) when it
+   prints the same, its names left out, so two seqs of the same notes
    are equal wherever each came from and whatever they are called; two
    loops when they repeat the same; data and streams element by element.
    An endless stream that is no loop is refused: it would never end."

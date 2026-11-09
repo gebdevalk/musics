@@ -1,7 +1,7 @@
 (ns musics.mu.kernel
   "mu's kernel words that read the stack itself (namespace kernel): the
    stack, quotations, printing the stack, binding; also the play words
-   that read the stack's shape (play, ->, play-next, ->>, …)
+   that read the stack's shape (play, ->, play-next, -|>, …)
    (doc/md/mu-repl.md, section 8). The kernel's other words are
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
@@ -14,6 +14,39 @@
             [musics.mu.value :as v]))
 
 ;; -- stack ------------------------------------------------------------
+
+(defn- named
+  "The name after variable, value or to, which the evaluator left as a symbol."
+  [s word]
+  (need s 2 word)
+  (let [n (peek s)]
+    (when-not (symbol? n) (e/mu-error (str word ":") "write the name after it, as in 5" word "five"))
+    (str n)))
+
+(word! "kernel" "variable" "( x 'name -- )  5 variable five: five is a word that pushes a place holding 5, so five @ reads it and 3 five ! stores, as Forth's variable does (but starting with a value); a second name for the place is a plain definition, : six five ;"
+       (fn [s]
+         (let [n (named s "variable") x (peek (pop s))]
+           (e/check-name! n)
+           (let [a (atom x) r (v/->Ref n #(deref a) #(reset! a %))]
+             (e/define! (:in @e/state) n {:fn (fn [st] (conj st r)) :cell a :kind "variable" :effect (str "( -- " n " )  a place holding a value")})
+             (pop (pop s))))))
+
+(word! "kernel" "value" "( x 'name -- )  5 value five: five is a word that pushes 5, and 7 to five changes it, as Forth's value does"
+       (fn [s]
+         (let [n (named s "value") x (peek (pop s))]
+           (e/check-name! n)
+           (let [a (atom x)]
+             (e/define! (:in @e/state) n {:fn (fn [st] (conj st @a)) :cell a :kind "value" :effect (str "( -- " n " )  a value, changed with to")})
+             (pop (pop s))))))
+
+(word! "kernel" "to" "( x 'name -- )  7 to five: change the value five names (made with value)"
+       (fn [s]
+         (let [n (named s "to") x (peek (pop s))
+               entry (e/lookup @e/state n)
+               a (when (= "value" (:kind entry)) (:cell entry))]
+           (when-not a (e/mu-error "to:" n "is not a value -- 5 value" n "makes one"))
+           (reset! a x)
+           (pop (pop s)))))
 
 (word! "kernel" "dup" "( x -- x x )  copy the top"
        (fn [s] (need s 1 "dup") (conj s (peek s))))
@@ -84,7 +117,7 @@
 (word! "kernel" "depth" "( -- n )  how many items the stack holds (the n of the mu<n> prompt)"
        (fn [s] (conj s (count s))))
 
-(word! "kernel" "spread" "( x -- elem... )  x's elements on the stack, one after another: a line's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
+(word! "kernel" "spread" "( x -- elem... )  x's elements on the stack, one after another: a seq's notes (bar lines and jump marks left out), a parallel's parts, data's values -- [c d e] 2 [/] spread (also **)"
        (fn [s]
          (need s 1 "spread")
          (let [xs (try (mt/elements (peek s))
@@ -95,10 +128,50 @@
 
 ;; -- quotations ---------------------------------------------------------
 
-(word! "kernel" "call" "( q -- ... )  run the quotation"
-       (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
+;; -- loop (Forth's do … loop) -------------------------------------------------------------
 
-(word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation, as call)"
+(def ^:private ^:dynamic *loops*
+  "The indices of the do loops running now, outermost first."
+  [])
+
+(defn- counted [s name step]
+  (let [q (peek s) start (peek (pop s)) limit (peek (pop (pop s)))]
+    (when-not (v/quotation? q) (e/mu-error (str name ":") "the body is a quotation '( … ), got" (p/show q)))
+    (when-not (and (integer? limit) (integer? start))
+      (e/mu-error (str name ":") "needs whole numbers, limit and start, got" (p/show limit) "and" (p/show start)))
+    (let [more? (if (pos? step) < >)]
+      (loop [st (pop (pop (pop s))) n start]
+        (if (more? n limit)
+          (recur (binding [*loops* (conj *loops* n)] (e/call st q)) (+ n step))
+          st)))))
+
+(word! "kernel" "loop" "( limit start 'q -- ... )  Forth's do ... loop with a quotation for its body: run q once for each whole number from start up to, not including, limit, i giving the index and j the index of the loop around; start not below limit runs it no times: 3 0 '( i ) loop leaves 0 1 2"
+       (fn [s] (need s 3 "loop") (counted s "loop" 1)))
+
+(word! "kernel" "+loop" "( limit start step 'q -- ... )  loop by a step, a whole number but not 0: a negative step counts down, from start to, not including, limit: 0 5 -1 '( i ) +loop leaves 5 4 3 2 1; 10 0 3 '( i ) +loop leaves 0 3 6 9"
+       (fn [s]
+         (need s 4 "+loop")
+         (let [step (peek (pop s))]
+           (when-not (and (integer? step) (not (zero? step)))
+             (e/mu-error "+loop:" "the step is a whole number but not 0, got" (p/show step)))
+           (counted (conj (pop (pop s)) (peek s)) "+loop" step))))
+
+(word! "kernel" "i" "( -- n )  the index of the do loop running now"
+       (fn [s]
+         (when (empty? *loops*) (e/mu-error "i:" "is the index of a do loop, and none is running: 3 0 '( i ) loop"))
+         (conj s (peek *loops*))))
+
+(word! "kernel" "j" "( -- n )  the index of the do loop around the one running now"
+       (fn [s]
+         (when (< (count *loops*) 2) (e/mu-error "j:" "is the index of the loop around the running one, and there are not two: 2 0 '( 3 0 '( i j ) loop ) loop"))
+         (conj s (peek (pop *loops*)))))
+
+(word! "kernel" "k" "( -- n )  the index of the do loop two around the one running now"
+       (fn [s]
+         (when (< (count *loops*) 3) (e/mu-error "k:" "is the index of the loop two around the running one, and there are not three: 2 0 '( 2 0 '( 2 0 '( i j k ) loop ) loop ) loop"))
+         (conj s (peek (pop (pop *loops*))))))
+
+(word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation)"
        (fn [s]
          (need s 1 "execute")
          (let [x (peek s)]
@@ -153,7 +226,7 @@
 
 (word! "kernel" "clear" "( ... -- )  clear the stack" (fn [_] []))
 
-(word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts, ---- under the last"
+(word! "kernel" ".s" "( -- )  the stack, one item a seq, top first, numbered as pick counts, ---- under the last"
        (fn [s]
          (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
          (when (seq s) (println "----"))
@@ -179,6 +252,18 @@
            (pop (pop s)))))
 
 
+;; -- places ---------------------------------------------------------------
+
+(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (7 bass/onsets !)"
+       (fn [s]
+         (need s 2 "!")
+         (if (v/ref? (peek s))
+           (do (v/ref-set! (peek s) (peek (pop s))) (pop (pop s)))
+           (do (need s 3 "!")
+               (let [[x n y] (take-last 3 s)]
+                 (conj (pop (pop (pop s))) ((requiring-resolve 'musics.tool/put) x n y)))))))
+
+
 ;; -- playback -------------------------------------------------------------
 
 (defn- context? [x] (and (v/material? x) (= :CONTEXT (:type (v/node x)))))
@@ -186,7 +271,7 @@
 (defn- target-of
   "[voice-id stack]: a voice's id (:bass) or index (1 the lowest) on top
    is the voice to play as; else nil. With nothing under it, the voice
-   plays its own music again, from the start (1 ->, :bass ->>)."
+   plays its own music again, from the start (1 ->, :bass -|>)."
   [s word]
   (if (or (keyword? (peek s)) (integer? (peek s)))
     (let [k (peek s)]
@@ -200,20 +285,33 @@
     [nil s]))
 
 (defn- music-and-recipe
-  "[x recipe stack]: under the context, a recipe (a quotation, or a
-   composer's tree) and the music under it -- none when a mark | is
-   under the recipe (taken off) or nothing is -- else just the music."
+  "[x recipe stack]: under the context, a quotation and the music under it --
+   none when a mark | is under the quotation (taken off) or nothing is -- else
+   just the music."
   [s word]
   (if (and (seq s) (live/recipe? (peek s)))
-    (let [r (peek s) s (pop s)
-          ;; a tree recipe takes settings given before it, @^{ … } @( … )
-          [r s] (if (and (v/recipe? r) (seq s) (= :TCONTEXT (mt/kind (peek s))))
-                  [((requiring-resolve 'musics.recipe/with-settings) r (into {} (:params (v/node (peek s))))) (pop s)]
-                  [r s])]
+    (let [r (peek s) s (pop s)]
       (cond (empty? s)          [nil r s]
             (v/mark? (peek s))  [nil r (pop s)]
             :else               [(peek s) r (pop s)]))
     (do (need s 1 word) [(peek s) nil (pop s)])))
+
+(defn- word-voice
+  "[word values stack] when s ends in the quoted name of a word written with
+   $ inputs, the values for them taken from under it; else nil. The voice
+   needs a name: 5 8 42 'riff :bass ->"
+  [s word target]
+  (when (and (seq s) (symbol? (peek s)))
+    (let [w (str (peek s))]
+      (when-let [ins (e/live-inputs w)]
+        (when-not (keyword? target)
+          (e/mu-error (str word ":") "name the voice that plays" w "-- e.g. 5 8 42 '" (str w " :bass ->")))
+        (when-not (every? second ins)
+          (e/mu-error (str word ":") w "has inputs without $ -- a live word takes only $ inputs, which stay changeable"))
+        (let [s (pop s) n (count ins)]
+          (when (< (count s) n)
+            (e/mu-error (str word ":") w "takes" n (if (= 1 n) "input" "inputs") "under its name, the stack has" (count s)))
+          [w (subvec s (- (count s) n)) (subvec s 0 (- (count s) n))])))))
 
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."
@@ -221,12 +319,14 @@
   (fn [s]
     (let [[target s] (target-of s word)
           _          (need s 1 word)
-          [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])
-          [x r s]    (music-and-recipe s word)]
-      (if r
-        (live/play! x r ctx join? target nil)
-        (mt/play! x ctx join? target))
-      s)))
+          [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+      (if-let [[w vals s'] (word-voice s word target)]
+        (do (live/play-word! w target vals ctx join? nil) s')
+        (let [[x r s] (music-and-recipe s word)]
+          (if r
+            (live/play! x r ctx join? target nil)
+            (mt/play! x ctx join? target))
+          s)))))
 
 (word! "play" "play" "( material [recipe] [^{ }] [voice] -- )  play it now, stopping what plays (also ->); as a voice -- a voice's id on top, or the music's own name ([bass: …]) -- replacing only that voice; under a context, if given; a voice alone (1 play, :bass ->) starts its own music again; with a recipe '( … ), live: each note the next of what the recipe gives now, on the music or, with | or nothing under it, from nothing"
        (play-now "play" false))
@@ -244,25 +344,27 @@
     (let [[target s] (target-of s word)
           [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
-      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])
-            [x r s] (music-and-recipe s word)]
-        (if r
-          (live/play! x r ctx join? target [n])
-          (mt/stage! x ctx n join? target))
-        s))))
+      (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
+        (if-let [[w vals s'] (word-voice s word target)]
+          (do (live/play-word! w target vals ctx join? [n]) s')
+          (let [[x r s] (music-and-recipe s word)]
+            (if r
+              (live/play! x r ctx join? target [n])
+              (mt/stage! x ctx n join? target))
+            s))))))
 
-(word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also ->>)"
+(word! "play" "play-next" "( material [^{ }] [|...||||] -- )  in place of what plays, from the next boundary: a bar line of the mark's strength, else the end of what plays or of its repeat's pass (also -|>)"
        (staged-word "play-next" false))
-(word! "play" "play-next+" "( material [^{ }] [|...||||] -- )  joining what plays, from the next boundary, as play-next finds it (also ->>+)"
+(word! "play" "play-next+" "( material [^{ }] [|...||||] -- )  joining what plays, from the next boundary, as play-next finds it (also -|>+)"
        (staged-word "play-next+" true))
-(word! "play" "->>" "( material [^{ }] [|...||||] -- )  play-next, in place of what plays from the next boundary"
-       (staged-word "->>" false))
-(word! "play" "->>+" "( material [^{ }] [|...||||] -- )  play-next+, joining what plays from the next boundary"
-       (staged-word "->>+" true))
+(word! "play" "-|>" "( material [^{ }] [|...||||] -- )  play-next, in place of what plays from the next boundary"
+       (staged-word "-|>" false))
+(word! "play" "-|>+" "( material [^{ }] [|...||||] -- )  play-next+, joining what plays from the next boundary"
+       (staged-word "-|>+" true))
 
 ;; the old signs: not words, and say what replaced them
-(doseq [[w new] [[">+" "->+"] [">>" "->>"] [">>+" "->>+"] ["<<" "<<-"]
-                 [".>" "->"] [".>+" "->+"] [".>>" "->>"] [".>>+" "->>+"] [".<" "<-"] [".<<" "<<-"]]]
+(doseq [[w new] [[">+" "->+"] [">>" "-|>"] [">>+" "-|>+"] ["<<" "<<-"]
+                 [".>" "->"] [".>+" "->+"] [".>>" "-|>"] [".>>+" "-|>+"] [".<" "<-"] [".<<" "<<-"]]]
   (word! "play" w (str "( -- )  not a word: write " new)
          (fn [_] (e/mu-error (str w ":") "isn't a word; write" new))))
 

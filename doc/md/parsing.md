@@ -346,7 +346,7 @@ A variable is mu's: `'name value :=` binds, a backslash references:
 ## 6. Comments
 
 ```mus
-[c4 d e f]      % a line comment, to the end of the line
+[c4 d e f]      % a line comment, to the end of the seq
 %{ a block
    comment %}
 ```

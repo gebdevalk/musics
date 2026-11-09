@@ -1,6 +1,6 @@
 (ns musics.rate
   "mu's rate words as Clojure functions (doc/md/feedback.md): rate what
-   was heard, audition a line of sounds one by one, read the ratings
+   was heard, audition a seq of sounds one by one, read the ratings
    back -- registered into mu's rate namespace by musics.mu.library. The
    audition and the rating itself are musics.mu.feedback's (the prompt's
    Alt keys use them too); the ratings are musics.feedback's."
@@ -25,7 +25,7 @@
   "Play its sounds one by one, in the background, to rate each; stop (Alt+.) stops"
   [line]
   (let [items (filterv feedback/sound? (mt/elements line))]
-    (when (empty? items) (fail "needs a line of notes, chords or drums, got" (p/show line)))
+    (when (empty? items) (fail "needs a seq of notes, chords or drums, got" (p/show line)))
     (feedback/start-audition! items)))
 
 (defn step!

@@ -39,7 +39,7 @@
 ;; word is here: where its arguments or its result are better named, or it has
 ;; two shapes. library_test checks each against the function's arities.
 (def stack-effects
-  {"settings" "( voice -- ) or ( 'name -- )", "marks" "( 'name -- )"
+  {"settings" "( voice -- ) or ( 'name -- )", "pull" "( f n -- l )", "marks" "( 'name -- )"
    "R!" "( x [id] -- id )", "store" "( x [id] -- id )", "overwrite" "( x [id] -- id )", "R!!" "( x [id] -- id )"
    "R@" "( id -- x )", "fetch" "( id -- x )"
    "abs" "( n -- n' )", "negate" "( n -- n' )", "round" "( n -- n' )", "int" "( n -- n' )"
@@ -53,16 +53,16 @@
    "+" "( x n -- x' )", "-" "( x n -- x' )", "*" "( x n -- x' )", "/" "( x n -- x' )"
    ">list" "( x -- l )", "repeats" "( x -- x' )", "measures" "( x -- l )"
    "chord?" "( leaf -- flag )", "drum?" "( leaf -- flag )", "note?" "( leaf -- flag )", "rest?" "( leaf -- flag )"
-   "as-drums" "( line drums -- line' )", "at" "( x t -- note )", "bar" "( x n -- m )", "bars" "( x start end -- m )"
+   "as-drums" "( seq drums -- seq' )", "at" "( x t -- note )", "bar" "( x n -- m )", "bars" "( x start end -- m )"
    "chord-name" "( x -- name )", "classes" "( x -- set )", "prime-form" "( x -- set )"
    "combos" "( leaf numbers k -- l )", "sounds" "( leaf numbers -- l )", "degrees" "( numbers key -- l )"
    "delay" "( x t -- x' )", "delays" "( x t -- x' )"
    "interval-vector" "( x -- v )", "key-of" "( x -- key )", "duration" "( x -- t )", "profile" "( x -- l )"
    "pulses" "( x [pulse] -- l )", "setting" "( x k -- v )", "walking-bass" "( chords [n] -- m )"
-   ".." "( n1 n2 -- l )", "range" "( n1 n2 -- l )", "@" "( x n -- elem )", "nth" "( x n -- elem )"
+   ".." "( n1 n2 -- l )", "range" "( n1 n2 -- l )", "@" "( x n -- elem ) or ( ref -- value )", "nth" "( x n -- elem ) or ( ref -- value )"
    "concat" "( x1 x2 -- x3 )", "parts" "( x n -- l )", "partition" "( x n -- l )"
    "head" "( x -- elem )"
-   "choose-from" "( x -- l )", "choose-n" "( x n -- l )", "length" "( x -- n )"
+   "choose-from" "( x -- l )", "choose-n" "( x how-many -- l )", "length" "( x -- n )"
    "find" "( x q -- elem )", "index-of" "( x q -- n )", "indexes" "( x q -- l )"
    "interleave" "( x1 x2 -- x3 )", "intervals" "( l -- steps )", "iterate" "( x q -- l )"
    "last" "( x -- elem )", "map" "( x q -- x' )", "mean" "( l -- n )"
@@ -78,7 +78,11 @@
   [v]
   (let [{:keys [arglists doc]} (meta v)
         optional (set (map name (keys (:optional (:mu (meta v))))))
-        args     (for [a (last (sort-by count arglists))] (if (optional (str a)) (str "[" a "]") (str a)))
+        args     (loop [xs (last (sort-by count arglists)) out []]
+                   (cond (empty? xs) out
+                         (= '& (first xs)) (let [t (second xs)]
+                                             (into out (if (and (map? t) (:keys t)) (map #(str "[:" % " v]") (:keys t)) ["..."])))
+                         :else (recur (rest xs) (conj out (let [a (first xs)] (if (optional (str a)) (str "[" a "]") (str a)))))))
         out      (cond (str/ends-with? (str (:name (meta v))) "!") ""
                        (:out (:mu (meta v))) (:out (:mu (meta v)))
                        (changes-x (word-name v)) (str (first args) "'")

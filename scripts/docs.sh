@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Render the human-facing Markdown docs (doc/md/, plus README and
-# CLAUDE.md) to HTML in doc/html/ and PDF in doc/pdf/, both git-ignored
-# (but doc/html/algo-cookbook.html, which scripts/algo-cookbook.clj
-# writes): the .md files stay the source, GitHub renders them too.
+# CLAUDE.md) to HTML in doc/html/ and PDF in doc/pdf/, both git-ignored: the
+# .md files stay the source, GitHub renders them too.
 #
 #   scripts/docs.sh           HTML + PDF
 #   scripts/docs.sh --html    HTML only (fast)
@@ -21,15 +20,12 @@ cp scripts/docs/docs.css "$out/"
 declare -A pages=(
   [README.md]=index
   [doc/md/setup.md]=setup
-  [doc/md/algorithms.md]=algorithms
-  [doc/md/bridge-table.md]=bridge-table
   [doc/md/counterpoint.md]=counterpoint
   [doc/md/algo-context.md]=algo-context
-  [doc/md/algo-space.md]=algo-space
   [doc/md/grid.md]=grid
   [doc/md/mu-repl.md]=mu-repl
   [doc/md/mu-tutorial.md]=mu-tutorial
-  [doc/md/algo-tree-tutorial.md]=algo-tree-tutorial
+  [doc/md/raw-algo-cookbook.md]=raw-algo-cookbook
   [doc/md/namespace.md]=namespace
   [doc/md/grammar-notes.md]=grammar-notes
   [doc/md/parsing.md]=parsing
@@ -42,7 +38,7 @@ declare -A pages=(
   [doc/md/decisions.md]=decisions
   [CLAUDE.md]=CLAUDE
 )
-nav='<nav class="docs"><a href="index.html">musics</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="mu-tutorial.html">mu</a> · <a href="algorithms.html">algorithms</a> · <a href="algo-cookbook.html">cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
+nav='<nav class="docs"><a href="index.html">musics</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="mu-tutorial.html">mu</a> · <a href="raw-algo-cookbook.html">algo cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
 navfile=$(mktemp); echo "$nav" > "$navfile"; trap 'rm -f "$navfile"' EXIT
 
 for src in "${!pages[@]}"; do

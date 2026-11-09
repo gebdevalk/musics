@@ -6,7 +6,7 @@
    simpler implementation than lilypond_import.clj because ABC's own
    grammar is flatter: no `{ }`/`<< >>` nesting to track, no \\relative
    pitch mode, no user-definable commands -- a tune is a header (a run of
-   `Field:value` lines) followed by one flat stream of body tokens.
+   `Field:value` seqs) followed by one flat stream of body tokens.
 
    IN SCOPE: header fields X/T/C/M/L/Q/K (meter, unit note length, tempo,
    key -- including the 7 standard modes, not just major/minor); notes
@@ -19,7 +19,7 @@
 
    OUT OF SCOPE (dropped silently, not a bug -- matches lilypond_import's
    own \"known gaps documented, not silently mishandled\" precedent):
-   lyrics (w: lines), guitar-chord annotations (\"Cmaj7\"), grace notes
+   lyrics (w: seqs), guitar-chord annotations (\"Cmaj7\"), grace notes
    ({...}), decorations (!fermata!, .~HLMOPSTuv single-char marks),
    multiple voices (V: fields -- only the first/only voice in a tune is
    converted), variant endings ([1 [2), macros (U:), %%formatting
@@ -194,8 +194,8 @@
      :mode (get mode-aliases mode-key :major)}))
 
 (defn- parse-header-lines
-  "Consume header field lines (X:/T:/etc, one per line, up to and
-   including K: which always ends the header) from the start of lines.
+  "Consume header field seqs (X:/T:/etc, one per seq, up to and
+   including K: which always ends the header) from the start of seqs.
    Returns [header-map remaining-lines]."
   [lines]
   (loop [lines lines header {}]
@@ -250,21 +250,21 @@
 
 (defn tokenize-body
   "body-text (already stripped of header lines, comments joined across
-   any \\-continued lines) -> a seq of tokens: {:type :note/:rest/:chord/
+   any \\-continued seqs) -> a seq of tokens: {:type :note/:rest/:chord/
    :bar/:tuplet/:tie/:slur-open/:slur-close/:broken, ...fields}. Anything
    this converter doesn't handle (grace notes, decorations, guitar
-   chords, lyrics lines) is consumed and dropped right here, not left for
+   chords, lyrics seqs) is consumed and dropped right here, not left for
    a later pass to trip over."
   [body-text]
   (loop [s body-text out []]
     (cond
       (str/blank? s) out
 
-      ;; comment to end of line
+      ;; comment to end of seq
       (str/starts-with? s "%")
       (recur (str/replace-first s #"^[^\n]*" "") out)
 
-      ;; a lyrics line -- drop the whole line
+      ;; a lyrics seq -- drop the whole seq
       (re-find #"^w:" s)
       (recur (str/replace-first s #"^[^\n]*" "") out)
 
@@ -550,7 +550,7 @@
          "]")))
 
 (defn- split-tunes
-  "raw ABC text -> a seq of tune chunks, each starting at its own X: line
+  "raw ABC text -> a seq of tune chunks, each starting at its own X: seq
    -- any text before the first X: (file-level %%directives, comments)
    is dropped, same \"not carried over\" treatment as every other
    OUT OF SCOPE construct this converter drops."

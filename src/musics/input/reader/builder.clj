@@ -36,8 +36,8 @@
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
-   :CONTEXT (^{ }) and :TCONTEXT (@^{ }, an algo's settings)."
-  #{:CONTEXT :TCONTEXT})
+   :CONTEXT (^{ })."
+  #{:CONTEXT})
 
 ;; ============================================================
 ;; State initialization
@@ -74,7 +74,6 @@
       :stack      [root]
       :auto-ids   (atom (:auto-ids session))
       :var-map    (atom (or (:var-map session) {}))
-      :param-aliases (or (:param-aliases session) {})
       :last-pitch (atom nil)
       :last-dur   (atom 1/4)
       :last-ratio (atom 1)
@@ -87,14 +86,13 @@
 ;; ID generation
 ;; ============================================================
 
-(def ^:private id-prefixes
+(def id-prefixes
   "Short lowercase prefix per container type for auto-generated ids
    (:SEQ -> :s1, :PAR -> :p1, :CONTEXT -> :c1, etc.) instead of the
    verbose :SEQ.1/:CONTEXT.1 style."
   {:SEQ     "s"
    :PAR     "p"
    :CONTEXT "c"
-   :TCONTEXT "t"
    :DATA    "d"})
 
 (defn next-auto-id
@@ -301,7 +299,7 @@
 
 (defn- deep
   "[state' children']: children with leaf-f on every leaf at any depth --
-   nested lines and parallels, references, repeats' bodies and endings --
+   nested seqs and parallels, references, repeats' bodies and endings --
    and order-f on the children of everything but a parallel (whose parts
    keep their order). A container already in before (the repo when the
    command began: a reference, or a part written earlier) is copied under
@@ -339,7 +337,7 @@
 
 (defn deep-pitches
   "Every note's pitches below children, at any depth, in written order:
-   nested lines and references (read, not changed), repeats' bodies and
+   nested seqs and references (read, not changed), repeats' bodies and
    endings."
   [state children]
   (letfn [(walk [cs] (mapcat one cs))
@@ -355,8 +353,8 @@
 
 (defn deep-children!
   "The current container's children changed at any depth (see deep):
-   leaf-f on every leaf, order-f on every line's children -- what
-   transpose and reverse do, reaching into nested lines, references and
+   leaf-f on every leaf, order-f on every seq's children -- what
+   transpose and reverse do, reaching into nested seqs, references and
    repeats. before is the repo when the command began."
   [state before leaf-f order-f]
   (let [idx           (dec (count (:stack state)))

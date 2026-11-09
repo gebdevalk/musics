@@ -37,9 +37,9 @@ nothing at runtime.
 This library produces lazy permutations, combinations, subsets,
 partitions and selections. Several algorithms build these by hand:
 
-- rhythm necklaces and Vuza canons (`musics.algo.rhythmic.necklace`)
+- rhythm necklaces and Vuza canons (`musics.algo.rhythmic.sieve`)
 - Slonimsky permutations (`musics.algo.melodic.serial`)
-- all-interval series (`musics.algo.rhythmic.constraint`)
+- all-interval series (`musics.algo.rhythmic.process`)
 - "every way to fill a bar with these note values", which is integer
   partitions
 
@@ -67,11 +67,11 @@ it:
 
 - It is a heavy dependency, and version 3 has been in alpha for a long
   time.
-- The seeded xorshift RNG (`musics.algo.random.core`) must stay in charge of
+- The seeded xorshift RNG (`musics.algo.numeric.rng`) must stay in charge of
   randomness for reproducibility (`seed_test`).
 
 So either borrow the ideas, or wrap only its noise functions and drive
-them from `musics.algo.random`.
+them from `musics.algo.numeric.random`.
 
 ### 5. malli
 

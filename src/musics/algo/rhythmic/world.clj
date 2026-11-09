@@ -1,14 +1,8 @@
-;; world.clj
-;; Clojure port of pymusics src/algorithm/advanced_rhythm.py sections
-;; 19-20 -- the Indian tala system (matra/vibhag structure, theka
-;; stroke patterns, konnakol) and West African timeline patterns (bell
-;; patterns, cross-rhythms, polyrhythm, djembe). The reference's Tala
-;; class carries no real mutable state -- its own "instance data" is
-;; just a name plus a lookup into a fixed table -- so this port is a
-;; data table plus plain functions taking a tala name, not a class.
+;; Indian tala (matra and vibhag structure, theka stroke patterns, konnakol) and West African timelines
+;; (bell patterns, cross-rhythms, polyrhythm, djembe). A tala is a name looked up in a fixed table.
 
 (ns musics.algo.rhythmic.world
-  (:require [musics.algo.random :as rand]
+  (:require [musics.algo.numeric.random :as rand]
             [musics.common.music-data :as data]
             [musics.domain :as d]))
 
@@ -47,25 +41,25 @@
                     (range vibhag-length))))
            (map-indexed vector vibhags))))))
 
-(defn tala-accents
+(defn tala
   "tala-name's cycle as an accent per matra: 3 on sam, 2 on a tali
    vibhag's first matra, 1 on a khali's, 0 elsewhere (tala-pattern's
    :accent)."
-  {:algo {:short :tala :in [] :out :weight
+  {:algo {:in [] :out :weight
           :params {:tala-name {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}}}}
   [tala-name]
   (mapv :accent (tala-pattern tala-name)))
 
-(defn theka-pattern
+(defn theka
   "Simplified binary stroke pattern (theka) for tala-name. instrument
    \"tabla\" (default) uses hand-transcribed patterns for teental and
    jhaptal, falling back to \"accent the first matra of every vibhag\"
    for any other tala; any other instrument name (e.g. \"mridangam\")
    alternates on/off every other matra."
-  {:algo {:short :theka :in [] :out :pulse :arity 2
+  {:algo {:in [] :out :pulse :arity 2
           :params {:tala-name  {:type :string :default "teental" :choices ["teental" "jhaptal" "rupak" "ektal"] :doc "the tala"}
                    :instrument {:type :string :default "tabla" :choices ["tabla" "mridangam"] :doc "tabla: transcribed; else alternating"}}}}
-  ([tala-name] (theka-pattern tala-name "tabla"))
+  ([tala-name] (theka tala-name "tabla"))
   ([tala-name instrument]
    (let [{:keys [matras vibhags]} (tala-structure tala-name)]
      (if (= instrument "tabla")
@@ -78,14 +72,11 @@
              (recur (assoc pattern pos 1) (+ pos v) more))))
        (mapv #(if (even? %) 1 0) (range matras))))))
 
-(defn konnakol-pattern
-  "South Indian vocal-percussion syllables for pattern (a binary rhythm,
-   default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\"
-   \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the ON beats, in order;
-   OFF beats become \"-\"."
-  {:algo {:short :konnakol :in [:pulse] :out :stroke :arity 2 :children [:pattern]
+(defn konnakol
+  "South Indian vocal-percussion syllables for pattern (a binary rhythm; default a fixed 8-beat example): syllables (default [\"Ta\" \"Ka\" \"Di\" \"Mi\" \"Tom\" \"Nam\"]) cycle across the on beats in order, off beats are \"-\"."
+  {:algo {:in [:pulse] :out :stroke :arity 2 :children [:pattern]
           :params {:syllables {:type :vector :default ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] :doc "sung on the onsets, in turn"}}}}
-  ([] (konnakol-pattern ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] [1 0 1 0 1 1 0 1]))
+  ([] (konnakol ["Ta" "Ka" "Di" "Mi" "Tom" "Nam"] [1 0 1 0 1 1 0 1]))
   ([syllables pattern]
    (let [syllables (vec syllables)]
      (first (reduce (fn [[out idx] beat]
@@ -103,16 +94,16 @@
    "funk"       [1 0 0 1 0 1 0 0 1 0 0 1 0 1 0 0]
    "ghanian"    [1 0 1 1 0 1 0 1 1 0 1 0]})
 
-(defn bell-pattern
+(defn bell
   "West African bell (timeline) pattern for meter [pulses subdivision],
    either one of the named patterns (\"standard\"/\"clave\"/\"bossanova\"/
    \"funk\"/\"ghanian\") or, for any other name, a simple pattern with a
    beat every (subdivision/2) pulses -- truncated or cyclically
    repeated as needed to come out exactly pulses long."
-  {:algo {:short :bell :in [] :out :pulse :arity 2
+  {:algo {:in [] :out :pulse :arity 2
           :params {:meter        {:type :vector :default [12 8] :doc "[pulses subdivision]"}
                    :pattern-name {:type :string :default "standard" :choices ["standard" "clave" "bossanova" "funk" "ghanian" "plain"] :doc "a named timeline"}}}}
-  ([] (bell-pattern [12 8] "standard"))
+  ([] (bell [12 8] "standard"))
   ([meter pattern-name]
    (let [[pulses subdivision] meter
          base (get named-bell-patterns pattern-name
@@ -123,28 +114,23 @@
        (< n pulses) (vec (take pulses (cycle base)))
        :else base))))
 
-(defn cross-rhythm-3-2
+(defn hemiola
   "Classic 3:2 cross-rhythm (hemiola): two layers over length pulses,
    one marking every length/3 pulses (triple meter), the other every
    length/2 (duple meter)."
-  {:algo {:short :hemiola :in [] :out :layer :arity 1
+  {:algo {:in [] :out :layer :arity 1
           :params {:length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
-  ([] (cross-rhythm-3-2 12))
+  ([] (hemiola 12))
   ([length]
    [(mapv #(if (zero? (mod % (quot length 3))) 1 0) (range length))
     (mapv #(if (zero? (mod % (quot length 2))) 1 0) (range length))]))
 
-(defn african-polyrhythm
-  "layers interlocking rhythmic patterns of base-length pulses each: the
-   first four layers use the classic African polyrhythm ratios 3:2,
-   4:3, 5:4, 7:4 (num beats evenly spaced across base-length); any
-   further layer gets a random ratio (2-7 : 2-7). Each layer also has a
-   ~50% chance, independently at each of its own secondary beat
-   positions, of adding an extra beat halfway to the next primary one."
-  {:algo {:short :african :in [] :out :layer :arity 2
+(defn african
+  "layers interlocking patterns of base-length pulses each: the first four layers use the classic ratios 3:2, 4:3, 5:4 and 7:4 (that many beats evenly spaced over base-length), any further layer a random ratio (2-7 : 2-7). At each secondary beat position a layer has a 50% chance of an extra beat halfway to the next primary beat."
+  {:algo {:in [] :out :layer :arity 2
           :params {:layers      {:type :int :min 1 :max 8 :default 3 :doc "layers (3:2 4:3 5:4 7:4, then random)"}
                    :base-length {:type :int :min 1 :max 96 :default 12 :doc "pulses"}}}}
-  ([] (african-polyrhythm 3 12))
+  ([] (african 3 12))
   ([layers base-length]
    (let [ratios [[3 2] [4 3] [5 4] [7 4]]]
      (mapv (fn [i]
@@ -161,11 +147,7 @@
            (range layers)))))
 
 (defn djembe-pattern
-  "Djembe stroke sequence for technique \"basic\" (a fixed 8-stroke
-   bass/tone/slap pattern, 0.5s apart), \"solo\" (length random strokes
-   at 0.25s apart with a 4-beat accent cycle), or \"accompaniment\" (the
-   default fallback -- a steady bass/tone alternation, 0.5s apart).
-   Each event is {:time :stroke :accent}."
+  "A djembe stroke sequence for technique \"basic\" (a fixed 8-stroke bass/tone/slap pattern, 0.5 s apart), \"solo\" (length random strokes 0.25 s apart with a 4-beat accent cycle) or \"accompaniment\" (the default: a steady bass/tone alternation, 0.5 s apart). Each event is {:time :stroke :accent}."
   ([] (djembe-pattern "basic" 8))
   ([technique length]
    (case technique
@@ -208,12 +190,12 @@
           strokes)))
 
 (comment
-  (theka-pattern "teental")
-  (theka-pattern "jhaptal")
+  (theka "teental")
+  (theka "jhaptal")
   (tala-pattern "teental")
-  (konnakol-pattern)
-  (bell-pattern [12 8] "standard")
-  (cross-rhythm-3-2 12)
-  (african-polyrhythm 3 12)
+  (konnakol)
+  (bell [12 8] "standard")
+  (hemiola 12)
+  (african 3 12)
   (djembe-pattern "basic" 8)
   )

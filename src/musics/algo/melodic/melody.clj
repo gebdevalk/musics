@@ -1,49 +1,20 @@
-;; melody.clj
-;; Clojure port of pymusics src/algorithm/ — melodic algorithms (scales,
-;; Markov/L-system/grammar generators, constraint-satisfaction walks).
-;; Python/Kotlin sources: rule_based_melodic_algorithms.py
+;; Melodic generators: Markov, L-system and grammar melodies, and constraint-satisfaction walks.
 
 (ns musics.algo.melodic.melody
-  (:require [clojure.string :as str]
-            [musics.algo.common.pitch :as pitch]
-            [musics.algo.random :as rand]))
+  (:require [musics.algo.melodic.pitch :as pitch]
+            [musics.algo.numeric.lsystem :as lsystem]
+            [musics.algo.numeric.random :as rand]))
 
-;; Scales are plain pitch-class integers (0-11) now, not note-name
-;; strings -- see musics.algo.common.pitch/build-scale's own docstring, and
-;; doc/md/decisions.md's 2026-09-05 entry for why this
-;; moved out of melody.clj entirely rather than staying a local,
-;; string-based helper. Built via from-key, not hand-typed intervals --
-;; :major/:minor/:pentatonic-major's own formulas already live in
-;; musics.common.music-elements/scale-steps, the project's own central table;
-;; re-typing them here as a second copy would just be duplication.
-;;
-;; These three are just convenience defs, not the only scales reachable
-;; -- musics.common.music-elements/scale-steps has 24 named scales (every
-;; church mode, harmonic/melodic minor, both pentatonics, blues major/
-;; minor, whole-tone, both diminished forms, hungarian-minor, double-
-;; harmonic, bebop-dominant/major, ...) across 13 tonics (musics.common.music-
-;; data/signatures), so musics.algo.common.pitch/from-key reaches 312 named
-;; key/scale combinations directly: (pitch/from-key :F# :dorian). Or,
-;; for a single spec string instead of two keyword args (from-key-spec,
-;; e.g. (pitch/from-key-spec "B&.blues-minor")) -- either resolves,
-;; along with a plain already-built scale vector, through
-;; musics.algo.common.pitch/resolve-scale, which every generator/constraint fn
-;; below happily accepts unchanged (they were already representation-
-;; agnostic before any of this existed) -- see modulating-melody below
-;; for the motivating use.
+;; The scales are plain pitch-class integers (0-11), built with pitch/from-key from
+;; musics.common.music-elements/scale-steps. These three are conveniences: from-key reaches 312 named
+;; key and scale combinations, e.g. (pitch/from-key :F# :dorian); from-key-spec takes one string,
+;; (pitch/from-key-spec "B&.blues-minor"); and every generator here accepts any of them, or a built
+;; scale vector, through pitch/resolve-scale (see modulating).
 (def c-major      (pitch/from-key :C :major))
 (def a-minor      (pitch/from-key :A :minor))
 (def c-pentatonic (pitch/from-key :C :pentatonic-major))
 
-;; Every function below draws from musics.algo.random now, not bare
-;; clojure.core rand-nth/shuffle -- this whole file was, until
-;; 2026-09-05, the largest unreproducible-randomness site (the ONLY
-;; melodic/rhythmic namespace in musics/algo/ using unreproducible randomness
-;; while its own neighbors -- counterpoint.clj, and every rhythmic/*
-;; file except rhythm.clj itself -- already drew consistently from
-;; musics.algo.random). Composing generators from different musics/algo/ files no
-;; longer risks silently mixing a reproducible stream with an
-;; unreproducible one.
+;; Every function here draws from musics.algo.numeric.random, so a seed repeats it.
 
 ;; ── Markov Chain Melody ─────────────────────────────────────
 
@@ -64,9 +35,9 @@
                             (update m s #(conj (or % []) nxt)))
                           {} pairs)}))
 
-(defn markov-generate
+(defn markov-gen
   "A melody of `length` notes walked through a markov-train model."
-  {:algo {:short :markov-gen :in [:model] :out :pitch
+  {:algo {:in [:model] :out :pitch
           :params {:length length-spec
                    :opening {:type :any :default nil :doc "the opening notes, nil = random"}}}}
   [model length & {:keys [opening]}]
@@ -86,30 +57,27 @@
 
 ;; ── L-System Melody ─────────────────────────────────────────
 
-(defn lsystem-melody
+(defn lsys-melody
   "Expand axiom through rules `iterations` times; each character in
    note-map becomes that pitch, others are skipped."
-  {:algo {:short :lsys-melody :in [] :out :pitch
+  {:algo {:in [] :out :pitch
           :params {:axiom      {:type :string :default "A" :doc "starting string"}
                    :rules      {:type :map :default {"A" "AB" "B" "CA" "C" "A"} :doc "character -> replacement"}
                    :note-map   {:type :map :default {\A 60 \B 64 \C 67} :doc "character -> pitch"}
                    :iterations {:type :int :min 0 :max 12 :default 5 :doc "generations"}
                    :max-notes  {:type :int :min 1 :max 256 :default 16 :doc "notes kept"}}}}
   [axiom rules note-map iterations max-notes]
-  (let [expanded (nth (iterate (fn [s]
-                                 (str/join (map #(get rules (str %) (str %)) s)))
-                               axiom)
-                      iterations)]
+  (let [expanded (lsystem/expand axiom rules iterations)]
     (->> (keep (fn [c] (get note-map c)) expanded)
          (take max-notes) vec)))
 
 ;; ── Generative Grammar ──────────────────────────────────────
 
-(defn grammar-generate
+(defn grammar
   "Expand `start` through a generative grammar: rules maps a symbol to
    its productions (one chosen at random), terminals are kept as-is.
    \"REST\" terminals are dropped when remove-rests? is true."
-  {:algo {:short :grammar :in [] :out :pitch
+  {:algo {:in [] :out :pitch
           :params {:rules {:type :map :doc "symbol -> productions"
                            :default {'S [['A 'B] ['B 'A 'S]]
                                      'A [[60 64] [67 64]]
@@ -133,11 +101,11 @@
 
 ;; ── Constraint Satisfaction ─────────────────────────────────
 
-(defn constraint-melody
+(defn constrained
   "A melody of `length` notes from scale: each note drawn from those
    every constraint (fn [melody note] -> bool) accepts, any scale note
    when none does."
-  {:algo {:short :constrained :in [:pitch] :out :pitch
+  {:algo {:in [:pitch] :out :pitch
           :params {:length length-spec
                    :constraints {:type :vector :default [#'no-repeat-constraint]
                                  :doc "fns [melody note] -> bool, e.g. max-leap-constraint"}
@@ -153,35 +121,11 @@
               candidates (if (empty? valid) scale valid)]
           (recur (conj melody (rand/choose candidates))))))))
 
-(defn modulating-melody
-  "Generate a melody across several scale segments in sequence -- each
-   [scale-spec length] pair in segments gets its own constraint-melody
-   run of exactly length notes, constraints shared across every
-   segment. scale-spec is anything musics.algo.common.pitch/resolve-scale
-   accepts -- an already-built scale vector, a [key-kw scale-kw] pair,
-   or a \"F#.major\"-style spec string -- so segments can freely mix
-   pre-built scales with spec shorthand.
-
-   Every segment after the first tries to continue smoothly from the
-   previous segment's own last note (used as constraint-melody's own
-   :start) IF that pitch is actually a member of the new segment's
-   scale -- a genuine melodic pivot tone, the same idea a real
-   modulation uses -- otherwise falls back to constraint-melody's own
-   default (a fresh random note in the new scale), since forcing
-   continuity onto a pitch the new scale doesn't even contain isn't a
-   real modulation, it's just a wrong note. A pivot note is never
-   dropped/de-duplicated at the seam -- each segment always contributes
-   exactly its own declared length, so (count result) always equals the
-   sum of every segment's length, and a pivot simply repeats that one
-   note once at the boundary (a held tone), rather than making length
-   mean something fuzzier. A thin sequencing layer over constraint-
-   melody, not a different generator -- its own scale/length/
-   constraints/:start contract is otherwise unchanged.
-
-   (modulating-melody [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
-   ;; => a 16-note melody, first 8 in C major, next 8 in A minor,
-   ;;    pivoting on the hand-off note if it happens to fit both"
-  {:algo {:short :modulating :in [] :out :pitch
+(defn modulating
+  "A melody across several scale segments: each [scale-spec length] pair in segments gets a constrained run of exactly length notes, the constraints shared. scale-spec is anything resolve-scale accepts (a scale vector, a [key-kw scale-kw] pair, a \"F#.major\" string). A segment starts on the previous segment's last note when the new scale contains it (a pivot tone, repeated once at the seam), else on constrained's own default start; so (count result) is the sum of the lengths.
+     (modulating [[c-major 8] [\"A.minor\" 8]] [no-repeat-constraint])
+     ;; => 16 notes, 8 in C major then 8 in A minor"
+  {:algo {:in [] :out :pitch
           :params {:segments {:type :vector :default [[[:C :major] 8] [[:A :minor] 8]]
                               :doc "[scale-spec length] pairs; pitch classes 0-11"}
                    :constraints {:type :vector :default [#'no-repeat-constraint]
@@ -194,7 +138,7 @@
             scale (pitch/resolve-scale scale-spec)
             pivot (when (and (seq melody) (some #{(peek melody)} scale))
                     (peek melody))
-            piece (constraint-melody scale length constraints :start pivot)]
+            piece (constrained scale length constraints :start pivot)]
         (recur (rest segs) (into melody piece))))))
 
 (defn max-leap-constraint [scale max-degrees]
@@ -209,15 +153,7 @@
   (or (empty? melody) (not= (last melody) note)))
 
 (defn direction-limit-constraint
-  "Reject note after melody if it would extend a run of max-consecutive
-   (or more) melodic steps already moving in the SAME direction, walked
-   backward from the end of melody. (Fixed 2026-09-03: the inner loop's
-   own termination check was (< i 0), but its body reads (nth melody
-   (dec i)) -- once i reached 0, that's (nth melody -1), a confirmed-
-   live IndexOutOfBoundsException on ordinary input. Every existing
-   pair in melody is (i-1, i) for i from (dec (count melody)) down to
-   1, so the loop must stop once i reaches 0, before the body ever
-   computes (dec i) again -- (< i 1), not (< i 0)."
+  "Reject note after melody if it would extend a run of max-consecutive (or more) melodic steps in the same direction, counted backward from the end of melody."
   [scale max-consecutive]
   (let [sv (vec scale)]
     (fn [melody note]
@@ -242,7 +178,7 @@
       (= note cadence-note) true)))
 
 (comment
-  (constraint-melody c-major 16
+  (constrained c-major 16
     [(max-leap-constraint c-major 2) no-repeat-constraint
      (cadence-constraint 16 0)])
   )

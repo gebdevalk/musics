@@ -1,4 +1,3 @@
-;; transient_ops.clj
 ;; Plain-material versions of the grammar's own TRANSIENT commands --
 ;; (times factor [...]) / (tuplet factor [...]) / (transpose from to
 ;; [...]) -- for musics/algo/ generators working directly on already-realized

@@ -202,7 +202,7 @@ Once no holes are left, Finalize builds the real nodes through the
 algos' constructors and makes the tctx:
 
 ```clojure
-#node (zip (pulses->durations (euclid)) (cycle> (scale)))
+#node (zip (pulses->durations (euclid)) (cycle (scale)))
 {:k 3, :n 8, :rotation 0, :pulse 1/16, :root 60, :intervals [0 2 4 7 9]}
 ```
 

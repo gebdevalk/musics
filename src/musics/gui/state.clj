@@ -79,9 +79,8 @@
     [musics.domain :as d]
     [musics.persist :as persist]
     [musics.wall :as wall]
-    [musics.algo.random :as rnd]
-    [musics.algo.tree :as at]
-    [musics.algo.tree.lib :as tree-lib]))
+    [musics.algo.numeric.random :as rnd]
+    [musics.mu.inputs :as inputs]))
 
 (defn- humanize-label
   "durScale -> \"Dur Scale\", volume -> \"Volume\", Tempo -> \"Tempo\" --
@@ -241,7 +240,7 @@
          ;; immediately (see musics.mu.store/read!'s own docstring -- no
          ;; separate stage/commit step). :ids is whatever the most
          ;; recent parse introduced/changed, :message the panel's own
-         ;; status/error line. See the Editor section below.
+         ;; status/error seq. See the Editor section below.
          :editor {:text "" :load-path "" :ids nil :message nil}
          ;; Repo browser panel -- :ids is kept live-synced with
          ;; musics.repo's own registry (see start-browser-sync!, unlike
@@ -1247,25 +1246,23 @@
 (defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
 
 (defn- fmt-registered
-  "musics.wall/registered's {name -> entry} as one line per algo: its
-   name and doc -- for a live tree (musics.algo.tree/live!), its expression."
+  "musics.wall/registered's {name -> entry} as one seq per algo: its
+   name and doc -- for a live voice, what it follows."
   [m]
   (str/join "\n"
             (for [[k {:keys [doc]}] (sort-by (comp str first) m)]
               (str (name k) " — " (or doc "(no doc)")))))
 
 (defn- tree-controls
-  "Every live tree name with its tctx's params, one control each:
-   [{:name kw :tree text :params [{:key :value :spec}]}]. The tctx is the
-   model; the tree is only its label."
+  "Every live voice with its inputs, one control each:
+   [{:name kw :tree text :params [{:key :value :spec}]}]."
   [m]
-  (vec (for [[nm {:keys [tree tctx label]}] (sort-by (comp str first) m) :when tctx]
+  (vec (for [[nm {:keys [label inputs]}] (sort-by (comp str first) m) :when inputs]
          {:name   nm
-          :tree   (or label (pr-str (at/show tree)))
-          :params (let [ps (at/params tctx)]
-                    (vec (for [[k spec] (sort-by (comp :order val) (at/specs tctx))
-                               :when (not= :read (:algo spec))]
-                           {:key k :value (get ps k) :spec spec})))})))
+          :tree   (or label (str nm))
+          :params (let [{:keys [params specs]} (inputs/state nm)]
+                    (vec (for [[k spec] (sort-by (comp :order val) specs)]
+                           {:key k :value (get params k) :spec spec})))})))
 
 (defn- refresh-wall!
   [& _]
@@ -1275,13 +1272,13 @@
   nil)
 
 (defn set-tree-param!
-  "Set one param of live tree `nm`'s tctx -- heard on the next note. A
+  "Set one input of live voice `nm` -- heard on the next note. A
    value its spec rejects is reported in the window, not applied. A
    string (from a text field) is read as EDN first."
   [nm k v]
   (try
     (let [v (if (string? v) (edn/read-string v) v)]
-      (at/setp! (:tctx (wall/registered nm)) k v)
+      (inputs/put! nm k v)
       (swap! *state assoc-in [:wall :message] nil))
     (catch Exception e
       (swap! *state assoc-in [:wall :message] (.getMessage e))))
@@ -1346,7 +1343,7 @@
   (str/join "\n" (sort (map name ids))))
 
 (defn- fmt-schedule-table
-  "{[id phase] -> action-id} -> one \"id phase -> action-id\" line per
+  "{[id phase] -> action-id} -> one \"id phase -> action-id\" seq per
    entry, sorted -- shared by the one-shot and repeating displays,
    both the same shape (musics.conductor/scheduled, scheduled-repeating)."
   [m]
@@ -1662,11 +1659,12 @@
   [name params material]
   (case name
     "times"           (take (* (get params :n 2) (count material)) (cycle material))
-    "transpose"       (at/run (tree-lib/transpose :material) {:material material :semitones (get params :semitones 0)})
+    "transpose"       (map (d/transpose (get params :semitones 0)) material)
     "invert"          (if (contains? params :axis)
                          (map (d/invert (get params :axis)) material)
                          (map (d/invert) material))
-    "stretch"         (at/run (tree-lib/stretch> :material) {:material material :factor (get params :factor 1)})
+    "stretch"         (let [f (get params :factor 1)]
+                        (map #(if (:duration %) (update % :duration (fn [x] (* f x))) %) material))
     "reverse"         (clojure.core/reverse material)
     "shuffle"         (seq (rnd/shuffle material))
     "tonal-transpose" (map (d/tonal-transpose (el/parse-key (get params :ks)) (get params :steps 1)) material)
@@ -1722,7 +1720,7 @@
 (defn transform-commit!
   "Commit :last-result (Preview's own stashed material -- see its own
    docstring on why this isn't recomputed) as a brand new :SEQ
-   container under :new-id -- same {:type :SEQ ...} shape a parsed line has."
+   container under :new-id -- same {:type :SEQ ...} shape a parsed seq has."
   []
   (let [{:keys [new-id last-result]} (:transform @*state)
         id-text (str/trim (or new-id ""))]

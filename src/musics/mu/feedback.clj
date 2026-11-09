@@ -1,7 +1,7 @@
 (ns musics.mu.feedback
   "What mu's rate words (musics.rate) and the prompt's Alt keys share
    (doc/md/feedback.md): rating what is heard -- the audition's item,
-   else the sound last played -- and auditioning a line of sounds one by
+   else the sound last played -- and auditioning a seq of sounds one by
    one. The ratings themselves are musics.feedback's."
   (:require [clojure.string :as str]
             [musics.common.music-data :as data]
@@ -165,7 +165,7 @@
       (say (str (score-words score) ": " (describe (:what rec))))
       (when (= where :audition) (command! :next))
       rec)
-    (say "nothing to rate -- play a note, chord or drum, or audition a line")))
+    (say "nothing to rate -- play a note, chord or drum, or audition a seq")))
 
 (defn again!
   "Play the current trial again."

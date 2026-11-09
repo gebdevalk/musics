@@ -7,7 +7,7 @@
 (ns musics.common.music-elements
   (:refer-clojure :exclude [key])
   (:require [musics.common.music-data :as data]
-            [musics.algo.indispensability :as indisp]
+            [musics.algo.rhythmic.indispensability :as indisp]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -195,7 +195,7 @@
 ;; 2a. INDISPENSABILITY (Clarence Barlow)
 ;; ============================================================
 
-;; The actual algorithm lives in musics.algo.indispensability now (moved
+;; The actual algorithm lives in musics.algo.rhythmic.indispensability now (moved
 ;; there so it has one canonical home instead of a second copy living
 ;; here) -- this just wires a Meter's own num/den/subdivisions into it.
 
@@ -214,7 +214,7 @@
   (let [fs (prime-factors-ascending n)]
     (cond
       (= n 1)                    [0]
-      (every? #{2 3 5 7} fs)     (indisp/indispensability fs)
+      (every? #{2 3 5 7} fs)     (indisp/indisp fs)
       :else                      (vec (cons (dec n) (range (dec n)))))))
 
 (defn- ranks-by
@@ -283,7 +283,7 @@
   [{:keys [num den subdivisions] :as meter}]
   (if (additive? meter)
     (additive-ranks subdivisions)
-    (indisp/indispensability (or subdivisions (default-subdivisions num den)))))
+    (indisp/indisp (or subdivisions (default-subdivisions num den)))))
 
 (def metric-weights
   "Each pulse position's weight in a bar of meter (0..1, the downbeat 1),

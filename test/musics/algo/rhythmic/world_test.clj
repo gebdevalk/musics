@@ -3,16 +3,16 @@
             [musics.algo.rhythmic.world :as w]))
 
 (deftest theka-pattern-teental-matches-the-hand-transcribed-bols
-  (is (= [1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1] (w/theka-pattern "teental"))))
+  (is (= [1 1 1 1 1 1 1 1 1 0 0 1 1 1 1 1] (w/theka "teental"))))
 
 (deftest theka-pattern-jhaptal-matches-the-hand-transcribed-bols
-  (is (= [1 0 1 1 0 1 0 1 1 0] (w/theka-pattern "jhaptal"))))
+  (is (= [1 0 1 1 0 1 0 1 1 0] (w/theka "jhaptal"))))
 
 (deftest theka-pattern-falls-back-to-accenting-each-vibhags-first-matra
-  (is (= [1 0 0 1 0 1 0] (w/theka-pattern "rupak"))))
+  (is (= [1 0 0 1 0 1 0] (w/theka "rupak"))))
 
 (deftest theka-pattern-non-tabla-alternates
-  (is (= [1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0] (w/theka-pattern "teental" "mridangam"))))
+  (is (= [1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0] (w/theka "teental" "mridangam"))))
 
 (deftest tala-pattern-marks-sam-with-the-strongest-accent
   (let [first-three (take 3 (w/tala-pattern "teental"))]
@@ -20,22 +20,22 @@
     (is (= [0.0 1.0 2.0] (mapv :time first-three)))))
 
 (deftest konnakol-pattern-cycles-syllables-across-on-beats
-  (is (= ["Ta" "-" "Ka" "-" "Di" "Mi" "-" "Tom"] (w/konnakol-pattern))))
+  (is (= ["Ta" "-" "Ka" "-" "Di" "Mi" "-" "Tom"] (w/konnakol))))
 
 (deftest bell-pattern-known-names
-  (is (= [1 0 1 0 1 0 1 0 1 0 1 0] (w/bell-pattern [12 8] "standard")))
-  (is (= [1 0 0 1 0 0 1 0 0 0 1 0 0 1 0 0] (w/bell-pattern [16 8] "clave"))))
+  (is (= [1 0 1 0 1 0 1 0 1 0 1 0] (w/bell [12 8] "standard")))
+  (is (= [1 0 0 1 0 0 1 0 0 0 1 0 0 1 0 0] (w/bell [16 8] "clave"))))
 
 (deftest bell-pattern-unknown-name-generates-from-the-meter
-  (is (= [1 0 0 0 1 0 0 0] (w/bell-pattern [8 8] "nonexistent"))))
+  (is (= [1 0 0 0 1 0 0 0] (w/bell [8 8] "nonexistent"))))
 
 (deftest cross-rhythm-3-2-marks-triple-and-duple-layers
   (is (= [[1 0 0 0 1 0 0 0 1 0 0 0]
           [1 0 0 0 0 0 1 0 0 0 0 0]]
-         (w/cross-rhythm-3-2 12))))
+         (w/hemiola 12))))
 
 (deftest african-polyrhythm-first-four-layers-use-the-classic-ratios
-  (let [layers (w/african-polyrhythm 4 12)]
+  (let [layers (w/african 4 12)]
     (is (= 4 (count layers)))
     (is (every? #(= 12 (count %)) layers))
     (is (every? #(= 1 %) (map #(nth % 0) layers)) "every layer's own first primary beat lands on 0")))
@@ -54,8 +54,8 @@
   (is (= [2 0 1 0 2 0] (mapv :accent (w/djembe-pattern "solo" 6)))))
 
 (deftest tala-accents-are-the-matras-accents
-  (is (= [3 0 0 2 0 2 0] (w/tala-accents "rupak")) "sam, then two tali vibhags")
-  (is (= (mapv :accent (w/tala-pattern "teental")) (w/tala-accents "teental"))))
+  (is (= [3 0 0 2 0 2 0] (w/tala "rupak")) "sam, then two tali vibhags")
+  (is (= (mapv :accent (w/tala-pattern "teental")) (w/tala "teental"))))
 
 (deftest djembe-makes-drum-leaves
   (let [ls (w/djembe "basic" 8)]

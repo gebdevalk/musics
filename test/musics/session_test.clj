@@ -7,13 +7,12 @@
             [musics.compose :as compose]
             [musics.domain :as d]
             [musics.domain.resolve :as r]
-            [musics.domain.ornaments :as orn]
-            [musics.algo.tree :as t]
-            [musics.algo.tree.lib :as lib]))
+            [musics.domain.ornaments :as orn]))
 
-;; pitch shift and duration stretch are musics.algo.tree algos now (musics.algo.tree.lib)
-(defn- shift [n material] (t/run (lib/transpose :m) {:m material :semitones n}))
-(defn- stretch [f material] (t/run (lib/stretch> :m) {:m material :factor f}))
+;; pitch shift and duration stretch, as a part is moved or stretched
+(defn- shift [n material] (map (d/transpose n) material))
+(defn- stretch [f material]
+  (map #(cond (number? %) (* f %) (:duration %) (update % :duration (fn [x] (* f x))) :else %) material))
 (defn- times [n material] (take (* n (count material)) (cycle material)))
 
 (defn reset-state-fixture [f]
@@ -468,7 +467,7 @@
     (is (re-find #":inner" out) "inner's own authored value shows")
     (is (re-find #":verse" out) "ancestor's authored value shows too")
     (is (not (re-find #":ROOT" out)) ":ROOT itself is excluded")
-    ;; nearest-first: :inner's own line comes before :verse's
+    ;; nearest-first: :inner's own seq comes before :verse's
     (is (< (.indexOf out ":inner") (.indexOf out ":verse")))))
 
 (deftest ctx-on-unregistered-id-prints-not-found
@@ -519,19 +518,6 @@
       (with-out-str (persist/load (.getPath tmp)))
       (is (d/container? (repo/lookup :verse)) "verse resolves again after load")
       (is (= 2 (count (repo/children :verse))) "verse's children survived the round-trip")
-      (finally (io/delete-file tmp true)))))
-
-(deftest write-load-round-trips-algo-params
-  (parse! "@^{ k:5 style:rock iv:0,2,4 key:\"D.major\" }")
-  (let [tmp (java.io.File/createTempFile "musics-session" ".edn")]
-    (try
-      (with-out-str (persist/write (.getPath tmp)))
-      (repo/reset-all!)
-      (reset! reg/session {:auto-ids {}})
-      (with-out-str (persist/load (.getPath tmp)))
-      (let [settings (some #(when (= :TCONTEXT (:type %)) %) (vals @(repo/registry)))]
-        (is (= [["k" 5] ["style" :rock] ["iv" [0 2 4]] ["key" "D.major"]] (:params settings)))
-        (is (= "k:5 style:rock iv:0,2,4 key:\"D.major\"" (:text settings)) "written back as written"))
       (finally (io/delete-file tmp true)))))
 
 (deftest write-load-round-trips-a-meter-record

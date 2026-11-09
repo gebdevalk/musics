@@ -12,14 +12,13 @@
             [musics.mu.kernel :as kernel]
             [musics.mu.material :as mt]
             [musics.mu.tools]
-            [musics.mu.algos]
             [musics.mu.complete :as complete]
             [musics.mu.library]
             [musics.version :refer [version]]
             ;; commits :ROOT, with every default, before anything is read
             [musics.mu.store])
   (:import (org.jline.keymap KeyMap)
-           (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option
+           (org.jline.reader Candidate Completer EndOfFileException EOFError LineReader LineReader$Option LineReader$RegionType
                              LineReaderBuilder Parser$ParseContext Reference UserInterruptException Widget)
            (org.jline.reader.impl DefaultParser LineReaderImpl)
            (org.jline.terminal TerminalBuilder)
@@ -132,8 +131,54 @@
    ["mu-again"   (KeyMap/alt "K") fb/again!]
    ["mu-next"    (KeyMap/alt "L") fb/next!]])
 
+(defn- word-end
+  "Where the cursor goes from i, a word further in direction d (1 or -1)."
+  [^String text i d]
+  (let [n (count text)
+        ws? #(Character/isWhitespace (.charAt text (int %)))
+        step (fn [i skip?] (loop [i i] (let [j (if (pos? d) i (dec i))]
+                                         (if (and (< -1 j n) (skip? j)) (recur (+ i d)) i))))]
+    (-> i (step ws?) (step (complement ws?)))))
+
+(def selection-keys
+  "Shift+arrows select from the cursor: [widget-name key target], target
+   a fn (text cursor) -> new cursor. Shift+Ctrl+arrows go by words."
+  [["mu-select-left"       "\u001b[1;2D" (fn [_ c] (max 0 (dec c)))]
+   ["mu-select-right"      "\u001b[1;2C" (fn [^String t c] (min (count t) (inc c)))]
+   ["mu-select-home"       "\u001b[1;2H" (fn [_ _] 0)]
+   ["mu-select-end"        "\u001b[1;2F" (fn [^String t _] (count t))]
+   ["mu-select-word-left"  "\u001b[1;6D" (fn [t c] (word-end t c -1))]
+   ["mu-select-word-right" "\u001b[1;6C" (fn [t c] (word-end t c 1))]])
+
+(defn- selecting?
+  [^LineReaderImpl reader]
+  (not= LineReader$RegionType/NONE (.getRegionActive reader)))
+
+(defn- bind-selection-keys!
+  "Shift+arrows set the mark where the cursor is and move it (the region
+   shows highlighted); Backspace and Delete cut a selection, else act as
+   they do."
+  [^LineReaderImpl reader]
+  (let [main (.get (.getKeyMaps reader) LineReader/MAIN)]
+    (doseq [[name ^String k target] selection-keys]
+      (.put (.getWidgets reader) name
+            (reify Widget
+              (apply [_]
+                (let [buf (.getBuffer reader)]
+                  (when-not (selecting? reader) (.callWidget reader "set-mark-command"))
+                  (.cursor buf (int (target (str buf) (.cursor buf))))
+                  true))))
+      (.bind ^KeyMap main (Reference. name) k))
+    (doseq [[name ^String k fallback] [["mu-cut-or-backspace" (KeyMap/del) "backward-delete-char"]
+                                       ["mu-cut-or-delete" (KeyMap/key (.getTerminal reader) InfoCmp$Capability/key_dc) "delete-char"]]]
+      (.put (.getWidgets reader) name
+            (reify Widget
+              (apply [_] (.callWidget reader (if (selecting? reader) "kill-region" fallback)) true)))
+      (.bind ^KeyMap main (Reference. name) k))))
+
 (defn- bind-prompt-keys!
   [^LineReader reader]
+  (bind-selection-keys! reader)
   (let [main (.get (.getKeyMaps reader) LineReader/MAIN)]
     (doseq [[name ^String k f] prompt-keys]
       (.put (.getWidgets reader) name (reify Widget (apply [_] (f) true)))
@@ -152,8 +197,8 @@
              "stack    each input that runs says ok; '.s' shows the stack, '.' prints the top and drops it"
              "about    'about tempo' says what a name is -- a word, parameter, mark, instrument -- and where it can appear"
              "start    gervill (default) connects to the JVM's own synth, fluidsynth to an external synthesizer"
-             "play     'x ->' plays immediately, 'x ->>' at the next boundary, 'x | ->>' at the next |"
-             "         'x ->+' joins now and 'x ->>+' joins at the boundary"
+             "play     'x ->' plays immediately, 'x -|>' at the next boundary, 'x | -|>' at the next |"
+             "         'x ->+' joins now and 'x -|>+' joins at the boundary"
              "         '[id: …] ->' replaces only :id"
              "stop     Alt+."
              "pause    Alt+, (again resumes)"

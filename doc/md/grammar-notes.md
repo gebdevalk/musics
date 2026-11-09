@@ -16,7 +16,7 @@ walk as everything else. This replaced an earlier design (`vars.clj` +
 `pre_parse.clj`, both gone from disk now) where comments were stripped and
 variables extracted/expanded as text substitution *before* parsing. That
 had a real, if narrow, cost: any transform that changes the text's shape
-(a multi-line block comment collapsing lines, a variable's expansion
+(a multi-line block comment collapsing seqs, a variable's expansion
 inserting or removing them) shifts everything after it, so a later parse
 error's line/column stopped corresponding to anything in the file actually
 written — confirmed concretely, not just suspected, before this was
@@ -38,7 +38,7 @@ positions can't drift.
   wasn't earning its keep. The line-comment alternative excludes a
   following `{` (`%(?!\{)[^\n]*`) so it can never compete with the block
   form for the same `%` — confirmed genuinely ambiguous without that
-  exclusion (a block comment resolved to only its first line instead of
+  exclusion (a block comment resolved to only its first seq instead of
   being swallowed whole), not just theoretically risky.
 
 - **Variables** are mu's: `'motif [c d e] :=` binds a value to a name,
@@ -46,7 +46,7 @@ positions can't drift.
   grammar has only the reference; binding is a word, so a file binds
   the same way the prompt does. `musics.mu.value/var-map` hands the
   bound music to the walker as `:var-map` (`{name {:children
-  :context}}`, a line's children, any other value as itself), and
+  :context}}`, a seq's children, any other value as itself), and
   `walk-var-ref` splices its children in flat -- the shape a tuplet's
   body gets absorbed into its parent -- and replays its context onto the
   current container via `builder/replay-context!` (the mechanism

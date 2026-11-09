@@ -75,33 +75,32 @@
       (is (= 0.9 (mu "[c d] 0 nth :articulation setting"))))
     (testing "its other name"
       (is (= 60 (mu (str line " :volume setting")))))
-    (testing "a number has no context; a bare !name at the top level reads nothing and says how"
-      (is (thrown-with-msg? Exception #"needs a note or a line" (e/run-text [] "7 :volume setting")))
-      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "!mf")))
-      (is (thrown-with-msg? Exception #"instruction needs a container" (e/run-text [] "[c d] !nothing")))
-      (is (thrown-with-msg? Exception #"the key is read after the music with :volume setting" (e/run-text [] "[c d] !volume")))
-      (is (not (re-find #"setting" (try (e/run-text [] "!mf") "" (catch Exception ex (.getMessage ex))))) "a mark is no key: no hint"))))
+    (testing "a number has no context; a bare !name at the top level is a context, a typo is refused"
+      (is (thrown-with-msg? Exception #"needs a note or a seq" (e/run-text [] "7 :volume setting")))
+      (is (thrown-with-msg? Exception #"!nothing is no mark" (e/run-text [] "[c d] !nothing with")))
+      (is (thrown-with-msg? Exception #"names a context key|names it|needs a value" (e/run-text [] "[c d] !volume with"))))
+    (testing "an instruction alone is a context, for with"
+      (is (= "[!tempo:89 C4/4 D4]" (run "[c d] !tempo:89 with"))))))
 
-(deftest with-sets-one-key-or-a-context
-  (testing "a key and its value in front of a line"
-    (is (= "[!volume:70 C4/4 D4]" (run "[c d] :volume 70 with")))
-    (is (= "[!Tempo:3/2 C4/4 D4]" (run "[c d] :Tempo 3/2 with")) "a ratio as written")
-    (is (= "[!instrument:violin C4/4 D4]" (run "[c d] :instrument \"violin\" with")) "a name")
-    (is (= "[!accidentals:explicit C4/4 D4]" (run "[c d] :accidentals :explicit with")) "a keyword value")
-    (is (= "[!Key:D.major C#4/4 D4]" (run "[c d] :Key D.major with")))
-    (is (= "[!Meter:\"3/4\" C4/4 D4]" (run "[c d] :Meter \"3/4\" with")))
-    (is (= "[!volume:90 C4/4]" (run "c :volume 90 with")) "a note becomes a line"))
+(deftest with-sets-an-instruction-a-context-or-a-key
+  (testing "an instruction in front of a seq"
+    (is (= "[!volume:70 C4/4 D4]" (run "[c d] !volume:70 with")))
+    (is (= "[!Tempo:3/2 C4/4 D4]" (run "[c d] !Tempo:3/2 with")) "a ratio as written")
+    (is (= "[!instrument:violin C4/4 D4]" (run "[c d] !instrument:violin with")) "a name")
+    (is (= "[!accidentals:explicit C4/4 D4]" (run "[c d] !accidentals:explicit with")) "a keyword value")
+    (is (= "[!Key:D.major C#4/4 D4]" (run "[c d] !Key:D.major with")))
+    (is (= "[!Meter:\"3/4\" C4/4 D4]" (run "[c d] !Meter:\"3/4\" with")))
+    (is (= "[!volume:90 C4/4]" (run "c !volume:90 with")) "a note becomes a seq"))
   (testing "it reads back"
-    (is (= 70 (mu "[c d] :volume 70 with :volume setting")))
-    (is (= 90 (mu "[c d] :Tempo 90 with :Tempo setting"))))
-  (testing "the two older forms are as before"
+    (is (= 70 (mu "[c d] !volume:70 with :volume setting")))
+    (is (= 90 (mu "[c d] !Tempo:90 with :Tempo setting"))))
+  (testing "the other forms"
     (is (= "[!mf C4/4 D4]" (run "[c d] ^{ !mf } with")) "a context")
     (is (= "[!K:D.major C#4/4 D4]" (run "[c d] D.major with")) "a key"))
-  (testing "the line's own settings still win"
-    (is (= 60 (mu "[!mf c d] :volume 30 with 0 nth :volume setting")) "its own, after"))
+  (testing "the seq's own settings still win"
+    (is (= 60 (mu "[!mf c d] !volume:30 with 0 nth :volume setting")) "its own, after"))
   (testing "refused"
-    (is (thrown-with-msg? Exception #":volume is a number" (e/run-text [] "[c d] :volume \"loud\" with")))
-    (is (thrown-with-msg? Exception #"can't set :Key" (e/run-text [] "[c d] :Key [e] with")))))
+    (is (thrown-with-msg? Exception #"needs an instruction" (e/run-text [] "[c d] [e] with")))))
 
 (deftest time-gives-access-to-a-line
   (testing "length, in whole notes as written"
@@ -115,7 +114,7 @@
     (is (= "D4/4" (run "[c4 d4 e2] 1/4 at")))
     (is (= "D4/4" (run "[c4 d4 e2] 3/8 at")) "a note sounds until the next starts")
     (is (= "E4/2" (run "[c4 d4 e2] 0.5 at")) "a float is read as the ratio it names")
-    (is (= "E4/2" (run "[[c4 d4] [e2]] 3/4 at")) "into nested lines")
+    (is (= "E4/2" (run "[[c4 d4] [e2]] 3/4 at")) "into nested seqs")
     (is (= "r4" (run "[c4 r4 e2] 1/4 at")) "a rest too")
     (is (thrown-with-msg? Exception #"past the end" (e/run-text [] "[c4 d4 e2] 1 at")))
     (is (thrown-with-msg? Exception #"time from 0" (e/run-text [] "[c4 d4 e2] -1 at")))
@@ -123,8 +122,8 @@
   (testing "bar and bars, counted from 0 as nth counts"
     (is (= "[C4/2 D4]" (run "[c2 d2 e2 f2] 0 bar")))
     (is (= "[E4/2 F4]" (run "[c2 d2 e2 f2] 1 bar")))
-    (is (= "[!Meter:3/4 D4/4 E4/2]" (run "[!Meter:3/4 c2 d2 e2 f2] 1 bar")) "by the line's own meter, a note across cut and tied")
-    (is (= "[E4/2 F4 C4 D4]" (run "[c2 d2 e2 f2 c2 d2] 1 3 bars")) "bars 1 and 2, one line")
+    (is (= "[!Meter:3/4 D4/4 E4/2]" (run "[!Meter:3/4 c2 d2 e2 f2] 1 bar")) "by the seq's own meter, a note across cut and tied")
+    (is (= "[E4/2 F4 C4 D4]" (run "[c2 d2 e2 f2 c2 d2] 1 3 bars")) "bars 1 and 2, one seq")
     (is (= "[!mf C4/2 D4 !pp E4 F4]" (run "[!mf c2 d2 !pp e2 f2] 0 2 bars")) "settings stay where they begin")
     (is (= "[!mf !pp E4/2 F4]" (run "[!mf c2 d2 !pp e2 f2] 1 bar")) "and those in effect before it come first")
     (is (thrown-with-msg? Exception #"0 <= start <= end <= 2" (e/run-text [] "[c2 d2 e2 f2] 2 bar")))
@@ -140,15 +139,15 @@
     (is (= "[r4 C4 D4]" (run "[c d] 1/4 delay")) "a duration is written where it changes")
     (is (= "[r4. C4/4 D4]" (run "[c d] 3/8 delay")) "a dotted value")
     (is (= "[3:1(r1) C4/4 D4]" (run "[c d] 1/3 delay")) "a length that is no note value, as a tuplet")
-    (is (= "[!mf r4 C4 D4]" (run "[!mf c d] 1/4 delay")) "the line's own settings stay first")
-    (is (= "[r4 C4]" (run "c 1/4 delay")) "a note becomes a line")
+    (is (= "[!mf r4 C4 D4]" (run "[!mf c d] 1/4 delay")) "the seq's own settings stay first")
+    (is (= "[r4 C4]" (run "c 1/4 delay")) "a note becomes a seq")
     (is (= 3/4 (mu "[c d] 1/4 delay duration")))
     (is (= 5/6 (mu "[c d] 1/3 delay duration")) "a third of a whole note, exactly")
     (is (= "C4/4" (run "{[c d] [c d]} 1/4 delays 1 @ 1/4 at")) "the second part sounds from 1/4")
     (is (= "[r4 C4 D4]" (run "[c d] 0.25 delay")) "a float is read as the ratio it names")
     (is (thrown-with-msg? Exception #"above 0" (e/run-text [] "[c d] 0 delay")))
     (is (thrown-with-msg? Exception #"use delays" (e/run-text [] "{[c d] [e f]} 1/4 delay")))
-    (is (thrown-with-msg? Exception #"needs a line" (e/run-text [] "7 1/4 delay"))))
+    (is (thrown-with-msg? Exception #"needs a seq" (e/run-text [] "7 1/4 delay"))))
   (testing "delays: the parts of a { }"
     (is (= "{[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}" (run "{[c d] [c d] [c d]} 1/4 delays")) "part k by k times the step")
     (is (= "{[C4/4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d]} '[0/1 1/3] delays")) "a list: each its own, 0 leaves one alone")
@@ -176,7 +175,7 @@
   (is (= "7" (run "[c e g c'] classes max")))
   (is (= "'[0 4 7]" (run "[c e g c'] classes >list")) ">list: a plain list, the kind gone")
   (is (thrown-with-msg? Exception #"loop|endless" (e/run-text [] "[c d] [~] classes")))
-  (is (thrown-with-msg? Exception #"needs a line" (e/run-text [] "7 classes"))))
+  (is (thrown-with-msg? Exception #"needs a seq" (e/run-text [] "7 classes"))))
 
 (deftest a-pitch-class-set-is-written-as-it-is-read
   (testing "the three literals"
@@ -286,7 +285,7 @@
     (is (= "\"E&:M\"" (run "<e& g b&>1 chord-name")))
     (is (= "\"F#:m\"" (run "<f# a c#'>1 chord-name")))
     (is (= "\"B&:7\"" (run "<b& d f a&>1 chord-name"))))
-  (testing "a line, a set, pitch numbers: the chord they make together"
+  (testing "a seq, a set, pitch numbers: the chord they make together"
     (is (= "\"C:M\"" (run "[c e g c'] chord-name")) "an arpeggio")
     (is (= "\"A:m7\"" (run "$[0479] chord-name")) "classes, no lowest note: the simplest reading, Am7 before C6")
     (is (= "\"C:M\"" (run "'[48 64 67] chord-name")) "numbers: the lowest is the bass"))
@@ -335,7 +334,7 @@
       (is (re-find #"!mf" (msg "[!mff c d]")) "!mf among them")
       (is (re-find #"!allegro" (msg "[c !alegro d]")) "a tempo word with a letter missing")
       (is (re-find #"!nonsense is no mark.*a dynamic .*a tempo" (msg "[!nonsense c]")) "nothing near: what a mark is")))
-  (testing "a context key needs its value in a line"
+  (testing "a context key needs its value in a seq"
     (is (thrown-with-msg? Exception #"!volume is no mark.*context key.*!volume:value" (e/run-text [] "[!volume c d]"))))
   (testing "everything that was a mark still is"
     (is (= "[!mf C4/4 !allegro D4 !swing E4]" (run "[!mf c !allegro d !swing e]")) "a dynamic, a tempo, a feel")

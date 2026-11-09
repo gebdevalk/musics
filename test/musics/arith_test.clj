@@ -47,7 +47,7 @@
   (is (re-find #"needs numbers, got :a" (top "'[1 :a] 1 +")) "a bad element is named, at once"))
 
 (deftest a-stream-works-lazily
-  (is (= "'[72 74]" (top "[c d] pitches 12 +")) "a line's pitches")
+  (is (= "'[72 74]" (top "[c d] pitches 12 +")) "a seq's pitches")
   (is (= "'[1 3 5 7]" (top "1 '( 2 + ) iterate 4 take")))
   (is (= "'[2 4 6]" (top "1 '( 1 + ) iterate 2 * 3 take")) "an endless stream stays endless")
   (is (= "'[11 22]" (top "'[1 2] [~] '[10 20] + 2 take")) "a loop with a list: the finite one's length"))

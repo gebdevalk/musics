@@ -142,7 +142,7 @@
    own, else \"C\"),
    :octave of the tonic (3), :hit (nil: one chord per its share of a bar),
    :end (true: a closing bar on the tonic), :name (none: an unnamed
-   line), :repeat n (none: once) the choruses as a repeat with volta
+   seq), :repeat n (none: once) the choruses as a repeat with volta
    endings (volta-form), the turnaround first, the tonic last."
   ([scheme] (->mus scheme {}))
   ([scheme {:keys [name repeat] :as opts}]

@@ -20,7 +20,19 @@
 
 (defn material? [x] (instance? Material x))
 
-(defrecord Quotation [body source])
+(defrecord Quotation [body source]
+  ;; a quotation is a function of what it is given, so a Clojure function that
+  ;; takes a fn (a fitness function, a constraint) takes '( … ) as well: the
+  ;; arguments go on a stack of their own, the top of what is left is the result
+  clojure.lang.IFn
+  (invoke [this a]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a] this)))
+  (invoke [this a b]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a b] this)))
+  (invoke [this a b c]
+    (peek ((requiring-resolve 'musics.mu.eval/call) [a b c] this)))
+  (applyTo [this args]
+    (peek ((requiring-resolve 'musics.mu.eval/call) (vec args) this))))
 
 
 (defrecord PcSet [kind items])  ; $[047] classes, $(037) prime form, $<001110> interval vector
@@ -41,9 +53,14 @@
                 (str/join " " items))
          close)))
 
-(defrecord Mark [count])  ; | … ||||: a gathering mark, and ->>'s boundary
+(defrecord Mark [count])  ; | … ||||: a gathering mark, and -|>'s boundary
 (def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
+
+(defn quotation-record?
+  "A quotation '( … ) written in mu, as opposed to a Clojure fn standing in for one."
+  [x]
+  (instance? Quotation x))
 
 (defn quotation?
   "A quotation '( … ), or a Clojure fn standing in for one: it takes the
@@ -53,7 +70,7 @@
 
 (def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
-  (into leaf-tags #{:Sequence :Parallel :Context :Settings :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
+  (into leaf-tags #{:Sequence :Parallel :Context  :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -88,19 +105,12 @@
        :else [vm nodes]))
    [{} {}] bindings))
 
-(defn- param-aliases
-  "The bindings of a name to another name ('dp 'duration-pulse :=) as
-   {\"dp\" \"duration-pulse\"}: an algo param written by its short name
-   in an @^{ } is read as the long one."
-  [bindings]
-  (into {} (for [[k x] bindings :when (symbol? x)] [k (str x)])))
-
 (defn read-literals
   "Walk the literal nodes of one input (text) together against repo and
    auto-ids, with bindings ({name value}, mu's := ) as variables. Returns
    {:values [v …] :ids [id …] :auto-ids …}, one value and the id it was
    read under per node: a leaf map for a bare leaf (its id the one-leaf
-   line parse would wrap it in), a Material for a composite. The auto-ids advance, so a later
+   seq parse would wrap it in), a Material for a composite. The auto-ids advance, so a later
    input never reuses an id."
   ([nodes text repo auto-ids] (read-literals nodes text repo auto-ids {}))
   ([nodes text repo auto-ids bindings]
@@ -109,13 +119,12 @@
      ;; :base stays the repo without the bound nodes: what a bound name
      ;; brings in is the literal's own, stored with it by R!
      (let [[vm bound] (var-map bindings)
-           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm
-                                              :param-aliases (param-aliases bindings)})
+           r    (walker/walk-each nodes text {:repo (merge repo bound) :auto-ids auto-ids :var-map vm})
            tree (:tree r)]
        {:values (mapv (fn [node id]
                         (cond
                           (leaf-node? node) (first (:children (get tree id)))
-                          ;; a repeat is read inside a line of its own;
+                          ;; a repeat is read inside a seq of its own;
                           ;; its value is the repeat, held inline there
                           (#{:repeat :RepeatBars} (first node))
                           (let [it (first (:children (get tree id)))]
@@ -125,14 +134,13 @@
         :ids      (:ids r)
         :auto-ids (:auto-ids r)}))))
 
-(defrecord Recipe [tree tctx source arity])
-;; :id, assoc'd on, the id it names itself with (@( riff: … )) or is stored under
+(defrecord Ref [label get set])
+;; A place that holds a value, read with @ and written with ! : label is how it is
+;; written (bass/onsets), get a fn of nothing, set a fn of the new value.
 
-(defn recipe?
-  "A tree recipe, @( … ): an algo tree, its settings beside it and how
-   many inputs it takes from the stack under it (musics.recipe)."
-  [x]
-  (instance? Recipe x))
+(defn ref? [x] (instance? Ref x))
+(defn ref-get [r] ((:get r)))
+(defn ref-set! [r x] ((:set r) x))
 
 (defn node
   "A Material's own node."

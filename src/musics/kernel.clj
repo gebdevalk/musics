@@ -16,12 +16,10 @@
             [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
             [musics.mu.about :as about]
-            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
-            [musics.recipe :as recipe]
             [musics.repo :as repo]))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {})))
@@ -63,15 +61,12 @@
 ;; -- the repo -------------------------------------------------------------
 
 (defn- store-as [word refuse? value id]
-  (let [stored (mt/store! value id word refuse?)]
-    (when (v/recipe? value) (live/follow! stored (recipe/stored (repo/current stored))))
-    stored))
+  (mt/store! value id word refuse?))
 
 (defn store
   "Store, silently, under the id on top if given; leaves the id it
    stored under. Refused when it would redefine an id that other stored
-   parts use (R!! does that). A recipe is stored as its text; a live voice
-   playing the recipe stored under that id plays the new one from its next note"
+   parts use (R!! does that)"
   {:mu {:names ["R!"] :optional {:id keyword?}}}
   ([value] (store value nil))
   ([value id] (store-as "R!" true value id)))
@@ -84,12 +79,11 @@
   ([value id] (store-as "R!!" false value id)))
 
 (defn fetch
-  "What the repo holds under :id: music, or a recipe rebuilt from its text"
+  "What the repo holds under :id"
   {:mu {:names ["R@"]}}
   [id]
   (when-not (keyword? id) (fail "needs a name, like :motif, got" (p/show id)))
-  (let [n (repo/current id)]
-    (if (= :RECIPE (:type n)) (recipe/stored n) (mt/fetch id))))
+  (mt/fetch id))
 
 (defn- stored-id
   "The id x names -- a name, or material fetched with R@ -- if something
@@ -117,7 +111,7 @@
 
 (defn ctx!
   "A part's context chain: each ancestor's own settings, nearest first; a
-   line not stored: its own settings, where they begin"
+   seq not stored: its own settings, where they begin"
   [x]
   (r/ctx (if (and (v/material? x) (not (repo/current (:id x)))) (v/node x) (stored-id x))))
 
@@ -173,12 +167,21 @@
 (defn- short-name? [x]
   (and (or (string? x) (symbol? x)) (re-matches #"[a-zA-Z][a-zA-Z0-9_\-]*" (str x))))
 
+(defn- alias-conflict
+  "Why alias cannot name the words of namespace sym -- it names mu's own or
+   another required namespace -- or nil."
+  [sym alias]
+  (let [st @e/state owner (get-in st [:required alias])]
+    (when (and (contains? (:ns st) alias) (core/not= owner sym))
+      (str "'" alias " is a namespace already " (if owner (str "(" owner ")") "of mu's own")
+           " -- give a short alias: \"" sym "\" 'x require"))))
+
 (defn require!
   "Load a Clojure namespace now, its public functions mu's words under
-   its last name or a short alias: \"musics.algo.random\" require gives
-   random/uniform, \"musics.algo.random\" 'r require r/uniform; a .clj
+   its last name or a short alias: \"musics.algo.numeric.random\" require gives
+   random/uniform, \"musics.algo.numeric.random\" 'r require r/uniform; a .clj
    file too (\"my/words.clj\" require). Requiring again reloads it, a
-   file afresh."
+   file afresh. A name may be quoted instead of in a string: 'numeric.rng."
   {:mu {:optional {:alias short-name?}}}
   ([ns] (require! ns nil))
   ([ns alias]
@@ -186,18 +189,22 @@
          file?  (str/ends-with? n ".clj")
          _      (when (and file? (core/not (.exists (java.io.File. ^String n)))) (fail "no such file:" n))
          sym    (if file? (clj-ns n) (symbol n))
-         alias  (str (or alias (last (str/split (str sym) #"\."))))
-         st     @e/state
-         owner  (get-in st [:required alias])]
-     (when (and (contains? (:ns st) alias) (core/not= owner sym))
-       (fail (str "'" alias) "is a namespace already" (if owner (str "(" owner ")") "of mu's own")
-             (str "-- give a short alias: \"" sym "\" 'x require")))
+         alias  (str (or alias (last (str/split (str sym) #"\."))))]
+     (when-let [why (alias-conflict sym alias)] (fail why))
      ;; a file's namespace is loaded afresh, so a function taken out of it goes
      (try (if file? (do (remove-ns sym) (load-file n)) (core/require sym :reload))
           (catch java.io.FileNotFoundException _ (fail "no namespace" (str sym) "on the classpath")))
      (swap! e/state #(-> % (update :ns dissoc alias) (assoc-in [:required alias] sym) (assoc-in [:sources alias] n)))
      ((requiring-resolve 'musics.mu.library/register!) sym alias)
      (println (str sym) "as" (str alias "/") (str "(" (count (get-in @e/state [:ns alias])) " words)")))))
+
+(defn reqalgo!
+  "Load a namespace of musics.algo, named without that start:
+   \"numeric.rng\" reqalgo is \"musics.algo.numeric.rng\" require, and
+   'numeric.rng 'r reqalgo gives it the alias r"
+  {:mu {:optional {:alias short-name?}}}
+  ([ns] (reqalgo! ns nil))
+  ([ns alias] (require! (str "musics.algo." (name-of ns)) alias)))
 
 (defn in!
   "Put new definitions into namespace ns"
@@ -223,27 +230,23 @@
 
 (defn see!
   "Show a word: its stack effect and what it does -- see dup, or
-   \"dup\" see, 'dup see, '[R] see; a tree recipe: the tree it builds, bridges put in"
+   \"dup\" see, 'dup see, '[R] see"
   [word]
-  (if (v/recipe? word)
-    ;; a tree recipe: as written, and the tree it builds, bridges put in
-    (println (p/show word) "\n  builds" (pr-str ((requiring-resolve 'musics.algo.tree/show) (:tree word)))
-             (str "\n  takes " (:arity word) " from the stack under it"))
   (let [n (name-of word) entry (e/lookup @e/state n)]
     (println (cond (nil? entry) (str "unknown word: " n " -- " (suggest/hint @e/state n))
                    (:source entry) (:source entry)
                    :else (let [[_ eff what] (re-matches #"(?s)(\(.*?\))\s\s(.*)" (str (:effect entry)))]
                            (if eff
                              (str n " " eff "\n  " what)
-                             (str n " " (:effect entry)))))))))
+                             (str n " " (:effect entry))))))))
 
 (def ^:private guide
   ["mu: music is written as text and goes on the stack; words change it, join it and play it."
    ""
-   "  [c d e f]            a line, now on the stack (a note alone is a value too)"
+   "  [c d e f]            a seq, now on the stack (a note alone is a value too)"
    "  7 +   2 *   [R]      up a fifth, twice as long, backwards: a word takes what lies under it"
-   "  ->   ->>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
-   "  [bass: c2 g] [~] ->  a named line is a voice of that name;  :bass stop,  :bass <- is what it plays"
+   "  ->   -|>   ->+       play now, at the next boundary, joining what plays;  stop  pause"
+   "  [bass: c2 g] [~] ->  a named seq is a voice of that name;  :bass stop,  :bass <- is what it plays"
    "  dup drop swap over   the stack is Forth's;  .s shows it,  clear empties it"
    "  see  words  help     \"dup\" see explains a word, words lists them, \"chord\" help searches"
    "  Tab                  completes words, ids, instruments and keys;  bye leaves (Ctrl+D too)"
@@ -276,7 +279,7 @@
   (println (about/marks-text (str topic))))
 
 (defn help!
-  "mu in a few lines; with a word, as see explains it; with other text,
+  "mu in a few seqs; with a word, as see explains it; with other text,
    the words that mention it: help, help dup, \"chord\" help, \"transpose\" help"
   {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
   ([] (run! println guide))

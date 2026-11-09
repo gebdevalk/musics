@@ -33,7 +33,7 @@
 (defn- instruction? [x] (and (map? x) (contains? #{:assignment :instruction} (:type x))))
 
 (defn marker?
-  "A bar line or a jump mark: real, of no duration, written in a line, but
+  "A bar line or a jump mark: real, of no duration, written in a seq, but
    not one of its elements -- not counted, not fetched, and left out of what
    a word that selects, inserts, splits or reorders gives back."
   [x] (or (d/bar? x) (d/jump? x)))
@@ -109,7 +109,7 @@
     (leaf? x)       [x]
     (v/pcset? x)    (:items x)
     (sequential? x) x
-    :else (e/mu-error (str "needs a line, a list or a stream, got " (p/show x)
+    :else (e/mu-error (str "needs a seq, a list or a stream, got " (p/show x)
                            (cond (keyword? x) (str " -- " (p/show x) " is a stored name: " (p/show x) " R@ reads it")
                                  (number? x)  " -- numbers gather into a list with ( 1 2 )")))))
 
@@ -121,7 +121,7 @@
     (map :raw (take-while instruction? (:children (v/node x))))))
 
 (defn items
-  "A line's or parallel's children in order, as slots: [:ins text] for an
+  "A seq's or parallel's children in order, as slots: [:ins text] for an
    instruction written there, [:el value] for an element; bar lines and
    jump marks are not slots, so what is rebuilt from them has none. nil for
    anything else (a leaf, data, a stream, a repeat)."
@@ -131,14 +131,14 @@
           (remove marker? (:children (v/node x))))))
 
 (defn from-items
-  "A value of like's form (a line or a parallel) holding slots, as items
+  "A value of like's form (a seq or a parallel) holding slots, as items
    gives them: every instruction stays where it is written."
   [like slots]
   (let [shown (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))]
     (read-text (if (= :PAR (kind like)) (str "{" shown "}") (str "[" shown "]")))))
 
 (defn rebuild
-  "A value of the same form as like (a line, a parallel, data), holding
+  "A value of the same form as like (a seq, a parallel, data), holding
    elements, with like's leading instructions."
   [like elements]
   (let [shown (str/join " " (concat (leading-instructions like) (map p/show elements)))]
@@ -148,7 +148,7 @@
        (str "[" shown "]")))))
 
 (defn line
-  "elements as a line (a :SEQ)."
+  "elements as a seq (a :SEQ)."
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
 
@@ -160,8 +160,8 @@
 (defn hairpin
   "x with a crescendo (dir \"<\") or decrescendo (\">\") across it, from its
    volume at the start (its own, else the defaults') to target (0-100):
-   inside a line, after its leading instructions, as [!vol:60< … !vol:90]
-   would be written; anything else is wrapped in a line first."
+   inside a seq, after its leading instructions, as [!vol:60< … !vol:90]
+   would be written; anything else is wrapped in a seq first."
   [x dir target]
   (let [mat   (if (leaf? x) (line [x]) x)
         node  (v/node mat)
@@ -175,14 +175,14 @@
 
 (defn ->material
   "x as a Material, without storing it: a leaf or a finite stream of
-   musical elements is read as a line."
+   musical elements is read as a seq."
   [x]
   (cond
     (v/material? x) x
     (leaf? x)       (line [x])
     (sequential? x) (cond (:mu/endless (meta x))
                           (e/mu-error "an endless stream can't become material -- take some first")
-                          ;; a data list is stored as data, a stream of notes as a line
+                          ;; a data list is stored as data, a stream of notes as a seq
                           (or (contains? (meta x) :data-type) (not-every? #(or (leaf? %) (v/material? %)) x))
                           (read-material (str "'[" (let [t (:data-type (meta x))] (when (#{:pitch :name :articulation} t) (str (name t) " ")))
                                               (str/join " " (map p/show (finite! "store" x))) "]")
@@ -215,7 +215,7 @@
 (defn repetition? [x] (and (v/material? x) (d/iterator? (v/node x))))
 
 (defn as-line
-  "x as a line: itself if it is one, else a line holding it (a shuffle
+  "x as a line: itself if it is one, else a seq holding it (a shuffle
    [ … ] too, whose order is its own)."
   [x]
   (let [m (->material x)]
@@ -243,7 +243,7 @@
 
 (defn repetition
   "x played n times, as the text's repeat n [ x ]: one repeat,
-   with endings (lines) as its alternative -- one ending as itself,
+   with endings (seqs) as its alternative -- one ending as itself,
    several as volta [[e1] [e2]], LilyPond's grouping."
   ([x n endings] (repetition x n endings false))
   ([x n endings bars]
@@ -298,11 +298,11 @@
   (cond
     (leaf? x) [x]
     (and (map? x) (or (d/bar? x) (d/jump? x))) nil
-    (loop? x) (e/mu-error "a loop inside a line has no end -- read the loop on its own")
+    (loop? x) (e/mu-error "a loop inside a seq has no end -- read the loop on its own")
     (or (v/material? x) (sequential? x)) (mapcat played-leaves (elements x))))
 
 (defn with-endings
-  "rep, a repeat with no endings yet, with endings (lines) after its
+  "rep, a repeat with no endings yet, with endings (seqs) after its
    passes."
   [rep endings]
   (let [[t n body alt bars] (repeat-parts rep)]
@@ -312,7 +312,7 @@
     (repetition body n endings bars)))
 
 (defn passes
-  "rep written out as a line of its passes: pass i is (f i body), body
+  "rep written out as a seq of its passes: pass i is (f i body), body
    as written, each followed by its volta ending as a volta repeat plays
    them (d/volta-endings' rule, d/ending-for)."
   [rep f]
@@ -359,7 +359,7 @@
   (map-nodes f identity x))
 
 (defn- with-key
-  "x with a !K: at the start of its line (a repeat's body, a { }), the
+  "x with a !K: at the start of its seq (a repeat's body, a { }), the
    key it is in there -- its own, else its context's (the defaults') --
    unless one is written there already."
   [x]
@@ -381,7 +381,7 @@
 (defn transposed
   "x moved by n semitones, its key with it: every note, a chord's root,
    the key each note was written in, every !K: and -- at the start of
-   its line -- the key it is in (not for whole octaves, the same key),
+   its seq -- the key it is in (not for whole octaves, the same key),
    so its notes stay degrees of their key wherever it plays. A drum
    stays."
   [x n]
@@ -396,18 +396,23 @@
                  (if-let [k (and (= :Key (:key i)) (el/parse-key (str (:val i))))]
                    (let [k' (el/key->str (shift k))] (assoc i :val k' :raw (str "!K:" k')))
                    i))
-               ;; the key is written for the notes that follow it: an empty line has none
+               ;; the key is written for the notes that follow it: an empty seq has none
                (if (and (v/material? x) (not (zero? (mod n 12))) (seq (elements x))) (with-key x) x))))
 
 ;; -- the repo -------------------------------------------------------------
 
-(defn- recipe-id
-  "The next free :r<n> id for a recipe that names none."
-  []
-  (loop []
-    (let [n  (get (swap! reg/session update-in [:auto-ids :RECIPE] (fnil inc 0)) :auto-ids)
-          id (keyword (str "r" (:RECIPE n)))]
-      (if (repo/current id) (recur) id))))
+(defn- spend-auto-ids!
+  "Move the auto-id counters past the auto ids just stored (:s33, :c1 …),
+   so a value read afterwards never gets one that is stored."
+  [ids]
+  (let [type-of (into {} (map (fn [[t p]] [p t])) builder/id-prefixes)]
+    (swap! reg/session update :auto-ids
+           (fn [counts]
+             (reduce (fn [m id]
+                       (let [[_ prefix n] (re-matches #"([a-z]+)(\d+)" (name id))
+                             t (type-of prefix)]
+                         (if t (update m t #(max (or % 0) (parse-long n))) m)))
+                     counts ids)))))
 
 (defn store-all!
   "Store each [x name] of pairs at once, as store! does one; returns the
@@ -417,14 +422,10 @@
   ([pairs] (store-all! pairs "load" false))
   ([pairs word refuse?]
   (let [parts (for [[x name] pairs]
-                (if (v/recipe? x)
-                  ;; a recipe is stored as its text, rebuilt when read (musics.recipe/stored)
-                  (let [id (or name (:id x) (recipe-id))]
-                    {:id id :edits {id {:type :RECIPE :id id :text (:source x)}}})
-                  (let [mat (->material (if (repetition? x) (line [x]) x)) ; a bare repeat is stored in a line
-                        id  (or name (:id mat))
-                        top (assoc (v/node mat) :id id)]
-                    {:id id :top top :edits (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top))})))
+                (let [mat (->material (if (repetition? x) (line [x]) x)) ; a bare repeat is stored in a seq
+                      id  (or name (:id mat))
+                      top (assoc (v/node mat) :id id)]
+                  {:id id :top top :edits (-> (v/own-nodes mat) (dissoc (:id mat)) (assoc id top))}))
         parts (doall parts)
         edits (apply merge (map :edits parts))
         ours  (conj (set (keys edits)) :ROOT)]
@@ -437,6 +438,7 @@
           (e/mu-error (str word ":") (str/join "; " used) "-- R!! stores it anyway, changing them too; or give it a new id")
           (println (str word ":") (str (str/join "; " used) ", so storing it changes them too")))))
     (repo/commit-many! edits)
+    (spend-auto-ids! (keys edits))
     (let [root (or (repo/current :ROOT) (get (:repo (builder/empty-session)) :ROOT))
           new  (for [{:keys [id top]} parts
                      :when (and top (not= :CONTEXT (:type top)) (not (some #{id} (:children root))))]
@@ -471,7 +473,7 @@
   (atom {}))
 
 (defn cancel-staged!
-  "Forget a ->> still waiting for its boundary: one target's, or all."
+  "Forget a -|> still waiting for its boundary: one target's, or all."
   ([] (doseq [t (keys @staged)] (cancel-staged! t)))
   ([target]
    (when-let [{:keys [keys action]} (get @staged target)]
@@ -479,13 +481,19 @@
      (conductor/unregister-action! action)
      (swap! staged dissoc target))))
 
-(defn- ends-of [mat]
-  (let [node (v/node mat)]
-    (cond-> #{(:id mat)} (d/iterator? node) (conj (:id (:source node))))))
+(defn- ends-of
+  "The ids whose :exit ends a pass of mat's voice: its own, a repeat's body,
+   and the body of a repeat the seq holds (a named seq looping inside)."
+  [mat]
+  (let [node (v/node mat)
+        body #(:id (:source %))]
+    (cond-> #{(:id mat)}
+      (d/iterator? node) (conj (body node))
+      (:children node)   (into (comp (filter d/iterator?) (map body)) (:children node)))))
 
 (defn voice-name
   "The voice a value plays as: its own name ([bass: c d] is :bass), a
-   repeat's or loop's that of the line it repeats ([bass: c d] [~]); nil
+   repeat's or loop's that of the seq it repeats ([bass: c d] [~]); nil
    when it has none -- then the engine gives it an id (:TA …)."
   [mat]
   (let [named #(let [id (:id %)] (when (and (keyword? id) (not (p/auto-id? id))) id))]
@@ -493,7 +501,7 @@
         (when (repetition? mat)
           (let [body (nth (repeat-parts mat) 2)]
             (or (named body)
-                ;; a repeat holds its music in a line of its own (as-line)
+                ;; a repeat holds its music in a seq of its own (as-line)
                 (let [[x & more] (elements body)] (when (and x (not more) (v/material? x)) (named x)))))))))
 
 (defn events
@@ -545,7 +553,7 @@
       :else           nil)))
 
 (defn mean-pitch
-  "x's mean pitch (a note's, a line's, a repeat's or loop's as written),
+  "x's mean pitch (a note's, a seq's, a repeat's or loop's as written),
    nil without pitch."
   [x]
   (let [ps (mapcat :pitches (leaves x))]
@@ -607,7 +615,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn stop-all!
-  "Stop what plays, a staged ->> and whatever stoppers hold."
+  "Stop what plays, a staged -|> and whatever stoppers hold."
   []
   (cancel-staged!)
   (reset! voices {})
@@ -678,8 +686,8 @@
 (defn- line-of [children] (read-text (str "[" (str/join " " (map show-child children)) "]")))
 
 (defn written-out
-  "x as it plays, written out: a repeat as a line of its passes (each
-   followed by its ending), a line's jumps ($ DS DC Fine Coda) and ./.
+  "x as it plays, written out: a repeat as a seq of its passes (each
+   followed by its ending), a seq's jumps ($ DS DC Fine Coda) and ./.
    followed and dropped, at every depth. An endless repeat can't be."
   [x]
   (cond
@@ -748,7 +756,7 @@
         out))))
 
 (defn barred
-  "x as a line with a bar line (|) at every bar of its meter -- see
+  "x as a seq with a bar line (|) at every bar of its meter -- see
    barred-children."
   [x]
   (line-of (barred-children x)))
@@ -756,12 +764,12 @@
 (defn- bar-line? [c] (and (d/bar? c) (= 1 (:count c))))
 
 (defn measures
-  "x as a line of its measures, each a line of its own: barred by its
+  "x as a seq of its measures, each a seq of its own: barred by its
    meter as barred does, then cut at those bar lines. A setting written
-   before a measure's first note goes in the outer line, in front of it;
+   before a measure's first note goes in the outer seq, in front of it;
    one written inside a measure stays there and is written again in the
-   outer line after it, so either way it carries on into the measures
-   that follow, as it did in the line. A ramp (!vol<) inside a measure
+   outer seq after it, so either way it carries on into the measures
+   that follow, as it did in the seq. A ramp (!vol<) inside a measure
    stays in it only."
   [x]
   (let [groups (remove #(every? bar-line? %) (partition-by bar-line? (barred-children x)))
@@ -814,14 +822,14 @@
       :else els)))
 
 (defn- tagged
-  "e remembering it was element k of the line it came from."
+  "e remembering it was element k of the seq it came from."
   [e k]
   (if (instance? clojure.lang.IObj e) (vary-meta e assoc ::slot k) e))
 
 (defn reshape-keeping
-  "reshape for a line or a parallel, its instructions kept: each one
+  "reshape for a seq or a parallel, its instructions kept: each one
    stays in front of the element it was written before, wherever that
-   goes (those before the first element, the line's own, stay at its
+   goes (those before the first element, the seq's own, stay at its
    start) -- or, when that element is gone, in front of the next of its
    elements to stay (one that none of them follows is dropped, unless
    all stay). When f gives as many new elements as it was given, each
@@ -870,7 +878,7 @@
   (let [els (vec (finite! word (elements x)))]
     (when-let [bad (first (remove number? els))]
       (e/mu-error (str word ":") "needs numbers, got" (p/show bad)
-                  "-- for a line's pitches or durations, read them first with pitches or durations"))
+                  "-- for a seq's pitches or durations, read them first with pitches or durations"))
     els))
 
 (defn music? [x] (or (leaf? x) (v/material? x)))
@@ -886,12 +894,32 @@
 (defn key? [x] (instance? musics.common.music_elements.Key x))
 
 (defn key-line
-  "Pitches as a line of quarter notes, spelled in ks."
+  "Pitches as a seq of quarter notes, spelled in ks."
   [ks pitches]
   (read-text (str "[" (str/join " " (map #(str (lp/spell-pitch % nil ks) "4") pitches)) "]")))
 
-(defn par-of [xs]
-  (read-text (str "{" (apply str (interpose " " (map #(p/show (->material (sounding! "par" %))) xs))) "}")))
+(defn- literal-of
+  "The one literal node a text reads as."
+  [text]
+  (let [nodes (filterv v/literal? (rest (g/parse text)))]
+    (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
+    (first nodes)))
+
+(defn par-of
+  "The parallel of xs. Each part is parsed on its own (parsing one long
+   text takes far more than the sum of its parts) and read into the repo
+   the parts before it made, so their auto ids stay apart; then one small
+   parallel holds them by id."
+  [xs]
+  (let [read1 (fn [[repo auto-ids ids] text]
+                (let [r (v/read-literals [(literal-of text)] text repo auto-ids)]
+                  [(:repo (first (:values r))) (:auto-ids r) (conj ids (first (:ids r)))]))
+        texts (map #(p/show (->material (sounding! "par" %))) xs)
+        base  (e/current-repo)
+        [tree auto-ids ids] (reduce read1 [base (:auto-ids @reg/session) []] texts)
+        text (str "{" (str/join " " ids) "}")]
+    ;; :base stays the repo before the parts, so storing it stores them too
+    (as-value (assoc (first (:values (v/read-literals [(literal-of text)] text tree auto-ids))) :base base))))
 
 ;; -- what play shares with the prompt ----------------------------------------
 
@@ -976,19 +1004,19 @@
 (defn- rank [part] (part-ranks part 7))
 
 (defn- zip-items
-  "What zip takes from x: a line's notes as they play (no bar lines, a
-   nested line's notes), else x's elements."
+  "What zip takes from x: a seq's notes as they play (no bar lines, a
+   nested seq's notes), else x's elements."
   [x]
   (if (music? x) (played-leaves x) (elements (streamed x))))
 
 (defn- leaf-value
-  "What a note of a line gives the part it is taken as."
+  "What a note of a seq gives the part it is taken as."
   [part l]
   (case part
     :duration (if (= :REST (:type l)) l (:duration l))
     :pitch    (when (= :LEAF (:type l)) (let [ps (sort (:pitches l))] (if (next ps) (vec ps) (first ps))))
     :drum     (when (= :DRUM (:type l)) (:program l))
-    (e/mu-error "zip: a line gives durations, pitches or drums -- for the" (name part) "give its stream (x volumes …)")))
+    (e/mu-error "zip: a seq gives durations, pitches or drums -- for the" (name part) "give its stream (x volumes …)")))
 
 (defn- rest-value? [v] (and (map? v) (= :REST (:type v))))
 
@@ -1061,9 +1089,9 @@
                (dissoc vals :duration :pitch :drum)))))
 
 (defn- parts-of
-  "[base [[part x] …]] of what zip takes: an unnamed line (or note) is
+  "[base [[part x] …]] of what zip takes: an unnamed seq (or note) is
    the base, written on; a bundle gives its columns; a :name before a
-   stream (or a line) names its part, a stream a reader or an algo word
+   stream (or a seq) names its part, a stream a reader or an algo word
    gave knows its own, and without a base the rest take the free ranks
    in order."
   [xs]
@@ -1076,12 +1104,12 @@
                              (e/mu-error "zip:" (str x) "names no stream -- write it before one"))
               (bundle-columns x) (recur more base (into out (map (fn [[k c]] [(label-part k) c]) (bundle-columns x))))
               (music? x) (if base
-                           (e/mu-error "zip: two lines to write on -- name the part the other gives (:pitch x)")
+                           (e/mu-error "zip: two seqs to write on -- name the part the other gives (:pitch x)")
                            (recur more x out))
               :else (recur more base (conj out [(:mu/part (meta x)) x])))
             [base out]))
         _     (when (and base (some (comp nil? first) named))
-                (e/mu-error "zip: onto a line, name each stream's part (:volume '[…]) -- a reader or an algo word names its own"))
+                (e/mu-error "zip: onto a seq, name each stream's part (:volume '[…]) -- a reader or an algo word names its own"))
         taken (set (map (comp rank first) (filter first named)))
         free  (remove taken [1 2 3 4 5 6])
         order {1 :duration 2 :pitch 3 :articulation 4 :dynamic 5 :ornament 6 :tied}
@@ -1097,7 +1125,7 @@
 
 (defn- streams-of
   "{:part :loop :endless :els} of each [part x]: a loop's elements are
-   what it repeats, a line's what its notes give the part."
+   what it repeats, a seq's what its notes give the part."
   [parts]
   (for [[part x] parts
         :let [lp  (loop? x)
@@ -1160,7 +1188,7 @@
                     "]"))))
 
 (defn zip-parts
-  "What zip gives of xs, as zip takes them: onto a line (the base), its
+  "What zip gives of xs, as zip takes them: onto a seq (the base), its
    notes with the parts written on them; else notes from durations and
    pitches (or drums); else a bundle, the parts as columns. Every part
    steps once per note, a rest using its value unwritten; a part given

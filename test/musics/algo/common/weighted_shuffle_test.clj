@@ -3,7 +3,7 @@
    distribution fn (uniform, lo-emph, ...)."
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.common.reshape :as reshape]
-            [musics.algo.random :as rnd]))
+            [musics.algo.numeric.random :as rnd]))
 
 ;; ============================================================
 ;; weighted-shuffle -- pure fn, no registry involved

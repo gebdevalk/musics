@@ -1,0 +1,158 @@
+% hoketus -- one melody, two voice groups, a density that grows and winds back.
+%
+% Hear it:   "hoketus.edn" restore-session   hear
+%             (the session holds the finished piece; building it takes about half a minute)
+% Rebuild:    "hoketus.mus" load   build   hear     (after changing a setting)
+% To a file:  bounce
+%
+% The shape (every number is a setting below):
+%  - one melody of `steps` pitches. A pulse grid of `steps` sixteenths holds it;
+%    a Euclidean rhythm of d onsets in `steps` pulses decides which of the melody's
+%    pitches sound. Incarnation m has d = 1, 2 ... steps ... 2, 1 notes: the density
+%    climbs to the full melody and winds back, a mirror (2*steps-1 incarnations).
+%  - every incarnation is played `reps` times, as one repeat: a pass has the volume of
+%    its incarnation's first pass.
+%  - every line is stored under an id (:marimbaA, :marimbaB, ... :kick, :snare, :piano), so
+%    each can be played alone; :hoketus holds them all.
+%  - two groups play it, B half a pulse (1/32) late: the hocket. A is panned hard left (-1.0), B hard right (+1.0).
+%  - instruments join as the density reaches their threshold, and leave again in
+%    the mirror; each instrument plays in both groups.
+%  - volume climbs from mf (60) to fff (90) over the first half and back down, and on
+%    top of that every instrument has a swell and fade (a sine of `spiral` passes) phase
+%    shifted against the others: the colour turns slowly around.
+%  - drums (a low heavy kick, a sharp snare) and a staccato piano chord join on top.
+
+% ---- the algorithms it calls ---------------------------------------------
+
+'rhythmic.pattern 'p reqalgo           % p/euclid
+'bridge 'b reqalgo                    % b/pul>stp
+'numeric.trig 'tr reqalgo             % tr/sinr
+
+% ---- settings ------------------------------------------------------------
+
+'steps 8 :=                          % pulses of a pass: 8 or 16 (a melody of that many pitches)
+'reps 4 :=                            % times each incarnation is played
+'spiral 24 :=                         % passes in one swell-and-fade of the colour wheel
+'tempo 120 :=                          % quarter notes a minute
+'spread 1.0 :=                        % panning of the two groups, -spread and +spread (0 .. 1)
+'lag 4/1 :=                          % how late group B is, as a note length (1/32: half a pulse of 1/16)
+'soft 60 :=                           % the volume it starts at (mf) ...
+'loud 90 :=                           % ... and climbs to at the climax (fff)
+'melody '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69] :=   % E dorian, a rising and falling line
+
+% ---- the process ---------------------------------------------------------
+
+% notes the incarnation number sounds: 1 .. steps .. 1
+: density ( $number -- density ) \steps  \steps 1- $number - abs  - ;
+
+% which incarnation a pass belongs to
+: incarnation ( $pass -- number ) $pass \reps / int ;
+
+% how high the arc is at a pass: 0 at either end, steps-1 in the middle (the climax)
+: climb ( $pass -- height ) \steps 1-  \steps 1-  $pass incarnation  - abs  - ;
+
+% the basic dynamic (from soft to loud) and the size of the swell on top of it
+: base-vol ( $pass -- volume ) $pass climb \loud \soft - * \steps 1- / \soft + ;
+: swell ( $pass -- size ) $pass climb 8 * \steps 1- / 6 + ;
+
+% the volume of a pass for a voice whose swell is shifted by phase (0 .. 1) of the spiral
+: vol-at ( $pass $phase -- volume )
+  $pass $phase \spiral * +  $pass swell  $pass base-vol  \spiral tr/sinr  round  100 min 20 max ;
+
+% a list of ones as long as a pass
+: ones ( -- list ) 0 \steps range 0 * 1 + ;
+
+% one pass of the melody: its d onsets sounding, at volume v, on instrument ins
+% (a program number), panned to pan
+: melody-pass ( $density $volume $instrument $pan -- notes )
+  | $density \steps p/euclid 1/16 b/pul>stp  \melody \steps take
+  :volume ones $volume *  :instrument ones $instrument *  :pan ones $pan *  zip ;
+
+% the length of one pass, as a note length (steps/16)
+: pass-length ( -- t ) \steps 16 / ;
+
+% incarnation m of one instrument: its pass played reps times as one repeat (`times` is
+% the word for the text's `repeat n [ ... ]`) once the
+% density has reached the threshold, else a rest as long as the repeat. The volume
+% is that of the incarnation's first pass.
+: melody-at ( $number $phase $threshold $instrument $pan -- seq )
+  $number density  $threshold >=
+  '( $number density  $number \reps * $phase vol-at  $instrument $pan  melody-pass  \reps times )
+  '( [] pass-length \reps * delay )
+  if ;
+
+% every incarnation of the piece for one instrument, starting lead late, a note length (0: on time)
+: melody-line ( $phase $threshold $instrument $pan $lead -- seq )
+  | $lead 0 >  '( [] $lead delay ) when
+    \steps 2 * 1-  0  '( i $phase $threshold $instrument $pan melody-at )  loop ( ) ;
+
+% ---- drums and chords ----------------------------------------------------
+
+% n hits spread over the pass (a Euclidean rhythm turned rot places), a drum from
+% the list, at volume v
+: drum-pass ( $hits $rotation $drum $volume -- notes )
+  | $hits \steps p/euclid $rotation rotate 1/16 b/pul>stp  \melody \steps take
+  :volume ones $volume *  zip  $drum [~] as-drums ;
+
+% the staccato chord of the piano, n times in a pass
+: chord-pass ( $hits $rotation $volume -- notes )
+  | $hits \steps p/euclid $rotation rotate 1/16 b/pul>stp  '[ '[40 47 55 62] ] \steps times
+  :articulation '[:staccato] \steps times
+  :volume ones $volume *  zip ;
+
+% incarnation m of a percussive line: sounding from density thr, hits = the density divided by div (at least 1)
+: perc-at ( $number $threshold $divisor $rotation $drum $louder -- seq )
+  $number density  $threshold >=
+  '( $number density $divisor / int 1 max  $rotation $drum  $number \reps * base-vol $louder + round  drum-pass  \reps times )
+  '( [] pass-length \reps * delay )
+  if ;
+
+: chord-at ( $number $threshold $divisor $rotation $louder -- seq )
+  $number density  $threshold >=
+  '( $number density $divisor / int 1 max  $rotation  $number \reps * base-vol $louder + round  chord-pass  \reps times )
+  '( [] pass-length \reps * delay )
+  if ;
+
+: kick-line ( -- seq ) | \steps 2 * 1-  0  '( i 3 4 0 '[:kick] 6 perc-at )  loop ( ) ;
+: snare-line ( -- seq ) | \steps 2 * 1-  0  '( i 7 3 4 '[:snare] -4 perc-at )  loop ( ) ;
+: piano-line ( -- seq ) | \steps 2 * 1-  0  '( i 5 4 2 -2 chord-at )  loop ( ) ;
+
+% ---- the groups ----------------------------------------------------------
+
+% An instrument in two groups, each line stored under its id as soon as it is built
+% (two unstored lines would share their auto ids): A on the left, B on the right and
+% half a pulse (1/32) late.
+: hocket-voice ( $phase $threshold $instrument $idA $idB -- )
+  $phase $threshold $instrument \spread negate 0  melody-line  $idA R!! drop
+  $phase $threshold $instrument \spread \lag      melody-line  $idB R!! drop ;
+
+% ---- the piece -----------------------------------------------------------
+
+% The tempo as a context, from the setting above.
+: tempo-ctx ( -- ctx ) | :duration '[1] :Tempo '[1] \tempo * >ctx ;
+
+% Every line side by side, under the tempo, each fetched by its id.
+: hoketus ( -- piece )
+  | tempo-ctx
+    :marimbaA R@  :marimbaB R@  :vibraphoneA R@  :vibraphoneB R@
+    :synthBrassA R@  :synthBrassB R@  :guitarA R@  :guitarB R@
+    :kick R@  :snare R@  :piano R@
+  par ;
+
+% Builds every line and stores it under its id (:marimbaA, :marimbaB, ... :kick,
+% :snare, :piano: each can be played on its own, `:kick R@ ->`), then the piece
+% as :hoketus. Every setting above, the tempo too, is built in: change one, then
+% load and build again (R!! stores over the previous build).
+: build ( -- )
+  0.00 1  12 :marimbaA     :marimbaB     hocket-voice
+  0.25 4  11 :vibraphoneA  :vibraphoneB  hocket-voice
+  0.50 8  62 :synthBrassA  :synthBrassB  hocket-voice
+  0.75 12 40 :guitarA      :guitarB      hocket-voice
+  kick-line :kick R!! drop  snare-line :snare R!! drop  piano-line :piano R!! drop
+  hoketus :hoketus R!! drop ;
+
+% Plays it.
+: hear ( -- ) :hoketus R@ -> ;
+
+% Writes it to hoketus.mid.
+: bounce ( -- ) :hoketus R@ "hoketus.mid" render ;

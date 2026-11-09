@@ -85,8 +85,8 @@ in the types, for the one-row case.
 
 **Context.** A pulse grid has to reach leaves, in one of two quite
 different ways:
-- **each row becomes its own line**, together a parallel: the drum
-  machine, kick row → kick line, hat row → hat line;
+- **each row becomes its own seq**, together a parallel: the drum
+  machine, kick row → kick seq, hat row → hat seq;
 - **the rows merge into one row** (union, intersection, a weighted
   vote) and become one line: a composite rhythm.
 
@@ -107,7 +107,7 @@ type.
 - **One picker per grid type.**
 
 Also open: whether picking by index (`:index`, with named picks for
-several) is enough, or whether question 5's "each row its own line"
+several) is enough, or whether question 5's "each row its own seq"
 makes picking rare anyway.
 
 ### 7. How grids come into being
@@ -235,7 +235,7 @@ velocity, gate") rather than *along* a stream, as `zip` does.
 - **Grids could gain parameter rows**, and with them step-indexed music,
   which trees can't express today.
 - **A track** (a trigger row plus lanes) is a natural unit, perhaps the
-  link between grid and line: "track → line" reads down the steps.
+  link between grid and line: "track → seq" reads down the steps.
 - **Much is already there under other names:** parameter locks are
   per-note overrides, lock trigs are instructions, micro-timing is
   `:micro`, ratchets are tremolo. The sequencer confirms the parameters
@@ -255,7 +255,7 @@ The grid questions above, with what a sequencer suggests:
 | Homogeneous grids (`:pulse-grid`), or tracks with mixed lanes? | tracks |
 | Rows of equal length, or each its own length? | each its own, cycling |
 | Is a one-row grid a stream? | — (a sequencer has no streams) |
-| What does a grid become: one line per row, or one merged line? | one line per track: each track is an instrument |
+| What does a grid become: one seq per row, or one merged seq? | one seq per track: each track is an instrument |
 | Picking a row: one `row` operation, or one per grid type? | — |
 | Stacking streams into a grid (`rows`)? | yes: tracks are added freely |
 | Does a step have a duration in the grid, or only once bridged? | in the grid: the pattern has one step resolution |

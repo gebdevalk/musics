@@ -3040,3 +3040,528 @@ gathers the marks of every parameter the name reaches. `settings Key` and
 `settings Meter` printed the record (`#musics…Key{…}`); a key is written as
 `C.major` and a meter as `4/4`. `marks` of a line says it takes a name. The
 stack effect of `settings` shows both forms, `( voice -- ) or ( 'name -- )`.
+
+## 2026-11-04 — raw algos as mu words (`raw/`)
+
+The half-product words reach a raw source only through the ~4 bridges someone
+derived for it, and 22 workshop algos (the layer makers, `markov-train`/`gen`,
+`konnakol`, `swing`, `tilt`, `threshold` …) had no word at all. All 117
+workshop algos (sources, transforms, bridges) are now words of `raw/`, made by
+the same `algo-word` as the shelves; a stream carries its type (`:mu :part`).
+Known cost, left for the next step: nothing checks a bridge against that type
+(`raw/lorenz raw/numbers->pitches` is a `ClassCastException`) and a bridge's
+input range defaults to 0..1, where the derived `pitch/lorenz` probes the
+source. A type-directed `>pitches`-style converter (`lt/bridge`, the range read
+from the stream) is the weighed answer; not built yet.
+
+## 2026-11-04 — algo/ grouped by what it makes, functions named as their short names
+
+`musics.algo.rhythmic.rhythm/euclidean-rhythm` said "rhythm" three times, and
+the mu word was `euclid`. The directories mixed four criteria: what is made
+(`rhythmic`, `melodic`), how (`random`, `random/lorenz`), tradition
+(`rhythmic/world`) and theory (`metric`, `indispensability`). They are now by
+what is made, the method being a file inside, and each algo's function is named
+as its registry short name, so `:short` is dropped (77 functions; one exception:
+`polymeter-layers`, since a plain `polymeter` function already exists).
+
+- `numeric/` holds the number sources for any parameter: random draws, walks,
+  Markov, the chaotic maps, the xorshift engine and the small maths. Random and
+  chaotic are not separate -- both are number streams; seeded or deterministic is
+  a property of the file, not a directory.
+- `rhythmic/` is `pattern`, `sieve`, `meter`, `indispensability`, `process`,
+  `nature`, `data`, `world`, `feel`, `drums`, `decompose`: number-theory and
+  geometry grids, combinatorics, simulation, sonification, traditions and how
+  a rhythm is played. `metric` and `indispensability` moved in; `random.clj`'s
+  rhythm generators moved to `process`.
+- `counterpoint/` beside `harmonic/`: `jeppesen` (species, core.logic) and
+  `imitation`. The first was `logic/counterpoint`, the second `melodic/counterpoint`.
+- `random.clj` was split along its own section banners into `numeric/random`
+  (draws, distributions, picks), `walk`, `markov` and the shared param specs in
+  `numeric/spec`; every caller kept its alias.
+- A registry entry's `:category` is the namespace segment, so `random` is now
+  `numeric`, `metric` and `indispensability` `rhythmic`, and the species
+  counterpoint `counterpoint`. The registry itself (473 entries, shorts, shelves,
+  types) is unchanged, so no mu word, recipe or session file changes.
+- Kept in place, not moved: the tree machinery (`tree*`, `bridge`, `logic/tree`),
+  the dead modules (`clam`, `farey`, `split`, `trig`), `common/`.
+
+## 2026-11-04 — algo docstrings describe, history lives here
+
+A docstring now says what a function does and how to call it; what it used to
+do, the bug it once had and how it was found are here instead. What the old
+docstrings recorded (dates 2026):
+
+- `euclid` (09-14): a bucket-merging loop whose stopping test was true at once
+  gave k ones then zeros for every input, and the test had baked that output in
+  (`[1 1 1 0 0 0 0 0]` for `(euclid 3 8)`). Bjorklund's pairwise merging replaced
+  it, checked on E(3,8) the tresillo, E(2,5) and E(5,8).
+- `lsys-rhythm`, `cfrac` (09-03): the zero padding was put before the real
+  values, so the final `take` returned zeros only.
+- `glide` (09-03): the step multiplier was `inertia` itself, which inverted its
+  meaning (0 stayed put, 1 snapped).
+- `cyclic` (09-12): the exhaustion check read locals from before the reset, so
+  the lookup at the boundary used the stale pool and returned nil; reset, lookup
+  and increment are one `swap!` now.
+- `direction-limit-constraint` (09-03): the loop ended at `(< i 0)` while its
+  body read `(nth melody (dec i))`, an `IndexOutOfBoundsException`; it ends at
+  `(< i 1)`.
+- `markov-rhythm` (09-05): its own cumulative-sum loop did not normalise, so
+  probabilities not summing to 1 could run off the list (a NullPointerException);
+  it uses `numeric.random/markov`, which normalises and is seedable.
+  `probability-criterion` was the last non-seedable draw in `gate`.
+- `interval-transform`, `clamp-optional` (09-05): duplicated code found by the
+  reuse audit (`zfilter`'s two interval functions; `walk` and `biased-walk`).
+- `emi`: the Python reference loops a fixed count while inserts and deletes
+  resize the list, an `IndexError` in about 27% of runs at similarity 0.3; this
+  port checks the current length each step. `csp`: the reference's random
+  initial pattern and `max-attempts` change nothing (the search overwrites every
+  position), so both were left out.
+- `weighted-shuffle`: sorting by an independent draw per element was tried first
+  and is blind to the distribution (ranks of i.i.d. draws are uniform over
+  permutations); live probe, average displacement over 20000 trials: uniform
+  1.9456 vs `lo-emph` 1.9395 that way; with draw-from-remaining, uniform 1.9422
+  equals Fisher-Yates 1.9449 and `lo-emph` gives 1.2626 on n=6.
+- `logistic`: its default r = 3.0 is the first bifurcation (a slow two-value
+  oscillation, about 0.649 and 0.684), not chaos; r = 3.8 and 3.9 were checked
+  as aperiodic. `henon` at 1.4/0.3 stays within about [-1.28, 1.27] over 500
+  steps; `lorenz` at the classic parameters with RK4 at dt 0.01 stays bounded.
+- `squarr`/`sawr`/`trianglr`: `Math/sin` of exactly pi is a tiny positive and of
+  2*pi a tiny negative number, so a square wave's value on an exact
+  zero-crossing is noise; the composed arcsin(sin) triangle is off by about
+  1e-15 between idxs a period apart.
+- `from-key-spec "G.dorian"`: `music-elements/key` once added an extra
+  transposition to every mode but major/ionian (`(key :D :dorian)` built E
+  dorian); fixed there, and `melody`'s test checks it.
+- `from-key`: `key`'s `:pitches` are not wrapped into 0-11 (an ascending run from
+  a non-C tonic must keep ascending, A minor is `[9 11 12 14 …]`), so it wraps.
+- `modulating`: a pivot note is never merged at the seam, so each segment adds
+  exactly its length and the pivot is repeated once.
+- `gate`: `last-sounding` (what the output last played, for `:hold`) is separate
+  from `raw-prev` (the original sequence, for `select-fn`) on purpose, so a
+  rejected note still counts as the previous one for the next note's test.
+- `zip-parts` generalises `color-talea` but does not replace it: the
+  `[pitch duration]` pair return shape is what `color-talea` commits to.
+- `power` vs `tilt`: softmax never gives a probability of 0, a power law does
+  (for the base-0 position); `power` needs no tie-break term because its
+  exponent never goes below 1.
+
+## 2026-11-04 — small algos: a parameter stays only if the algo needs it
+
+The rule for the algo space: a parameter that is part of what an algo is stays;
+one that does what another small function already does goes. First case,
+rotation:
+
+- `rotate` is a tree tool (`musics.algo.tree.lib`, `:steps`, plain name: it
+  does not clash with `clojure.core`). `euclid` lost `:rotation` and takes `k`
+  and `n`; it is also the only algo whose keyword tail mu's `require` could not
+  call without writing the tail out, so `3 8 r/euclid` works now.
+- `necklace` is gone: the index-th unique rotation, wrapping, is the same
+  pattern as rotating by the index (a rotation by the number of unique rotations
+  leaves a pattern as it is); checked on every pattern of 1-8 pulses, indexes
+  0-19, and kept as a test. `duration/necklace` went with it; `duration/bracelet`
+  is the lifted example in tests and docs (a bracelet's order differs from the
+  necklace's, so its index 1 is not a plain rotation).
+- Kept: `modular :offset` (the constant of `i*multiplier + offset`, not a
+  cyclic shift of a finite window), `polygon :offset` (a continuous start
+  angle), `bracelet :index` (rotations and reversals, a larger set than
+  `rotate`), `necklaces :index` (picks among generated classes), `phases
+  :total-phases` (how many layers), and `duet`: it builds a `:layer` from a
+  pattern and its rotation, and no tool joins pulse patterns into a layer
+  (`parts` joins note streams).
+
+## 2026-11-04 — the tree tools lose their `>` suffix
+
+The tools were `cycle>`, `shuffle>`, `take>`, `map>`, `filter>`, `remove>`, `mute>`,
+`scale>`, `stretch>` so that referring every constructor into the REPL's `user`
+namespace would not shadow `clojure.core`. With no Clojure REPL API that
+reason is gone, and mu's own words are `take`, `cycle`, `shuffle` and the rest, so
+the same tool had two names. They are `cycle shuffle take map filter remove mute
+stretch rotate` now.
+
+- They live in `musics.algo.tree.tools`, which excludes the six `clojure.core`
+  names and says `clojure.core/take` where it means the real one; `lib.clj` keeps
+  its own use of `map`, `take` and `filter` untouched. `lib` loads `tools`, so the
+  registry has them. Clojure code that builds trees calls `tools/take`, or refers
+  them in a namespace that excludes the core names (the cookbook does).
+- `scale>` is `rescale`, not `scale`: `scale` is the tree's pitch scale (root plus
+  intervals), kept by the 2026-09 decision that `scale` and `transpose` are the
+  tree's names. `rescale` maps a number range onto another.
+- Registry short names changed, so a saved `@( … )` recipe or session that names
+  `take>`, `cycle>` and the others stops reading; they take the new names.
+- Kept as they were: `catalog_test`'s rule that `lib`'s public names never shadow
+  `clojure.core`, which still holds for `lib` itself.
+
+## 2026-11-04 — the `int-*` samplers stop being algos; the `points->*` bridges stay
+
+- `int-triangular`, `int-linear`, `int-arcsine`, `int-lo-emph`, `int-mean-emph`,
+  `int-hi-emph`, `int-rising`, `int-falling` and `int-range` were each a shape plus
+  a floor, as pitch sources with a 60-72 default. Each shape already reaches
+  integer pitches as `pitch/<shape>` (the shape, then the `numbers->pitches`
+  bridge), so nine `pitch/` words did what nine others did. They are plain
+  functions now (other algos call `int-range`); `ilo` and `ihi` went from `spec`.
+  Cost: the 60-72 default range; `pitch/triangular` sets its range with
+  `pitch-lo` and `pitch-hi` (48-84 by default). The float shapes keep `lo` and
+  `hi`: the range is part of what each shape is (a mode, a slope across it).
+- `points->durations`, `points->volumes`, `points->instruments` are
+  `numbers->…` after picking a coordinate, which `axis` also does, so on paper
+  the `axis` param repeats the `axis` algo. They stay: a derived word such as
+  `pitch/lorenz` is one source and one bridge (`half-products`), and the chain
+  `axis` then `numbers->X` would need that machinery to take two-step bridges,
+  a larger change than three three-line functions, and the coordinate is a
+  necessary choice of a derived word. `points->pitches` has no
+  `numbers->…` twin at all (it maps onto the steps of a key), so it stays whole.
+  Revisit if a bridge chain is built for another reason.
+
+## 2026-11-04 — step 4: duplicates and hidden params, not selectors; `reverse` joins `rotate`
+
+Read against the rule (a parameter stays if the algo needs it, goes if another
+function does it), most of the algos that pick behaviour by name keep their
+selector: `emi` (four mutations are steps of one procedure), `text-rhythm :mode`
+(three counting rules), `djembe :technique` (a choice among stroke patterns) and
+`oblique :strategy` (the strategies are its content). Splitting `oblique` would
+add about eight tiny algos and as many derived `duration/` words.
+
+- `oblique` lost `only_essentials`: on a 0/1 pattern it is `disconnect` exactly
+  (`(if (and (= v 1) (even? i)) 1 0)` against `(if (even? i) v 0)`).
+- `stochastic` took its distribution-specific values out of a `:params` map, where
+  no registry spec, range or setting could reach them, into real params: `mean`,
+  `std`, `rate` (nil: the old defaults from `length` and `density`) and `decay`.
+- `reverse` is a tree tool beside `rotate`: the "order" tools `algo-space.md`
+  found missing. It lives in `musics.algo.tree.tools`, which excludes it from
+  `clojure.core` with the rest.
+
+## 2026-11-04 — step 5: the `density` params stay
+
+Four algos have a `density` param, and none is another function's job:
+`weights->pulses` keeps the strongest fraction of a weighted bar (it calls
+`density-grid`, so the two are one implementation, not two); `random-onsets` is
+a coin per tick; `stochastic` scales its distribution's onset profile (an exact
+count for "uniform"); `drums` thins only the hi-hats and ghost notes. The name
+is shared, the meaning is not, and no existing function does any of the four.
+Nothing changed.
+
+## 2026-11-04 — step 6: `drums` loses `:swing`; the padding in `bits`, `lsys-rhythm`, `cfrac` stays
+
+- `drums :swing` moved every off-beat 16th hit late by a share of a 32nd, written
+  into the pattern. The music's `!swing` with `!swingUnit:16` does that as it
+  plays, for any notes and drums too (`events_test`, "drums swing too"), so the
+  param repeated another layer, and its delays made odd written durations.
+  `drums` takes `style bars density seed` now; swing is the context's.
+- `bits`, `lsys-rhythm` and `cfrac` pad with zeros (and cut) to `length`. No
+  other function pads: `take` only cuts. And a generator that says `length`
+  gives exactly that many pulses, as `euclid` does with `n`, so a grid of a fixed
+  size stays one. Kept.
+
+## 2026-11-04 — step 7: one L-system expansion, no `markov-rhythm`, no Poisson mode in `stochastic`
+
+- `lsys-rhythm` and `lsys-melody` carried the same rewriting code. It is
+  `musics.algo.numeric.lsystem/expand` now, a plain function both call; they keep
+  their own mapping (A is 1, the rest 0, for pulses; `note-map` for pitches).
+  `grammar` is not an L-system (one random production per symbol), so it stays.
+- `markov-rhythm` is gone: a first-order walk, the order-1 case of `chain-rhythm`
+  (states `[0]` and `[1]`, output the first element), whose only extras were string
+  states and a `states` lookup. `chain-rhythm` keeps its tests for it (including
+  weights that do not sum to 1, which the old regression test covered). `chain`
+  (a lazy walk over numeric states) and `markov-train`/`markov-gen` (they learn
+  the table from a melody) do other jobs and stay.
+- `stochastic` lost its "poisson" mode and `rate` param: it was the `poisson`
+  algo's process squeezed onto a grid with an ad-hoc scale, and `poisson` already
+  reaches rhythms as `duration/poisson`. `random-onsets`, `cloud` and `poisson`
+  are different processes (a coin per tick, a jittered grid, exponential gaps) and stay.
+
+## 2026-11-04 — mu words with a keyword tail
+
+A function loaded by mu's `require` with `[k n & {:keys [rotation]}]` showed one
+arglist of four items, so `3 8 r/euclid` asked for four. The word runner
+(`musics.mu.eval/run-var`) now takes the arguments before the `&`, then the
+`:key value` pairs on top of the stack whose key the tail reads (pairs, so a
+fixed argument that happens to be a keyword stays put: a pair counts only while
+the arguments below it are enough), and `see` shows the tail as `[:rotation v]`.
+A symbol tail (`& more`) is not handled: its length is open, so mu cannot tell
+where it ends.
+
+## 2026-11-04 — algo header comments describe the file; provenance and history are here
+
+File headers in `musics/algo/` told how a file was ported, fixed and moved; they say
+what the file holds now. What they recorded:
+
+- **Provenance.** From the Python reference (`pymusics`): `rhythm.py` gave
+  `rhythmic/pattern` (Euclid, Fibonacci, primes, L-system, Markov; modular, binary,
+  continued fraction); `advanced_rhythm.py` sections 1-2 gave `sieve` (phases,
+  sieve), 3-4 `meter`, 7-9 and 16 `process` (stochastic, genetic, Markov/RNN,
+  constraints), 10 and 12 `nature`, 13-14 `feel` (EMI and Oblique Strategies, then
+  swing and pocket), 15 `data`, 17-18 the fractal and geometric rhythms in
+  `pattern`, 19-20 `world`; `rule_based_melodic_algorithms.py` gave `melody`;
+  `polyphony_generator.py` (`CounterpointEngine`) gave `counterpoint/imitation`.
+  From the Kotlin/Julia references: `bifurcation.jl` and `verhulst.jl` (one logistic
+  map under two names) gave `chaos/logistic`, `Farey.kt` `farey` (after John D.
+  Cook's C++), `Scaling.kt`/`scaling.jl` `scaling`, `trig.jl` `trig`. `chaos/henon`
+  came from a 2026-04-28 design discussion ("MusicalGesture") and `zfilter` from
+  one on 2026-03-11. `resumable_bifurcation.jl` was left out: it destructures three
+  return values from a generator that yields one.
+- **Moves.** `reshape`'s six filters became `gate` (2026-09-03). `rotate`, `integer`
+  and `scaling` are one shared copy of code that was duplicated in
+  `necklace`/`sieve`, `isorhythm`/`meter` and `henon`/`lorenz` (found by the reuse
+  audit, 2026-09-03/05). `pitch`'s helpers left `melody` (2026-09-05) because
+  melody's scales were pitch-class name strings, unlike every other pitch function.
+  `transform` was split in two, pattern variation (`emi`, `oblique`) and timing feel
+  (`swing`, `pocket`), 2026-09-05; both are `feel` now. `l-system-rhythm` was dropped
+  (2026-09-10) as a duplicate of `lsys-rhythm`. `rand-int` took `[lo hi]` instead of
+  `[n]` (2026-09-15) to match the `int-*` functions.
+- **Randomness.** `melody` drew from `clojure.core` until 2026-09-05, the one melodic
+  or rhythmic namespace whose output a seed did not repeat; all algos draw from
+  `numeric.random` now.
+- **Corrections.** The first `lorenz` was a 1D map that converged to a fixed point
+  or diverged to infinity in 6-7 calls; the RK4 system replaced it. The `psi` and
+  `psi-fractions` indispensability port combined each level's digit directly and
+  skipped Barlow's substitution table for factors 5 and 7, so it differed from the
+  verified `[4 0 1 3 2]` for `[5]`; it was removed, and the implementation is now
+  `rhythmic/indispensability`.
+- **The `imitation` port.** It did not reproduce the reference's dead state (an
+  unread `motif-end-beat`, a `current-pitch` reassignment, an unused `prev-new`).
+  Its rules filter and do not guarantee: when no candidate fits, it falls back to the
+  nearest allowed pitch, as the reference does (checked against the Python). The
+  reference's own demo functions with 3 and 4 voices throw, because their density
+  envelopes sum differently; the engine requires equal sub-note counts.
+
+## 2026-11-04 — opaque argument names in algo functions
+
+`see` and a word's stack effect come from the function's own argument names, and
+the registry takes the settings names from them too, so a clear name is a clear
+word everywhere at once. The opaque ones were renamed; names that are the letters
+of their formula or a standard quantity stay (`r`, `x`, `a`, `b`, `rho`, `mu`, `std`,
+`phi`, `dof`, `dt`, `x0` `y0` `z0`, `lo`, `hi`, `len`).
+
+- `euclid` and `necklaces`: `k` and `n` are `onsets` and `pulses`
+  (`@^{ onsets:5 pulses:8 }`, `5 8 r/euclid`, `see` shows `( onsets pulses -- … )`).
+- `noise`: `n` is `points`. `choose-n`: `n` is `how-many`. `row-form`: `n` is
+  `transposition`. `sputter`: `max` is `max-length` (it also shadowed `clojure.core/max`).
+- The settings text, tests, docs and cookbooks use the new names; the cookbook's
+  clashing-key recipe now clashes on `:onsets` (a `first-onsets` algo).
+
+## 2026-11-05 — @ and ! read and store a reference
+
+First step of replacing the algo settings (tctx) by a live voice's inputs
+(the `$` locals of the word it plays). A reference, `musics.mu.value/Ref`
+(`label`, a `get` and a `set` fn), is a place holding a value, written by
+its label (`bass/onsets` once voices expose their inputs). `r @` gives the
+value, `7 r !` stores one, as Forth's `@` and `!` do; with no reference on
+top they stay `nth` (`x n @`) and `put` (`x n y !`), told apart by `:arity` in
+the word's `:mu` metadata. `!` is a stack word in the kernel because a
+store leaves nothing and `put` leaves its line. Nothing yet produces a
+reference outside tests: voices come next (see the 2026-11-04 bare-params
+notes, and the locals plan below it in the conversation: inputs are the
+word's `$` locals, addressed `voice/input`, started with `5 8 42 'riff :bass
+>>`).
+
+## 2026-11-05 — :voice/input names a live voice's input
+
+A voice's inputs are addressed `:bass/onsets`, not `bass/onsets`: the colon
+already says "an id" in mu (`:bass stop`, `:bass playing`), so the name can
+never be read as `ns/word` and no voice has to be refused for sharing a
+namespace's name (`duration`, `raw`, …). `IdName` in `mu.ebnf` takes an
+optional `/input`; evaluating it gives a `musics.mu.value/Ref`
+(`musics.mu.inputs/ref-of`) that `@` reads and `!` stores into, and says
+which inputs or voices there are when one is missing. An unknown word
+`bass/onsets` for a voice that has inputs is answered with the colon form.
+`musics.mu.inputs` holds the registry (voice id -> names in the word's
+order, values); the voices that fill it, started from a word with `$`
+inputs, come next, and Tab completion of `:bass/` after that.
+
+## 2026-11-05 — a defined word with $ inputs plays as a live voice
+
+`: riff ( $onsets $pulses -- notes ) … ;` then `5 8 'riff :bass ->` starts
+the voice `:bass`: the numbers under the quoted name are its inputs, in the
+order of the stack effect, and each note the voice reaches is the next of the
+line the word gives with the inputs it holds now (`musics.mu.live/play-word!`;
+`->>` waits for a boundary as before). The tick keeps the word from running
+at the prompt: the voice stores the name and runs it again on every change.
+Only `$` inputs are allowed — a plain input would need music passed in, which
+a quotation recipe still does (`x '( … ) :up ->`) — and the voice needs a
+name. `musics.mu.inputs` keeps each voice's inputs in an atom shaped like a
+tctx (`{:params-atom a}`), so the existing live machinery
+(`musics.algo.tree.live/bind-run!`) already re-registers the voice when
+`7 :bass/onsets !` changes it, and the voice goes on at its own position;
+that is a stepping stone, the watch moves into `inputs` when the tree and
+tctx are removed. A local is written with its `$` in the body (`$onsets`).
+Not yet: `:bass settings` and `gui` for such a voice, inputs cleared when the
+voice ends, restarting it with `:bass ->`, Tab completion of `:bass/`.
+
+## 2026-11-05 — settings, restart and lifetime of a word voice's inputs
+
+A word voice's tctx (`musics.mu.inputs`) carries a spec per input on its
+atom's metadata, in the shape `musics.algo.tree/specs` has, so `settings`,
+`set` and the GUI's params window work on it unchanged while the tree and
+tctx still exist. The spec of an input is that of the algo params called
+the same (`onsets` → 0..32, `beats to place`); where several algos read a
+name with different ranges, the most common type and the widest range, so
+no value one of them takes is refused; an input no algo reads gets a spec
+from its value (a slider needs a range, so it is a text field). That lookup
+is the only part still reading the registry; when the registry goes it reads
+the `:algo :params` of the functions' own metadata instead. `:bass ->`
+starts such a voice again with the inputs as they are now (`live/replay`
+puts them and the quoted name back on the stack). Inputs are not kept
+beyond the voice: `:bass/onsets` of a voice that no longer plays says so and
+forgets them (`inputs/alive!`, set by `musics.mu.live`, since inputs does not
+know the engine).
+
+## 2026-11-05 — the algorithms called bare: `pull`, full arity, callable quotations
+
+The raw cookbook was written first with the `raw/` words and their `@^{ }`
+settings; the form that belongs to the bare-params plan is the Clojure
+function itself, `3 8 pattern/euclid`, its arguments from the stack. Three
+things were missing for that. (1) `pull` (`( f n -- l )`, `musics.tool`) calls
+a function n times: a quotation that leaves one value, a function of nothing
+that keeps its state (a walk, the logistic map) or a generator with a
+`:value` function (lorenz) -- the `len` the settings form hid. (2) A function
+with several arities (`([] [iterations length])`) was called with its shortest,
+so `2 9 pattern/cantor` took nothing; an algorithm now names its full call in
+`:algo :arity` and mu takes that many arguments when the stack has them
+(`arity-for`), so no per-function `:optional` list is needed. (3) A mu
+quotation is a Clojure function (`Quotation` implements `IFn`), so it can be a
+fitness function (`'( sum 5 - abs negate ) process/genetic`); and a `:pre`
+condition that fails is a refusal naming the function, not an Error that ended
+the REPL. Still out of reach from mu text: parameters that are maps
+(`markov/chain` transitions, L-system rules) and constraint lists. A
+parameter of two levels is written `'[ '[0 1] '[2] ]`, since a bare inner
+`[ ]` is musics text. `rng/seed` (the trailing `!` left off) seeds the random
+words after it, in place of `seed:N`.
+
+A `( … )` group whose first value is a quotation gathers quotations into a
+list (`( '( swap last = not ) '( swap last - abs 3 < ) )`), so the constraints
+of `melody/constrained` and `melody/modulating` can be written in mu: a
+constraint is a function of the melody so far and a candidate note, which a
+quotation is. `walk/smooth-noise` takes `lo` and `hi` as optional (`:mu
+:optional`), as the other multi-arity functions that are not algorithms need.
+
+`about pitch` no longer also answers with the grammar's `Pitch` rule: a rule
+is matched as the grammar writes it (`about Leaf`, `about TempoMark`), so a
+lower-case name keeps to the parameter, mark, word and the like.
+
+## 2026-11-05 — `algorequire`, and a quoted name may hold dots
+
+Twenty `"musics.algo.x.y" require` lines made the raw cookbook's setup long,
+and a package that loads a directory of namespaces at once was tried and put
+back (it loaded helpers nobody asked for, and one line then hid what it
+loaded). `algorequire` is `require` with `musics.algo.` in front, still one
+namespace a line, with the same optional alias: `'numeric.rng 'r algorequire`.
+For that a quoted name takes dots (`DottedName` in `mu.ebnf`; `'a.b` was a
+parse error, so nothing changed meaning), and `require` takes a quoted name as
+well as a string. A word `as` that renamed the namespace required last
+(`"numeric.rng" algorequire 'r as`) was written and dropped: the alias in the
+same line does the same with one mechanism less. The prefix reaches only
+`musics.algo`; another library is still a full name.
+
+## 2026-11-05 — the tree, tctx and registry are gone; the algorithms are called bare
+
+On the `raw-algos` branch (everything old is on `develop`), the machinery that
+composed and set algorithms is removed: `musics.algo.tree` and its lib,
+registry, half products, builder, live and tools; `musics.algo.logic.tree`
+(the type search); `musics.recipe` and `@( )`; `@^{ }` settings and the
+`:TCONTEXT` node; the algo words of `musics.mu.algos` (`raw/`, `pitch/lorenz`
+…); `set`, `unset`, `run` and `compose`; the composer window. About 8,970
+lines, with their tests and the algo cookbook, tree tutorial, bridge table,
+algo-space and algorithms documents. What remains is the raw system: the
+algorithm functions with their `:algo` metadata, the bridges of
+`musics.algo.bridge`, mu's `require`/`algorequire` and `pull`, and live voices
+on one standalone follower (`musics.mu.voice`: a wall fn that plays the next
+leaf of what a function of the voice's inputs gives, cursors kept, replaced
+when an input changes; `musics.mu.inputs`: each voice's inputs, their specs and
+checked stores). A quotation under a play word and a word with `$` inputs both
+use it. A control's range is that of the algo parameter of the same name among
+the loaded `musics.algo.*` namespaces (a scan of the functions' `:algo
+:params`, so a namespace must be required first), the widest when several
+algos read the name. Ideas that were weighed and are not built: the composer as
+an authoring tool that writes mu text, qualified input names
+(`$euclid-onsets`) and a static pass that binds an input to the function it
+feeds; the cost of the removed design was the size of the machinery, its
+benefit was parameters that were always the algo's own.
+
+## 2026-11-07 — one way to change a setting: `with`
+
+A tempo (or any setting) used to have several spellings in a line, a leading
+context, `:bass/tempo !` and a key-and-value `with`. They are one now: a `!`
+instruction is a value in mu (alone at the top level it pushes the context
+`^{ !tempo:89 }`), and `with` takes an instruction, a context or a key. On a
+voice's id, `with` changes the voice from the end of its pass and leaves
+nothing on the stack (the word answers `:mu/nothing`). The key-and-value form
+(`x :Tempo 140 with`) was removed. A trailing `->>` after it cancels the staged
+change, so it is left off.
+
+## 2026-11-07 — `value`, `variable`, `to` as Forth has them
+
+A pair of coupled variables (change one, the other follows, guarded against
+oscillation) was weighed and dropped for Forth's own words: `5 value five`,
+`7 to five`, `3 variable v` with `@` and `!`. Different names for one place
+are a plain definition (`: w v ;`), so halves can never differ. They are saved
+in a session as mu text. Replacing `:=` and `\name` by `value` was weighed and
+left: `\name` is a separate namespace that would be lost, and more names
+would collide. Note-like names (`a`, `p1`) are refused for words.
+
+## 2026-11-07 — three-letter names, `pul>stp`, `loop`
+
+Material kinds have three-letter names (`pul pit pnt dur deg vol art wei num
+ons str cnt lea ins`), the readers' plurals add an `s`, and a bridge is
+`from>to`. `pul>stp` is the bridge that keeps rests for the 0s. `limit start
+'q loop` is Forth's `do … loop` with a quotation body and `i` `j` `k` for the
+three innermost loops; Factor's `times`, `each` and `while`/`until` are not
+added for now. A user word named `loop` clashes with the built-in.
+
+## 2026-11-07 — a seq, not a line
+
+A piece of musics text in `[ ]` is called a seq everywhere in prose and
+messages, as its type `:SEQ` and grammar rule `Sequence` already did. "Line"
+stays for a bar line and a line of text (parse errors, `readLine`). Older
+entries here keep the word they were written with, including the removed word
+`line`.
+
+## 2026-11-07 — `algorequire` is `reqalgo`
+
+The word that requires a `musics.algo.` namespace is now `reqalgo`, a
+shorter name that still reads as "require" first (`"numeric.rng" reqalgo`).
+Earlier entries keep the old name as written.
+
+## 2026-11-07 — `->>` and `->>+` are `-|>` and `-|>+`
+
+The words that play at the next boundary are written `-|>` and `-|>+`: the
+bar line `|` in the arrow, since `x | -|>` is how a bar line is waited for.
+`play-next` and `play-next+` are unchanged. Earlier entries keep the old
+spelling as written.
+
+## 2026-11-09 — the raw algos replace the tree on `develop`; `tree-approach` marks the last tree version
+
+`develop` was fast-forwarded to the `hoketus` branch (58 commits, 231 files):
+the tree, tctx, registry, recipes, composer and algo words are gone, and an
+algorithm is a plain function called by name (`3 8 pattern/euclid`), its
+results turned into notes by the bridges and `zip`. The first piece, `hoketus.mus`,
+is composed with nothing else. The local tag `tree-approach` (`90b4f4d`) marks
+the last `develop` that had the tree; reviving it means merging from there.
+
+Why: the tree put a registry and a settings object between an algorithm and
+its caller, so every feature was written twice, once for the function and once
+for the tree. Plain functions with clear argument names are the thing any caller
+needs, mu text today and Clojure tomorrow.
+
+Not built, but the reason to keep the functions plain: a Clojure facade for
+people who do not want to think in a stack. Each mu word would be wrapped as a
+function (arguments pushed, word run, top of the stack returned), generated from
+the word table, so `->` threading works with music as the first argument. The
+words that read the stack's shape (`zip`, `par`, `chord`, the play words) would
+need hand-made signatures. Decided against, for now: a second, pure-data music
+representation in Clojure; it would bring back two vocabularies, which the
+2026-10-23 entry removed.
+
+## 2026-11-09 — `call` is gone, `execute` runs a quotation
+
+`execute` already ran a quotation as `call` did, and it takes a quoted word name
+as well (`2 60 90 0 8 'tr/sine execute`), as Forth's `' word execute` does. Two
+words for one job was one too many. Nothing in the tests, docs or `.mus` files
+used `call` beyond three tests, now written with `execute`.
+
+## 2026-11-09 — notes in a data list: relative, absolute or a class
+
+In `'[ ]` a lowercase note is relative to the pitch before it (`'[c d e]` is
+60 62 64), a capital with an octave is absolute (`C4` is 60), and a capital
+alone is a pitch class, 0 to 11 (`'[C D E]` is 0 2 4), an `:int` list, so a list
+cannot mix classes and pitches. A bare letter takes the key's implied
+accidental as any note does; a written accidental always wins.

@@ -14,12 +14,12 @@
      (interval-vector [0 4 7])      [0 0 1 1 1 0]
 
    And Slonimsky's polations (Thesaurus of Scales and Melodic Patterns,
-   1947), relative to a line of principal tones:
-     (infrapolate p ins)            ins before each tone
-     (ultrapolate p ins)            ins after each tone
-     (interpolate p ins)            ins between neighbouring tones
-     (mixed-polations p infra inter ultra)  all three at once"
-  (:require [musics.algo.random :as random]
+   1947), relative to a seq of principal tones:
+     (infra p ins)            ins before each tone
+     (ultra p ins)            ins after each tone
+     (inter p ins)            ins between neighbouring tones
+     (polations p infra inter ultra)  all three at once"
+  (:require [musics.algo.numeric.random :as random]
             [musics.common.music-data :refer [quantity]]))
 
 (defn- pc [x] (mod (long (Math/round (double x))) 12))
@@ -50,15 +50,15 @@
 
 (defn row-form
   "One of a row's 48 forms: :P as written, :I inverted around its first
-   class, :R backwards, :RI both, each transposed by n semitones."
+   class, :R backwards, :RI both, each transposed by transposition semitones."
   {:algo {:category "tool" :works :whole :in [:number] :out :number
           :params {:form {:type :keyword :choices [:P :I :R :RI] :default :P :doc "prime, inversion, retrograde, both"}
-                   :n    {:type :int :min 0 :max 11 :default 0 :doc "transposition, semitones"}}}}
-  [xs form n]
+                   :transposition {:type :int :min 0 :max 11 :default 0 :doc "transposition, semitones"}}}}
+  [xs form transposition]
   (let [r (mapv pc xs)
         f (first r)
-        p (fn [x] (mod (+ x n) 12))
-        i (fn [x] (mod (+ (- (* 2 f) x) n) 12))]
+        p (fn [x] (mod (+ x transposition) 12))
+        i (fn [x] (mod (+ (- (* 2 f) x) transposition) 12))]
     (case form
       :P  (mapv p r)
       :I  (mapv i r)
@@ -134,21 +134,15 @@
 ;; Slonimsky's polations
 ;; ---------------------------------------------------------------------------
 
-(defn mixed-polations
-  "The fully general form -- infra/inter/ultra are each independently
-   optional (nil or empty disables that layer): for each principal tone
-   p, in order, emit infra (if any), then p itself, then ultra (if any,
-   unless p is the LAST tone and ultra-after-last? is false), then inter
-   (if any, but never after the last tone -- there's nothing left to
-   interpolate TOWARD). Slonimsky's own 'most flexible general function,'
-   ported verbatim from the source email's own mixed_polations."
-  {:algo {:short :polations :in [:pitch] :out :pitch :arity 5
+(defn polations
+  "The general form of infra, inter and ultra, each optional (nil or empty switches it off): for each principal tone p in order, emit infra, then p, then ultra (after the last tone only when ultra-after-last? is true), then inter (never after the last tone). Slonimsky's most flexible general function."
+  {:algo {:in [:pitch] :out :pitch :arity 5
           :params {:infra {:type :vector :default [] :doc "before each tone"}
                    :inter {:type :vector :default [] :doc "between tones"}
                    :ultra {:type :vector :default [] :doc "after each tone"}
                    :ultra-after-last? {:type :bool :default false :doc "ultra after the last tone too"}}}}
-  ([principal] (mixed-polations principal nil nil nil false))
-  ([principal infra inter ultra] (mixed-polations principal infra inter ultra false))
+  ([principal] (polations principal nil nil nil false))
+  ([principal infra inter ultra] (polations principal infra inter ultra false))
   ([principal infra inter ultra ultra-after-last?]
    (let [infra (or infra [])
          inter (or inter [])
@@ -165,28 +159,28 @@
          (range)
          principal)))))
 
-(defn infrapolate
+(defn infra
   "Insert insertion BEFORE each tone in principal."
-  {:algo {:short :infra :in [:pitch :pitch] :out :pitch}}
+  {:algo {:in [:pitch :pitch] :out :pitch}}
   [principal insertion]
-  (mixed-polations principal insertion nil nil false))
+  (polations principal insertion nil nil false))
 
-(defn ultrapolate
+(defn ultra
   "Insert insertion AFTER each tone in principal (including the last,
    matching Slonimsky's own 'ultrapolation' as a standalone operation --
    contrast mixed-polations' own default of stopping after the last
    tone when used as part of a MIXED form)."
-  {:algo {:short :ultra :in [:pitch :pitch] :out :pitch}}
+  {:algo {:in [:pitch :pitch] :out :pitch}}
   [principal insertion]
-  (mixed-polations principal nil nil insertion true))
+  (polations principal nil nil insertion true))
 
-(defn interpolate
+(defn inter
   "Insert insertion BETWEEN each pair of consecutive tones in principal.
    A principal of fewer than 2 tones passes through unchanged -- nothing
    to interpolate between."
-  {:algo {:short :inter :in [:pitch :pitch] :out :pitch}}
+  {:algo {:in [:pitch :pitch] :out :pitch}}
   [principal insertion]
   (if (< (count principal) 2)
     (vec principal)
-    (mixed-polations principal nil insertion nil false)))
+    (polations principal nil insertion nil false)))
 

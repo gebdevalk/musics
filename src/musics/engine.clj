@@ -13,8 +13,8 @@
      voice-at / playing-ids / live-algos / assign-algo!
 
    A voice's material, algorithm and position live in its stream, so a
-   change is heard once the sender reads that far: a live musics.algo.tree
-   voice's new settings, or a schedule-tx! cutover (decided as the
+   change is heard once the sender reads that far: a live voice's
+   new inputs, or a schedule-tx! cutover (decided as the
    boundary is computed, a lookahead before it sounds -- one armed
    later than that catches the voice's next crossing). A note's :micro
    may move it early, by at most the lookahead.
@@ -444,7 +444,7 @@
 (defn- validate-algo-name! [name]
   (when (and name (not (wall/algo name)))
     (throw (ex-info (str "play: :algo tag references unregistered name " name
-                         " -- check (algos), or install it first via musics.algo.tree/live!")
+                         " -- check (algos), or start a live voice by that name first")
                     {:algo name}))))
 
 (def ^:private validate-prefix 1000)

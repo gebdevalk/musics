@@ -33,7 +33,7 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.leaf-parser :as leaf]
             [musics.input.reader.builder :as flat]
-            [musics.algo.random :as rnd]
+            [musics.algo.numeric.random :as rnd]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -186,6 +186,19 @@
         t     (duration state)]
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
                          (key-for-mode chain t))))
+
+(defn- pitch-class-of
+  "The pitch class (0 .. 11) of a capital letter written without an octave, a
+   bare letter taking the key's implied accidental as any note does; nil for
+   every other spelling."
+  [pitch-children state]
+  (let [[letter accidental octave] (pitch-tuple pitch-children)]
+    (when (and letter (re-matches #"[A-G]" letter) (= "" octave))
+      (let [low (first (str/lower-case letter))
+            ks  (key-for-mode (walk-key-chain state) (duration state))]
+        (mod (+ (data/diatonic-pcs low)
+                (if accidental (leaf/accidental-semitones :nederlands accidental) (el/key-letter-offset ks low)))
+             12)))))
 
 (defn- written-key
   "The Key this leaf's bare letters resolve against, kept on the leaf
@@ -559,7 +572,7 @@
 ;; Main walker dispatch
 ;; ============================================================
 
-(declare with-at walk-algo-assignment walk-settings walk-context walk-reference
+(declare with-at walk-context walk-reference
          walk-bang-const walk-assignment walk-key-assignment walk-invalidate
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
@@ -675,8 +688,6 @@
         ;; !Meter:/!tempo:/!key: remain the only spelling)
         :BangConst    (with-at walk-bang-const state children)
         :Assignment   (with-at walk-assignment state children)
-        :AlgoAssignment (walk-algo-assignment state children)
-        :Settings    (walk-settings state children)
         :KeyAssignment (with-at walk-key-assignment state children)
         :Invalidate   (walk-invalidate    state children)
         :Partial      (walk-partial       state children)
@@ -707,15 +718,19 @@
         ;; (throwing if it disagrees with an earlier element or an explicit
         ;; `type` prefix), then appends a PLAIN value -- a MIDI int, a
         ;; Ratio -- never a {:type :X :val v} wrapper: a Data container
-        ;; feeds algorithms (color/talea and the like, see
-        ;; musics.algo.tree), and the composer calling that
-        ;; algorithm already knows what each argument means once every
+        ;; feeds algorithms (color/talea and the like), and a word calling
+        ;; one already knows what each argument means once every
         ;; element in the container is guaranteed to be one, single,
         ;; checked type -- carrying a per-element tag on top of that
         ;; guarantee would be redundant, not just unread.
-        :Pitch     (let [[midi new-last] (resolve-pitch-from-tree children state)]
-                     (reset! (:last-pitch state) new-last)
-                     (-> state (check-data-element-type! :pitch) (flat/append-child midi)))
+        ;; Three spellings of a note in data: lowercase is relative (the pitch
+        ;; before it decides the octave), a capital with an octave is absolute
+        ;; (C4 = 60), a capital alone is a pitch class (C = 0 .. B = 11), an int.
+        :Pitch     (if-let [pc (pitch-class-of children state)]
+                     (-> state (check-data-element-type! :int) (flat/append-child pc))
+                     (let [[midi new-last] (resolve-pitch-from-tree children state)]
+                       (reset! (:last-pitch state) new-last)
+                       (-> state (check-data-element-type! :pitch) (flat/append-child midi))))
         :DurationNum     (-> state (check-data-element-type! :duration)
                               (flat/append-child (parse-duration (first children))))
         :DurationSpecial (-> state (check-data-element-type! :duration)
@@ -834,7 +849,7 @@
 (defn- walk-bareword
   "name: -- names the container it opens. Inside a body that is never
    stored under a name (nameless), the name would be lost, so it is
-   refused, pointing to a line of its own inside it."
+   refused, pointing to a seq of its own inside it."
   [state children]
   (let [name-val (some (fn [c]
                          (cond
@@ -845,7 +860,7 @@
       (let [idx (dec (count (:stack state)))]
         (when-let [what (nameless (:type (peek (:stack state))))]
           (throw (ex-info (str (name name-val) ": a name inside " what " would be lost -- "
-                               "name a line inside it instead, [" (name name-val) ": … ]")
+                               "name a seq inside it instead, [" (name name-val) ": … ]")
                           {:id name-val :in what})))
         (update-in state [:stack idx :id] (constantly name-val)))
       state)))
@@ -886,7 +901,7 @@
 (defn- point-time
   "When an instruction's point is: its @ time, from the start of the
    container it is written in (a ^{ }, or a line: with puts a context's
-   instructions at a line's start), else where it is written."
+   instructions at a seq's start), else where it is written."
   [state children]
   (or (at-time children) (duration state)))
 
@@ -1113,48 +1128,6 @@
           (flat/append-child state {:type :assignment :key (keyword name-val)
                                     :val val :raw (str "!" name-val ":" (pr-str val))})))
       state)))
-
-(defn algo-value
-  "A setting's value (@^{ name:value }) as plain data: a number, a string, a
-   keyword (a bare name), a vector (a comma list or a ( ) list)."
-  [[tag v :as node]]
-  (case tag
-    :SignedInt     (Integer/parseInt v)
-    :SignedFloat   (Double/parseDouble v)
-    :Ratio         (let [[n d] (str/split v #"/")] (/ (Integer/parseInt n) (Integer/parseInt d)))
-    :StringLit     v
-    :QualifiedName (keyword (str/join "." (map second (filter #(tag? % :Name) (rest node)))))
-    :IntList       (mapv #(Integer/parseInt (second %)) (rest node))
-    :StructValue   (extract-struct-values node)
-    (throw (ex-info (str "@^{ }: not a value an algo param takes: " (pr-str node)) {:node node}))))
-
-(defn- walk-algo-assignment
-  "?name:value -- refused: an algo's params are @^{ name:value }, apart
-   from the music's keys."
-  [_state children]
-  (let [nm (second (find-child children :AlgoName))]
-    (throw (ex-info (str "?" nm ": an algo's settings are @^{ " nm ":… } -- music holds ! keys only")
-                    {:name nm}))))
-
-(defn- walk-settings
-  "@^{ name:value … } -- an algo's settings: a :TCONTEXT holding :params,
-   [name value] pairs as written, and :text, the text that writes them
-   back. A short name bound to a long one (mu's 'dp 'duration-pulse :=,
-   as :param-aliases) is kept, and written back, as the long one."
-  [state children]
-  (let [ps (vec (for [c children :when (tag? c :Setting)
-                      :let [kids (rest c)
-                            nm   (second (find-child kids :AlgoName))
-                            nm   (get (:param-aliases state) nm nm)
-                            vn   (first (remove #(tag? % :AlgoName) kids))
-                            v    (algo-value vn)]]
-                  [nm v (str nm ":" (or (node-text state vn) (pr-str v)))]))
-        s  (flat/push-container state :TCONTEXT)
-        i  (dec (count (:stack s)))
-        s  (update-in s [:stack i] #(assoc (flat/ensure-id s %)
-                                           :params (mapv (fn [[n v]] [n v]) ps)
-                                           :text (str/join " " (map peek ps))))]
-    (flat/pop-container s)))
 
 (defn- walk-key-assignment [state children]
   (let [key-node (find-child children :KeySpec)
@@ -1443,7 +1416,7 @@
 ;; leaf run.
 
 (defn- walk-shuffle
-  "shuffle [ … ] -- a line of its own, marked :shuffle, so playback
+  "shuffle [ … ] -- a seq of its own, marked :shuffle, so playback
    orders it anew each time (musics.compose/play-order)."
   [state children]
   (let [seq-node (find-child children :Sequence)
@@ -1453,7 +1426,7 @@
         (walk-children (rest seq-node))
         flat/pop-container)))
 
-;; the elements a reorder moves: notes, lines and repeats -- instructions,
+;; the elements a reorder moves: notes, seqs and repeats -- instructions,
 ;; bar lines and jumps keep their places (as musics.compose/play-order)
 (defn- movable? [c]
   (or (keyword? c) (d/iterator? c) (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c)))))
@@ -1470,15 +1443,15 @@
 (defn- signed-int [node] (Long/parseLong (str/replace (second node) #"^\+" "")))
 
 (defn- walk-shuffle-now
-  "shuffle ( … ) -- its notes, lines and repeats in a random order, now
-   (musics.algo.random, so a seed repeats it)."
+  "shuffle ( … ) -- its notes, seqs and repeats in a random order, now
+   (musics.algo.numeric.random, so a seed repeats it)."
   [state children]
   (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
         idx (dec (count (:stack s)))]
     (-> (update-in s [:stack idx :children] reorder-movable rnd/shuffle) flat/pop-container)))
 
 (defn- walk-rotate-now
-  "rotate n ( … ) -- its notes, lines and repeats rotated n places, now."
+  "rotate n ( … ) -- its notes, seqs and repeats rotated n places, now."
   [state children]
   (let [n (signed-int (find-child children :SignedInt))
         s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
@@ -1486,7 +1459,7 @@
     (-> (update-in s [:stack idx :children] reorder-movable (partial rotated n)) flat/pop-container)))
 
 (defn- walk-rotate
-  "rotate n [ … ] -- a line of its own, marked :rotate n, so playback
+  "rotate n [ … ] -- a seq of its own, marked :rotate n, so playback
    rotates it n places further each time it is entered
    (musics.compose/play-order)."
   [state children]
@@ -1498,7 +1471,7 @@
         flat/pop-container)))
 
 (defn- marked-line
-  "A line of its own, marked with mark, its body the Sequence among
+  "A seq of its own, marked with mark, its body the Sequence among
    children: a part playback orders as it plays (musics.compose/play-order)."
   [state children mark]
   (let [s   (flat/push-container state :SEQ)
@@ -1695,7 +1668,7 @@
             t          (d/written-duration (:repo s2) (peek (:stack s2)))
             ks         (el/transpose-key (key-for-mode ctx-chain t) interval)]
         (-> s2
-            ;; every note at any depth -- nested lines, referenced parts (as
+            ;; every note at any depth -- nested seqs, referenced parts (as
             ;; copies), repeats -- moves by the interval, its name spelled in
             ;; the key transposed with it (C -> D for transpose c d);
             ;; :key-shift records by how much, so playback transposes the

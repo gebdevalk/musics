@@ -89,8 +89,8 @@
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"no audio output found.*render still writes a MIDI file"
                             (gv/open)))))
   (testing "whatever Java throws is put readably"
-    (let [m (gv/open-error-message (javax.sound.sampled.LineUnavailableException. "line busy"))]
-      (is (re-find #"could not open the sound output \(line busy\)" m))
+    (let [m (gv/open-error-message (javax.sound.sampled.LineUnavailableException. "seq busy"))]
+      (is (re-find #"could not open the sound output \(seq busy\)" m))
       (is (re-find #"held by another program" m))
       (is (re-find #"render" m)))
     (is (re-find #"IllegalStateException" (gv/open-error-message (IllegalStateException.))) "no message: its kind")))

@@ -71,9 +71,9 @@
   (filter #(some (partial same? t) (key-names %)) (vals (ck/context-keys))))
 
 (def ^:private leaf-properties
-  "What a note, chord, rest or drum carries of its own, and for a duration also what a line has."
+  "What a note, chord, rest or drum carries of its own, and for a duration also what a seq has."
   {"pitch" "a note or chord"
-   "duration" "a note, chord or rest, or the length of a line"
+   "duration" "a note, chord or rest, or the length of a seq"
    "articulation" "a note or chord"})
 
 (defn- property [t]
@@ -133,7 +133,8 @@
          (second m))))
 
 (defn- rule [t]
-  (for [r (rule-names) :when (same? t r)]
+  ;; a rule is named as the grammar writes it (Leaf, TempoMark), so pitch is not Pitch
+  (for [r (rule-names) :when (= t r)]
     (str r " is a rule of the grammar and " (appears (keyword r)) ".")))
 
 ;; -- names that start with it, else contain it -----------------------------------------------
@@ -189,7 +190,7 @@
                       :let [shown (if (number? default) default "value")]]
                   (str (when range (str (first range) ".." (second range) ", ")) "default " (written default) ", "
                        (str/replace (str description) #"\.$" "") ". Written !" t ":" shown
-                       ", or set on a line with x :" t " " shown " with")))
+                       "; on a line: x !" t ":" shown " with")))
       :else (str (pr-str t) " is no musical parameter; about " t " says what it is"))))
 
 (defn marks-text

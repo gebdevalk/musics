@@ -10,7 +10,7 @@ Status: partly built.
   `musics.algo.logic.tree`: the composer's typing of a draft and the
   registry's questions (`how`, `feeds`, `why-not`, `examples`,
   `surprise`). Its help idea is `musics.assist`. Species counterpoint
-  was built in core.logic as well (`musics.algo.logic.counterpoint`,
+  was built in core.logic as well (`musics.algo.counterpoint.jeppesen`,
   `doc/md/counterpoint.md`), beside the greedy generator of section 5.
 - **Still proposals:** spelled pitches and Markov chains on them
   (sections 2–4), and the rewrite of the other constraint generators
@@ -33,8 +33,8 @@ Status: partly built.
   A relation that runs in both directions (spelling → MIDI, MIDI → every
   spelling) is exactly what core.logic is good at.
 - **Its second fit is the three generators that already do constraint
-  search by hand:** `musics.algo.rhythmic.constraint/constraint-satisfaction-rhythm`,
-  `musics.algo.melodic.melody/constraint-melody` and `musics.algo.melodic.counterpoint/generate`.
+  search by hand:** `musics.algo.rhythmic.process/csp`,
+  `musics.algo.melodic.melody/constrained` and `musics.algo.counterpoint.imitation/generate`.
   All three can silently return results that break their own
   constraints, or search far more than they need to. core.logic gives
   backtracking and pruning, and returns either a correct answer or `nil`.
@@ -97,7 +97,7 @@ way out:
 | Need | How |
 |---|---|
 | Recorded MIDI, written as text | `midi->spelling` spells from the key, using the relation in §3, instead of always using sharps |
-| Export (LilyPond / ABC / GUIDO) | Spell each pitch from its leaf's `:key` (`el/key-pitch-name`), with §3's ranked choice for chromatic pitches: in key first, then fewest accidentals, then the direction of the line |
+| Export (LilyPond / ABC / GUIDO) | Spell each pitch from its leaf's `:key` (`el/key-pitch-name`), with §3's ranked choice for chromatic pitches: in key first, then fewest accidentals, then the direction of the seq |
 | Intervals with their quality | `[steps semis]` from two spelled pitches, so `c`–`eb` (minor third) and `c`–`d#` (augmented second) stay distinct; counterpoint rules need that |
 | Markov states and intervals | §4 |
 
@@ -194,7 +194,7 @@ The ordered rules (in key, then few accidentals, then anything) are a
 ```
 
 The "sharp before flat" order should come from the key's signature sign
-(or from whether the line is going up or down), not be fixed. That is a
+(or from whether the seq is going up or down), not be fixed. That is a
 detail of how the `conda` clauses are put together. `midi_record`'s
 spelling and `respell-fn` could both be built on this.
 
@@ -202,7 +202,7 @@ spelling and `respell-fn` could both be built on this.
 
 ## 4. Markov chains on spelled pitches
 
-`markov-train` / `markov-generate` already work with any value that has
+`markov-train` / `markov-gen` already work with any value that has
 `=` and a hash, so canonical spelled maps (§2) work with them unchanged.
 What needs deciding is **what the state is**. Each choice is a single
 function applied before training, and each trades how faithful the
@@ -216,7 +216,7 @@ model is against how much data it needs:
 | Interval | `->interval` on consecutive pairs | Independent of transposition: train in D, generate in F. Keeps diatonic meaning, so a minor third and an augmented second are different states | Needs a start pitch, and drift has to be checked (below) |
 
 The interval view is where spelling pays off most. With MIDI, an
-interval is only a semitone count, so the generated line has to be
+interval is only a semitone count, so the generated seq has to be
 spelled again afterwards (the guessing `respell-fn` does today). With
 spelled pitches, the interval carries its letter distance and the
 output is already correctly spelled:
@@ -246,7 +246,7 @@ rejecting a step means backtracking, which leads to the next point.
 
 ### Constrained Markov generation (core.logic)
 
-`markov-generate` walks forward and takes whatever comes next. It cannot
+`markov-gen` walks forward and takes whatever comes next. It cannot
 also promise "end on the tonic", "stay between C3 and G5" or "no
 triple sharps". Writing the transition table as a relation and searching
 with backtracking gives exactly those guarantees. Every step is still a
@@ -259,7 +259,7 @@ can't satisfy the constraints. This is the "Markov constraints" idea
   "n states after start (order 1), each one a transition seen in
    training, with (ok? i state) true for every step and the last state
    in finals. nil when no such walk exists. Candidates are shuffled with
-   musics.algo.random (duplicates in a transition list act as weights), so the
+   musics.algo.numeric.random (duplicates in a transition list act as weights), so the
    result is varied but reproducible from the seed."
   [transitions start n ok? finals]
   (letfn [(walko [state i out]
@@ -279,7 +279,7 @@ For order > 1 the state is the last `order` items, carried through the
 recursion the same way. It works on any of the three state views above.
 For the interval view, `ok?` checks the realized pitch: run `+interval`
 along the path and reject any `:a` outside -2..2 or any pitch out of
-range. This also covers what `constraint-melody` + `cadence-constraint`
+range. This also covers what `constrained` + `cadence-constraint`
 are trying to do (§5), but with learned transitions in place of a
 scale.
 
@@ -294,7 +294,7 @@ the adapter to `:pitch` (`:m`) so a spelled result can feed
 every existing node.
 
 Dead ends get more frequent with sparser spelled states. When
-`markov-generate` reaches a state with no transitions, it jumps to a
+`markov-gen` reaches a state with no transitions, it jumps to a
 random state seen in training and plays all of it, so the join
 is a transition the training data never had. `constrained-markov`
 backtracks out of dead ends instead of jumping.
@@ -303,7 +303,7 @@ backtracks out of dead ends instead of jumping.
 
 ## 5. The existing constraint generators
 
-### `constraint-satisfaction-rhythm`: full enumeration, no pruning
+### `csp`: full enumeration, no pruning
 
 It tries 0 and then 1 at every position and only checks the predicates
 once a pattern is complete. That is 2^n patterns, which is why its
@@ -341,10 +341,10 @@ positions, not 0/1 cells:
 The same shape handles "fill a bar of 16 sixteenths with five distinct
 note values" (`fd/in` over `(fd/domain 1 2 3 4 6 8)`), a fixed number
 of onsets, onsets required on given pulses, and similar constraints.
-`all-interval-rhythm`, which its own docstring calls "not a true
+`all-interval`, which its own docstring calls "not a true
 all-interval series", becomes exact.
 
-### `constraint-melody`: greedy, so it can break its own constraints
+### `constrained`: greedy, so it can break its own constraints
 
 When no scale note satisfies every constraint, it picks any scale note.
 With `(max-leap-constraint scale 2)` and `(cadence-constraint 16 0)`, if
@@ -448,7 +448,7 @@ answers four questions the current check can't.
    `degrees->pitches`, `threshold`, ...). The builder could offer
    these as suggestions.
 4. **Random valid trees.** `run k` over the same relation, with
-   candidates shuffled by `musics.algo.random`, gives "surprise me" trees that
+   candidates shuffled by `musics.algo.numeric.random`, gives "surprise me" trees that
    always type-check and are reproducible from the seed.
 
 ### The relation
@@ -458,7 +458,7 @@ answers four questions the current check can't.
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer :all]
             [musics.algo.tree.registry :as reg]
-            [musics.algo.random :as rand]))
+            [musics.algo.numeric.random :as rand]))
 
 (defn- type-term [t] (if (= t :any) (lvar) t))      ; :any = unconstrained
 
@@ -513,7 +513,7 @@ completion by real algos.
                       (childreno 2 kids ins nil))))
 
 ;; type inference through :same: what the hole under a :same node must be
-(run 1 [t] (fresh [ins] (algoo :cycle> ins :pitch) (firsto ins t)))
+(run 1 [t] (fresh [ins] (algoo :cycle ins :pitch) (firsto ins t)))
 
 ;; bridges: trees producing :leaf from a :pulse you already have
 ;; (keep only the ones that actually use :input)
@@ -576,7 +576,7 @@ and annotates the good ones.
 
 **A guided exercise mode.** Take a random valid tree, remove one node,
 and ask for the missing piece. `fill` checks the answer and gives the
-`why-not` hint when it's wrong. Seeded through `musics.algo.random`, so a
+`why-not` hint when it's wrong. Seeded through `musics.algo.numeric.random`, so a
 lesson is the same every time.
 
 **Where it surfaces.** In code as `lt/how` and friends, and in the
@@ -607,7 +607,7 @@ actions instead of algos.
 - **Randomness.** core.logic searches in a fixed order, so `run 1` always
   returns the same answer. To get variety while keeping seeds
   reproducible, shuffle candidate lists (the `membero` arguments) with
-  `musics.algo.random`'s seeded generator before the search. That way
+  `musics.algo.numeric.random`'s seeded generator before the search. That way
   `seed_test` still holds.
 - **Cost.** Search time is unbounded. Use `run k`, never `run*`, on
   anything open-ended. Generate before playback, never inside
@@ -621,7 +621,7 @@ actions instead of algos.
 - **Dependency.** `[org.clojure/core.logic "1.1.0"]` (pure Clojure, small).
   It adds no runtime cost unless it is called.
 - **When not to use it.** If a rule needs scoring ("prefer the smoothest
-  line") rather than accept/reject, core.logic has no built-in
+  seq") rather than accept/reject, core.logic has no built-in
   optimisation. Use `run k` and rank the results in Clojure, or keep the
   weighted-random generators already in `musics/algo/`.
 
@@ -637,7 +637,7 @@ actions instead of algos.
 2. Add core.logic and `musics.algo.logic.pitch` (§3). Rebuild `midi->spelling`
    and `respell-fn` on `spell-ino`, and test them against
    `key-pitch-name`'s existing cases.
-3. Port `constraint-satisfaction-rhythm` to `fd` (§5). It is
+3. Port `csp` to `fd` (§5). It is
    self-contained and easy to compare against the current version.
 4. Write `first-species` on spelled pitches. Then decide whether
    `counterpoint/generate` gets a backtracking mode or is replaced.

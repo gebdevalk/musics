@@ -6,7 +6,6 @@
    and definitions stay mu's; every mu word can be used."
   (:require [musics.engine :as engine]
             [musics.input.reader.builder :as builder]
-            [musics.mu.algos]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.library]

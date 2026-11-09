@@ -1,7 +1,7 @@
 (ns ^:algo musics.algo.melodic.serial-test
   (:require [clojure.test :refer [deftest is]]
             [musics.algo.melodic.serial :as s]
-            [musics.algo.random.core :as rc]))
+            [musics.algo.numeric.rng :as rc]))
 
 (deftest a-row-holds-every-pitch-class-once
   (is (= (set (range 12)) (set (s/row :random))))
@@ -42,34 +42,34 @@
   (is (= 3/4 (reduce + (s/time-points->durations [0 4 8] 1/16))) "a cycle of points fills one bar"))
 
 (deftest infrapolate-inserts-before-each-tone
-  (is (= [9 1 9 2 9 3] (s/infrapolate [1 2 3] [9]))))
+  (is (= [9 1 9 2 9 3] (s/infra [1 2 3] [9]))))
 
 (deftest ultrapolate-inserts-after-every-tone-including-the-last
-  (is (= [1 9 2 9 3 9] (s/ultrapolate [1 2 3] [9]))))
+  (is (= [1 9 2 9 3 9] (s/ultra [1 2 3] [9]))))
 
 (deftest interpolate-inserts-between-consecutive-tones-only
-  (is (= [1 9 2 9 3] (s/interpolate [1 2 3] [9]))
+  (is (= [1 9 2 9 3] (s/inter [1 2 3] [9]))
       "no trailing insertion after the last tone -- nothing left to interpolate toward"))
 
 (deftest interpolate-passes-through-fewer-than-2-tones-unchanged
-  (is (= [1] (s/interpolate [1] [9])))
-  (is (= [] (s/interpolate [] [9]))))
+  (is (= [1] (s/inter [1] [9])))
+  (is (= [] (s/inter [] [9]))))
 
 (deftest mixed-polations-combines-all-three-layers-in-slonimskys-own-order
   ;; per tone: infra, principal, ultra (unless last & not ultra-after-last),
   ;; inter (unless last)
   (is (= [8 1 7 9 8 2 7 9 8 3]
-         (s/mixed-polations [1 2 3] [8] [9] [7]))))
+         (s/polations [1 2 3] [8] [9] [7]))))
 
 (deftest mixed-polations-ultra-after-last-forces-ultra-on-the-final-tone-too
-  (is (= [1 5 2 5] (s/mixed-polations [1 2] nil nil [5] true))))
+  (is (= [1 5 2 5] (s/polations [1 2] nil nil [5] true))))
 
 (deftest mixed-polations-with-no-insertions-is-the-identity
-  (is (= [1 2 3] (s/mixed-polations [1 2 3]))))
+  (is (= [1 2 3] (s/polations [1 2 3]))))
 
 (deftest mixed-polations-any-layer-can-be-independently-disabled
-  (is (= [1 9 2 9 3] (s/mixed-polations [1 2 3] nil [9] nil))
+  (is (= [1 9 2 9 3] (s/polations [1 2 3] nil [9] nil))
       "only inter given -- same as interpolate")
-  (is (= [9 1 9 2 9 3] (s/mixed-polations [1 2 3] [9] nil nil))
+  (is (= [9 1 9 2 9 3] (s/polations [1 2 3] [9] nil nil))
       "only infra given -- same as infrapolate"))
 

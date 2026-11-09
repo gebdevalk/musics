@@ -7,8 +7,7 @@
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.library :as lib]
-            [musics.mu.tools]
-            [musics.mu.algos]))
+            [musics.mu.tools]))
 
 (defn- words
   "[ns word entry] for every word registered from Clojure."
@@ -57,7 +56,4 @@
     (doseq [w ["R@" "fetch" "store" "find" "map" "at" "bar" "setting" "select" "iterate" "slice" "nth" "concat"]
             :let [eff (:effect (e/lookup @e/state w))
                   [_ outs] (re-find #" -- (.*?) \)" eff)]]
-      (is (not= w (str/trim outs)) (str w " " eff))))
-  (testing "an algo word that changes its input says so"
-    (let [eff (:effect (e/lookup @e/state "duration/emi"))]
-      (is (re-find #"^\( durations \[@\^\{ \.\.\. \}\] -- durations' \)" eff) eff))))
+      (is (not= w (str/trim outs)) (str w " " eff)))))

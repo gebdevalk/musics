@@ -8,7 +8,7 @@ sounding, and keep it.
 
 - For every word that works on music, see `doc/md/mu-tutorial.md`.
 - For algorithms, from single words to recipes playing live, see
-  `doc/md/algo-tree-tutorial.md`.
+  `doc/md/raw-algo-cookbook.md`.
 - For the full notation, see `doc/md/parsing.md`; coming from
   LilyPond, see `doc/md/lilypond.md`.
 - For the architecture underneath, see `CLAUDE.md`.
@@ -30,7 +30,7 @@ To hear anything, connect a synthesizer once:
 Without either, everything below still works; you just don't hear it.
 
 A few words for finding your way:
-- `help` is mu in a few lines, and `"chord" help` lists the words that mention chord;
+- `help` is mu in a few seqs, and `"chord" help` lists the words that mention chord;
 - `words` lists every word;
 - `"dup" see` says what one word does (`dup ( a -- a a )  copy the top`);
 - a word mu does not know says what it is now called or what is close to it.
@@ -42,8 +42,8 @@ A few words for finding your way:
 [verse: !mf c4 d e f] ->
 ```
 
-This is one line with two parts. `[verse: !mf c4 d e f]` is music: a
-line named `verse`, at mezzo-forte, of four quarter notes. Typed at the
+This is one seq with two parts. `[verse: !mf c4 d e f]` is music: a
+seq named `verse`, at mezzo-forte, of four quarter notes. Typed at the
 prompt, it becomes a value on the stack. `->` plays the top of the
 stack, now.
 
@@ -135,7 +135,7 @@ mu prints every value back in full, as shown after the `→`.
 [x8\snare-> x8\snare-^ x8\snare\ghost]    accented, marcato, ghost
 ```
 
-### Lines and parallel parts
+### Seqs and parallel parts
 
 ```
 [melody: c4 d e f]                          [ ] one note after another
@@ -152,7 +152,7 @@ mu prints every value back in full, as shown after the `→`.
 [!tempo:3/8=90 !allegro c4]         a note value = BPM; a named tempo
 ```
 
-An instruction always belongs inside a line or a `^{ }` context; at the
+An instruction always belongs inside a seq or a `^{ }` context; at the
 prompt on its own, `!mf` is refused.
 
 ### Tuplets, repeats, grace notes, ornaments, chord symbols
@@ -176,14 +176,14 @@ repeat 2 [c4 d e f]
 
 ## Playing it back
 
-`->` plays now and stops what plays; `->>` plays at the next boundary;
+`->` plays now and stops what plays; `-|>` plays at the next boundary;
 a `+` joins instead of replacing. `stop` (or Alt+.) stops everything,
 `pause` (Alt+,) pauses and goes on.
 
 ```
 [c d e f g] ->
 [c d e f g] [~] ->          loop it until stop
-[e f g a b] ->>             takes over at the end of the current pass
+[e f g a b] -|>             takes over at the end of the current pass
 [c d] [e f] {2} ->          two parts at once
 ```
 
@@ -205,15 +205,15 @@ voice plays the music it was given, so you can prepare a change at
 leisure and let it take over at a moment you choose:
 
 ```
-[bass: f2 c] [~] ->>         :bass changes at the end of its pass
-[mel: g8 a b c] [~] | ->>    at the next bar line instead
+[bass: f2 c] [~] -|>         :bass changes at the end of its pass
+[mel: g8 a b c] [~] | -|>    at the next bar line instead
 :mel hush                   silence :mel, keeping its place; again to undo
 :bass solo                  only :bass sounds; again to undo
-3 <- 12 + 3 ->>               voice 3, an octave up, at its boundary
+3 <- 12 + 3 -|>               voice 3, an octave up, at its boundary
 ```
 
 `3 <-` puts what voice 3 plays on the stack, `12 +` moves it up an
-octave, and `3 ->>` plays it as voice 3. Voices go by index from low to
+octave, and `3 -|>` plays it as voice 3. Voices go by index from low to
 high (`1` the lowest), the drums from `0` down.
 
 A voice can also play a **recipe**: a quotation that makes the music,
@@ -223,12 +223,12 @@ note:
 
 ```
 | '( duration/euclid [c e g] pitches zip [~] ) :riff ->
-:riff @^{ k:5 } set         five beats instead of three, heard at once
+:riff @^{ onsets:5 } set         five beats instead of three, heard at once
 :riff settings              every setting and its range
 [c d e g] [~] '( 5 + ) :up ->   the loop, a fourth higher
 ```
 
-`doc/md/mu-tutorial.md` (section 16) and `doc/md/algo-tree-tutorial.md`
+`doc/md/mu-tutorial.md` (section 16) and `doc/md/raw-algo-cookbook.md`
 go on from here.
 
 ## Files
@@ -280,7 +280,7 @@ prompt stay two views of the same settings.
 ## Where to go next
 
 - `doc/md/mu-tutorial.md`: every music word, section by section.
-- `doc/md/algo-tree-tutorial.md`: algorithms as words, trees and recipes.
+- `doc/md/raw-algo-cookbook.md`: algorithms as words, trees and recipes.
 - `doc/md/parsing.md`: the full notation.
 - `doc/md/lilypond.md`: LilyPond to musics, construct by construct.
 - `doc/md/setup.md`: sound output, and MIDI input from a keyboard.

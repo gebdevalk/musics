@@ -5,7 +5,7 @@
    Each REPL action is one entry in `actions`: what it needs, what it
    gives, how to call it. The facts that hold are read fresh: the
    current state (`state`) plus history -- what the actions in the
-   activity log gave that no state shows (a tree made, a file
+   activity log gave that no state shows (a file
    rendered). core.logic relates facts and actions:
 
      actiono   an action with its needs and gives
@@ -19,7 +19,7 @@
 
    Every action is recorded with musics.registries/log! by the function
    its :var names, under its own key or :logs (test/musics/assist_test.clj
-   holds that line)."
+   holds that seq)."
   (:refer-clojure :exclude [==])
   (:require [clojure.core.logic :refer [== all conde conso emptyo fresh membero
                                         nafc or* run run* fail]]
@@ -45,16 +45,8 @@
     :var 'musics.engine/stop!     :call "(stop!)"                        :doc "stop everything"}
    {:action :render     :needs [:committed]       :gives [:rendered]
     :var 'musics.midi.file/render    :call "(render :name \"name.mid\")"    :doc "write a MIDI file"}
-   {:action :build-tree :needs []                 :gives [:tree :tctx]
-    :var 'musics.algo.tree/build-tree  :call "(def tt (build-tree))"          :doc "compose an algo tree by drag and drop -> [tree tctx]"}
-   {:action :tctx       :needs [:tree]            :gives [:tctx]
-    :var 'musics.algo.tree/tctx        :call "(def tc (t/tctx tree))"         :doc "settings for a tree"}
-   {:action :gui        :needs [:tree]            :gives [:tctx]
-    :var 'musics.algo.tree/gui         :call "(def tc (gui tree))"            :doc "settings window with a preview"}
-   {:action :live!      :needs [:tree :tctx]      :gives [:live :playing :played]
-    :var 'musics.algo.tree/live!       :call "(t/live! :riff tree tc)"        :doc "play a tree live; settings heard at once"}
-   {:action :play-algo  :needs [:committed :live] :gives [:playing :played] :logs :play
-    :var 'musics.engine/play-connected      :call "(play :name :algo :riff)"       :doc "play material through a live tree"}
+   {:action :live-word  :needs []                 :gives [:live :playing :played]
+    :var 'musics.mu.live/play-word!    :call "5 8 'riff :bass ->"             :doc "play a word with $ inputs live; an input stored is heard at once"}
    {:action :connect    :needs []                 :gives [:connected]
     :var 'musics.engine/connect!   :call "(connect)"                      :doc "open MIDI (play does it for you)"}])
 
@@ -84,8 +76,7 @@
 
 (defn history
   "Facts the logged actions needed or gave that no state shows -- an
-   action taken proves its needs held, so (t/tctx tree) shows a tree
-   exists, even one written by hand."
+   action taken proves its needs held."
   []
   (into #{} (comp (map :action) (keep by-action) (mapcat #(concat (:needs %) (:gives %)))
                   (remove observable))
@@ -176,7 +167,7 @@
 
 (defn- redone
   "How many facts plan p gives that already hold -- the tie-break between
-   equally short plans, so a tree made already isn't made again."
+   equally short plans, so a step taken already isn't taken again."
   [have p]
   (count (filter (set have) (mapcat (comp :gives by-action) p))))
 
@@ -230,9 +221,7 @@
      (explain)               what holds, what you can do now, the way to
                              hearing something
      (explain :live)         the steps to a fact or an action, or why the
-                             action can't be taken yet
-     (explain :pulse :pitch) algo trees from one type to another
-                             (musics.algo.logic.tree/how)"
+                             action can't be taken yet"
   ([]
    (let [have (facts)
          path (plan have :playing)]
@@ -253,11 +242,4 @@
                               (str/join " " (sort (distinct (mapcat #(concat (:needs %) (:gives %)) actions)))))
        (empty? path) (println goal "holds already.")
        :else         (do (println "To reach" (str goal ":"))
-                         (doseq [k path] (println (step-line k)))))))
-  ([from to]
-   (let [how   (requiring-resolve 'musics.algo.logic.tree/how)
-         show  (requiring-resolve 'musics.algo.logic.tree/show)
-         trees (how from to)]
-     (if (seq trees)
-       (doseq [tr trees] (println " " (show tr)))
-       (println "No tree turns a" from "into a" to "within 3 levels.")))))
+                         (doseq [k path] (println (step-line k))))))))

@@ -9,11 +9,10 @@
    (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
-            [musics.common.context-keys :as ck]
-            [musics.common.music-data :as data]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
+            [musics.mu.inputs :as inputs]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
@@ -29,7 +28,7 @@
 
 (defonce state (atom (fresh-state)))
 
-(defonce ^{:doc "How a line printed while mu waits for input reaches the terminal:
+(defonce ^{:doc "How a seq printed while mu waits for input reaches the terminal:
    println, or the line reader's printAbove (above the prompt)."}
   print-above (atom println))
 
@@ -52,7 +51,7 @@
   (let [r (g/parse name)]
     (and (not (g/failure? r)) (= 1 (count (rest r))) (v/leaf-node? (second r)))))
 
-(defn- check-name!
+(defn check-name!
   "Refuse a word name that is a leaf: bare it would always
    be the note, never the word."
   [name]
@@ -127,17 +126,47 @@
   [v]
   (str/ends-with? (str (:name (meta v))) "!"))
 
+(defn- split-tail
+  "[fixed tail] of an arglist: its arguments before a `&`, and the form after it
+   (a destructuring map such as {:keys [rotation]}, or a symbol), nil without one."
+  [al]
+  (let [[fixed more] (split-with #(not= '& %) al)]
+    [(vec fixed) (second more)]))
+
+(defn- tail-keys
+  "The keywords a `& {:keys [..]}` tail reads, nil for any other tail."
+  [tail]
+  (when (and (map? tail) (:keys tail)) (set (map keyword (:keys tail)))))
+
+(defn- keyword-pairs
+  "How many :key value pairs on top of stack belong to a keyword tail: pairs
+   whose key the tail reads (any keyword for a tail that names none), leaving
+   the nfixed arguments below them."
+  [stack tail nfixed]
+  (let [ks (tail-keys tail)]
+    (loop [n 0]
+      (let [i (- (count stack) (* 2 (inc n)))]
+        (if (and (>= i nfixed) (keyword? (stack i)) (or (nil? ks) (ks (stack i))))
+          (recur (inc n))
+          n)))))
+
 (defn- arity-for
-  "The arglist of v to call with what stack holds: the longest one whose
-   arguments past the shortest's all pass their :optional test (v's
-   :mu metadata, by argument name) on the values in their places; a
-   longer arity whose arguments have no test is never taken."
+  "The fixed arguments of v to call with what stack holds (an arglist up to
+   its `&`): the longest one whose arguments past the shortest's all pass
+   their :optional test (v's :mu metadata, by argument name) on the values in
+   their places; a longer arity whose arguments have no test is never taken --
+   unless the function is an algorithm that names its full arity (:algo :arity),
+   taken when the stack has that many."
   [v stack]
-  (let [lists    (sort-by count (:arglists (meta v)))
+  (let [lists    (sort-by count (map (comp first split-tail) (:arglists (meta v))))
         base     (count (first lists))
         optional (:optional (:mu (meta v)))
-        choose   (:arity (:mu (meta v)))]
+        choose   (:arity (:mu (meta v)))
+        ;; an algorithm says how many arguments a full call takes (:algo :arity):
+        ;; called as a word it takes them all, its defaults being the registry's
+        full     (:arity (:algo (meta v)))]
     (or (when choose (let [n (choose stack)] (first (filter #(= n (count %)) lists))))
+        (when (and full (<= full (count stack))) (first (filter #(= full (count %)) lists)))
         (last (filter (fn [al]
                         (let [extra (drop base al)]
                           (and (<= (count al) (count stack))
@@ -159,16 +188,24 @@
 (defn- run-var
   "Run the Clojure function v as the word name: its arguments taken from
    stack, music first; its value pushed, unless it is done for its effect.
-   An error it throws is a mu error, named by the word."
+   A keyword tail (& {:keys [..]}) takes the :key value pairs written just before the
+   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. An error it throws is a mu error,
+   named by the word."
   [stack name v]
   (let [al   (arity-for v stack)
         _    (try (need stack (count al) name)
                   (catch clojure.lang.ExceptionInfo ex
                     (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
-        n    (- (count stack) (count al))
+        tail (some (fn [a] (let [[f t] (split-tail a)] (when (and (= f al) (map? t)) t))) (:arglists (meta v)))
+        n    (- (count stack) (count al) (if tail (* 2 (keyword-pairs stack tail (count al))) 0))
         r    (try (apply @v (subvec stack n))
-                  (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))]
-    (if (effect-word? v) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
+                  (catch clojure.lang.ExceptionInfo ex (throw (named name ex)))
+                  ;; a function's :pre condition, an Error and not an Exception
+                  (catch AssertionError ex
+                    (mu-error (str name ":") "refused, it needs"
+                              (or (second (re-find #"Assert failed: (?:.*\n)?\(?(.*?)\)?\s*$" (str (ex-message ex)))) "its arguments right"))))]
+    ;; a ! function leaves nothing; so does one that answers :mu/nothing
+    (if (or (effect-word? v) (= :mu/nothing r)) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
 
 (defn- binds?
   "Is this stack-effect input one that binds a local ($name)?"
@@ -212,6 +249,13 @@
     (when effect (check-effect! name effect (count stack) args result))
     result))
 
+(defn live-inputs
+  "For a word written with : … ; that has $ inputs: its inputs as [name live?]
+   pairs in the order of its stack effect (live? true for a $ input); else nil."
+  [name]
+  (when-let [in (some-> (lookup @state name) :effect :in)]
+    (when (some binds? in) (mapv (fn [s] [(plain s) (binds? s)]) in))))
+
 (defn run-word
   "Run the word called name on stack."
   [stack name]
@@ -225,42 +269,17 @@
       :else
       (run-defined stack name entry))))
 
-(def ^:dynamic *head*
-  "While a quotation that opens with an @^{ } runs: that @^{ }'s settings,
-   {name value}, read by every algo word in it (musics.mu.algos) after its
-   own local @^{ } -- the recipe's head. The nearest quotation's wins."
-  nil)
-
-(defn head-of
-  "The settings of a quotation's opening @^{ }, {name value}, else nil."
-  [{:keys [body env]}]
-  (when-let [i (some-> (first body) (#(when (= :Settings (first %)) %)) meta :mu/index)]
-    (into {} (:params (v/node (nth (:values env) i))))))
-
 (defn call
-  "Run a quotation on stack; one that opens with an @^{ } runs with it as
-   its head (*head*)."
+  "Run a quotation on stack."
   [stack q]
   (when-not (v/quotation? q) (mu-error "call: expected a quotation '( … ), got" (p/show q)))
-  (cond
-    (fn? q)      (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
-    (head-of q)  (binding [*head* (head-of q)] (run-items stack (rest (:body q)) (:env q)))
-    :else        (run-items stack (:body q) (:env q))))
+  (if (fn? q)
+    (do (need stack 1 "a Clojure fn") (conj (pop stack) (q (peek stack))))
+    (run-items stack (:body q) (:env q))))
 
 (defn- node-name [node]
   (let [x (second node)]
     (if (vector? x) (second x) x)))
-
-(defn- key-hint
-  "For a bare !name that names a context key (!volume, !i, !K) and is no
-   mark: the way to read it, since a bare instruction reads nothing at
-   the top level; else nil."
-  [node]
-  (let [[_ [tag [_ n] & more]] node
-        kw (some-> n keyword)]
-    (when (and (= :BangConst tag) (nil? more) kw (not (data/instruction-context kw))
-               (try (ck/context-key kw) true (catch clojure.lang.ExceptionInfo _ false)))
-      (str "-- the key is read after the music with :" n " setting"))))
 
 (defn- run-item
   "Run one parse node on stack, in env ({:locals :values}): values maps a
@@ -273,7 +292,8 @@
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
-    :IdName    (conj stack (keyword (second node)))
+    :IdName    (let [[_ id input] node]
+                 (conj stack (if input (inputs/ref-of (keyword id) input) (keyword id))))
     :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
@@ -284,9 +304,9 @@
     :TopCommand
     (mu-error "a command needs a line: write" (str "[" (:source (meta node)) "]")
               "-- or the word after the music: x c d transpose, x [R]")
+    ;; an instruction written alone is a context holding it: x !tempo:89 with
     :LooseInstruction
-    (mu-error "an instruction needs a container: write [" (str (:source (meta node)) " …]")
-              "or give a context, ^{" (str (:source (meta node))) "}" (key-hint node))
+    (conj stack ((requiring-resolve 'musics.mu.material/read-text) (str "^{ " (:source (meta node)) " }")))
     :QuotedName (conj stack (symbol (node-name node)))
     :VarRef    (let [n (node-name node) b (:bindings @state)]
                  (if (contains? b n)
@@ -308,27 +328,26 @@
                (let [[below xs] (to-mark stack)]
                  (when (empty? xs) (mu-error "(): has nothing on the stack to gather"))
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
-               ;; what it makes follows its first value: music a line, plain values a '[ ]
+               ;; what it makes follows its first value: music a seq, plain values a '[ ]
                (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
-    ;; an algo tree, built by musics.recipe (which builds on what eval runs)
-    :TreeRecipe (conj stack ((requiring-resolve 'musics.recipe/build) node env))
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))
       (mu-error "can't run" (pr-str (first node))))))
 
 (defn- name-asked-for
-  "When node is help, see, about, marks (or settings, with no voice on top) and the next item is a plain word, that
+  "When node is help, see, about, marks, value (or settings, with no voice on top) and the next item is a plain word, that
    word's name: help dup, see dup and about tempo read the word as Forth's see
-   does, not run it ('dup help and \"dup\" help are the same). Else nil."
+   does, not run it ('dup help and \"dup\" help are the same); 5 value five,
+   5 variable five and 7 to five read the name they define or change. Else nil."
   [stack node following]
   (when (and (vector? node) (= :Word (first node))
-             (or (#{"help" "see" "about" "marks"} (node-name node))
+             (or (#{"help" "see" "about" "marks" "variable" "value" "to"} (node-name node))
                  (and (= "settings" (node-name node))
                       (not (let [t (peek stack)] (or (keyword? t) (integer? t))))))
              (vector? following))
@@ -432,7 +451,7 @@
           shown    (take 12 literals)]
       (str "can't read this (line " line ", column " column "):\n" src "\n" (apply str (repeat (dec (or column 1)) \space)) "^"
            (when (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))
-             "\na { } holds lines, one a voice: {[c] [d]}; <c d> is a chord, [c d] a line")
+             "\na { } holds seqs, one a voice: {[c] [d]}; <c d> is a chord, [c d] a seq")
            (when (and (seq shown) (not (re-find #"\{\s*[^\s\[\]{}]+$" (subs text 0 (min (count text) (:index failure))))))
              (str "\nexpected " (str/join " " (map #(str "`" % "`") shown)) (when (> (count literals) 12) " …")
                   ", or more music or a word"))

@@ -15,7 +15,6 @@
             [musics.algo.bridge :as bridge]
             [musics.algo.harmonic.walking-bass :as walking-bass]
             [musics.algo.melodic.serial :as serial]
-            [musics.algo.tree.lib :as lib]
             [musics.common.music-data :as data]
             [musics.common.context-keys :as ck]
             [musics.common.music-elements :as el]
@@ -38,14 +37,14 @@
 
 (defn- changing-keys
   "{key envelope} of the settings ctx changes after its start: what a
-   line's own instructions written among its notes do."
+   seq's own instructions written among its notes do."
   [ctx]
   (into {} (for [[k env] (some-> ctx :envelopes-atom deref)
                  :when (some pos? (some-> env :points-atom deref keys))]
              [k env])))
 
 (defn- bake
-  "x with each note's value of what its line's instructions change (a
+  "x with each note's value of what its seq's instructions change (a
    !f, a ramp) written into the note as its own override, read where the
    note is written: so the music sounds the same retrograde, the
    instructions themselves left behind. A note's own override wins."
@@ -68,7 +67,7 @@
 (declare retrograde)
 
 (defn- backwards
-  "An element of a line as it plays backwards: a nested line retrograde
+  "An element of a seq as it plays backwards: a nested seq retrograde
    too, a parallel's parts each, a repeat's body (one with endings is
    refused: no repeat plays its passes backwards)."
   [x]
@@ -96,14 +95,14 @@
 
 (defn retrograde
   "x as its retrograde (the crab), backwards, at any depth -- its elements
-   retrograde (nested lines, parallels' parts and repeats' bodies too),
+   retrograde (nested seqs, parallels' parts and repeats' bodies too),
    ties turned round, what its own instructions change written into the
-   notes; a line with jumps ($ DS DC Fine Coda ./.) is refused -- write
-   it out first ([!]). Exactly [R]: [ R ] is a line with a bar's rest."
+   notes; a seq with jumps ($ DS DC Fine Coda ./.) is refused -- write
+   it out first ([!]). Exactly [R]: [ R ] is a seq with a bar's rest."
   {:mu {:names ["[R]"]}}
   [x]
   (when (and (v/material? x) (not (mt/repetition? x)) (some d/jump? (:children (v/node x))))
-    (e/mu-error "[R]: a line with jumps can't be played backwards -- write it out first with [!]"))
+    (e/mu-error "[R]: a seq with jumps can't be played backwards -- write it out first with [!]"))
   (cond
     (mt/repetition? x)                 (backwards x)
     (or (mt/leaf? x) (v/material? x))  (mt/reshape (bake x) #(tie-backwards (mt/finite! "[R]" %)))
@@ -162,14 +161,14 @@
   (when (= :DRUM (:type x)) (:program x)))
 
 (defn- onto
-  "x with (f note value) for each note of the line in written order, the
+  "x with (f note value) for each note of the seq in written order, the
    stream's values in turn, a rest using its value unused, as zip does;
    a nil writes nothing, and notes past the stream's end stay as they
-   are. The line keeps its
-   form: repeats, loops and nested lines."
+   are. The seq keeps its
+   form: repeats, loops and nested seqs."
   [word f x vs]
   (when-not (or (mt/leaf? x) (v/material? x))
-    (e/mu-error (str word ":") "puts a stream onto a line or a note, got" (p/show x)))
+    (e/mu-error (str word ":") "puts a stream onto a seq or a note, got" (p/show x)))
   (let [cur (volatile! (seq (mt/elements (mt/streamed vs))))
         put (fn [l]
               (if-let [[v & more] @cur]
@@ -199,7 +198,7 @@
    an error."
   [word x n]
   (when (zero? n) (e/mu-error (str word ":") "needs 1 or more times"))
-  (when (and (mt/music? x) (empty? (mt/elements x))) (e/mu-error (str word ":") "an empty line has nothing to repeat"))
+  (when (and (mt/music? x) (empty? (mt/elements x))) (e/mu-error (str word ":") "an empty seq has nothing to repeat"))
   (if (mt/music? x)
     (mt/repetition x n [])
     (let [x (mt/finite! word x)]
@@ -208,12 +207,12 @@
         (mt/repeated x n)))))
 
 (defn- played-leaves
-  "x's notes, chords and rests in the order they play: nested lines and
+  "x's notes, chords and rests in the order they play: nested seqs and
    repeats (pass after pass, with their endings) walked through."
   [word x]
   (cond
     (mt/leaf? x)                                    [x]
-    (= :PAR (mt/kind x))                            (e/mu-error (str word ":") "walks under one line of chords, not a parallel")
+    (= :PAR (mt/kind x))                            (e/mu-error (str word ":") "walks under one seq of chords, not a parallel")
     (and (mt/repetition? x) (= :infinite (mt/repeat-count x)))
     (e/mu-error (str word ":") "needs all of the chords, and an endless repeat has no end -- repeat it a number of times")
     (or (v/material? x) (sequential? x))            (mapcat #(played-leaves word %) (mt/elements x))
@@ -247,7 +246,7 @@
    stream gives its elements as an endless stream; take from either."
   {:mu {:names ["[~]"]}}
   [x]
-  (when (and (mt/music? x) (empty? (mt/elements x))) (fail "an empty line loops without end"))
+  (when (and (mt/music? x) (empty? (mt/elements x))) (fail "an empty seq loops without end"))
   (if (mt/music? x)
     (mt/repetition x :infinite [])
     (mt/repeated (mt/finite! "[~]" x) :infinite)))
@@ -256,7 +255,7 @@
   "x in repeat signs, played twice."
   {:mu {:names ["[:]"]}}
   [x]
-  (when (empty? (mt/elements x)) (fail "an empty line has nothing to repeat"))
+  (when (empty? (mt/elements x)) (fail "an empty seq has nothing to repeat"))
   (mt/repetition x 2 [] true))
 
 (defn unfold
@@ -266,7 +265,7 @@
   (mt/written-out x))
 
 (defn measures
-  "x split by its meter into its measures, each a line of its own:
+  "x split by its meter into its measures, each a seq of its own:
    [c2 d2 e2] [[]] gives [[C4/2 D4] [E4]], a note across a bar line cut
    and tied as [|] does."
   {:mu {:names ["[[]]"]}}
@@ -274,7 +273,7 @@
   (mt/measures x))
 
 (defn- pitch-numbers
-  "The pitch numbers of x: a note, a chord, a line (rests and drums have
+  "The pitch numbers of x: a note, a chord, a seq (rests and drums have
    none), a data list or stream of numbers, or a set of classes."
   [word x]
   (let [ps (cond
@@ -283,12 +282,12 @@
              (mt/leaf? x)     (:pitches x)
              (v/material? x)  (mapcat :pitches (mt/played-leaves (mt/finite! word x)))
              (sequential? x)  (mt/numbers-of word x)
-             :else            (fail "needs a line, a chord or pitch numbers, got" (p/show x)))]
+             :else            (fail "needs a seq, a chord or pitch numbers, got" (p/show x)))]
     (when-not (every? integer? ps) (fail "needs whole pitch numbers, got" (p/show (first (remove integer? ps)))))
     (vec ps)))
 
 (defn classes
-  "The pitch classes of a line, a chord or a list of pitch numbers: each
+  "The pitch classes of a seq, a chord or a list of pitch numbers: each
    pitch's place above C in the octave (C 0 … B 11), every one once, the
    smallest first, as a set $[047]: [c e g c'] classes gives $[047].
    Rests and drums have none"
@@ -296,7 +295,7 @@
   (pcset/make :classes (pitch-numbers "classes" x)))
 
 (defn prime-form
-  "The prime form of the classes of x, a line, a chord, pitch numbers or
+  "The prime form of the classes of x, a seq, a chord, pitch numbers or
    a set: the most packed of their rotations and of their inversion's,
    from 0 (Forte): [c e g] prime-form gives $(037), the major and the
    minor triad alike"
@@ -305,7 +304,7 @@
 
 (defn interval-vector
   "How many times each interval class 1-6 occurs between the classes of
-   x (a line, a chord, pitch numbers or a set): [c e g] interval-vector
+   x (a seq, a chord, pitch numbers or a set): [c e g] interval-vector
    gives $<001110>"
   [x]
   (let [cs (:items (pcset/make :classes (pitch-numbers "interval-vector" x)))]
@@ -321,11 +320,11 @@
     :else (fail "needs a set or a list, got" (p/show x))))
 
 (defn- class-weights
-  "The time each pitch class sounds in a line or a chord, a vector of
+  "The time each pitch class sounds in a seq or a chord, a vector of
    twelve ratios, C first: a chord's time shared among its pitches."
   [word x]
   (when-not (or (mt/leaf? x) (v/material? x))
-    (fail (if (sequential? x) "needs music with durations, not data -- for pitch numbers use classes" "needs a line or a chord, got") (p/show x)))
+    (fail (if (sequential? x) "needs music with durations, not data -- for pitch numbers use classes" "needs a seq or a chord, got") (p/show x)))
   (let [leaves (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! word x)))]
     (reduce (fn [w leaf]
               (let [ps (seq (:pitches leaf))]
@@ -335,7 +334,7 @@
             (vec (clojure.core/repeat 12 0)) leaves)))
 
 (defn profile
-  "How much each pitch class counts in a line, as twelve scores from 0 to
+  "How much each pitch class counts in a seq, as twelve scores from 0 to
    1 (C first, B last): the time each class sounds, a chord's time shared
    among its pitches, divided by the largest so the strongest scores 1, as
    exact ratios: [c4 e4 g4 c2] profile gives '[1 0 0 0 1/3 0 0 1/3 0 0 0 0]"
@@ -368,13 +367,13 @@
     (when (and (pos? sxx) (pos? syy)) (/ sxy (Math/sqrt (* sxx syy))))))
 
 (defn key-of
-  "The key a line, a chord, a set of classes or a list of pitch numbers
+  "The key a seq, a chord, a set of classes or a list of pitch numbers
    most likely is in, major or minor, Krumhansl and Schmuckler's way: the
    class weights (time for music, once each for a set, how often for
    numbers) correlated with Krumhansl and Kessler's major and minor
    profile from each of the twelve tonics, the best of the 24:
    [c d e f g a b c'] key-of gives C.major. A guess, and a short phrase can
-   fit two keys nearly as well; key is the key a line was written in"
+   fit two keys nearly as well; key is the key a seq was written in"
   [x]
   (let [w (cond
             (v/pcset? x)     (do (when (= :vector (:kind x)) (fail "reads classes, not an interval vector"))
@@ -416,7 +415,7 @@
   "The name of a chord as a chord symbol is written, root, a colon and a
    quality word, a slash and the lowest note when it is not the root:
    <c e g>1 chord-name gives \"C:M\", <e g c'> \"C:M/E\", <c e& g b&> \"C:m7\".
-   Of a line, a set of classes or a list of pitch numbers, the chord
+   Of a seq, a set of classes or a list of pitch numbers, the chord
    they make together. The root is the lowest note when it fits (C6, not
    Am7/C); without a lowest note the simplest quality, lowest root first
    (Am7 before C6). Refused when no chord symbol quality fits"
@@ -450,19 +449,19 @@
 (defn- ratio-gcd [a b] (if (zero? b) a (recur b (mod a b))))
 
 (defn pulses
-  "A line's rhythm as a grid of pulses: a 1 where a note starts, a 0
+  "A seq's rhythm as a grid of pulses: a 1 where a note starts, a 0
    while it holds or a rest is silent, a chord one onset, a tie's second
    note a hold. The pulse is the largest note value every length is a
    whole number of; a pulse on top (1/8) is the grid instead, each length
    rounded to a whole number of them, at least one -- what the algos'
    pulses->durations reads back: [c4 d8 e8 f2] pulses gives
    '[1 0 1 1 1 0 0 0]"
-  {:mu {:optional {:pulse number?}}}
+  {:mu {:names ["pul"] :optional {:pulse number?}}}
   ([x] (pulses x nil))
   ([x pulse]
    (when-not (or (mt/leaf? x) (v/material? x))
-     (fail (if (sequential? x) "needs music with durations, not data, got" "needs a line, got") (p/show x)))
-   (when (par-inside? x) (fail "needs one line, not parallel parts: take a part with nth first"))
+     (fail (if (sequential? x) "needs music with durations, not data, got" "needs a seq, got") (p/show x)))
+   (when (par-inside? x) (fail "needs one seq, not parallel parts: take a part with nth first"))
    (let [leaves (filterv #(pos? (or (:duration %) 0))
                          (if (mt/leaf? x) [x] (mt/played-leaves (mt/finite! "pulses" x))))
          unit   (if pulse (amount "pulses" pulse true) (reduce ratio-gcd (map :duration leaves)))
@@ -479,7 +478,7 @@
      (mt/read-text (str "'[" (str/join " " steps) "]")))))
 
 (defn- length-of
-  "x's length in whole notes, as written: a line's parts one after the
+  "x's length in whole notes, as written: a seq's parts one after the
    other, a parallel's longest part."
   [x]
   (cond (mt/leaf? x)   (:duration x)
@@ -496,13 +495,13 @@
     (mt/leaf? x)   (if (< t (:duration x)) [x nil] [nil (- t (:duration x))])
     (mt/marker? x) [nil t]
     (v/material? x)
-    (do (when (= :PAR (mt/kind x)) (fail "needs a line, not parallel parts: take one with nth first"))
+    (do (when (= :PAR (mt/kind x)) (fail "needs a seq, not parallel parts: take one with nth first"))
         (reduce (fn [[_ left] e] (let [[hit left'] (note-at e left)] (if hit (reduced [hit nil]) [nil left'])))
                 [nil t] (mt/finite! "at" (mt/elements x))))
     :else [nil t]))
 
 (defn at
-  "The note, rest or drum sounding t whole notes into the line, counted
+  "The note, rest or drum sounding t whole notes into the seq, counted
    from its start as written: [c4 d4 e2] 1/4 at gives D4/4, 3/8 at the
    same (a note sounds until the next starts)"
   [x t]
@@ -512,7 +511,7 @@
       (fail t "is past the end of" (p/show x) "-- it is" (length-of x) "long")))
 
 (defn- bars-slots
-  "The children of x's measures start up to end as one line's: every
+  "The children of x's measures start up to end as one seq's: every
    setting written before them first (what is in effect where they
    begin), then the measures' own children, the settings between them
    in place."
@@ -532,8 +531,8 @@
                      (subvec slots from upto)))])))
 
 (defn bar
-  "The n-th measure of the line by its meter, counted from 0 as nth
-   counts, a line of its own with the settings in effect where it
+  "The n-th measure of the seq by its meter, counted from 0 as nth
+   counts, a seq of its own with the settings in effect where it
    begins: [c2 d2 e2 f2] 1 bar gives [E4/2 F4]"
   [x n]
   (when-not (integer? n) (fail "needs a bar counted from 0, got" (p/show n)))
@@ -541,7 +540,7 @@
     (mt/from-items outer slots)))
 
 (defn bars
-  "The measures from start up to (not including) end, one line, with
+  "The measures from start up to (not including) end, one seq, with
    the settings in effect where they begin: [c2 d2 e2 f2 c2 d2] 1 3 bars
    gives the second and third measure's notes together"
   [x start end]
@@ -592,61 +591,70 @@
 ;; -- reading notes ----------------------------------------------------------
 
 (defn- one-note
-  "f of the note, chord, rest or drum x; on a line, a pointer to plural,
+  "f of the note, chord, rest or drum x; on a seq, a pointer to plural,
    which reads every note."
   [word plural f x]
   (cond
     (mt/leaf? x) (f x)
-    (or (v/material? x) (sequential? x)) (fail "reads one note; for every note of a line, use" (or plural (str "'( " word " ) map")))
+    (or (v/material? x) (sequential? x)) (fail "reads one note; for every note of a seq, use" (or plural (str "'( " word " ) map")))
     :else (fail "reads a note, chord, rest or drum, got" (p/show x))))
 
 (defn- each-note
-  "f of every note of x (a line, a note, a stream of them) as a stream;
+  "f of every note of x (a seq, a note, a stream of them) as a stream;
    without rests? a rest gives no value."
   [word f rests? x]
   (if (musical? x)
     (read-notes word f rests? x)
-    (fail "reads a line, got" (p/show x))))
+    (fail "reads a seq, got" (p/show x))))
 
 (defn pitch
-  "The pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum; for a line, pitches"
+  "The pitch: 60 for c4, '[60 64 67] for <c e g>, nil for a rest or drum; for a seq, pitches"
+  {:mu {:names ["pit"]}}
   [note] (one-note "pitch" "pitches" note-pitch note))
 (defn pitches
   "Each note's pitch, as a stream, a rest's too: x durations x pitches zip is x again"
+  {:mu {:names ["pits"]}}
   [line] (mt/as-part :pitch (each-note "pitches" note-pitch true line)))
 (defn duration
-  "How long it is, in whole notes: a note's; a line's as written (jumps not
+  "How long it is, in whole notes: a note's; a seq's as written (jumps not
    followed, [!] first writes them out), a { } its longest part: [c4 d4 e2]
    duration gives 1. durations gives every note's."
+  {:mu {:names ["dur"]}}
   [x]
   (cond
     (mt/leaf? x)    (one-note "duration" "durations" :duration x)
     (v/material? x) (let [n (length-of x)] (if (integer? n) (long n) n))
-    :else           (fail "needs a note or a line, got" (p/show x))))
+    :else           (fail "needs a note or a seq, got" (p/show x))))
 (defn durations
   "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
+  {:mu {:names ["durs"]}}
   [line] (mt/as-part :duration (each-note "durations" :duration true line)))
 (defn- own-volume [x] (get-in x [:overrides :volume]))
 (defn volume
-  "Its own volume (c4\\f, c4\\vol:90), else nil; for a line, volumes"
+  "Its own volume (c4\\f, c4\\vol:90), else nil; for a seq, volumes"
+  {:mu {:names ["vol"]}}
   [note] (one-note "volume" "volumes" own-volume note))
 (defn volumes
   "Each note's volume, as a stream, a rest's nil: x x volumes zip is x again"
+  {:mu {:names ["vols"]}}
   [line] (mt/as-part :volume (each-note "volumes" own-volume true line)))
 (defn articulation
-  "Its articulation (:staccato, :accent …), else nil; for a line, articulations"
+  "Its articulation (:staccato, :accent …), else nil; for a seq, articulations"
+  {:mu {:names ["art"]}}
   [note] (one-note "articulation" "articulations" articulation-name note))
 (defn articulations
   "Each note's articulation, as a stream, a rest's nil: x x articulations zip is x again"
+  {:mu {:names ["arts"]}}
   [line] (mt/as-part :articulation (each-note "articulations" articulation-name true line)))
 (defn instrument
-  "Its own instrument (c4\\i:40); nil for a drum or none; for a line, instruments"
+  "Its own instrument (c4\\i:40); nil for a drum or none; for a seq, instruments"
+  {:mu {:names ["ins"]}}
   [note] (one-note "instrument" "instruments" instrument-of note))
 (defn instruments
   "Each note's instrument, as a stream, a rest's nil: x x instruments zip is x again"
   [line] (mt/as-part :instrument (each-note "instruments" instrument-of true line)))
 (defn drum
-  "A drum's key (x8\\38: 38); nil for a note; for a line, drums"
+  "A drum's key (x8\\38: 38); nil for a note; for a seq, drums"
   [note] (one-note "drum" "drums" drum-of note))
 (defn drums
   "Each note's drum, as a stream, a rest's nil: x x drums zip is x again"
@@ -707,15 +715,15 @@
   "The key's tonic, in octave 4"
   [key]
   (when-not (mt/key? key) (fail "needs a key, as D.major, got" (p/show key)))
-  (lib/->part (+ 60 (first (el/key-pitches key))) 1/4))
+  (d/leaf nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
 
 (defn key
-  "The key a note was written in, or a line's own (else the defaults')"
+  "The key a note was written in, or a seq's own (else the defaults')"
   [x]
   (cond
     (mt/leaf? x) (or (:key x) (fail "this note has no written key (written under !acc:explicit, or not written at all)"))
     (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :Key 0)
-    :else (fail "needs a note or a line, got" (p/show x))))
+    :else (fail "needs a note or a seq, got" (p/show x))))
 
 (defn- context-articulation
   "The articulation a note plays with: its own, else the context's
@@ -744,7 +752,7 @@
                      (contains? (:overrides x) k) (get (:overrides x) k)
                      :else (r/sample-leaf x k))
       (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) k 0)
-      :else (fail "needs a note or a line, got" (p/show x))))))
+      :else (fail "needs a note or a seq, got" (p/show x))))))
 
 (defn- amount
   "d as an exact length in whole notes, from 0 (above 0 when positive?)."
@@ -754,21 +762,21 @@
   (rationalize d))
 
 (defn- delayed
-  "line (or a note) with a rest of length d in front of its first element,
+  "seq (or a note) with a rest of length d in front of its first element,
    its own settings staying first."
   [line d]
   (let [line  (if (mt/leaf? line) (mt/line [line]) line)
         slots (mt/items line)
         at    (or (first (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots)) (count slots))]
-    (when-not slots (fail "delays one line, got" (p/show line)))
-    (when (= :PAR (mt/kind line)) (fail "delays one line; for the parts of a parallel use delays"))
+    (when-not slots (fail "delays one seq, got" (p/show line)))
+    (when (= :PAR (mt/kind line)) (fail "delays one seq; for the parts of a parallel use delays"))
     (mt/from-items line (into (subvec slots 0 at) (cons [:el (d/rest* nil nil d)] (subvec slots at))))))
 
 (defn delay
   "x starting d late, a rest of d whole notes in front of it (a
    rational: 1/4, 3/8, 1/3): [a b c] 1/4 delay is [r4 a b c]"
   [x d]
-  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a line, got" (p/show x)))
+  (when-not (or (mt/leaf? x) (v/material? x)) (fail "needs a seq, got" (p/show x)))
   (delayed x (amount "delay" d true)))
 
 (defn delays
@@ -777,7 +785,7 @@
    each part its own, one for each part:
    {[a b c] [a b c] [a b c]} 1/4 delays, {[a b c] [a b c]} '[0 1/3] delays"
   [x d]
-  (when-not (and (v/material? x) (= :PAR (mt/kind x))) (fail "needs a parallel { }, got" (p/show x) "-- for one line use delay"))
+  (when-not (and (v/material? x) (= :PAR (mt/kind x))) (fail "needs a parallel { }, got" (p/show x) "-- for one seq use delay"))
   (let [slots (mt/items x)
         parts (vec (keep-indexed (fn [i [tag]] (when (= tag :el) i)) slots))
         by    (if (or (v/material? d) (sequential? d))
@@ -792,46 +800,42 @@
                        slots (map vector parts (range)))]
     (mt/from-items x slots')))
 
-(defn- setting-text
-  "!key:value as the text reads it, for a key keyword and a value on the
-   stack: a number, a ratio, a key, a meter or a name as it is written, a
-   string bare when it is a name, else quoted."
-  [k v]
-  (let [n (name k)
-        ck (try (ck/context-key k) (catch clojure.lang.ExceptionInfo _ nil))]
-    (when (and ck (#{:float :int} (:type ck)) (not (number? v)) (not (#{"instrument" "kit"} (:name ck))))
-      (fail (str ":" n) "is a number, got" (p/show v)))
-    (str "!" n ":"
-         (cond (number? v)           (if (ratio? v) (str (numerator v) "/" (denominator v)) (pr-str v))
-               (mt/key? v)           (el/key->str v)
-               (instance? musics.common.music_elements.Meter v) (el/meter->str v)
-               (keyword? v)          (name v)
-               (and (string? v) (re-matches #"[a-zA-Z][a-zA-Z0-9_]*" v)) v
-               (string? v)           (pr-str v)
-               :else (fail "can't set" (str ":" n) "to" (p/show v) "-- a number, a ratio, a key, a meter or a name")))))
+(declare with)
+
+(defn- voice-with
+  "The voice id playing its own music with settings in front of it, from the
+   end of its pass (as -|> does); leaves nothing on the stack (:mu/nothing)."
+  [id settings]
+  (let [{:keys [ctx]} (get (mt/live-voices) id)]
+    (when-not (get (mt/live-voices) id)
+      (fail "with:" (pr-str id) "isn't a voice mu plays -- voices lists them"))
+    (mt/stage! (with (mt/playing id) settings) ctx nil false id)
+    :mu/nothing))
 
 (defn with
   "x with the settings in front of it (its own come after, so they win): a
-   context ^{ !mf }, a key D.major, or one key and its value, :volume 70
-   with; a note becomes a line; a { } or a repeat is wrapped"
-  {:mu {:arity (fn [stack] (if (and (>= (count stack) 3) (keyword? (peek (pop stack)))) 3 2))}}
-  ([x k value]
-   (with x (mt/read-text (str "^{ " (setting-text k value) " }"))))
-  ([x settings]
+   context ^{ !mf }, an instruction alone, !tempo:89 with, or a key D.major; a
+   note becomes a seq; a { } or a repeat is wrapped. A voice's id as x
+   (:bass !tempo:140 with) changes the voice playing, from the end of its
+   pass, and leaves nothing on the stack"
+  [x settings]
   (let [ctx (if (mt/key? settings) (mt/read-text (str "^{ !K:" (el/key->str settings) " }")) settings)]
     (when-not (= :CONTEXT (mt/kind ctx))
-      (fail "needs a context ^{ … } or a key (D.major) on top -- or a key and its value, :volume 70 with"))
-    (when (= :CONTEXT (mt/kind x))
-      (fail "needs music under the context, got" (p/show x) "-- a context goes on top of what it is laid under"))
-    (let [settings (str/join " " (map :raw (:children (v/node ctx))))
-          shown    (p/show (mt/->material x))]
-      ;; at the start of a line (or a note made a line); a { } or a
-      ;; repeat wrapped in a line holding them
-      (mt/read-text
-       (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
-                                 (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
-         (str "[" id settings " " body "]")
-         (str "[" settings " " shown "]")))))))
+      (fail "needs an instruction (!tempo:89), a context ^{ … } or a key (D.major) on top"))
+    (cond
+      (keyword? x) (voice-with x ctx)
+      (= :CONTEXT (mt/kind x))
+      (fail "needs music under the context, got" (p/show x) "-- a context goes on top of what it is laid under")
+      :else
+      (let [settings (str/join " " (map :raw (:children (v/node ctx))))
+            shown    (p/show (mt/->material x))]
+        ;; at the start of a seq (or a note made a seq); a { } or a
+        ;; repeat wrapped in a seq holding them
+        (mt/read-text
+         (if-let [[_ id body] (and (or (mt/leaf? x) (and (= :SEQ (mt/kind x)) (not (mt/repetition? x))))
+                                   (re-matches #"(?s)\[([a-zA-Z][a-zA-Z0-9_\-]*: )?(.*)\]" shown))]
+           (str "[" id settings " " body "]")
+           (str "[" settings " " shown "]")))))))
 
 (defn transpose
   "x moved by n semitones, or by the interval from one note to the other,
@@ -846,11 +850,11 @@
 ;; -- harmony ----------------------------------------------------------------
 
 (defn walking-bass
-  "A walking bass under a line of chords, made as it runs, new each
+  "A walking bass under a seq of chords, made as it runs, new each
    time: a quarter a beat, the root on each chord's first, a step into
    the next, on an acoustic bass. With n, as long as the chords n times,
    each time walked anew, the last chord held; without, an ostinato: one
-   line leading back into its own start, to loop with the chords."
+   seq leading back into its own start, to loop with the chords."
   {:mu {:optional {:n integer?}}}
   ([chords] (walking-bass chords nil))
   ([chords n]
