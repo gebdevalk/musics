@@ -84,4 +84,4 @@
     (is (= (mapv #(f % 60 90 0.25 8) (range 9)) (mapv (g 60 90 0.25 8) (range 9))))
     (is (= (mapv #(f % 2 8) (range 9)) (mapv (g 2 8) (range 9))))
     (is (= (f 0.25) ((g) 0.25))))
-  (is (thrown? Exception (trig/sine-fn 1 2 3 4 5))))
+  (is (thrown? Exception (apply trig/sine-fn [1 2 3 4 5]))))
