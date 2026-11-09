@@ -187,6 +187,19 @@
     (leaf/resolve-pitch (pitch-tuple pitch-children) @(:last-pitch state)
                          (key-for-mode chain t))))
 
+(defn- pitch-class-of
+  "The pitch class (0 .. 11) of a capital letter written without an octave, a
+   bare letter taking the key's implied accidental as any note does; nil for
+   every other spelling."
+  [pitch-children state]
+  (let [[letter accidental octave] (pitch-tuple pitch-children)]
+    (when (and letter (re-matches #"[A-G]" letter) (= "" octave))
+      (let [low (first (str/lower-case letter))
+            ks  (key-for-mode (walk-key-chain state) (duration state))]
+        (mod (+ (data/diatonic-pcs low)
+                (if accidental (leaf/accidental-semitones :nederlands accidental) (el/key-letter-offset ks low)))
+             12)))))
+
 (defn- written-key
   "The Key this leaf's bare letters resolve against, kept on the leaf
    as :key so playback can read them under another key
@@ -710,9 +723,14 @@
         ;; element in the container is guaranteed to be one, single,
         ;; checked type -- carrying a per-element tag on top of that
         ;; guarantee would be redundant, not just unread.
-        :Pitch     (let [[midi new-last] (resolve-pitch-from-tree children state)]
-                     (reset! (:last-pitch state) new-last)
-                     (-> state (check-data-element-type! :pitch) (flat/append-child midi)))
+        ;; Three spellings of a note in data: lowercase is relative (the pitch
+        ;; before it decides the octave), a capital with an octave is absolute
+        ;; (C4 = 60), a capital alone is a pitch class (C = 0 .. B = 11), an int.
+        :Pitch     (if-let [pc (pitch-class-of children state)]
+                     (-> state (check-data-element-type! :int) (flat/append-child pc))
+                     (let [[midi new-last] (resolve-pitch-from-tree children state)]
+                       (reset! (:last-pitch state) new-last)
+                       (-> state (check-data-element-type! :pitch) (flat/append-child midi))))
         :DurationNum     (-> state (check-data-element-type! :duration)
                               (flat/append-child (parse-duration (first children))))
         :DurationSpecial (-> state (check-data-element-type! :duration)

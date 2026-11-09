@@ -41,6 +41,16 @@
   (let [[m] (values "[motif: g a]")]
     (is (= :motif (:id m)) "the literal's own id")))
 
+;; three spellings of a note in data: lowercase relative, a capital with an
+;; octave absolute, a capital alone a pitch class
+(defn- data-of [text] (:children (v/node (first (values text)))))
+
+(deftest notes-in-data-are-relative-absolute-or-classes
+  (is (= [60 62 64 65] (data-of "'[c d e f]")) "lowercase: relative, from C4")
+  (is (= [60 72] (data-of "'[C4 C5]")) "capital and octave: absolute")
+  (is (= [0 2 4 5 7 9 11] (data-of "'[C D E F G A B]")) "a capital alone: the class")
+  (is (= [1 1 11 10] (data-of "'[C# D& B B&]")) "accidentals count in a class"))
+
 (deftest nothing-enters-the-repo
   (let [repo (empty-repo)
         text "[c4 d e]"
