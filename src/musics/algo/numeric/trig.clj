@@ -152,3 +152,64 @@
   (mapv #(sinr % 2 10 8) [0 2 4 6 8])
   (mapv #(tanr % 2 10 8) [0 4 8])
   )
+
+;; ---- the same waves as functions of idx alone ------------------------------
+
+(defn- settled
+  "wave as a fn of idx, the settings (period; amp period; lo hi period; lo hi phase period) taken once."
+  [wave settings]
+  (let [[lo hi phase period]
+        (case (count settings)
+          0 [-1 1 0 1]
+          1 [-1 1 0 (first settings)]
+          2 (let [[amp period] settings] [(- amp) amp 0 period])
+          3 (let [[lo hi period] settings] [lo hi 0 period])
+          4 settings
+          (throw (ex-info "a wave fn takes 0 to 4 settings: period; amp period; lo hi period; lo hi phase period" {:settings settings})))]
+    (fn [idx] (wave idx lo hi phase period))))
+
+(defn sine-fn
+  "A sine as a fn of idx alone: (sine-fn period), (sine-fn amp period), (sine-fn lo hi period) or (sine-fn lo hi phase period), as sine without the idx; no settings: a period and amplitude of one."
+  {:algo {:arity 4}}
+  ([] (settled sine []))
+  ([period] (settled sine [period]))
+  ([amp period] (settled sine [amp period]))
+  ([lo hi period] (settled sine [lo hi period]))
+  ([lo hi phase period] (settled sine [lo hi phase period])))
+
+(defn cosine-fn
+  "A cosine as a fn of idx alone; the settings as for sine-fn."
+  {:algo {:arity 4}}
+  ([] (settled cosine []))
+  ([period] (settled cosine [period]))
+  ([amp period] (settled cosine [amp period]))
+  ([lo hi period] (settled cosine [lo hi period]))
+  ([lo hi phase period] (settled cosine [lo hi phase period])))
+
+(defn triangle-fn
+  "A triangle wave as a fn of idx alone; the settings as for sine-fn."
+  {:algo {:arity 4}}
+  ([] (settled triangle []))
+  ([period] (settled triangle [period]))
+  ([amp period] (settled triangle [amp period]))
+  ([lo hi period] (settled triangle [lo hi period]))
+  ([lo hi phase period] (settled triangle [lo hi phase period])))
+
+(defn square-fn
+  "A square wave as a fn of idx alone; the settings as for sine-fn."
+  {:algo {:arity 4}}
+  ([] (settled square []))
+  ([period] (settled square [period]))
+  ([amp period] (settled square [amp period]))
+  ([lo hi period] (settled square [lo hi period]))
+  ([lo hi phase period] (settled square [lo hi phase period])))
+
+(defn saw-fn
+  "A saw wave as a fn of idx alone; the settings as for sine-fn."
+  {:algo {:arity 4}}
+  ([] (settled saw []))
+  ([period] (settled saw [period]))
+  ([amp period] (settled saw [amp period]))
+  ([lo hi period] (settled saw [lo hi period]))
+  ([lo hi phase period] (settled saw [lo hi phase period])))
+

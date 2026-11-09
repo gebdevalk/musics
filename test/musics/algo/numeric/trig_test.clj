@@ -73,3 +73,15 @@
 (deftest waves-stay-between-lo-and-hi
   (doseq [f [trig/sine trig/cosine trig/triangle] i (range 0 16) ph [0 0.3 0.7]]
     (let [v (f i 60 90 ph 8)] (is (<= 59.999 v 90.001)))))
+
+(deftest wave-fns-take-the-settings-once
+  (is (= [75.0 90.0 75.0 60.0] (mapv (trig/sine-fn 60 90 0 8) [0 2 4 6])))
+  (is (= 1.0 ((trig/sine-fn) 0.25)))
+  (is (= 3.0 ((trig/sine-fn 3 8) 2)))
+  (is (= 90.0 ((trig/sine-fn 60 90 8) 2)))
+  (doseq [[f g] [[trig/sine trig/sine-fn] [trig/cosine trig/cosine-fn] [trig/triangle trig/triangle-fn]
+                 [trig/square trig/square-fn] [trig/saw trig/saw-fn]]]
+    (is (= (mapv #(f % 60 90 0.25 8) (range 9)) (mapv (g 60 90 0.25 8) (range 9))))
+    (is (= (mapv #(f % 2 8) (range 9)) (mapv (g 2 8) (range 9))))
+    (is (= (f 0.25) ((g) 0.25))))
+  (is (thrown? Exception (trig/sine-fn 1 2 3 4 5))))
