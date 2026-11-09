@@ -128,9 +128,6 @@
 
 ;; -- quotations ---------------------------------------------------------
 
-(word! "kernel" "call" "( q -- ... )  run the quotation"
-       (fn [s] (need s 1 "call") (e/call (pop s) (peek s))))
-
 ;; -- loop (Forth's do … loop) -------------------------------------------------------------
 
 (def ^:private ^:dynamic *loops*
@@ -174,7 +171,7 @@
          (when (< (count *loops*) 3) (e/mu-error "k:" "is the index of the loop two around the running one, and there are not three: 2 0 '( 2 0 '( 2 0 '( i j k ) loop ) loop ) loop"))
          (conj s (peek (pop (pop *loops*))))))
 
-(word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation, as call)"
+(word! "kernel" "execute" "( 'word -- ... )  run the word a quoted name names (or a quotation)"
        (fn [s]
          (need s 1 "execute")
          (let [x (peek s)]

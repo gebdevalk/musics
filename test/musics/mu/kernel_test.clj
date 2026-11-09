@@ -649,7 +649,7 @@
     (is (re-find #"^mu: music is written" (with-out-str (e/eval-input "help 3"))) "a number after it is a number"))
   (testing "it follows through a quotation and a definition"
     (swap! e/state assoc :stack [])
-    (is (str/starts-with? (with-out-str (e/eval-input "'( see swap ) call")) "swap ( x1 x2 -- x2 x1 )"))
+    (is (str/starts-with? (with-out-str (e/eval-input "'( see swap ) execute")) "swap ( x1 x2 -- x2 x1 )"))
     (e/eval-input ": what see over ;")
     (is (str/starts-with? (with-out-str (e/eval-input "what")) "over ( x1 x2 -- x1 x2 x1 )"))))
 

@@ -129,9 +129,9 @@
   (is (re-find #"\$q is not a local" (:error (run ": bad $q ; bad")))))
 
 (deftest quotations
-  (is (= [5 5] (:ok (run "5 '( dup ) call"))))
+  (is (= [5 5] (:ok (run "5 '( dup ) execute"))))
   (testing "a quotation made in a word keeps that word's locals"
-    (is (= [7] (:ok (run ": maker ( $x -- q ) '( $x ) ; 7 maker call"))))))
+    (is (= [7] (:ok (run ": maker ( $x -- q ) '( $x ) ; 7 maker execute"))))))
 
 (deftest namespaces
   (run "\"song\" in")
