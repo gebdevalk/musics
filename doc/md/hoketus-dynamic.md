@@ -97,6 +97,45 @@ vary in time, the volume arc and the swell, sits as a generator in an ordinary
 context nearer than `ROOT` (the voice's or the piece's), where what the music
 itself writes still wins.
 
+## Inside one lookup: it is recursive
+
+A lookup is not one step. A plain entry (a value, an envelope, a generator) is
+answered at once, but a **derived** entry is a function that asks the chain for
+other keys, at the same beat, and those may be derived in turn. The recursion
+runs over the whole chain, so a tctx entry can read a context's string key too.
+
+```mermaid
+flowchart LR
+  ask["lookup(key, b, pull)<br/>from run-var, resolve<br/>or a derived entry"]
+  find{"chain, nearest<br/>first: who holds<br/>key?"}
+  plain["nobody: nil<br/>a value, envelope or generator:<br/>answered at b"]
+  seen{"derived:<br/>cached in<br/>this pull?"}
+  hit["the cached answer"]
+  cyc{"being<br/>computed<br/>now?"}
+  err["error:<br/>a cycle in the tctx<br/>:a -> :b -> :a"]
+  runf["call (f b get)<br/>each (get k) is a lookup again,<br/>over the whole chain, at the same b<br/>then cache, answer"]
+
+  ask --> find
+  find -- "plain" --> plain
+  find -- "derived" --> seen
+  seen -- yes --> hit
+  seen -- no --> cyc
+  cyc -- yes --> err
+  cyc -- no --> runf
+  runf -- "recursion" --> ask
+```
+
+- **One beat.** The recursion never changes `b`: every `get` is asked at the beat
+  of the lookup that started it.
+- **Cycle guard.** The keys being computed are kept on a list; asking for one of
+  them again is an error naming the cycle, not a hang.
+- **Cache.** A key computed once during one pull is not computed again in it. A
+  pull today is one top-level lookup, so `:density` and `:steps` asked separately
+  by `run-var` each start a fresh cache. A pull per leaf, shared by every lookup
+  made for that leaf (one `getter` for the chain and the beat), is not built yet.
+- **Depth.** Nothing limits it but the cycle guard; a deep graph costs one call
+  per entry, for every leaf.
+
 ## Where each thing sits
 
 | Layer | Holds | Changes when |

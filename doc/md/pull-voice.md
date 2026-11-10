@@ -73,7 +73,11 @@ sequenceDiagram
   E->>S: a leaf at b
   S->>W: run the word, lookup bound at b
   W->>C: :density (a keyword argument) at b
-  C-->>W: 3 (a value, or a function of b)
+  Note over C: :density is derived: it asks the chain again, at b
+  C->>C: :arc at b (a function of b)
+  C->>C: :steps at b (a value)
+  C->>C: "volume" at b (a context's string key)
+  C-->>W: 3
   W-->>S: the leaf
   S-->>E: the leaf, duration d
   E->>R: resolve the leaf at b
@@ -82,6 +86,10 @@ sequenceDiagram
   Note over E: the next beat is b + d
 ```
 
+A lookup can be recursive: a derived entry asks the chain for other keys, at the
+same beat, and they may be derived in turn (see `hoketus-dynamic.md`, "Inside one
+lookup"). The recursion stays inside the one beat.
+
 ## The contract
 
 - **One beat per leaf.** The walk's `:beat` is the leaf's beat. The source gets it
@@ -89,8 +97,9 @@ sequenceDiagram
 - **Every lookup for the leaf is at that beat,** the tctx's keyword keys read
   while the leaf is produced and the contexts' string keys read while it is
   resolved. `with-lookup` is bound at that beat for each call of the source.
-- **The source is a pure function of the beat and the tctx.** The same beat gives
-  the same leaf, so a re-read or a rewind agrees with what was heard.
+- **The source is a pure function of the beat and the tctx,** and so is every
+  entry the lookup reaches, however deeply it recurses. The same beat gives the
+  same leaf, so a re-read or a rewind agrees with what was heard.
 - **A leaf may be of any length.** Its duration moves the beat on, so the source
   needs no grid: a pulse number is derived from the beat (the beat inside the
   pass, over the pulse length, both tctx keys).
