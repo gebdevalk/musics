@@ -3527,3 +3527,32 @@ The words that play at the next boundary are written `-|>` and `-|>+`: the
 bar line `|` in the arrow, since `x | -|>` is how a bar line is waited for.
 `play-next` and `play-next+` are unchanged. Earlier entries keep the old
 spelling as written.
+
+## 2026-11-10 — a tctx of keyword keys, derived entries, and a voice that is a function of beat
+
+**Keys.** A context key is a string (`"volume"`), a tctx key is a keyword (`:density`).
+There is no `(name key)` normalization: `ctx-append` refuses a keyword, `tctx-put`
+refuses a string, and a keyword asked of a chain reaches only the contexts that hold
+keywords. `"density"` (ROOT's) and `:density` (a tctx's) are two keys.
+
+**The tctx** is an ordinary Context whose keys are keywords, put in front of a chain
+by whoever builds it; the chain, the beads and ROOT are as they were. Its values are
+bare values, functions of structural time (`tctx-put`), or entries computed from other
+keys (`tctx-derive`, `(f time get)`): a lookup is recursive over the whole chain at one
+time, a cycle throws naming it, and `context/getter` makes one memoized pull for a
+chain and a beat.
+
+**One beat per leaf.** Every lookup made for a leaf, producing or resolving it, is made
+at that leaf's beat. A voice that is a function of beat (`compose/source`, a word with
+`$beat` in its stack effect) is asked by `musics.events` for one leaf at the beat it is
+at, with a getter bound (`eval/with-lookup`) so that a keyword argument of a word the
+tctx holds is its value (`:onsets 8 euclid`); `resolve` then reads the contexts at the
+same beat. No skeleton, wall function or cursor is involved for such a voice.
+
+Decided against: a pass as the unit of production (it read the tctx at a beat that is
+not the leaf's, and a change was heard only a pass later); a `:tctx` field on the root
+context (a special case in every lookup, and the root stopped being plain); a `!`
+prefix on every context key (about 200 call sites for no gain over the type split); a
+Clojure facade that hides the stack (not built, see `pull-voice.md`).
+`doc/md/hoketus-dynamic.md` and `doc/md/pull-voice.md` have the diagrams; `hoketus2.mus`
+is the piece written this way.
