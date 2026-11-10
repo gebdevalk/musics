@@ -449,3 +449,47 @@
   (let [vs (mapv :velocity (filter #(= :drum (:kind %)) (ev/events (repo/registry) :ad)))]
     (is (> (first vs) (second vs)) "drums too")))
 
+;; ---- a voice fed by a function of beat (compose/source) ----
+
+(defn- leaf-at [beat pitch] (d/leaf nil (c/context) 1/4 [pitch]))
+
+(deftest a-source-is-asked-one-leaf-at-a-time-at-the-beat-the-voice-is-at
+  (let [asked (atom [])
+        src   (compose/source (fn [beat _]
+                                (swap! asked conj beat)
+                                (leaf-at beat (+ 60 (int (* 4 beat))))))
+        evs   (ev/events (repo/registry) src)]
+    (testing "an endless source plays lazily, one leaf per beat it leaves"
+      (is (= [[0 [60]] [1/4 [61]] [1/2 [62]] [3/4 [63]]]
+             (map (juxt :beat :pitches) (take 4 (notes evs))))))
+    (testing "it was asked at the beats of the leaves it played, and only about as far as they were read"
+      (is (= [0 1/4 1/2 3/4] (take 4 @asked)))
+      (is (<= (count @asked) 6)))))
+
+(deftest a-source-can-end-its-voice
+  (let [src (compose/source (fn [beat _] (when (< beat 1) (leaf-at beat 60))))]
+    (is (= [0 1/4 1/2 3/4] (map :beat (notes (ev/events (repo/registry) src)))))))
+
+(deftest a-source-reads-the-tctx-at-its-own-beat-and-sees-a-change-at-the-next-leaf
+  (let [tctx (-> (c/context)
+                 (c/tctx-put :base 60)
+                 (c/tctx-put :climb (fn [beat] (int (* 4 beat))))
+                 (c/tctx-derive :pitch (fn [_ get] (+ (get :base) (get :climb)))))
+        src  (compose/source (fn [_ get] (leaf-at 0 (get :pitch))) tctx)
+        evs  (ev/events (repo/registry) src)]
+    (is (= [60 61 62] (map (comp first :pitches) (take 3 (notes evs)))) "a function of the beat, through a derived key")
+    (c/tctx-put tctx :base 100)
+    (is (= [103 104] (map (comp first :pitches) (take 2 (drop 3 (notes evs)))))
+        "the leaves after the change read it; the ones played keep what they were")))
+
+(deftest a-source-leaf-is-resolved-at-the-same-beat-through-the-voices-context
+  (let [ctx (c/ctx-generate (c/context) "volume" (fn [beat] (+ 40 (* 20 beat))))
+        src (compose/source (fn [beat _] (leaf-at beat 60)) nil ctx)
+        vs  (map :velocity (take 4 (notes (ev/events (repo/registry) src))))]
+    (is (apply < vs) "the volume generator is read at each leaf's own beat")
+    (is (= 4 (count (distinct vs))))))
+
+(deftest a-source-voice-plays-through-the-engine
+  (is (nil? (#'musics.engine/validate-ids! {} (compose/source (fn [_ _] nil))))
+      "a source is a form play accepts"))
+

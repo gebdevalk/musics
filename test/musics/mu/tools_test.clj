@@ -215,8 +215,8 @@
   (swap! e/state assoc :stack [])
   (let [x   (first (:ok (e/eval-input "[!tempo:90 c d e] ^{ !tempo:60 !ff } with")))
         ctx (:context (v/node x))]
-    (is (= 90 (c/ctx-value-chain [ctx] :Tempo 0)) "the seq's own setting, after, still wins")
-    (is (= 80.0 (double (c/ctx-value-chain [ctx] :volume 0))) "and the inserted !ff fills what it leaves open"))
+    (is (= 90 (c/ctx-value-chain [ctx] "Tempo" 0)) "the seq's own setting, after, still wins")
+    (is (= 80.0 (double (c/ctx-value-chain [ctx] "volume" 0))) "and the inserted !ff fills what it leaves open"))
   (is (= "[!ff <C4 E4 G4>4]" (top "<c e g>4 ^{ !ff } with")) "a note becomes a seq")
   (is (= "[mel: !ff C4/4 D4]" (top "[mel: c d] ^{ !ff } with")) "a named seq keeps its name")
   (is (= "[!ff {[C4/4 D4] [E4 F4]}]" (top "{[c d] [e f]} ^{ !ff } with")) "a { } is wrapped")

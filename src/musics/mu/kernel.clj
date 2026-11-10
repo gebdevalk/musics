@@ -6,6 +6,7 @@
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
   (:require [musics.arith :as arith]
+            [musics.domain.context :as c]
             [musics.compare :as cmp]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.live :as live]
@@ -308,10 +309,45 @@
           (e/mu-error (str word ":") "name the voice that plays" w "-- e.g. 5 8 42 '" (str w " :bass ->")))
         (when-not (every? second ins)
           (e/mu-error (str word ":") w "has inputs without $ -- a live word takes only $ inputs, which stay changeable"))
-        (let [s (pop s) n (count ins)]
+        (let [s (pop s) n (count (remove (comp #{"beat"} first) ins))]   ; $beat is the voice's own
           (when (< (count s) n)
             (e/mu-error (str word ":") w "takes" n (if (= 1 n) "input" "inputs") "under its name, the stack has" (count s)))
           [w (subvec s (- (count s) n)) (subvec s 0 (- (count s) n))])))))
+
+;; -- the tctx of the voices that are a function of beat --------------------------------
+
+(word! "play" "tctx-put" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value. A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
+       (fn [s]
+         (need s 2 "tctx-put")
+         (let [k (peek s)]
+           (when-not (keyword? k) (e/mu-error "tctx-put:" "the key is a keyword, :reps -- got" (p/show k)))
+           (c/tctx-put live/tctx k (peek (pop s)))
+           (pop (pop s)))))
+
+(word! "play" "tctx-derive" "( 'q :key -- )  in the tctx, :key is computed by the quotation q when it is asked for, at the beat of the leaf asking: q runs with :beat, and any key of the tctx, as keyword arguments"
+       (fn [s]
+         (need s 2 "tctx-derive")
+         (let [k (peek s) q (peek (pop s))]
+           (when-not (keyword? k) (e/mu-error "tctx-derive:" "the key is a keyword, :density -- got" (p/show k)))
+           (when-not (v/quotation? q) (e/mu-error "tctx-derive:" "needs a quotation '( … ) under the key"))
+           (c/tctx-derive live/tctx k
+                          (fn [beat get]
+                            (e/with-lookup (fn [x] (if (= x :beat) beat (get x)))
+                              #(let [left (e/call [] q)]
+                                 (when (seq left) (peek left))))))
+           (pop (pop s)))))
+
+;; the tctx value of a key, inside a voice that is a function of beat at its leaf's beat
+(word! "play" "tctx-get" "( :key -- x )  the tctx's value for :key, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+       (fn [s]
+         (need s 1 "tctx-get")
+         (let [k (peek s)]
+           (when-not (keyword? k) (e/mu-error "tctx-get:" "the key is a keyword, :reps -- got" (p/show k)))
+           (let [lookup (or e/*lookup*
+                            (let [g (c/getter [live/tctx] 0)] (fn [x] (if (= x :beat) 0 (g x)))))
+                 v      (lookup k)]
+             (when (nil? v) (e/mu-error "tctx-get:" (pr-str k) "is not in the tctx -- tctx-put or tctx-derive it"))
+             (conj (pop s) v)))))
 
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."

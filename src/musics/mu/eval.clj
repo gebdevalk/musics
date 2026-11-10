@@ -185,14 +185,52 @@
       (re-find #"^\S+:\s" msg)            (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true}))
       :else (ex-info (str name ": " msg) {:mu/error true}))))
 
+(def ^:dynamic *lookup*
+  "nil, or a function of a keyword: its value, or nil when there is none. A voice
+   binds it around each run (with-lookup), with the time it asks at inside it."
+  nil)
+
+(defn with-lookup
+  "Call f (no arguments) with get, a function of a keyword that answers its value
+   or nil, bound as *lookup*: a keyword argument of a word that get answers is
+   that value (run-var). get closes over what it asks, a context chain with a tctx
+   in front and the time: (musics.domain.context/getter chain beat), one for each
+   leaf, so its lookups are one pull."
+  [get f]
+  (binding [*lookup* get]
+    (f)))
+
+(defn- from-lookup
+  "stack with, in the places the arguments of the function v stand, each keyword
+   that *lookup* answers replaced by its value; a keyword it does not answer
+   stays, so :hoketus R@ is untouched, and so is a keyword v's own tail reads
+   (3 8 :rotation 2 euclid). Unbound, stack as it is."
+  [stack v]
+  (if-let [get *lookup*]
+    (let [lists  (map split-tail (:arglists (meta v)))
+          tailks (into #{} (mapcat (comp tail-keys second)) lists)
+          width  (+ (apply max 0 (map (comp count first) lists)) (* 2 (count tailks)))]
+      (loop [i (max 0 (- (count stack) width))
+             s stack]
+        (if (< i (count s))
+          (let [x     (nth s i)
+                found (when (and (keyword? x) (not (tailks x))) (get x))]
+            (recur (inc i) (if (some? found) (assoc s i found) s)))
+          s)))
+    stack))
+
 (defn- run-var
   "Run the Clojure function v as the word name: its arguments taken from
    stack, music first; its value pushed, unless it is done for its effect.
    A keyword tail (& {:keys [..]}) takes the :key value pairs written just before the
-   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. An error it throws is a mu error,
-   named by the word."
+   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. A keyword among the arguments
+   that *lookup* answers is its value (:onsets 8 euclid). An error it throws
+   is a mu error, named by the word."
   [stack name v]
-  (let [al   (arity-for v stack)
+  (let [below stack          ; what is left under the arguments stays as it was
+        stack (try (from-lookup stack v)
+                   (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))
+        al   (arity-for v stack)
         _    (try (need stack (count al) name)
                   (catch clojure.lang.ExceptionInfo ex
                     (if-let [h (:hint (:mu (meta v)))] (mu-error (ex-message ex) "--" h) (throw ex))))
@@ -205,7 +243,7 @@
                     (mu-error (str name ":") "refused, it needs"
                               (or (second (re-find #"Assert failed: (?:.*\n)?\(?(.*?)\)?\s*$" (str (ex-message ex)))) "its arguments right"))))]
     ;; a ! function leaves nothing; so does one that answers :mu/nothing
-    (if (or (effect-word? v) (= :mu/nothing r)) (subvec stack 0 n) (conj (subvec stack 0 n) r))))
+    (if (or (effect-word? v) (= :mu/nothing r)) (subvec below 0 n) (conj (subvec below 0 n) r))))
 
 (defn- binds?
   "Is this stack-effect input one that binds a local ($name)?"

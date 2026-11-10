@@ -322,8 +322,8 @@
         b1n2     (d/leaf :b1n2 (c/context) 1/4 [62])
         block1   {:type :SEQ :id :block1 :context (c/context) :children [b1n1 b1n2]}
         ramp-ctx (c/context)
-        _        (c/ctx-append ramp-ctx :volume 0 30 :lin-up)
-        _        (c/ctx-append ramp-ctx :volume 1 80 :fixed)
+        _        (c/ctx-append ramp-ctx "volume" 0 30 :lin-up)
+        _        (c/ctx-append ramp-ctx "volume" 1 80 :fixed)
         b2n1     (d/leaf :b2n1 ramp-ctx 1/4 [64])
         b2n2     (d/leaf :b2n2 ramp-ctx 1/4 [65])
         b2n3     (d/leaf :b2n3 ramp-ctx 1/4 [67])

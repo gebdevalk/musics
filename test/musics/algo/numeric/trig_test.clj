@@ -1,5 +1,5 @@
 (ns ^:algo musics.algo.numeric.trig-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.numeric.trig :as trig]))
 
 (deftest cosr-matches-known-values
@@ -85,3 +85,20 @@
     (is (= (mapv #(f % 2 8) (range 9)) (mapv (g 2 8) (range 9))))
     (is (= (f 0.25) ((g) 0.25))))
   (is (thrown? Exception (apply trig/sine-fn [1 2 3 4 5]))))
+
+(deftest a-spiral-shifts-each-sine-by-a-part-of-a-cycle
+  (testing "the first sine is the sine itself"
+    (is (= (mapv #(trig/sine % 60 90 8) (range 8)) (mapv #(trig/spiral 0 % 4 60 90 8) (range 8)))))
+  (testing "the nth is nth/sines of a cycle ahead: 1 of 4 on a period of 8 is 2 idxs"
+    (is (= (trig/sine 4 60 90 8) (trig/spiral 1 2 4 60 90 8)))
+    (is (= (trig/sine 4 60 90 8) (trig/spiral 2 0 4 60 90 8)  (trig/spiral 2 8 4 60 90 8))))
+  (testing "nth wraps round"
+    (is (= (trig/spiral 1 3 4) (trig/spiral 5 3 4))))
+  (testing "the sines at one idx are spread over the range"
+    (is (= [0 1 0 -1] (mapv #(Math/round (trig/spiral % 0 4)) (range 4)))
+        "four sines at idx 0, a quarter cycle apart"))
+  (testing "the fn takes the settings once"
+    (let [f (trig/spiral-fn 4 60 90 8)]
+      (is (= [90.0 75.0 90.0] [(f 0 2) (f 0 0) (f 1 0)]))
+      (is (= (trig/spiral 3 5 4 60 90 8) (f 3 5))))))
+

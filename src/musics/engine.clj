@@ -463,6 +463,8 @@
       (throw (ex-info (str "No part found for id " form " -- check (ids); this id likely doesn't exist (a typo?).")
                       {:id form})))
 
+    (compose/source-form? form) nil
+
     (compose/tagged-form? form)
     (let [[inner name] (compose/split-tag form)]
       (validate-algo-name! name)
