@@ -15,7 +15,8 @@
 ;; Usage:
 ;;   (require '[musics.domain.context :as c])
 
-(ns musics.domain.context)
+(ns musics.domain.context
+  (:require [clojure.string :as str]))
 
 ;; ============================================================
 ;; IP: Interpolation types (ported from envelope.py IP enum)
@@ -231,6 +232,37 @@
     "A version of this source re-based by offset -- a no-op for
      anything that isn't genuinely time-based."))
 
+(declare lookup)
+
+;; A value computed from other keys: (f time get), where (get key) asks the chain
+;; for another key at the same time. A tctx entry made with tctx-derive.
+(defrecord Derived [f]
+  ValueSource
+  (sample-at [_ _] (throw (ex-info "a derived value needs the chain it is asked through" {})))
+  (shift [_ offset] (if (zero? offset) (->Derived f) (->Derived (fn [t get] (f (- t offset) get))))))
+
+(defn- derived-value
+  "[value] a Derived gives for key at time, or nil when its function answers nil.
+   One pull is one state: a cache of what it computed and the keys being
+   computed, so a key used by several others is computed once, and a key that
+   needs itself is an error naming the cycle."
+  [{:keys [f]} key time chain state]
+  (let [state  (or state {:cache (atom {}) :active (atom [])})
+        cache  (:cache state)
+        active (:active state)]
+    (if (contains? @cache key)
+      (when-some [v (get @cache key)] [v])
+      (do
+        (when (some #{key} @active)
+          (throw (ex-info (str "a cycle in the tctx: " (str/join " -> " (map pr-str (conj @active key))))
+                          {:cycle (conj @active key)})))
+        (swap! active conj key)
+        (try
+          (let [v (f time (fn [k] (lookup chain k time state)))]
+            (swap! cache assoc key v)
+            (when (some? v) [v]))
+          (finally (swap! active pop)))))))
+
 (defn- latest-point-at-or-before
   "The most recent [time [value ip]] entry in env at-or-before time, or
    nil if none -- one rsubseq call against the sorted-map instead of a
@@ -241,13 +273,17 @@
 (defn- resolve-source
   "[value] source gives at time, nil when it has nothing to say (an Envelope
    with no point yet or an invalidated one, a ValueSource that answers nil)."
-  [source time]
-  (if (instance? Envelope source)
+  [source key time chain state]
+  (cond
+    (instance? Envelope source)
     (let [latest (latest-point-at-or-before source time)]
       (when (and latest (not= (second (val latest)) :invalid))
         [(env-get source time)]))
-    (when-let [v (sample-at source time)]
-      [v])))
+
+    (instance? Derived source) (derived-value source key time chain state)
+
+    :else (when-let [v (sample-at source time)]
+            [v])))
 
 (defn- resolve-in-env-map
   "Resolve key against an ALREADY-DEREFED envelopes map (some context's
@@ -273,9 +309,9 @@
    entirely (env's Object/nil extend-protocol impls below both take
    time and never look at it), so passing the offset-adjusted local
    time uniformly is always safe, never just 'usually right'."
-  [env-map key time]
+  [env-map key time chain state]
   (when-let [source (get env-map key)]
-    (resolve-source source time)))
+    (resolve-source source key time chain state)))
 
 (extend-protocol ValueSource
   Envelope
@@ -347,6 +383,17 @@
   (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
   tctx)
 
+(defn tctx-derive
+  "In tctx, key (a keyword) is computed from other keys: f is called as
+   (f time get) when the key is asked for, and (get :other) asks the chain for
+   another key at the same time, a string (a context's) or a keyword (a tctx's).
+   Within one lookup a key is computed once, and a key that depends on itself,
+   however far round, throws naming the cycle. Returns tctx."
+  [tctx key f]
+  (assert (keyword? key) "a tctx key is a Clojure keyword")
+  (swap! (:envelopes-atom tctx) assoc key (->Derived f))
+  tctx)
+
 (defn ctx-shift
   "Return a new Context with every envelope's points shifted by offset --
    never mutates ctx itself. A container's own envelope is always built
@@ -414,11 +461,7 @@
    is just the chain walk around it, the same walk sample-many does for
    multiple keys at once."
   [chain key time]
-  (loop [cs chain]
-    (when (seq cs)
-      (if-let [[v] (resolve-in-env-map @(:envelopes-atom (first cs)) key time)]
-        v
-        (recur (rest cs))))))
+  (lookup chain key time nil))
 
 (defn ambient-value
   "What key is already active from ctx-chain (nearest-first [context
@@ -463,6 +506,18 @@
    to tell them apart."
   [link]
   (if (vector? link) link [link 0]))
+
+(defn- lookup
+  "The value of key at time over chain (contexts, or [context offset] links),
+   nearest first; state is the pull in progress (see derived-value), nil at the
+   start of one."
+  [chain key time state]
+  (loop [links (seq chain)]
+    (when links
+      (let [[ctx offset] (link->ctx+offset (first links))]
+        (if-let [[v] (resolve-in-env-map @(:envelopes-atom ctx) key (- time offset) chain state)]
+          v
+          (recur (next links)))))))
 
 (defn sample-many
   "Sample MULTIPLE keys from chain-links in ONE pass over the chain,
@@ -527,7 +582,7 @@
             local-time (- time offset)
             step (reduce
                    (fn [acc [k default]]
-                     (if-let [[v] (resolve-in-env-map env-map k local-time)]
+                     (if-let [[v] (resolve-in-env-map env-map k local-time chain-links nil)]
                        (update acc :found assoc k v)
                        (update acc :pending assoc k default)))
                    {:pending {} :found found}

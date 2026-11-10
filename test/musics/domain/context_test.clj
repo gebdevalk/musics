@@ -135,3 +135,52 @@
   (testing "a shifted tctx is shifted like any context"
     (let [tctx (c/tctx-put (c/context) :t identity)]
       (is (= 2 (c/ctx-value-chain [(c/ctx-shift tctx 3)] :t 5))))))
+
+(deftest a-derived-tctx-entry-pulls-other-keys
+  (let [tctx  (-> (c/context)
+                  (c/tctx-put :steps 8)
+                  (c/tctx-put :arc (fn [t] (* 2 t)))
+                  (c/tctx-derive :density (fn [t get] (+ (get :arc) (get :steps))))
+                  (c/tctx-derive :pulses  (fn [t get] [:euclid (get :density) (get :steps)]))
+                  (c/tctx-derive :loud    (fn [t get] (+ 1 (get "volume")))))
+        chain [tctx (c/context-root {"volume" 50})]]
+    (is (= 14 (c/ctx-value-chain chain :density 3)) "arc at 3 is 6, steps 8")
+    (is (= [:euclid 14 8] (c/ctx-value-chain chain :pulses 3)) "a derived value pulls a derived value")
+    (is (= 51 (c/ctx-value-chain chain :loud 0)) "and a context's string key too")
+    (is (= {:density 10 :steps 8 "volume" 50}
+           (c/sample-many chain {:density 0 :steps 0 "volume" 0} 1))
+        "sample-many asks derived keys through the same chain")
+    (testing "a change of what it depends on is seen by the next lookup"
+      (c/tctx-put tctx :steps 16)
+      (is (= 22 (c/ctx-value-chain chain :density 3)))))
+  (testing "a missing dependency answers nil"
+    (let [tctx (c/tctx-derive (c/context) :x (fn [_ get] (get :nothing)))]
+      (is (nil? (c/ctx-value-chain [tctx] :x 0)))))
+  (testing "a cycle is an error naming it"
+    (let [tctx (-> (c/context)
+                   (c/tctx-derive :a (fn [_ get] (get :b)))
+                   (c/tctx-derive :b (fn [_ get] (get :c)))
+                   (c/tctx-derive :c (fn [_ get] (get :a))))]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #":a -> :b -> :c -> :a"
+            (c/ctx-value-chain [tctx] :a 0)))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #":a -> :a"
+            (c/ctx-value-chain [(c/tctx-derive (c/context) :a (fn [_ get] (get :a)))] :a 0)) "itself")))
+  (testing "one pull computes a key once; the next pull computes it again"
+    (let [calls (atom 0)
+          tctx  (-> (c/context)
+                    (c/tctx-derive :base (fn [_ _] (swap! calls inc) 10))
+                    (c/tctx-derive :left (fn [_ get] (+ 1 (get :base))))
+                    (c/tctx-derive :right (fn [_ get] (+ 2 (get :base))))
+                    (c/tctx-derive :both (fn [_ get] [(get :left) (get :right)])))]
+      (is (= [11 12] (c/ctx-value-chain [tctx] :both 0)))
+      (is (= 1 @calls) ":base was computed once for the pull")
+      (c/ctx-value-chain [tctx] :both 0)
+      (is (= 2 @calls) "a new pull starts a new cache")))
+  (testing "tctx-derive wants a keyword"
+    (is (thrown? AssertionError (c/tctx-derive (c/context) "x" (fn [_ _] 1)))))
+  (testing "a voice's tctx in front of the piece's: the nearest wins, and derived values see the whole chain"
+    (let [piece (-> (c/context) (c/tctx-put :steps 8) (c/tctx-derive :half (fn [_ get] (/ (get :steps) 2))))
+          voice (c/tctx-put (c/context) :steps 4)]
+      (is (= 2 (c/ctx-value-chain [voice piece] :half 0)) "half of the voice's own :steps")
+      (is (= 4 (c/ctx-value-chain [piece] :half 0))))))
+
