@@ -1,0 +1,143 @@
+% hoketus2 -- the same piece as hoketus.mus, but nothing is built: every voice is a
+% function of the beat, and what it plays is looked up as it plays.
+%
+% Hear it:    "hoketus2.mus" load   start
+% Change it:  while it plays, 6 :steps tctx-put   or   :marimbaA/phase  0.5 !
+% Stop it:    stop-hoketus
+%
+% The model. A voice is a word with $beat in its stack effect: the engine asks it
+% for ONE leaf at the beat it has reached, a sixteenth long, and plays it; the
+% beat that leaf leaves is asked next. The word reads the settings from the tctx
+% (a keyword where a value is needed: :steps 2 * ) at that same beat, and the
+% volume, pan and instrument of the leaf are looked up when it sounds. So:
+%  - the settings (steps, reps, spiral ...) are plain values in the tctx and can be
+%    changed at any time; the next leaf already sees the change;
+%  - the arc (which incarnation, how dense, how loud) is DERIVED from the beat, by
+%    quotations that read the settings: nothing is precomputed;
+%  - what is left in a voice is only what differs between voices: its phase, the
+%    density it enters at, its instrument, its side, whether it is the late group.
+
+% ---- the algorithms it calls ---------------------------------------------
+
+'rhythmic.pattern 'p reqalgo          % p/euclid
+'numeric.trig 'tr reqalgo             % tr/sine
+
+% ---- the settings: plain values in the tctx -------------------------------
+
+8 :steps tctx-put                      % pulses of a pass (a melody of that many pitches)
+4 :reps tctx-put                       % times each incarnation is played
+24 :spiral tctx-put                    % passes in one swell-and-fade of the colour wheel
+60 :soft tctx-put                      % the volume it starts at (mf) ...
+90 :loud tctx-put                      % ... and climbs to at the climax (fff)
+1.0 :width tctx-put                    % panning of the two groups, -width and +width (0 .. 1)
+1/32 :lag tctx-put                     % how late group B is, as a note length (half a pulse)
+'[64 67 71 69 74 71 67 66] :melody tctx-put   % E dorian, a rising and falling line
+
+% ---- the arc: derived from the beat, as it is asked ------------------------
+
+% Each quotation runs at the beat of the leaf that asks, with :beat and every key of
+% the tctx as keywords; the keyword where a number is needed is its value there.
+
+'( :beat 16 * :steps / int ) :pass tctx-derive                    % the pass the beat is in
+'( :pass :reps / int ) :incarnation tctx-derive                   % the incarnation the pass is in
+'( :incarnation :steps 2 * 1 - mod ) :arc tctx-derive              % 0 .. 2*steps-2, round again after
+'( :steps :steps 1 - :arc - abs - ) :density tctx-derive           % notes this incarnation sounds: 1 .. steps .. 1
+'( :steps 1 - :steps 1 - :arc - abs - ) :climb tctx-derive          % how high the arc is: 0 at either end, steps-1 at the climax
+'( :density :steps p/euclid ) :pulses tctx-derive                 % which pulses of a pass sound
+'( :climb :loud :soft - * :steps 1 - / :soft + ) :baseVolume tctx-derive   % from soft to loud and back
+'( :climb 8 * :steps 1 - / 6 + ) :swell tctx-derive                % the size of the swell on top of it
+
+% ---- what a voice reads -----------------------------------------------------
+
+% a data list of one value
+: one ( $x -- list ) '[1] $x * ;
+
+% the pulse the beat is on, counted from the start of the voice (late by lag)
+: pulse-at ( $beat $lag -- i ) $beat $lag - 16 * int :steps tctx-get mod ;
+
+% the volume at a beat for a voice whose swell is shifted by phase (0 .. 1) of the spiral
+: volume-of ( $beat $phase -- volume )
+  $beat 16 * :steps tctx-get /
+  :baseVolume tctx-get :swell tctx-get -
+  :baseVolume tctx-get :swell tctx-get +
+  $phase :spiral tctx-get tr/sine  round  100 min 20 max ;
+
+% how late a voice is: the lag, if it is the late group (1), else none (0)
+: lag-of ( $late -- lag ) $late :lag tctx-get * ;
+
+% ---- the melodic voices ---------------------------------------------------
+
+% the leaf of pulse i when it sounds: its pitch, instrument, pan and volume as parts
+: sounding ( $i $beat $phase $instrument $side -- note )
+  | '[1/16] :melody tctx-get $i @ one
+    :instrument $instrument one
+    :pan $side :width tctx-get * one
+    :volume $beat $phase volume-of one  zip ;
+
+% the leaf of pulse i: the note when the Euclidean pattern has the pulse on and the
+% density has reached the voice's threshold, else a rest, a sixteenth long
+: pulse ( $i $beat $phase $threshold $instrument $side -- leaf )
+  :pulses tctx-get $i @ 1 =  :density tctx-get $threshold >=  and
+  '( $i $beat $phase $instrument $side sounding )
+  '( [] 1/16 delay )
+  if ;
+
+% the voice: before its start (late by lag) a rest up to it, then pulse after pulse
+: hoke ( $beat $phase $threshold $instrument $side $late -- leaf )
+  $beat $late lag-of <
+  '( [] $late lag-of $beat - delay )
+  '( $beat $late lag-of pulse-at  $beat $phase $threshold $instrument $side  pulse )
+  if ;
+
+% ---- drums and the chord ----------------------------------------------------
+
+% is pulse i one of the hits spread over the pass (a Euclidean rhythm turned rotation places)?
+: on-at ( $hits $rotation $i -- flag ) $hits :steps tctx-get p/euclid $rotation rotate $i @ 1 = ;
+
+% does a percussive voice sound at pulse i: the hits are the density divided by divisor
+% (at least 1), and the density has reached the threshold
+: hit? ( $i $threshold $divisor $rotation -- flag )
+  :density tctx-get $divisor / int 1 max  $rotation $i on-at
+  :density tctx-get $threshold >=  and ;
+
+% the volume of a percussive voice: the arc's base, louder or softer
+: loudness ( $louder -- list ) :baseVolume tctx-get $louder + round one ;
+
+% a drum from the list, a sixteenth long, when the pulse is a hit, else a rest
+: thump ( $beat $threshold $divisor $rotation $louder $drum -- leaf )
+  $beat 0 pulse-at $threshold $divisor $rotation hit?
+  '( | '[1/16] '[60] :volume $louder loudness zip $drum [~] as-drums )
+  '( [] 1/16 delay )
+  if ;
+
+% the staccato chord of the piano, a sixteenth long, when the pulse is a hit
+: stab ( $beat $threshold $divisor $rotation $louder -- leaf )
+  $beat 0 pulse-at $threshold $divisor $rotation hit?
+  '( | '[1/16] '[ '[40 47 55 62] ] :volume $louder loudness :articulation '[:staccato] zip )
+  '( [] 1/16 delay )
+  if ;
+
+% ---- start and stop --------------------------------------------------------
+
+120 :tempo tctx-put                    % quarter notes a minute; read when it starts
+
+% The tempo as a context, for the voices to play under.
+: tempo-ctx ( $tempo -- ctx ) | :duration '[1] :Tempo '[1] $tempo * >ctx ;
+
+% Every voice, under a context: the melodic ones in two groups, A on the left and B on
+% the right and late (late 1), then the drums and the chord. phase threshold instrument
+% side late, then 'hoke.
+: start-voices ( $ctx -- )
+  0.00 1 12 -1 0 'hoke $ctx :marimbaA ->+       0.00 1 12 1 1 'hoke $ctx :marimbaB ->+
+  0.25 3 11 -1 0 'hoke $ctx :vibraphoneA ->+    0.25 3 11 1 1 'hoke $ctx :vibraphoneB ->+
+  0.50 5 62 -1 0 'hoke $ctx :synthBrassA ->+    0.50 5 62 1 1 'hoke $ctx :synthBrassB ->+
+  0.75 7 40 -1 0 'hoke $ctx :guitarA ->+        0.75 7 40 1 1 'hoke $ctx :guitarB ->+
+  2 2 0 6 '[:kick] 'thump $ctx :kick ->+
+  5 2 4 -4 '[:snare] 'thump $ctx :snare ->+
+  4 2 2 -2 'stab $ctx :piano ->+ ;
+
+% Plays it, stopping what plays. Change a setting while it plays: 6 :steps tctx-put
+: start ( -- ) stop :tempo tctx-get tempo-ctx start-voices ;
+
+% Stops it.
+: stop-hoketus ( -- ) stop ;
