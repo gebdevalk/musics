@@ -118,7 +118,7 @@
 (def tctx
   "The session's tctx: a Context whose keys are Clojure keywords (:reps, :steps),
    first in the chain every voice fed by a function of beat reads, filled by
-   mu's tctx-put and tctx-derive."
+   mu's tctx! and tctx-derive."
   (c/context))
 
 (defn- beat-word?

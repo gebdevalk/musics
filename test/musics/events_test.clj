@@ -473,13 +473,13 @@
 
 (deftest a-source-reads-the-tctx-at-its-own-beat-and-sees-a-change-at-the-next-leaf
   (let [tctx (-> (c/context)
-                 (c/tctx-put :base 60)
-                 (c/tctx-put :climb (fn [beat] (int (* 4 beat))))
+                 (c/tctx! :base 60)
+                 (c/tctx! :climb (fn [beat] (int (* 4 beat))))
                  (c/tctx-derive :pitch (fn [_ get] (+ (get :base) (get :climb)))))
         src  (compose/source (fn [_ get] (leaf-at 0 (get :pitch))) tctx)
         evs  (ev/events (repo/registry) src)]
     (is (= [60 61 62] (map (comp first :pitches) (take 3 (notes evs)))) "a function of the beat, through a derived key")
-    (c/tctx-put tctx :base 100)
+    (c/tctx! tctx :base 100)
     (is (= [103 104] (map (comp first :pitches) (take 2 (drop 3 (notes evs)))))
         "the leaves after the change read it; the ones played keep what they were")))
 

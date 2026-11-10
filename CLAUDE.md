@@ -736,9 +736,9 @@ tctx holds `:onsets 3`. A keyword the lookup does not hold goes through (`:hoket
 R@`), and so does one the function's own keyword tail reads
 (`3 8 :rotation 2 euclid`); what lies under the arguments is untouched. The lookup
 is `eval/*lookup*`, bound by `eval/with-lookup` around a voice's run (unbound,
-nothing changes). `tctx-put` (`8 :steps tctx-put`), `tctx-derive`
+nothing changes). `tctx!` (`8 :steps tctx!`), `tctx-derive`
 (`'( :steps 2 * ) :twice tctx-derive`: the quotation runs at the beat of the asker
-with `:beat` and every tctx key as keywords) and `tctx-get` (`:steps tctx-get`: a
+with `:beat` and every tctx key as keywords) and `tctx@` (`:steps tctx@`: a
 key's value where a plain word needs one) fill and read the session's tctx
 (`musics.mu.live/tctx`, not saved in a session file: it holds functions).
 
@@ -1078,7 +1078,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   A context stores `"volume"`, `"Tempo"`, `"density"`; there is no `(name key)`
   normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
   and a keyword asked of a chain reaches only the contexts that hold keywords. A
-  **tctx** is an ordinary `Context` whose keys are keywords (`tctx-put`,
+  **tctx** is an ordinary `Context` whose keys are keywords (`tctx!`,
   `tctx-derive`): whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
   `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
   hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
@@ -1089,7 +1089,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   **recursive**, a key computed once per pull, a cycle an error naming it
   (`:a -> :b -> :a`). `context/getter chain time` is one memoized pull: every answer,
   a miss too, is remembered, so a leaf sees one value for each key; make one for each
-  leaf. A tctx is shared by atom, so editing it (a GUI slider, `tctx-put`) is seen at
+  leaf. A tctx is shared by atom, so editing it (a GUI slider, `tctx!`) is seen at
   the next lookup by every chain that holds it. A derived entry's time is the one
   its context was asked at: right for a tctx at offset 0 in front of a chain, not
   checked for an extracted context with another offset.

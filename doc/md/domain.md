@@ -181,8 +181,8 @@ values are bare values, functions of time, or entries computed from other keys:
 
 ```clojure
 (def tctx (-> (c/context)
-              (c/tctx-put :steps 8)                        ;; a value
-              (c/tctx-put :arc (fn [t] (* 2 t)))           ;; a function of the time
+              (c/tctx! :steps 8)                        ;; a value
+              (c/tctx! :arc (fn [t] (* 2 t)))           ;; a function of the time
               (c/tctx-derive :density                      ;; computed from other keys
                              (fn [t get] (+ (get :arc) (get :steps))))))
 
@@ -194,7 +194,7 @@ time, so a lookup is **recursive**. A key is computed once per pull, and a key t
 needs itself, however far round, throws naming the cycle (`:a -> :b -> :a`).
 `(c/getter chain time)` is one memoized pull: every answer it gives (a miss too)
 is remembered, so one leaf sees one value for each key. The tctx is shared by
-atom: a change made to it (`tctx-put`) is seen by the next lookup in every chain
+atom: a change made to it (`tctx!`) is seen by the next lookup in every chain
 that holds it.
 
 A function of time is also a value a context's own string key can hold

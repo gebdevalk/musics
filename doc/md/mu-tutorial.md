@@ -1254,10 +1254,10 @@ The settings such voices read live in the **tctx**, a table of keyword keys. A k
 be a plain value, or **derived** from the beat and from other keys:
 
 ```
-8 :steps tctx-put                              a setting
+8 :steps tctx!                              a setting
 '( :beat 16 * :steps / int ) :pass tctx-derive   the pass the beat is in
-:steps tctx-get                                8
-3 :steps tctx-put                              changed while it plays: the next leaf sees it
+:steps tctx@                                8
+3 :steps tctx!                              changed while it plays: the next leaf sees it
 ```
 
 `:beat` is the beat of the leaf that asks, and `:steps` in the quotation is its value
@@ -1268,11 +1268,11 @@ Inside such a voice a **keyword where a number is needed is the key's value**:
 `:onsets 8 pattern/euclid` is `3 8 pattern/euclid` while the tctx holds `:onsets 3`.
 A keyword the tctx does not hold stays a keyword (`:hoketus R@`), and so does one a
 word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`). A word written
-with `: … ;` does not do this: it reads a key with `tctx-get`. Context keys are strings
+with `: … ;` does not do this: it reads a key with `tctx@`. Context keys are strings
 (`"volume"`), tctx keys keywords (`:volume` is a different key).
 
 `mus/hoketus2.mus` is a whole piece written this way: `"mus/hoketus2.mus" load start`, and
-`6 :steps tctx-put` while it plays. `doc/md/pull-voice.md` and
+`6 :steps tctx!` while it plays. `doc/md/pull-voice.md` and
 `doc/md/hoketus-dynamic.md` draw the call order.
 
 ## 17. Rating what you hear
