@@ -31,6 +31,7 @@ what is still open.
 | Written | Is | Pushed or run |
 |---|---|---|
 | `[c4 d e]` `{[c d] [e f]}` `'[ … ]` | a musical literal: sequence, parallel, data | pushed as a value |
+| `'[c d e]` `'[C4 D4]` `'[C D E]` | notes in a data list: lowercase relative to the pitch before, a capital with an octave absolute, a capital alone a pitch class | pushed as the data lists `'[60 62 64]`, `'[60 62]`, `'[0 2 4]`; a list holds one kind, so classes and pitches cannot mix |
 | `^{ !ff !tempo:120 }` | a context literal | pushed as a value |
 | `c4` `C5/8` `<C4 E4 G4>4` `r4` `x8\36` | a loose leaf | pushed as one value |
 | `7` `1/4` `0.5` `"text"` | a primitive | pushed |
@@ -169,6 +170,15 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   with the range of the algo parameter of the same name; `:bass ->` starts
   the voice again with the inputs as they are. See the tutorial, "A word as
   a live voice".
+- **A voice as a function of the beat**: a live word with `$beat` among its inputs
+  is asked for **one leaf at the beat the voice has reached** (`60 'tick :v ->`; the
+  stack gives the other inputs, `$beat` is the voice's own), and every lookup for the
+  leaf, producing it or resolving it, is made at that beat. Its settings are the
+  **tctx**, a table of keyword keys (`tctx-put`, `tctx-derive`, `tctx-get`); a
+  context's keys are strings, so `:density` and `"density"` are different keys. Inside
+  such a voice a keyword argument of a word that the tctx holds is its value
+  (`:onsets 8 pattern/euclid`). See the tutorial, "A voice as a function of the
+  beat", and `doc/md/pull-voice.md`.
 
 **Namespaces**:
 - a word is qualified as `ns/word` (`music/cycle`, `pattern/euclid`);
@@ -357,13 +367,14 @@ as plain functions called by name (`pattern/euclid`): see
 | **stack** | `dup` `drop` `swap` `over` `rot` `-rot` `nip` `tuck` `pick` `roll` `2dup` `2drop` `1+` `1-` `depth` `spread` (`**`) `clear` (the stack) `.s` `.` |
 | **numbers** | `+` `-` `*` `/` (also on lists of numbers and on music, below) `mod` `negate` `abs` `min` `max` `round`; conversions `int` `float` `rational` |
 | **comparison, flags** | `=` `<>` (any values; music by its notes) `<` `>` `<=` `>=` (numbers, or anything by a key); `true` `false` `and` `or` `xor` `not` |
-| **quotations** | `call` `loop` `+loop` (`i` `j` `k`) `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it |
+| **quotations** | `loop` `+loop` (`i` `j` `k`) `if` `when` `each` `reduce`; `'dup` quotes a word, `execute` runs it (a quoted word, or a quotation or function) |
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `-\|>` or `play-next` (in its place, from the next boundary), `-\|>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`; voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
 | **live** | a play word with a quotation `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the quotation); `retree` (`'( 7 + ) :up retree`) gives the voice another quotation, which goes on at its position. A word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !` (checked against the range of the algo parameter of the same name), `:bass settings`, `:bass gui` (a window of its inputs, a control each, under the algo it belongs to), `:bass ->` starts it again with the inputs as they are -- `musics.mu.live`, `musics.mu.voice`, `musics.mu.inputs` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
+| **tctx** | `tctx-put` (`8 :steps tctx-put`), `tctx-derive` (`'( :steps 2 * ) :twice tctx-derive`), `tctx-get` (`:steps tctx-get`): the keyword-keyed settings a voice that is a function of the beat reads |
 | **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
 | **help** | `about` (what a name is and where it can appear: `about tempo` says it is a musical parameter and can appear in `^{ }`, `{ }` and `[ ]`; also a mark, a word, an instrument, a drum, a scale, a grammar rule; `pitch`, `duration`, `articulation` are properties of a note, a duration also the length of a seq), `settings tempo` (a parameter's range, default and how it is written; `:riff settings` is still a live voice's), `marks tempo` (the marks that set it, by value), `help` (mu in a few seqs; `help dup` or `'dup help` is `see`; other text, `"chord" help`, lists the words whose name or description mention it), `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description, and a word that gives its first argument back changed or rebuilt shows it primed: `( x n -- x' )` for `take`, `sort`, `times`, `+`; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 

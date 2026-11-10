@@ -129,7 +129,7 @@ the walking (`musics.events`, through `musics.compose/build-chain`, or
 ### Setting values
 
 ```clojure
-(c/ctx-append ctx :tempo 2.0 80 :lin-up)
+(c/ctx-append ctx "tempo" 2.0 80 :lin-up)
 ```
 
 Adds a point to the local envelope for the given key. If no local
@@ -139,7 +139,7 @@ a `Context` only ever mutates itself.
 ### Reading values — active-point validity, walked via an explicit chain
 
 ```clojure
-(c/ctx-value-chain [ctx root-ctx] :tempo 0.0)
+(c/ctx-value-chain [ctx root-ctx] "tempo" 0.0)
 ```
 
 `ctx-value-chain` takes the chain to search (nearest-first) and looks for
@@ -158,15 +158,47 @@ still-valid outer value.
 ```clojure
 (def root (c/context-root {"tempo" 120}))
 (def child (c/context))
-(c/ctx-append child :tempo 2.0 80 :lin-up)
+(c/ctx-append child "tempo" 2.0 80 :lin-up)
 
-(c/ctx-value-chain [child root] :tempo 0.0)  ;; => 120
+(c/ctx-value-chain [child root] "tempo" 0.0)  ;; => 120
 ;; child has a tempo envelope, but its only point is at t=2.
 ;; No point ≤ 0 exists → falls through to root → 120.
 
-(c/ctx-value-chain [child root] :tempo 3.0)  ;; => 80
+(c/ctx-value-chain [child root] "tempo" 3.0)  ;; => 80
 ;; Point at t=2 is ≤ 3 → valid → child's own value used.
 ```
+
+### Keys: a string is a context's, a keyword a tctx's
+
+A context key is a **string** (`"tempo"`, `"volume"`, `"density"`). There is no
+normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
+and a keyword asked of a chain reaches only a **tctx**.
+
+A tctx is an ordinary `Context` whose keys are **keywords** (`:reps`, `:density`).
+It goes in front of a chain (`[tctx child root]`), and since the two kinds of key
+never meet it hides no context value; `"density"` and `:density` are two keys. Its
+values are bare values, functions of time, or entries computed from other keys:
+
+```clojure
+(def tctx (-> (c/context)
+              (c/tctx-put :steps 8)                        ;; a value
+              (c/tctx-put :arc (fn [t] (* 2 t)))           ;; a function of the time
+              (c/tctx-derive :density                      ;; computed from other keys
+                             (fn [t get] (+ (get :arc) (get :steps))))))
+
+(c/ctx-value-chain [tctx child root] :density 3)           ;; => 14
+```
+
+`get` asks the same chain for another key, a string or a keyword, at the same
+time, so a lookup is **recursive**. A key is computed once per pull, and a key that
+needs itself, however far round, throws naming the cycle (`:a -> :b -> :a`).
+`(c/getter chain time)` is one memoized pull: every answer it gives (a miss too)
+is remembered, so one leaf sees one value for each key. The tctx is shared by
+atom: a change made to it (`tctx-put`) is seen by the next lookup in every chain
+that holds it.
+
+A function of time is also a value a context's own string key can hold
+(`(c/ctx-generate ctx "volume" f)`), read where an envelope would be.
 
 `:duration` on a `Context` (a plain value, not an envelope) caches that
 container's own total duration, stamped once at pop-container time (see

@@ -115,6 +115,9 @@ mu prints every value back in full, as shown after the `→`.
   C4.
 - **Uppercase is absolute:** `C5/4`. Without an octave it keeps the one
   before it, as a duration carries over: `[C5/4 D E]` is C5 D5 E5.
+- **In a data list** `'[ ]`, a capital letter **alone** is a pitch class:
+  `'[C D E]` is `'[0 2 4]`, `'[c d e]` the relative pitches `'[60 62 64]` and
+  `'[C4 D4]` the absolute `'[60 62]`; a list holds one kind.
 - **A digit after a lowercase letter is always a duration**, never an
   octave. Move octaves with ticks (`c,` `c'`) or write an absolute
   pitch (`C3/4`).

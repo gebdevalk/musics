@@ -468,6 +468,7 @@ each node, so a fn must pass through what it already produced (mark
 it, as `musics.mu.voice` does). What fills the registry is
 `musics.mu.voice/follow!` (a live voice's id bound to what it follows — see "The
 algorithms" below); `build-algo!` stores a hand-written wall fn directly. `musics.wall/registered` surfaces the full entry.
+A voice that is a function of beat does not use it (see "A voice can be a function of beat").
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`musics.engine`'s `:voices` atom) is a vector, root-first, one segment
@@ -711,6 +712,36 @@ per input under the algo it belongs to) read them; the Wall window lists every
 voice the same way; `:bass ->` starts it again with the inputs as they are; the
 inputs of a voice that has ended are refused and forgotten (`inputs/alive!`).
 
+**A voice can be a function of beat** (`musics.compose/source`,
+`musics.events/walk-source`, `musics.mu.live/play-beat-word!`). A word with `$beat`
+in its stack effect, `: hoke ( $beat $phase $side -- leaf ) … ;`, started like a
+live word (`0.0 -1 'hoke :a ->`; the stack gives the other inputs, `$beat` is the
+voice's own and has no slider), is asked by `musics.events` for **one leaf at the
+beat the voice has reached**: the walk plays it, and the beat it leaves is asked
+next, lazily, as far as the stream is read. There is no skeleton, wall fn or
+cursor for such a voice. Every lookup made for a leaf, producing or resolving it,
+is made at that leaf's beat: `walk-source` hands the source a memoized lookup
+(`context/getter`) bound at the walk's `:beat`, `resolve` reads the contexts at the
+same `:beat`, and the other inputs are read as they are at that leaf
+(`:voice/input` `!` is heard on the next leaf). Under `^{ !tempo:120 }` it plays as
+`[ctx source]`; it starts now (`->`, not `-|>`), and a start that fails is refused
+before any sound. The keyword `:beat` is answered too, so a word reads the beat as
+`:beat`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
+call order, and `hoketus2.mus` for a piece written this way.
+
+**The tctx and keyword arguments.** A word that is a Clojure function (not a
+stack word, not a `: … ;` word) takes, for each of its arguments that is a keyword
+the lookup in force holds, that value: `:onsets 8 euclid` is `3 8 euclid` while the
+tctx holds `:onsets 3`. A keyword the lookup does not hold goes through (`:hoketus
+R@`), and so does one the function's own keyword tail reads
+(`3 8 :rotation 2 euclid`); what lies under the arguments is untouched. The lookup
+is `eval/*lookup*`, bound by `eval/with-lookup` around a voice's run (unbound,
+nothing changes). `tctx-put` (`8 :steps tctx-put`), `tctx-derive`
+(`'( :steps 2 * ) :twice tctx-derive`: the quotation runs at the beat of the asker
+with `:beat` and every tctx key as keywords) and `tctx-get` (`:steps tctx-get`: a
+key's value where a plain word needs one) fill and read the session's tctx
+(`musics.mu.live/tctx`, not saved in a session file: it holds functions).
+
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
 `musics.algo.harmonic.progression` writes roman-
@@ -815,7 +846,10 @@ requires only `musics.domain.*` (and `musics.algo.numeric.random` for `play-orde
 `musics.input.reader.leaf-parser`, to spell
 notes) — never the engine — so the dependency runs exactly one way.
 A purely-functional grammar+preview layer has no business in the
-real-time playback engine. See `doc/md/decisions.md` for the full
+real-time playback engine. `compose/source` (a `Source` record, `{:f :tctx :ctx}`)
+is a Form of its own, a voice fed by a function of beat; `events` walks it
+(`walk-source`) and `engine/play` accepts it, but `display`/`display-timed` do not
+know it. See `doc/md/decisions.md` for the full
 reasoning behind the split (including why this ISN'T a third tier
 alongside Material/Sound/The playground — it's a sub-piece of tier 3,
 the part of the play-arg mini-language that's execution-agnostic, not
@@ -840,7 +874,9 @@ continuation per step, so nothing is walked past what is read: `:count
 `:PAR`/`#{}` merges its branches by `:t` and then continues where the
 branch that ends last stopped (`display-timed` follows the same rule).
 Wall fns run at the container's children and then at each leaf, so
-reading events moves a live voice's cursor. `:voice` events
+reading events moves a live voice's cursor. A `Source` form (`compose/source`,
+`walk-source`) is the other way a live voice plays: it is asked for one leaf at
+the beat the walk is at, and `fire` resolves that leaf at the same `:beat`. `:voice` events
 (`:phase :start`/`:end`, `:algo`) mark each voice, forked ones included,
 beginning and finishing. `voice-events` is one top-level voice's
 stream, optionally with a `:cutover` hook `(st id phase) -> st'` called
@@ -1038,6 +1074,25 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   already being spliced flat. Contrast a genuine nested `Sequence`, which
   gets its own real, retained context and does *not* leak a dynamic set
   inside it to a sibling outside its brackets.
+- **A context key is a string, a tctx key a keyword** (`musics/domain/context.clj`).
+  A context stores `"volume"`, `"Tempo"`, `"density"`; there is no `(name key)`
+  normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
+  and a keyword asked of a chain reaches only the contexts that hold keywords. A
+  **tctx** is an ordinary `Context` whose keys are keywords (`tctx-put`,
+  `tctx-derive`): whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
+  `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
+  hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
+  keys. Its values are bare values, `Generator`s (a function of the context's local
+  time, `generator`/`ctx-generate`, also usable on a context's string key: a
+  volume arc) or `Derived` entries (`tctx-derive`, `(f time get)`): `get` asks the
+  chain for another key, a string or a keyword, at the same time, so a lookup is
+  **recursive**, a key computed once per pull, a cycle an error naming it
+  (`:a -> :b -> :a`). `context/getter chain time` is one memoized pull: every answer,
+  a miss too, is remembered, so a leaf sees one value for each key; make one for each
+  leaf. A tctx is shared by atom, so editing it (a GUI slider, `tctx-put`) is seen at
+  the next lookup by every chain that holds it. A derived entry's time is the one
+  its context was asked at: right for a tctx at offset 0 in front of a chain, not
+  checked for an extracted context with another offset.
 - **Context has no parent pointer** (`musics/domain/context.clj`), for
   **containers**. The "enclosing scope" is visit-dependent — the same
   container can be reached through different parents if its id is reused
@@ -1289,6 +1344,12 @@ again):
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
 | `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
+**Notes in a data list** are of three spellings: lowercase is relative (`'[c d e]`
+is 60 62 64, the pitch before it deciding the octave), a capital with an octave is
+absolute (`'[C4 D4]` is 60 62), and a capital alone is a **pitch class**, 0 to 11
+(`'[C D E]` is 0 2 4, `'[C# D&]` is 1 1), an `:int` list that cannot mix with
+pitches. A bare letter takes the key's implied accidental, a written one wins.
+
 **A data list is a vector in mu.** The walker builds a `:DATA` node for `'[ ]`
 (`:data-type` `:int` `:pitch` `:duration` …), but what mu holds and every word
 reads is a plain vector of its values with that type on its metadata
@@ -1339,7 +1400,8 @@ one-child `:SEQ` (`wrap-bare-leaf`), and stored it is a one-note seq --
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery
 entirely: `musics.domain.context/ValueSource` (`sample-at`/`shift`,
-`extend-protocol`'d over `Envelope` and a bare-value fallback) lets
+`extend-protocol`'d over `Envelope` and a bare-value fallback; `Generator` and
+`Derived` are two more sources) lets
 `context-root` store each default as a plain value directly — no
 allocation for something that, by construction, can never receive a
 second point. Any other context still builds a real `Envelope` as
@@ -1634,7 +1696,10 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   `musics.compose`, which it builds on.
 - `musics/engine.clj` — live playback: one sender thread performing
   `musics.events` streams (see "Live playback" above).
-- `musics/common/music_data.clj` — requires nothing; everything else in
+- `musics/common/music_data.clj` — instruments that blend live here too
+  (`orchestral-families`, graded `blend-pairs`, `blend-factors`,
+  `blends-not-in-general-midi`, read with `blend-partners` and `blend-grade`;
+  `doc/md/blending.md`). Requires nothing; everything else in
   `musics/common/` and every algo builds on it. Its `quantities` table is the
   one source of truth for numeric ranges and defaults: name →
   `{:type :min :max :default :scale :doc}`, the same shape as an algo
@@ -1773,7 +1838,9 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
     `markov`, `lsystem` (the rewriting both L-system algos share), `chaos/{logistic,henon,lorenz}` (deterministic maps, no PRNG),
     `rng` (the pure xorshift32 engine, atom-backed seeding -- see its header
     comment), `spec` (the param specs the generators share), and small
-    maths (`integer`, `scaling`, `trig`, `farey`, `clam`).
+    maths (`integer`, `scaling`, `trig` -- sines and the other waves between `lo` and
+    `hi` with a phase and a period, `sine-fn` and the other `-fn` ones as functions
+    of the index alone, `spiral` n sines a 1/n of a cycle apart -- `farey`, `clam`).
   - `rhythmic/` -- pulses, onsets, durations, layers: `pattern` (euclid,
     fibonacci, primes, L-system; modular, bits, cfrac; cantor, dragon,
     golden, polygon), `sieve` (Xenakis sieves, Reich phases, cellular
