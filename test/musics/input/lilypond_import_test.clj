@@ -138,9 +138,9 @@
       (let [mus   (li/ly-text->mus-text ly)
             seq-c (root-sequence mus)
             ctx   (:context seq-c)]
-        (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+        (is (= 40 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
             (str ly " -> " (pr-str mus) ": p (40) must already be in effect at t=0.0"))
-        (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
+        (is (= 40 (c/ctx-value-chain [ctx root-ctx] "volume" 0.75))
             (str ly " -> " (pr-str mus) ": still p at the tied note"))))))
 
 (deftest ly-import-plain-glued-dynamic-also-lands-on-its-own-note
@@ -149,7 +149,7 @@
     (let [mus   (li/ly-text->mus-text "{ c4\\f d4 }")
           seq-c (root-sequence mus)
           ctx   (:context seq-c)]
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
           "f (70) in effect from c4's own onset, not d4's"))))
 
 (deftest every-volta-ending-is-kept

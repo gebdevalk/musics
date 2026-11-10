@@ -165,7 +165,7 @@
   [x dir target]
   (let [mat   (if (leaf? x) (line [x]) x)
         node  (v/node mat)
-        start (or (c/ctx-value-chain (keep :context [node (repo/current :ROOT)]) :volume 0) 50)
+        start (or (c/ctx-value-chain (keep :context [node (repo/current :ROOT)]) "volume" 0) 50)
         open  (str "!vol:" start dir)
         close (str "!vol:" target)]
     (read-text
@@ -366,7 +366,7 @@
   (let [put (fn [n]
               (if (some #(and (instruction? %) (= :Key (:key %))) (take-while instruction? (:children n)))
                 n
-                (let [k (c/ctx-value-chain (keep :context [n (repo/current :ROOT)]) :Key 0)]
+                (let [k (c/ctx-value-chain (keep :context [n (repo/current :ROOT)]) "Key" 0)]
                   (update n :children #(into [{:type :assignment :key :Key :val (el/key->str k) :raw (str "!K:" (el/key->str k))}] %)))))
         {:keys [repo id]} x
         n (get repo id)]
@@ -735,7 +735,7 @@
    out."
   [x]
   (let [mat   (as-line x)
-        meter (or (c/ctx-value-chain (keep :context [(v/node mat) (repo/current :ROOT)]) :Meter 0)
+        meter (or (c/ctx-value-chain (keep :context [(v/node mat) (repo/current :ROOT)]) "Meter" 0)
                   {:num 4 :den 4})
         bar   (/ (:num meter) (:den meter))]
     (loop [cs (remove #(and (d/bar? %) (= 1 (:count %))) (children-of mat)) pos 0 out []]

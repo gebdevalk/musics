@@ -382,7 +382,7 @@
           time (if (instance? musics.domain.context.Envelope env)
                  (or (:time (last @(:points-atom env))) 0)
                  0)]
-      (c/ctx-append ctx k time value :fixed))))
+      (c/ctx-append ctx (name k) time value :fixed))))
 
 (defn watch!
   "Start showing sliders/dropdowns for id-str's own context values

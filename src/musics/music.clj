@@ -722,7 +722,7 @@
   [x]
   (cond
     (mt/leaf? x) (or (:key x) (fail "this note has no written key (written under !acc:explicit, or not written at all)"))
-    (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) :Key 0)
+    (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) "Key" 0)
     :else (fail "needs a note or a seq, got" (p/show x))))
 
 (defn- context-articulation
@@ -751,7 +751,7 @@
                      (= k :articulation) (context-articulation x)
                      (contains? (:overrides x) k) (get (:overrides x) k)
                      :else (r/sample-leaf x k))
-      (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) k 0)
+      (v/material? x) (c/ctx-value-chain (keep :context [(v/node x) (repo/current :ROOT)]) (name k) 0)
       :else (fail "needs a note or a seq, got" (p/show x))))))
 
 (defn- amount

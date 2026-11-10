@@ -238,6 +238,17 @@
   [^Envelope env time]
   (first (rsubseq @(:points-atom env) <= time)))
 
+(defn- resolve-source
+  "[value] source gives at time, nil when it has nothing to say (an Envelope
+   with no point yet or an invalidated one, a ValueSource that answers nil)."
+  [source time]
+  (if (instance? Envelope source)
+    (let [latest (latest-point-at-or-before source time)]
+      (when (and latest (not= (second (val latest)) :invalid))
+        [(env-get source time)]))
+    (when-let [v (sample-at source time)]
+      [v])))
+
 (defn- resolve-in-env-map
   "Resolve key against an ALREADY-DEREFED envelopes map (some context's
    own :envelopes-atom, deref'd once by the caller -- see sample-many's
@@ -263,13 +274,8 @@
    time and never look at it), so passing the offset-adjusted local
    time uniformly is always safe, never just 'usually right'."
   [env-map key time]
-  (when-let [source (get env-map (name key))]
-    (if (instance? Envelope source)
-      (let [latest (latest-point-at-or-before source time)]
-        (when (and latest (not= (second (val latest)) :invalid))
-          [(env-get source time)]))
-      (when-let [v (sample-at source time)]
-        [v]))))
+  (when-let [source (get env-map key)]
+    (resolve-source source time)))
 
 (extend-protocol ValueSource
   Envelope
@@ -287,11 +293,40 @@
   (sample-at [_ _time] nil)
   (shift [_ _offset] nil))
 
+;; A value that is a function of time: sampled when it is asked for, so it can
+;; follow a setting that changes while the music plays. It sits in a context like
+;; a bare value (ctx-generate), and is ignored by ValueSource's callers
+;; exactly as an Envelope is: the chain search just asks sample-at.
+(defrecord Generator [f]
+  ValueSource
+  (sample-at [_ time] (f time))
+  (shift [_ offset] (if (zero? offset) (->Generator f) (->Generator (fn [t] (f (- t offset)))))))
+
+(defn generator
+  "A ValueSource whose value at time is (f time), time local to the context
+   that holds it."
+  [f]
+  (->Generator f))
+
+(defn- context-key!
+  "key, a context key: a string. A keyword is a tctx key, never a context's."
+  [key]
+  (when-not (string? key)
+    (throw (ex-info (str "a context key is a string, got " (pr-str key)) {:key key})))
+  key)
+
+(defn ctx-generate
+  "Make key (a string) in ctx the function f of time (see generator); never
+   touches another context. Returns ctx."
+  [ctx key f]
+  (swap! (:envelopes-atom ctx) assoc (context-key! key) (generator f))
+  ctx)
+
 (defn context-root
   "Create a root Context from a map of key -> value -- each value stored
    BARE (see ValueSource above), not wrapped in an Envelope/Point/atom:
    :ROOT is grammar-guaranteed write-once, so there's never a second
-   point to accommodate.
+   point to accommodate. A key is a string.
    Root context has no owning container, so :duration is nil.
    'Root-ness' is determined by how it's used in a traversal
    (passed as the last element of a chain), not by anything
@@ -299,8 +334,18 @@
   [data]
   (let [ctx (context)]
     (doseq [[k v] data]
-      (swap! (:envelopes-atom ctx) assoc (name k) v))
+      (swap! (:envelopes-atom ctx) assoc (context-key! k) v))
     ctx))
+
+(defn tctx-put
+  "In tctx, a Context like any other whose keys are Clojure keywords (a context's
+   own are strings), key (:reps) is v: a function of time when v is a fn, else the
+   bare value. A tctx goes in front of a chain, and a string key never finds a
+   keyword one (or the reverse). Returns tctx."
+  [tctx key v]
+  (assert (keyword? key) "a tctx key is a Clojure keyword")
+  (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
+  tctx)
 
 (defn ctx-shift
   "Return a new Context with every envelope's points shifted by offset --
@@ -496,7 +541,7 @@
    Otherwise: create a new local envelope.
    Never touches any other context -- a Context only ever mutates itself."
   [ctx key time value ip]
-  (let [k (name key)]
+  (let [k (context-key! key)]
     (if-let [env (get @(:envelopes-atom ctx) k)]
       (env-append env time value ip)
       (let [env (envelope)]
@@ -532,22 +577,22 @@
   ;; still-valid value further up the chain -- e.g. a tempo instruction
   ;; at beat 2 would retroactively override an enclosing tempo at beat 0.
   (def root-ctx (context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))
-  (ctx-value-chain [root-ctx] :Tempo 0.0)                   ;; => 120
+  (ctx-value-chain [root-ctx] "Tempo" 0.0)                   ;; => 120
 
   (def child-ctx (context))
-  (ctx-append child-ctx :tempo 2.0 80 :lin-up)
+  (ctx-append child-ctx "tempo" 2.0 80 :lin-up)
   ;; chain is nearest-first: child before root
-  (ctx-value-chain [child-ctx root-ctx] :tempo 0.0)         ;; => 120 (no point <= 0 in child -> root)
-  (ctx-value-chain [child-ctx root-ctx] :tempo 3.0)         ;; => 80  (point at t=2 valid -> local)
+  (ctx-value-chain [child-ctx root-ctx] "tempo" 0.0)         ;; => 120 (no point <= 0 in child -> root)
+  (ctx-value-chain [child-ctx root-ctx] "tempo" 3.0)         ;; => 80  (point at t=2 valid -> local)
 
   ;; --- ctx-invalidate: bounding a temporary local override ---
   ;; Without invalidation, a local override is permanent -- once set, it
   ;; hides the enclosing chain forever, even long after whatever pushed
   ;; it (e.g. a slur) has ended.
   (def slur-ctx (context))
-  (ctx-append slur-ctx :articulation 1.0 1.0 :fixed)        ;; !( at beat 1: force legato
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (slur active)
-  (ctx-invalidate slur-ctx :articulation 3.0)                ;; !) at beat 3: end the slur
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (still inside the slur)
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 4.0)   ;; => nil, or root's own value if set
+  (ctx-append slur-ctx "articulation" 1.0 1.0 :fixed)        ;; !( at beat 1: force legato
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 1.5)   ;; => 1.0 (slur active)
+  (ctx-invalidate slur-ctx "articulation" 3.0)                ;; !) at beat 3: end the slur
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 1.5)   ;; => 1.0 (still inside the slur)
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 4.0)   ;; => nil, or root's own value if set
   )
