@@ -1,7 +1,7 @@
 % hoketus2 -- the same piece as hoketus.mus, but nothing is built: every voice is a
 % function of the beat, and what it plays is looked up as it plays.
 %
-% Hear it:    "hoketus2.mus" load   start
+% Hear it:    "mus/hoketus2.mus" load   start
 % Change it:  while it plays, 6 :steps tctx-put   or   :marimbaA/phase  0.5 !
 % Stop it:    stop-hoketus
 %

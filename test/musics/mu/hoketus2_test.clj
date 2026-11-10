@@ -1,5 +1,5 @@
 (ns ^:repl musics.mu.hoketus2-test
-  "hoketus2.mus: a hoketus whose voices are functions of the beat -- the arc is derived
+  "mus/hoketus2.mus: a hoketus whose voices are functions of the beat -- the arc is derived
    from the beat as it is asked, and a voice is one leaf at a time."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
@@ -29,7 +29,7 @@
 (use-fixtures :each fresh)
 
 (defn- load-piece! []
-  (let [r (with-out-str (e/eval-input (slurp (io/file "hoketus2.mus"))))]
+  (let [r (with-out-str (e/eval-input (slurp (io/file "mus/hoketus2.mus"))))]
     (is (not (re-find #"can't read|error" r)) r)))
 
 (defn- at [k beat] (c/ctx-value-chain [live/tctx] k beat))
