@@ -106,9 +106,9 @@
 
 (deftest a-tctx-in-front-of-a-chain-answers-keywords-and-leaves-strings-alone
   (let [tctx    (-> (c/context)
-                    (c/tctx-put :reps 4)
-                    (c/tctx-put :arc (fn [t] (* 10 t)))
-                    (c/tctx-put :density 7))
+                    (c/tctx! :reps 4)
+                    (c/tctx! :arc (fn [t] (* 10 t)))
+                    (c/tctx! :density 7))
         root    (c/context-root {"volume" 50 "pan" 0.0 "density" 1})
         written (c/context)
         _       (c/ctx-append written "pan" 0 -1.0 :fixed)
@@ -125,21 +125,21 @@
         "sample-many too")
     (is (nil? (c/ctx-value-chain [written root] :reps 3)) "no tctx on the chain: nothing")
     (is (thrown? Exception (c/ctx-append (c/context) :reps 0 1 :fixed)) "a context key is a string")
-    (is (thrown? AssertionError (c/tctx-put (c/context) "reps" 1)) "a tctx key is a keyword"))
+    (is (thrown? AssertionError (c/tctx! (c/context) "reps" 1)) "a tctx key is a keyword"))
   (testing "the chain a voice holds sees a change of the tctx at once"
-    (let [tctx  (c/tctx-put (c/context) :reps 8)
+    (let [tctx  (c/tctx! (c/context) :reps 8)
           chain [tctx (c/context-root {"volume" 50})]]
       (is (= 8 (c/ctx-value-chain chain :reps 1)))
-      (c/tctx-put tctx :reps 2)
+      (c/tctx! tctx :reps 2)
       (is (= 2 (c/ctx-value-chain chain :reps 1)))))
   (testing "a shifted tctx is shifted like any context"
-    (let [tctx (c/tctx-put (c/context) :t identity)]
+    (let [tctx (c/tctx! (c/context) :t identity)]
       (is (= 2 (c/ctx-value-chain [(c/ctx-shift tctx 3)] :t 5))))))
 
 (deftest a-derived-tctx-entry-pulls-other-keys
   (let [tctx  (-> (c/context)
-                  (c/tctx-put :steps 8)
-                  (c/tctx-put :arc (fn [t] (* 2 t)))
+                  (c/tctx! :steps 8)
+                  (c/tctx! :arc (fn [t] (* 2 t)))
                   (c/tctx-derive :density (fn [_ get] (+ (get :arc) (get :steps))))
                   (c/tctx-derive :pulses  (fn [_ get] [:euclid (get :density) (get :steps)]))
                   (c/tctx-derive :loud    (fn [_ get] (+ 1 (get "volume")))))
@@ -151,7 +151,7 @@
            (c/sample-many chain {:density 0 :steps 0 "volume" 0} 1))
         "sample-many asks derived keys through the same chain")
     (testing "a change of what it depends on is seen by the next lookup"
-      (c/tctx-put tctx :steps 16)
+      (c/tctx! tctx :steps 16)
       (is (= 22 (c/ctx-value-chain chain :density 3)))))
   (testing "a missing dependency answers nil"
     (let [tctx (c/tctx-derive (c/context) :x (fn [_ get] (get :nothing)))]
@@ -179,15 +179,15 @@
   (testing "tctx-derive wants a keyword"
     (is (thrown? AssertionError (c/tctx-derive (c/context) "x" (fn [_ _] 1)))))
   (testing "a voice's tctx in front of the piece's: the nearest wins, and derived values see the whole chain"
-    (let [piece (-> (c/context) (c/tctx-put :steps 8) (c/tctx-derive :half (fn [_ get] (/ (get :steps) 2))))
-          voice (c/tctx-put (c/context) :steps 4)]
+    (let [piece (-> (c/context) (c/tctx! :steps 8) (c/tctx-derive :half (fn [_ get] (/ (get :steps) 2))))
+          voice (c/tctx! (c/context) :steps 4)]
       (is (= 2 (c/ctx-value-chain [voice piece] :half 0)) "half of the voice's own :steps")
       (is (= 4 (c/ctx-value-chain [piece] :half 0))))))
 
 (deftest a-getter-is-one-pull-for-every-key-it-answers
   (let [calls (atom 0)
         tctx  (-> (c/context)
-                  (c/tctx-put :steps 8)
+                  (c/tctx! :steps 8)
                   (c/tctx-derive :base (fn [t _] (swap! calls inc) (+ 10 t)))
                   (c/tctx-derive :left (fn [_ get] (+ 1 (get :base))))
                   (c/tctx-derive :right (fn [_ get] (+ 2 (get :base)))))
@@ -204,7 +204,7 @@
         (is (= 14 (get :left)) "asked again: the same answer")
         (is (= 1 @calls))))
     (testing "a new getter is a new pull: it sees a change of the tctx"
-      (c/tctx-put tctx :steps 16)
+      (c/tctx! tctx :steps 16)
       (is (= 16 ((c/getter chain 3) :steps))))
     (testing "a cycle is caught through a getter too"
       (let [bad (-> (c/context)
@@ -213,13 +213,13 @@
         (is (thrown-with-msg? clojure.lang.ExceptionInfo #":a -> :b -> :a"
               ((c/getter [bad] 0) :a)))))
     (testing "the beat is the one it was made with, in a context with an offset too"
-      (let [shifted (c/tctx-put (c/context) :t identity)]
+      (let [shifted (c/tctx! (c/context) :t identity)]
         (is (= 5 ((c/getter [shifted] 5) :t)))))))
 
 (deftest a-getter-is-memoized-for-every-kind-of-key
   (let [calls (atom 0)
         tctx  (-> (c/context)
-                  (c/tctx-put :wave (fn [t] (swap! calls inc) (* 2 t)))
+                  (c/tctx! :wave (fn [t] (swap! calls inc) (* 2 t)))
                   (c/tctx-derive :twice (fn [_ get] (+ (get :wave) (get :wave)))))
         chain [tctx (c/context-root {"volume" 50})]]
     (testing "outside a pull a generator is asked every time"
@@ -232,12 +232,12 @@
         (is (= [6 12 6] [(get :wave) (get :twice) (get :wave)]))
         (is (= 1 @calls))))
     (testing "a miss is remembered too, so is a change made after the first ask"
-      (let [tctx (c/tctx-put (c/context) :x 1)
+      (let [tctx (c/tctx! (c/context) :x 1)
             get  (c/getter [tctx] 0)]
         (is (nil? (get :y)))
         (is (= 1 (get :x)))
-        (c/tctx-put tctx :x 2)
-        (c/tctx-put tctx :y 3)
+        (c/tctx! tctx :x 2)
+        (c/tctx! tctx :y 3)
         (is (nil? (get :y)) "this leaf keeps what it saw")
         (is (= 1 (get :x)))
         (is (= [3 2] [((c/getter [tctx] 0) :y) ((c/getter [tctx] 0) :x)]) "the next leaf sees the change")))))

@@ -3569,13 +3569,13 @@ accidental as any note does; a written accidental always wins.
 ## 2026-11-10 — a tctx of keyword keys, derived entries, and a voice that is a function of beat
 
 **Keys.** A context key is a string (`"volume"`), a tctx key is a keyword (`:density`).
-There is no `(name key)` normalization: `ctx-append` refuses a keyword, `tctx-put`
+There is no `(name key)` normalization: `ctx-append` refuses a keyword, `tctx!`
 refuses a string, and a keyword asked of a chain reaches only the contexts that hold
 keywords. `"density"` (ROOT's) and `:density` (a tctx's) are two keys.
 
 **The tctx** is an ordinary Context whose keys are keywords, put in front of a chain
 by whoever builds it; the chain, the beads and ROOT are as they were. Its values are
-bare values, functions of structural time (`tctx-put`), or entries computed from other
+bare values, functions of structural time (`tctx!`), or entries computed from other
 keys (`tctx-derive`, `(f time get)`): a lookup is recursive over the whole chain at one
 time, a cycle throws naming it, and `context/getter` makes one memoized pull for a
 chain and a beat.

@@ -366,7 +366,7 @@
       (swap! (:envelopes-atom ctx) assoc (context-key! k) v))
     ctx))
 
-(defn tctx-put
+(defn tctx!
   "In tctx, a Context like any other whose keys are Clojure keywords (a context's
    own are strings), key (:reps) is v: a function of time when v is a fn, else the
    bare value. A tctx goes in front of a chain, and a string key never finds a

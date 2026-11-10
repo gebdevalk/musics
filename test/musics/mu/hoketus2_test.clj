@@ -52,7 +52,7 @@
     (is (= [1 0 0 0 1 0 0 0] (at :pulses 2)))
     (is (= [1 1 1 1 1 1 1 1] (at :pulses 14))))
   (testing "a setting changed while it plays is read at the next ask"
-    (c/tctx-put live/tctx :steps 4)
+    (c/tctx! live/tctx :steps 4)
     (is (= [1 1 1 1] (at :pulses 3)) "at 4 steps the climax is 4 notes, and it comes at beat 3")
     (is (= 4 (count (at :pulses 0))))))
 

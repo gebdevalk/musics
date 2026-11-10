@@ -750,9 +750,9 @@
 
 (deftest a-keyword-argument-the-tctx-holds-is-its-value
   (let [tctx  (-> (musics.domain.context/context)
-                  (musics.domain.context/tctx-put :onsets 3)
-                  (musics.domain.context/tctx-put :steps 8)
-                  (musics.domain.context/tctx-put :rotation 99)   ; a name euclid's own tail reads
+                  (musics.domain.context/tctx! :onsets 3)
+                  (musics.domain.context/tctx! :steps 8)
+                  (musics.domain.context/tctx! :rotation 99)   ; a name euclid's own tail reads
                   (musics.domain.context/tctx-derive :twice (fn [_ get] (* 2 (get :onsets)))))
         chain [tctx (musics.domain.context/context-root {"volume" 50})]
         run   (fn [text]
@@ -803,15 +803,15 @@
 
 (defn- clear-tctx! [] (reset! (:envelopes-atom live/tctx) {}))
 
-(deftest tctx-put-and-tctx-derive-fill-the-tctx-of-the-voices
+(deftest tctx!-and-tctx-derive-fill-the-tctx-of-the-voices
   (try
-    (run "8 :steps tctx-put")
+    (run "8 :steps tctx!")
     (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
     (run "'( :steps 2 * ) :twice tctx-derive")
     (is (= 16 (c/ctx-value-chain [live/tctx] :twice 0)) "a quotation computes it from another key")
     (run "'( :beat 4 * int ) :quarters tctx-derive")
     (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :beat is the beat it is asked at")
-    (is (re-find #"the key is a keyword" (:error (run "8 'steps tctx-put"))))
+    (is (re-find #"the key is a keyword" (:error (run "8 'steps tctx!"))))
     (finally (clear-tctx!))))
 
 (deftest a-word-with-beat-in-its-stack-effect-is-a-voice-that-is-a-function-of-beat
@@ -826,7 +826,7 @@
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
     (testing "a keyword argument the tctx holds is its value, at the leaf's beat"
       (run ": tock ( $beat -- note ) | '[1/4] '[1] :base :bump + * zip ;")
-      (run "60 :base tctx-put")
+      (run "60 :base tctx!")
       (run "'( :beat 4 * int ) :bump tctx-derive")
       (inputs/set-inputs! :w [])
       (is (= [60 62] (mapv #(-> ((#'live/beat-source "tock" :w ["beat"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))
