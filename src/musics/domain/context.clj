@@ -15,7 +15,8 @@
 ;; Usage:
 ;;   (require '[musics.domain.context :as c])
 
-(ns musics.domain.context)
+(ns musics.domain.context
+  (:require [clojure.string :as str]))
 
 ;; ============================================================
 ;; IP: Interpolation types (ported from envelope.py IP enum)
@@ -231,12 +232,51 @@
     "A version of this source re-based by offset -- a no-op for
      anything that isn't genuinely time-based."))
 
+(declare lookup)
+
+;; A value computed from other keys: (f time get), where (get key) asks the chain
+;; for another key at the same time. A tctx entry made with tctx-derive.
+(defrecord Derived [f]
+  ValueSource
+  (sample-at [_ _] (throw (ex-info "a derived value needs the chain it is asked through" {})))
+  (shift [_ offset] (if (zero? offset) (->Derived f) (->Derived (fn [t get] (f (- t offset) get))))))
+
+(defn- derived-value
+  "[value] a Derived gives for key at time, or nil when its function answers nil.
+   One pull is one state (see lookup): the keys being computed are kept, and a key
+   that needs itself, however far round, is an error naming the cycle."
+  [{:keys [f]} key time chain state]
+  (let [state  (or state {:cache (atom {}) :active (atom [])})
+        active (:active state)]
+    (when (some #{key} @active)
+      (throw (ex-info (str "a cycle in the tctx: " (str/join " -> " (map pr-str (conj @active key))))
+                      {:cycle (conj @active key)})))
+    (swap! active conj key)
+    (try
+      (when-some [v (f time (fn [k] (lookup chain k time state)))] [v])
+      (finally (swap! active pop)))))
+
 (defn- latest-point-at-or-before
   "The most recent [time [value ip]] entry in env at-or-before time, or
    nil if none -- one rsubseq call against the sorted-map instead of a
    linear filter+last."
   [^Envelope env time]
   (first (rsubseq @(:points-atom env) <= time)))
+
+(defn- resolve-source
+  "[value] source gives at time, nil when it has nothing to say (an Envelope
+   with no point yet or an invalidated one, a ValueSource that answers nil)."
+  [source key time chain state]
+  (cond
+    (instance? Envelope source)
+    (let [latest (latest-point-at-or-before source time)]
+      (when (and latest (not= (second (val latest)) :invalid))
+        [(env-get source time)]))
+
+    (instance? Derived source) (derived-value source key time chain state)
+
+    :else (when-let [v (sample-at source time)]
+            [v])))
 
 (defn- resolve-in-env-map
   "Resolve key against an ALREADY-DEREFED envelopes map (some context's
@@ -262,14 +302,9 @@
    entirely (env's Object/nil extend-protocol impls below both take
    time and never look at it), so passing the offset-adjusted local
    time uniformly is always safe, never just 'usually right'."
-  [env-map key time]
-  (when-let [source (get env-map (name key))]
-    (if (instance? Envelope source)
-      (let [latest (latest-point-at-or-before source time)]
-        (when (and latest (not= (second (val latest)) :invalid))
-          [(env-get source time)]))
-      (when-let [v (sample-at source time)]
-        [v]))))
+  [env-map key time chain state]
+  (when-let [source (get env-map key)]
+    (resolve-source source key time chain state)))
 
 (extend-protocol ValueSource
   Envelope
@@ -287,11 +322,40 @@
   (sample-at [_ _time] nil)
   (shift [_ _offset] nil))
 
+;; A value that is a function of time: sampled when it is asked for, so it can
+;; follow a setting that changes while the music plays. It sits in a context like
+;; a bare value (ctx-generate), and is ignored by ValueSource's callers
+;; exactly as an Envelope is: the chain search just asks sample-at.
+(defrecord Generator [f]
+  ValueSource
+  (sample-at [_ time] (f time))
+  (shift [_ offset] (if (zero? offset) (->Generator f) (->Generator (fn [t] (f (- t offset)))))))
+
+(defn generator
+  "A ValueSource whose value at time is (f time), time local to the context
+   that holds it."
+  [f]
+  (->Generator f))
+
+(defn- context-key!
+  "key, a context key: a string. A keyword is a tctx key, never a context's."
+  [key]
+  (when-not (string? key)
+    (throw (ex-info (str "a context key is a string, got " (pr-str key)) {:key key})))
+  key)
+
+(defn ctx-generate
+  "Make key (a string) in ctx the function f of time (see generator); never
+   touches another context. Returns ctx."
+  [ctx key f]
+  (swap! (:envelopes-atom ctx) assoc (context-key! key) (generator f))
+  ctx)
+
 (defn context-root
   "Create a root Context from a map of key -> value -- each value stored
    BARE (see ValueSource above), not wrapped in an Envelope/Point/atom:
    :ROOT is grammar-guaranteed write-once, so there's never a second
-   point to accommodate.
+   point to accommodate. A key is a string.
    Root context has no owning container, so :duration is nil.
    'Root-ness' is determined by how it's used in a traversal
    (passed as the last element of a chain), not by anything
@@ -299,8 +363,29 @@
   [data]
   (let [ctx (context)]
     (doseq [[k v] data]
-      (swap! (:envelopes-atom ctx) assoc (name k) v))
+      (swap! (:envelopes-atom ctx) assoc (context-key! k) v))
     ctx))
+
+(defn tctx-put
+  "In tctx, a Context like any other whose keys are Clojure keywords (a context's
+   own are strings), key (:reps) is v: a function of time when v is a fn, else the
+   bare value. A tctx goes in front of a chain, and a string key never finds a
+   keyword one (or the reverse). Returns tctx."
+  [tctx key v]
+  (assert (keyword? key) "a tctx key is a Clojure keyword")
+  (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
+  tctx)
+
+(defn tctx-derive
+  "In tctx, key (a keyword) is computed from other keys: f is called as
+   (f time get) when the key is asked for, and (get :other) asks the chain for
+   another key at the same time, a string (a context's) or a keyword (a tctx's).
+   Within one lookup a key is computed once, and a key that depends on itself,
+   however far round, throws naming the cycle. Returns tctx."
+  [tctx key f]
+  (assert (keyword? key) "a tctx key is a Clojure keyword")
+  (swap! (:envelopes-atom tctx) assoc key (->Derived f))
+  tctx)
 
 (defn ctx-shift
   "Return a new Context with every envelope's points shifted by offset --
@@ -369,11 +454,7 @@
    is just the chain walk around it, the same walk sample-many does for
    multiple keys at once."
   [chain key time]
-  (loop [cs chain]
-    (when (seq cs)
-      (if-let [[v] (resolve-in-env-map @(:envelopes-atom (first cs)) key time)]
-        v
-        (recur (rest cs))))))
+  (lookup chain key time nil))
 
 (defn ambient-value
   "What key is already active from ctx-chain (nearest-first [context
@@ -418,6 +499,43 @@
    to tell them apart."
   [link]
   (if (vector? link) link [link 0]))
+
+(defn- lookup*
+  [chain key time state]
+  (loop [links (seq chain)]
+    (when links
+      (let [[ctx offset] (link->ctx+offset (first links))]
+        (if-let [[v] (resolve-in-env-map @(:envelopes-atom ctx) key (- time offset) chain state)]
+          v
+          (recur (next links)))))))
+
+(defn- lookup
+  "The value of key at time over chain (contexts, or [context offset] links),
+   nearest first. state is the pull in progress, nil outside one: inside a pull
+   every answer, nil too, is remembered, so a key is looked for and computed once
+   however often it is asked, and the pull sees one consistent value for it."
+  [chain key time state]
+  (if state
+    (let [cache (:cache state)]
+      (if (contains? @cache key)
+        (get @cache key)
+        (let [v (lookup* chain key time state)]
+          (swap! cache assoc key v)
+          v)))
+    (lookup* chain key time nil)))
+
+(defn getter
+  "A function of a key that answers its value at time over chain (a context
+   chain, a tctx in front), nearest first; nil when none holds it. It is
+   memoized: every lookup it answers is one pull, so a key (a plain value, a
+   generator, a derived entry, a miss) is looked for and computed once, however
+   often it is asked or reached through another key, and a cycle is caught across
+   them. Make one for each leaf (its
+   chain and its beat) and bind it where a word runs (eval/with-lookup);
+   make another for the next leaf, so a change of a tctx is seen then."
+  [chain time]
+  (let [state {:cache (atom {}) :active (atom [])}]
+    (fn [k] (lookup chain k time state))))
 
 (defn sample-many
   "Sample MULTIPLE keys from chain-links in ONE pass over the chain,
@@ -482,7 +600,7 @@
             local-time (- time offset)
             step (reduce
                    (fn [acc [k default]]
-                     (if-let [[v] (resolve-in-env-map env-map k local-time)]
+                     (if-let [[v] (resolve-in-env-map env-map k local-time chain-links nil)]
                        (update acc :found assoc k v)
                        (update acc :pending assoc k default)))
                    {:pending {} :found found}
@@ -496,7 +614,7 @@
    Otherwise: create a new local envelope.
    Never touches any other context -- a Context only ever mutates itself."
   [ctx key time value ip]
-  (let [k (name key)]
+  (let [k (context-key! key)]
     (if-let [env (get @(:envelopes-atom ctx) k)]
       (env-append env time value ip)
       (let [env (envelope)]
@@ -532,22 +650,22 @@
   ;; still-valid value further up the chain -- e.g. a tempo instruction
   ;; at beat 2 would retroactively override an enclosing tempo at beat 0.
   (def root-ctx (context-root {"Tempo" 120 "volume" 0.8 "timbre" 42}))
-  (ctx-value-chain [root-ctx] :Tempo 0.0)                   ;; => 120
+  (ctx-value-chain [root-ctx] "Tempo" 0.0)                   ;; => 120
 
   (def child-ctx (context))
-  (ctx-append child-ctx :tempo 2.0 80 :lin-up)
+  (ctx-append child-ctx "tempo" 2.0 80 :lin-up)
   ;; chain is nearest-first: child before root
-  (ctx-value-chain [child-ctx root-ctx] :tempo 0.0)         ;; => 120 (no point <= 0 in child -> root)
-  (ctx-value-chain [child-ctx root-ctx] :tempo 3.0)         ;; => 80  (point at t=2 valid -> local)
+  (ctx-value-chain [child-ctx root-ctx] "tempo" 0.0)         ;; => 120 (no point <= 0 in child -> root)
+  (ctx-value-chain [child-ctx root-ctx] "tempo" 3.0)         ;; => 80  (point at t=2 valid -> local)
 
   ;; --- ctx-invalidate: bounding a temporary local override ---
   ;; Without invalidation, a local override is permanent -- once set, it
   ;; hides the enclosing chain forever, even long after whatever pushed
   ;; it (e.g. a slur) has ended.
   (def slur-ctx (context))
-  (ctx-append slur-ctx :articulation 1.0 1.0 :fixed)        ;; !( at beat 1: force legato
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (slur active)
-  (ctx-invalidate slur-ctx :articulation 3.0)                ;; !) at beat 3: end the slur
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 1.5)   ;; => 1.0 (still inside the slur)
-  (ctx-value-chain [slur-ctx root-ctx] :articulation 4.0)   ;; => nil, or root's own value if set
+  (ctx-append slur-ctx "articulation" 1.0 1.0 :fixed)        ;; !( at beat 1: force legato
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 1.5)   ;; => 1.0 (slur active)
+  (ctx-invalidate slur-ctx "articulation" 3.0)                ;; !) at beat 3: end the slur
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 1.5)   ;; => 1.0 (still inside the slur)
+  (ctx-value-chain [slur-ctx root-ctx] "articulation" 4.0)   ;; => nil, or root's own value if set
   )

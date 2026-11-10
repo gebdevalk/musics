@@ -164,9 +164,10 @@
    ornaments, so both see the pitch that sounds."
   [part ctx-chain structural-time]
   (if-let [from (:key part)]
-    (let [{to :Key acc :accidentals}
-          (c/sample-many (chain-links part ctx-chain structural-time)
-                         {:Key nil :accidentals :implied} structural-time)]
+    (let [sampled (c/sample-many (chain-links part ctx-chain structural-time)
+                                 {"Key" nil "accidentals" :implied} structural-time)
+          to  (get sampled "Key")
+          acc (get sampled "accidentals")]
       (if (or (nil? to) (= acc :explicit) (= from to))
         part
         (let [shift (:key-shift part 0)
@@ -240,6 +241,20 @@
   {:instrument (dflt :instrument) :transposition (dflt :semitones)
    :octave (dflt :octave) :panning (dflt :panning)})
 
+(defn- as-strings
+  "m with its keyword keys as the strings a context stores them under."
+  [m]
+  (reduce-kv (fn [acc k v] (assoc acc (name k) v)) {} m))
+
+(defn- as-keywords
+  "m with its string keys as the keywords the rest of this namespace reads."
+  [m]
+  (reduce-kv (fn [acc k v] (assoc acc (keyword k) v)) {} m))
+
+(def ^:private common-strs (as-strings common-keys+defaults))
+(def ^:private leaf-strs   (as-strings leaf-keys+defaults))
+(def ^:private kit-strs    {"kit" (dflt :kit)})
+
 (def played-keys
   "Every context key playback reads -- the one answer to 'does setting
    this change what's heard'; the GUI shows sliders for these only."
@@ -250,7 +265,7 @@
    sits, from its own baked ancestors, else the key's default: what
    playback samples before the leaf's own overrides."
   [leaf k]
-  (get (c/sample-many (chain-links leaf [] 0) {k (get (ck/root-defaults) (name k))} 0) k))
+  (get (c/sample-many (chain-links leaf [] 0) {(name k) (get (ck/root-defaults) (name k))} 0) (name k)))
 
 (defn- resolve-common
   "Sample tempo/volume (and articulation, unless part's own explicit
@@ -291,10 +306,10 @@
    out of this same map)."
   [part chain-links structural-time extra-keys+defaults]
   (let [need-articulation? (nil? (:articulation part))
-        keys+defaults (cond-> (merge common-keys+defaults extra-keys+defaults)
-                        need-articulation? (assoc :articulation (dflt :articulation)))
+        keys+defaults (cond-> (merge common-strs extra-keys+defaults)
+                        need-articulation? (assoc "articulation" (dflt :articulation)))
         ;; a note's own \name:value overrides win over the context's
-        sampled      (merge (c/sample-many chain-links keys+defaults structural-time)
+        sampled      (merge (as-keywords (c/sample-many chain-links keys+defaults structural-time))
                             (:overrides part))
         tempo        (:Tempo sampled)
         volume       (:volume sampled)
@@ -313,7 +328,7 @@
   [{:keys [part chain-links]} channel onset structural-time]
   (let [{:keys [volume dur-secs dur-played meter partial instrument transposition octave panning
                 micro humanization swing swingUnit groove accent accentDepth]}
-        (resolve-common part chain-links structural-time leaf-keys+defaults)
+        (resolve-common part chain-links structural-time leaf-strs)
         final-vel  (ck/volume->midi (+ volume (or (:dynamic part) 0)))
         program    (if (vector? instrument) (mapv int instrument) (int instrument))
         transpose  (int (+ transposition (* 12 octave)))
@@ -363,7 +378,7 @@
 (defn- resolve-drum
   [{:keys [part chain-links]} onset structural-time]
   (let [{:keys [volume dur-secs dur-played meter partial micro humanization swing swingUnit groove kit accent accentDepth]}
-        (resolve-common part chain-links structural-time {:kit (dflt :kit)})]
+        (resolve-common part chain-links structural-time kit-strs)]
     {:onset      onset
      :channel    drum-channel
      :pitches    (let [k (:program part)] (if (vector? k) (mapv #(or % 35) k) [(or k 35)]))
@@ -628,4 +643,4 @@
         chain (or (full-ctx-chain view part)
                   (keep :context [part (get view :ROOT)]))]
     (when (seq chain)
-      (c/ctx-value-chain chain (ck/canonical-key key) time))))
+      (c/ctx-value-chain chain (name (ck/canonical-key key)) time))))

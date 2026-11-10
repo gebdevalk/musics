@@ -172,10 +172,10 @@
    respell-fn (reverse: spelling a transposed one) -- same lookup
    either direction."
   [chain t]
-  (let [mode (or (c/ctx-value-chain chain :accidentals t) :implied)]
+  (let [mode (or (c/ctx-value-chain chain "accidentals" t) :implied)]
     (if (= mode :explicit)
       (el/key :C :major)
-      (or (c/ctx-value-chain chain :Key t) (el/key :C :major)))))
+      (or (c/ctx-value-chain chain "Key" t) (el/key :C :major)))))
 
 (defn- resolve-pitch-from-tree
   "Resolve one written note against the walk's own running :last-pitch
@@ -210,7 +210,7 @@
   [state]
   (let [chain (walk-key-chain state)
         t     (duration state)]
-    (when-not (= :explicit (c/ctx-value-chain chain :accidentals t))
+    (when-not (= :explicit (c/ctx-value-chain chain "accidentals" t))
       (key-for-mode chain t))))
 
 ;; ============================================================
@@ -957,7 +957,7 @@
             t      (point-time state children)
             state' (flat/append-child state obj)]
         (when-let [[ctx-key ctx-val] (data/instruction-context kw)]
-          (c/ctx-append ctx ctx-key t ctx-val :fixed))
+          (c/ctx-append ctx (name ctx-key) t ctx-val :fixed))
         state')
       state)))
 
@@ -978,7 +978,7 @@
             ctx-key (if-let [[k _] (data/instruction-context kw)]
                       k
                       (ck/canonical-key kw))]
-        (c/ctx-invalidate ctx ctx-key t)
+        (c/ctx-invalidate ctx (name ctx-key) t)
         state')
       state)))
 
@@ -993,7 +993,7 @@
             obj    {:type :instruction :key :Partial :val dur
                     :raw  (str "partial " dur)}
             state' (flat/append-child state obj)]
-        (c/ctx-append ctx :Partial t dur :fixed)
+        (c/ctx-append ctx "Partial" t dur :fixed)
         state')
       state)))
 
@@ -1032,17 +1032,17 @@
                     state'    (flat/append-child state obj)]
                 (when target
                   (when start-val
-                    (c/ctx-append ctx ctx-key t start-val ip))
-                  (c/ctx-append ctx ctx-key (+ t dur) target :fixed))
+                    (c/ctx-append ctx (name ctx-key) t start-val ip))
+                  (c/ctx-append ctx (name ctx-key) (+ t dur) target :fixed))
                 state')
               (let [obj    {:type :assignment
                             :key  (keyword name-val)
                             :val  (str "ramp" dir)
                             :raw  (str "!" name-val dir curve)}
                     state' (flat/append-child state obj)
-                    amb    (c/ambient-value (rest chain) ctx-key)]
+                    amb    (c/ambient-value (rest chain) (name ctx-key))]
                 (when amb
-                  (c/ctx-append ctx ctx-key t amb ip))
+                  (c/ctx-append ctx (name ctx-key) t amb ip))
                 state')))
 
           :TempoMark
@@ -1060,7 +1060,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" raw-str raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :SignedInt
@@ -1068,7 +1068,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :IntList
@@ -1076,7 +1076,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" (str/join "," parsed-val))}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val :fixed)
+            (c/ctx-append ctx (name ctx-key) t parsed-val :fixed)
             state')
 
           :SignedFloat
@@ -1084,7 +1084,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :Ratio
@@ -1095,7 +1095,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" val raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :QualifiedName
@@ -1108,7 +1108,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":" key-str raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :StringLit
@@ -1116,7 +1116,7 @@
                 obj    {:type :assignment :key (keyword name-val)
                         :val parsed-val :raw (str "!" name-val ":\"" val "\"" raw-mark)}
                 state' (flat/append-child state obj)]
-            (c/ctx-append ctx ctx-key t parsed-val ip)
+            (c/ctx-append ctx (name ctx-key) t parsed-val ip)
             state')
 
           :StructValue
@@ -1142,7 +1142,7 @@
         (when-not ks
           (throw (ex-info (str "!" written ":" key-val " names no key -- write a tonic, # or & and a scale: !K:B&.minor, !K:F#.dorian")
                           {:key key-val})))
-        (c/ctx-append ctx :Key t ks :fixed)
+        (c/ctx-append ctx "Key" t ks :fixed)
         state')
       state)))
 
@@ -1333,7 +1333,7 @@
         n-node   (find-child children :Int)
         n        (if n-node (Integer/parseInt (second n-node)) 1)
         bar-dur  (when-not dur
-                   (el/meter-bar-length (c/ambient-value chain :Meter)))
+                   (el/meter-bar-length (c/ambient-value chain "Meter")))
         total    (* (or dur bar-dur) n)]
     (flat/append-child state
                        (assoc (d/rest* (or token (str "R-" total)) (or ctx (c/context)) total)

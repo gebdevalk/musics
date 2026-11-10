@@ -604,30 +604,30 @@
             key (not just volume, and not tied to a note)"
     (let [seq-c (first-token "[!vol:mf< c4 d4 e4 !vol:ff f4]")
           ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
           "mf = 60 right at the start")
-      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.375))
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] "volume" 0.375))
           "midway between the ramp's own start (t=0) and end (t=0.75, f4's
            onset): mf (60) and ff (80) interpolated exactly halfway")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.75))
           "ff = 80 at f4's onset")))
   (testing "!vol:mf alone (no trailing direction) is unaffected -- still a
             plain :fixed point, no ramp-start"
     (let [seq-c (first-token "[!vol:mf c4 d4]")
           ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0)))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25))
           "still mf, no interpolation -- there's nothing to ramp toward"))))
 
 (deftest instruction-timestamp-bang-const
   (testing "!pp at start, !ff after two quarter notes → volume changes at 0.5"
     (let [seq-c (first-token "[!pp c4 d4 !ff e4]")
           ctx   (:context seq-c)]
-      (is (= 30 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+      (is (= 30 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
           "pp = 30 at time 0")
-      (is (= 30 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+      (is (= 30 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25))
           "still pp between the two dynamics")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.5))
           "ff = 80 at accumulated time 0.5"))))
 
 (deftest instruction-timestamp-assignment
@@ -637,18 +637,18 @@
       ;; !vol:40 at time 0.25 (after c4), !vol:80 at time 0.5 (after c4+d4)
       ;; :vol is an alias of :volume -- walk-assignment canonicalizes it,
       ;; so it must be queried back under the canonical key.
-      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+      (is (= 40 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25))
           "vol = 40 at time 0.25")
-      (is (= 40 (c/ctx-value-chain [ctx root-ctx] :volume 0.375))
+      (is (= 40 (c/ctx-value-chain [ctx root-ctx] "volume" 0.375))
           "still 40 between the two assignments (FIXED)")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.5))
           "vol = 80 at time 0.5"))))
 
 (deftest instruction-timestamp-at-start
   (testing "Instruction at start of sequence lands at time 0.0"
     (let [seq-c (first-token "[!ff c4 d4]")
           ctx   (:context seq-c)]
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
           "ff = 80 at time 0.0"))))
 
 (deftest instruction-no-early-shadow
@@ -656,11 +656,11 @@
     (let [seq-c (first-token "[c4 d4 !ff e4]")
           ctx   (:context seq-c)]
       ;; !ff lands at time 0.5 -- before that, volume inherits from root-ctx (0.8)
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.0))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0))
           "before !ff: inherits root default 0.8")
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25))
           "still root default at 0.25")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.5))
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.5))
           "!ff takes effect at 0.5"))))
 
 ;; ── Meter ───────────────────────────────────────────────────
@@ -670,7 +670,7 @@
             the printed instruction -- this was silently a no-op before"
     (let [seq-c (first-token "[!Meter:7/8 c4 d4]")
           ctx   (:context seq-c)
-          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+          m     (c/ctx-value-chain [ctx root-ctx] "Meter" 0.0)]
       (is (= 7 (:num m)))
       (is (= 8 (:den m)))
       (is (nil? (:subdivisions m))))))
@@ -679,7 +679,7 @@
   (testing "!Meter:\"7/8(2+2+3)\" (quoted, additive) sets an explicit grouping"
     (let [seq-c (first-token "[!Meter:\"7/8(2+2+3)\" c4 d4]")
           ctx   (:context seq-c)
-          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+          m     (c/ctx-value-chain [ctx root-ctx] "Meter" 0.0)]
       (is (= 7 (:num m)))
       (is (= 8 (:den m)))
       (is (= [2 2 3] (:subdivisions m))))))
@@ -688,7 +688,7 @@
   (testing "!M:3/4 (the :M alias) reads back under the canonical :Meter key"
     (let [seq-c (first-token "[!M:3/4 c4]")
           ctx   (:context seq-c)
-          m     (c/ctx-value-chain [ctx root-ctx] :Meter 0.0)]
+          m     (c/ctx-value-chain [ctx root-ctx] "Meter" 0.0)]
       (is (= 3 (:num m)))
       (is (= 4 (:den m))))))
 
@@ -698,13 +698,13 @@
   (testing "!tempo:120 (bare BPM, no note-value) lands under :Tempo"
     (let [seq-c (first-token "[!tempo:120 c4]")
           ctx   (:context seq-c)]
-      (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+      (is (= 120 (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))))))
 
 (deftest tempo-mark-quarter-equivalent
   (testing "!tempo:4=120 (quarter=120) is the same as the bare-BPM form"
     (let [seq-c (first-token "[!tempo:4=120 c4]")
           ctx   (:context seq-c)]
-      (is (= 120 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+      (is (= 120 (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))))))
 
 (deftest tempo-mark-eighth-note-halves
   (testing "!tempo:8=120 (eighth=120) is quarter-equivalent 60 -- an eighth
@@ -712,23 +712,23 @@
             quarter=60"
     (let [seq-c (first-token "[!tempo:8=120 c4]")
           ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))))))
 
 (deftest tempo-mark-ratio-note-value
   (testing "!tempo:3/8=120 (dotted-quarter=120) takes the ratio as-is:
             120 * 3/8 * 4 = 180"
     (let [seq-c (first-token "[!tempo:3/8=120 c4]")
           ctx   (:context seq-c)]
-      (is (= 180 (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))))))
+      (is (= 180 (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))))))
 
 (deftest tempo-mark-dotted-note-value
   (testing "!T:4.=80 is a dotted quarter at 80, 120 quarters; !T:2.=60 180"
-    (is (= 120 (c/ctx-value-chain [(:context (first-token "[!T:4.=80 c4]")) root-ctx] :Tempo 0.0)))
-    (is (= 180 (c/ctx-value-chain [(:context (first-token "[!T:2.=60 c4]")) root-ctx] :Tempo 0.0)))
-    (is (= 105 (c/ctx-value-chain [(:context (first-token "[!T:4..=60 c4]")) root-ctx] :Tempo 0.0)) "double dotted")))
+    (is (= 120 (c/ctx-value-chain [(:context (first-token "[!T:4.=80 c4]")) root-ctx] "Tempo" 0.0)))
+    (is (= 180 (c/ctx-value-chain [(:context (first-token "[!T:2.=60 c4]")) root-ctx] "Tempo" 0.0)))
+    (is (= 105 (c/ctx-value-chain [(:context (first-token "[!T:4..=60 c4]")) root-ctx] "Tempo" 0.0)) "double dotted")))
 
 (deftest meter-lowercase-alias
-  (is (= (el/parse-meter-str "6/8") (c/ctx-value-chain [(:context (first-token "[!meter:6/8 c8]")) root-ctx] :Meter 0.0))))
+  (is (= (el/parse-meter-str "6/8") (c/ctx-value-chain [(:context (first-token "[!meter:6/8 c8]")) root-ctx] "Meter" 0.0))))
 
 (deftest tempo-Tempo-and-T-aliases-canonicalize
   (testing "!Tempo:130 and !T:140 both read back under the same :Tempo key
@@ -736,8 +736,8 @@
             which only the bare !tempo: spelling happened to match)"
     (let [seq-Tempo (first-token "[!Tempo:130 c4]")
           seq-T     (first-token "[!T:140 c4]")]
-      (is (= 130 (c/ctx-value-chain [(:context seq-Tempo) root-ctx] :Tempo 0.0)))
-      (is (= 140 (c/ctx-value-chain [(:context seq-T) root-ctx] :Tempo 0.0))))))
+      (is (= 130 (c/ctx-value-chain [(:context seq-Tempo) root-ctx] "Tempo" 0.0)))
+      (is (= 140 (c/ctx-value-chain [(:context seq-T) root-ctx] "Tempo" 0.0))))))
 
 ;; ── Tempo markings (BangConst) ────────────────────────────────
 
@@ -751,7 +751,7 @@
                         "prestissimo" 200}]
       (let [seq-c (first-token (str "[!" name " c4]"))
             ctx   (:context seq-c)]
-        (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
+        (is (= bpm (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))
             (str "!" name " -> " bpm))))))
 
 (deftest tempo-marking-bang-const-compound-camelcase
@@ -762,7 +762,7 @@
                         "allegroModerato" 118 "allegroVivace" 174}]
       (let [seq-c (first-token (str "[!" name " c4]"))
             ctx   (:context seq-c)]
-        (is (= bpm (c/ctx-value-chain [ctx root-ctx] :Tempo 0.0))
+        (is (= bpm (c/ctx-value-chain [ctx root-ctx] "Tempo" 0.0))
             (str "!" name " -> " bpm))))))
 
 ;; ── Auto-id laziness ────────────────────────────────────────
@@ -818,14 +818,14 @@
             effect for a later sibling outside the reverse block"
     (let [seq-c (first-token "[retrograde ( !f c4 d4 e4 ) d4]")
           ctx   (:context seq-c)]
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 0.0)))
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0)))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0))))))
 
 (deftest transpose-instruction-survives-and-sticks
   (testing "Same as reverse, for transpose"
     (let [seq-c (first-token "[transpose c d' ( !f c4 d4 ) d4]")
           ctx   (:context seq-c)]
-      (is (= 70 (c/ctx-value-chain [ctx root-ctx] :volume 100.0))))))
+      (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0))))))
 
 (deftest plain-nested-sequence-does-not-leak
   (testing "Sanity check: a GENUINE nested Sequence (not transient) keeps
@@ -835,7 +835,7 @@
             not a blanket change to how context scoping works"
     (let [seq-c (first-token "[[!f c4 d4] d4]")
           ctx   (:context seq-c)]
-      (is (nil? (c/ctx-value-chain [ctx] :volume 100.0))
+      (is (nil? (c/ctx-value-chain [ctx] "volume" 100.0))
           "outer sequence's own context (no root fallback) sees nothing --
            !f never touched it, it's scoped to the inner Sequence alone"))))
 
@@ -875,8 +875,8 @@
   (testing "!f inside the bound seq reaches the reference site's context
             and sticks forward, as transpose/a grace decoration do"
     (let [vctx (:context (get (read-mu "'motif [!f c4 d4] := [v: \\motif e4]") :v))]
-      (is (= 70 (c/ctx-value-chain [vctx] :volume 0.0)))
-      (is (= 70 (c/ctx-value-chain [vctx] :volume 100.0))))))
+      (is (= 70 (c/ctx-value-chain [vctx] "volume" 0.0)))
+      (is (= 70 (c/ctx-value-chain [vctx] "volume" 100.0))))))
 
 (deftest each-dot-adds-half-of-the-one-before
   (is (= [1/4 3/8 7/16 15/32 7/4]
@@ -908,7 +908,7 @@
           ctx   (:context seq-c)
           [c d e] (:children seq-c)]
       (is (= [nil {:volume 70} nil] (map :overrides [c d e])))
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 0.5)) "still the default at e4"))))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] "volume" 0.5)) "still the default at e4"))))
 
 (deftest a-note-cannot-carry-a-hairpin
   (doseq [text ["[c4\\<]" "[c4\\>]" "[c4\\mf\\<]" "[c4\\mf<]" "[<c e g>4\\ff>]"]]
@@ -918,20 +918,20 @@
   (testing "!vol:mf< ... !vol:ff> ramps the context between the two levels"
     (let [seq-c (first-token "[c4 !vol:mf< d4 e4 !vol:ff> f4 g4]")
           ctx   (:context seq-c)]
-      (is (= 60 (c/ctx-value-chain [ctx root-ctx] :volume 0.25)) "mf = 60 at d4's onset")
-      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] :volume 0.5)) "midway: a real interpolated crescendo")
-      (is (= 80 (c/ctx-value-chain [ctx root-ctx] :volume 0.75)) "ff = 80 at f4's onset")))
+      (is (= 60 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25)) "mf = 60 at d4's onset")
+      (is (= 70.0 (c/ctx-value-chain [ctx root-ctx] "volume" 0.5)) "midway: a real interpolated crescendo")
+      (is (= 80 (c/ctx-value-chain [ctx root-ctx] "volume" 0.75)) "ff = 80 at f4's onset")))
   (testing "a bare !vol< starts from the ambient volume"
     (let [seq-c (first-token "[c4 !vol< d4 e4]")
           ctx   (:context seq-c)]
-      (is (= 50 (c/ctx-value-chain [ctx root-ctx] :volume 0.25))))))
+      (is (= 50 (c/ctx-value-chain [ctx root-ctx] "volume" 0.25))))))
 
 (deftest a-glued-dynamic-stays-on-its-note-inside-transient-commands
   (testing "reverse"
     (let [seq-c (first-token "[retrograde ( c4\\f d4 e4 ) d4]")
           ctx   (:context seq-c)]
       (is (= [nil nil {:volume 70} nil] (map :overrides (:children seq-c))) "c4 keeps it, now third")
-      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] :volume 100.0)) "the context is untouched")))
+      (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0)) "the context is untouched")))
   (testing "a grace note"
     (let [seq-c (first-token "[grace c8\\f d4 d4]")]
       (is (= {:volume 70} (:overrides (first (:children seq-c))))))))

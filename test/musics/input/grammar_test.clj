@@ -653,13 +653,13 @@
             to the same tempo value"
     (let [{:keys [tree]} (v/read-domain "^{ctx: !tempo:120} [verse: :ctx c4]")
           ctx (:context (get tree :verse))]
-      (is (= 120 (c/ctx-value-chain [ctx] :Tempo 0))))))
+      (is (= 120 (c/ctx-value-chain [ctx] "Tempo" 0))))))
 
 (deftest keys-are-spelled-as-notes-are
   (let [key-of (fn [text]
                  (let [{:keys [tree]} (v/read-domain text)
                        s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-                   (some-> (c/ctx-value-chain [(:context s)] :Key 0) el/key->str)))]
+                   (some-> (c/ctx-value-chain [(:context s)] "Key" 0) el/key->str)))]
     (is (= "B&.major" (key-of "[!key:B&.major c]")) "& flat")
     (is (= "F#.minor" (key-of "[!key:F#.minor c]")) "# sharp")
     (is (= "D.minor" (key-of "[!key:d.minor c]")) "a lowercase tonic")
@@ -691,11 +691,11 @@
 (deftest an-instrument-by-its-general-midi-name
   (let [{:keys [tree]} (v/read-domain "[!i:seashore c c2\\i:birdTweet]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)))
+    (is (= 122 (c/ctx-value-chain [(:context s)] "instrument" 0)))
     (is (= {:instrument 123} (:overrides (last (:children s)))) "camelCase for a name of several words"))
   (let [{:keys [tree]} (v/read-domain "[!i:sea c c2\\i:Vib]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-    (is (= 122 (c/ctx-value-chain [(:context s)] :instrument 0)) "a short name, any case")
+    (is (= 122 (c/ctx-value-chain [(:context s)] "instrument" 0)) "a short name, any case")
     (is (= {:instrument 11} (:overrides (last (:children s)))) "Vib the vibraphone"))
   (is (= [58 36] (map :program (filter #(= :DRUM (:type %)) (mapcat :children (vals (:tree (v/read-domain "[x8\\vib x8\\bd1]")))))))
       "vib the vibraslap: drums keep their own short names")
@@ -705,13 +705,13 @@
 (deftest a-drum-kit
   (let [{:keys [tree]} (v/read-domain "[!kit:brush x8\\sna]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-    (is (= 40 (c/ctx-value-chain [(:context s)] :kit 0)) "by name"))
+    (is (= 40 (c/ctx-value-chain [(:context s)] "kit" 0)) "by name"))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"not a drum kit" (v/read-domain "[!kit:nonsense x8]"))))
 
 (deftest an-instrument-list
   (let [{:keys [tree]} (v/read-domain "[!i:40,73,0 c]")
         s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-    (is (= [40 73 0] (c/ctx-value-chain [(:context s)] :instrument 0))))
+    (is (= [40 73 0] (c/ctx-value-chain [(:context s)] "instrument" 0))))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"only an instrument"
                         (v/read-domain "[!vol:40,50 c]")))
   (testing "on one note"
@@ -726,7 +726,7 @@
 (deftest a-meter-as-its-factors
   (let [meter-of (fn [text] (let [{:keys [tree]} (v/read-domain text)
                                   s (some #(when (= :SEQ (:type %)) %) (vals tree))]
-                              (c/ctx-value-chain [(:context s)] :Meter 0)))]
+                              (c/ctx-value-chain [(:context s)] "Meter" 0)))]
     (is (= [12 8 [2 2 3]] ((juxt :num :den :subdivisions) (meter-of "[!M:223 c8]"))))
     (is (= [4 4 [2 2]] ((juxt :num :den :subdivisions) (meter-of "[!M:22/4 c4]"))))))
 
