@@ -1271,7 +1271,7 @@ word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`). A word wri
 with `: … ;` does not do this: it reads a key with `tctx-get`. Context keys are strings
 (`"volume"`), tctx keys keywords (`:volume` is a different key).
 
-`hoketus2.mus` is a whole piece written this way: `"hoketus2.mus" load start`, and
+`mus/hoketus2.mus` is a whole piece written this way: `"mus/hoketus2.mus" load start`, and
 `6 :steps tctx-put` while it plays. `doc/md/pull-voice.md` and
 `doc/md/hoketus-dynamic.md` draw the call order.
 

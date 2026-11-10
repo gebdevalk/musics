@@ -727,7 +727,7 @@ same `:beat`, and the other inputs are read as they are at that leaf
 `[ctx source]`; it starts now (`->`, not `-|>`), and a start that fails is refused
 before any sound. The keyword `:beat` is answered too, so a word reads the beat as
 `:beat`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
-call order, and `hoketus2.mus` for a piece written this way.
+call order, and `mus/hoketus2.mus` for a piece written this way.
 
 **The tctx and keyword arguments.** A word that is a Clojure function (not a
 stack word, not a `: … ;` word) takes, for each of its arguments that is a keyword
