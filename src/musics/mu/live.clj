@@ -5,7 +5,9 @@
    under it, or on nothing, or on the inputs it holds -- and a change (an
    input stored, a new quotation by retree) runs it once more, the voice going
    on at its position (musics.mu.voice)."
-  (:require [musics.engine :as engine]
+  (:require [musics.compose :as compose]
+            [musics.domain.context :as c]
+            [musics.engine :as engine]
             [musics.mu.eval :as e]
             [musics.mu.inputs :as inputs]
             [musics.mu.material :as mt]
@@ -113,14 +115,54 @@
 
 (inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
 
-(defn play-word!
-  "Start voice (a keyword id) from the word `word`, written with : … ; and
-   $ inputs, those inputs holding values (in the order of its stack effect).
-   Each note the voice reaches is the next of the seq the word gives with
-   the inputs it holds now; :voice/input reads or stores one. staged:
-   [count] when it waits for a boundary (->>)."
+(def tctx
+  "The session's tctx: a Context whose keys are Clojure keywords (:reps, :steps),
+   first in the chain every voice fed by a function of beat reads, filled by
+   mu's tctx-put and tctx-derive."
+  (c/context))
+
+(defn- beat-word?
+  "Does word take the beat as an input -- $beat in its stack effect? Then the
+   voice it plays is a function of beat: the word gives one leaf for the beat the
+   voice is at, and the stack gives it the other inputs."
+  [names]
+  (boolean (some #{"beat"} names)))
+
+(defn- beat-source
+  "The function of a voice fed by a function of beat (compose/source): (beat lookup)
+   -> the one leaf word gives at beat, the other inputs read as they are now
+   (:voice/input stores one), and any keyword argument of a word it runs the
+   value lookup gives for it -- also :beat."
+  [word voice all-names]
+  (fn [beat lk]
+    (let [vals   (inputs/values voice)
+          args   (mapv (fn [n] (if (= n "beat") beat (get vals n))) all-names)
+          lookup (fn [k] (if (= k :beat) beat (lk k)))]
+      (e/with-lookup lookup
+        #(let [left (e/run-word args word)]
+           (when (empty? left) (e/mu-error word "leaves nothing to play"))
+           (or (first (as-leaves (peek left)))
+               (e/mu-error word "gave no leaf for the beat")))))))
+
+(defn- play-beat-word!
+  [word voice values ctx staged all-names]
+  (when ctx (e/mu-error (str word ":") "a voice that is a function of beat takes no context yet"))
+  (when staged (e/mu-error (str word ":") "a voice that is a function of beat starts now: -> , not -|>"))
+  (let [names (vec (remove #{"beat"} all-names))
+        specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))]
+    (inputs/clear! voice)
+    (inputs/set-inputs! voice (map vector names values) specs)
+    (let [f (beat-source word voice all-names)]
+      ;; ask once now, at the start, so a word that fails is refused here, not heard
+      (try (f 0 (c/getter [tctx] 0))
+           (catch Throwable t (inputs/clear! voice) (throw t)))
+      (swap! word-voices assoc voice word)
+      (swap! sources dissoc voice)
+      (mt/play-source! (compose/source f tctx) (mt/read-text "repeat ~ [r8]") voice))
+    voice))
+
+(defn- play-plain-word!
   [word voice values ctx join? staged]
-  (reg/log! :live-word)
   (let [names (mapv first (e/live-inputs word))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))
         _     (inputs/clear! voice)
@@ -141,6 +183,18 @@
         (mt/stage! form ctx (first staged) join? voice voice)
         (mt/play! form ctx join? voice voice)))
     voice))
+
+(defn play-word!
+  "Start voice (a keyword id) from the word `word`, written with : … ; and
+   $ inputs, those inputs holding values (in the order of its stack effect).
+   Each note the voice reaches is the next of the seq the word gives with
+   the inputs it holds now; :voice/input reads or stores one. staged:
+   [count] when it waits for a boundary (->>)."
+  [word voice values ctx join? staged]
+  (reg/log! :live-word)
+  (if (beat-word? (map first (e/live-inputs word)))
+    (play-beat-word! word voice values ctx staged (mapv first (e/live-inputs word)))
+    (play-plain-word! word voice values ctx join? staged)))
 
 (defn input-voice
   "The id of the live voice that word's voice argument (an id or index)

@@ -614,6 +614,20 @@
         :else (do (cancel-staged!) (reset! voices {})
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
+(defn play-source!
+  "Play src (musics.compose/source, a voice fed by a function of beat) as the voice
+   id, replacing only that voice or adding it; x is what the voice shows as. id back."
+  [src x id]
+  (reset! last-played x)
+  (engine/ensure-connected!)
+  (reg/log! :play)
+  (let [eng (assoc engine/*engine* :repo (atom (into {} @(repo/registry))))]
+    (binding [engine/*engine* eng]
+      (cancel-staged! id)
+      (engine/play-at! eng [id] src nil nil)
+      (swap! voices assoc id {:x x :ctx nil :ends #{}})
+      id)))
+
 (defn stop-all!
   "Stop what plays, a staged -|> and whatever stoppers hold."
   []
