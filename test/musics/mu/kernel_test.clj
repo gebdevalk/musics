@@ -756,7 +756,7 @@
         run   (fn [text]
                 (swap! e/state assoc :stack [])
                 (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
-                (e/with-tctx chain 0 #(e/eval-input text)))
+                (e/with-lookup (fn [k] (musics.domain.context/ctx-value-chain chain k 0)) #(e/eval-input text)))
         shown (fn [r] (mapv p/show (:ok r)))]
     (testing "without a tctx a keyword stays a keyword, as it always was"
       (swap! e/state assoc :stack [])
@@ -777,7 +777,7 @@
                     (musics.domain.context/tctx-derive :a (fn [_ get] (get :a))))
             r   (do (swap! e/state assoc :stack [])
                     (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
-                    (e/with-tctx [bad] 0 #(e/eval-input ":a 8 pattern/euclid")))]
+                    (e/with-lookup (fn [k] (musics.domain.context/ctx-value-chain [bad] k 0)) #(e/eval-input ":a 8 pattern/euclid")))]
         (is (re-find #"^pattern/euclid: a cycle in the tctx: :a -> :a" (:error r)) (:error r))))))
 
 (deftest reqalgo-takes-a-quoted-or-written-name

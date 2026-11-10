@@ -9,7 +9,6 @@
    (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
-            [musics.domain.context :as c]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
@@ -186,34 +185,35 @@
       (re-find #"^\S+:\s" msg)            (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true}))
       :else (ex-info (str name ": " msg) {:mu/error true}))))
 
-(def ^:dynamic *tctx*
-  "nil, or {:chain chain :time t}: the context chain with a tctx in front and the
-   time a word runs at. A voice binds it around each run (with-tctx)."
+(def ^:dynamic *lookup*
+  "nil, or a function of a keyword: its value, or nil when there is none. A voice
+   binds it around each run (with-lookup), with the time it asks at inside it."
   nil)
 
-(defn with-tctx
-  "Call f (no arguments) with chain, a context chain with a tctx in front, and
-   time bound as *tctx*: a keyword argument of a word that the tctx holds is its
-   value there (run-var)."
-  [chain time f]
-  (binding [*tctx* {:chain chain :time time}]
+(defn with-lookup
+  "Call f (no arguments) with get, a function of a keyword that answers its value
+   or nil, bound as *lookup*: a keyword argument of a word that get answers is
+   that value (run-var). get closes over what it asks, a context chain with a tctx
+   in front and the time:  (fn [k] (ctx-value-chain chain k beat))."
+  [get f]
+  (binding [*lookup* get]
     (f)))
 
-(defn- from-tctx
+(defn- from-lookup
   "stack with, in the places the arguments of the function v stand, each keyword
-   the tctx of *tctx* holds replaced by its value; a keyword the tctx lacks stays,
-   so :hoketus R@ is untouched, and so is a keyword v's own tail reads
+   that *lookup* answers replaced by its value; a keyword it does not answer
+   stays, so :hoketus R@ is untouched, and so is a keyword v's own tail reads
    (3 8 :rotation 2 euclid). Unbound, stack as it is."
   [stack v]
-  (if-let [{:keys [chain time]} *tctx*]
+  (if-let [get *lookup*]
     (let [lists  (map split-tail (:arglists (meta v)))
           tailks (into #{} (mapcat (comp tail-keys second)) lists)
           width  (+ (apply max 0 (map (comp count first) lists)) (* 2 (count tailks)))]
       (loop [i (max 0 (- (count stack) width))
              s stack]
         (if (< i (count s))
-          (let [x (nth s i)
-                found (when (and (keyword? x) (not (tailks x))) (c/ctx-value-chain chain x time))]
+          (let [x     (nth s i)
+                found (when (and (keyword? x) (not (tailks x))) (get x))]
             (recur (inc i) (if (some? found) (assoc s i found) s)))
           s)))
     stack))
@@ -223,11 +223,11 @@
    stack, music first; its value pushed, unless it is done for its effect.
    A keyword tail (& {:keys [..]}) takes the :key value pairs written just before the
    word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. A keyword among the arguments
-   that the tctx of *tctx* holds is its value (:onsets 8 euclid). An error it throws
+   that *lookup* answers is its value (:onsets 8 euclid). An error it throws
    is a mu error, named by the word."
   [stack name v]
   (let [below stack          ; what is left under the arguments stays as it was
-        stack (try (from-tctx stack v)
+        stack (try (from-lookup stack v)
                    (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))
         al   (arity-for v stack)
         _    (try (need stack (count al) name)
