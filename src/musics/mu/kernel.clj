@@ -337,6 +337,18 @@
                                  (when (seq left) (peek left))))))
            (pop (pop s)))))
 
+;; the tctx value of a key, inside a voice that is a function of beat at its leaf's beat
+(word! "play" "tctx-get" "( :key -- x )  the tctx's value for :key, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+       (fn [s]
+         (need s 1 "tctx-get")
+         (let [k (peek s)]
+           (when-not (keyword? k) (e/mu-error "tctx-get:" "the key is a keyword, :reps -- got" (p/show k)))
+           (let [lookup (or e/*lookup*
+                            (let [g (c/getter [live/tctx] 0)] (fn [x] (if (= x :beat) 0 (g x)))))
+                 v      (lookup k)]
+             (when (nil? v) (e/mu-error "tctx-get:" (pr-str k) "is not in the tctx -- tctx-put or tctx-derive it"))
+             (conj (pop s) v)))))
+
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."
   [word join?]

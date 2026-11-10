@@ -146,7 +146,6 @@
 
 (defn- play-beat-word!
   [word voice values ctx staged all-names]
-  (when ctx (e/mu-error (str word ":") "a voice that is a function of beat takes no context yet"))
   (when staged (e/mu-error (str word ":") "a voice that is a function of beat starts now: -> , not -|>"))
   (let [names (vec (remove #{"beat"} all-names))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))]
@@ -158,7 +157,7 @@
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f tctx) (mt/read-text "repeat ~ [r8]") voice))
+      (mt/play-source! (compose/source f tctx) (mt/read-text "repeat ~ [r8]") voice ctx))
     voice))
 
 (defn- play-plain-word!

@@ -616,15 +616,17 @@
 
 (defn play-source!
   "Play src (musics.compose/source, a voice fed by a function of beat) as the voice
-   id, replacing only that voice or adding it; x is what the voice shows as. id back."
-  [src x id]
+   id, replacing only that voice or adding it, under a context if given; x is what
+   the voice shows as. id back."
+  [src x id ctx]
   (reset! last-played x)
   (engine/ensure-connected!)
   (reg/log! :play)
-  (let [eng (assoc engine/*engine* :repo (atom (into {} @(repo/registry))))]
+  (let [snap (merge (into {} @(repo/registry)) (when ctx (v/own-nodes ctx)))
+        eng  (assoc engine/*engine* :repo (atom snap))]
     (binding [engine/*engine* eng]
       (cancel-staged! id)
-      (engine/play-at! eng [id] src nil nil)
+      (engine/play-at! eng [id] (if ctx [(:id ctx) src] src) nil nil)
       (swap! voices assoc id {:x x :ctx nil :ends #{}})
       id)))
 
