@@ -746,6 +746,40 @@
     (is (re-find #"^pattern/euclid: refused, it needs <= onsets pulses" (:error r)) (:error r))
     (is (= [] (:stack @e/state)) "the stack as it was")))
 
+(deftest a-keyword-argument-the-tctx-holds-is-its-value
+  (let [tctx  (-> (musics.domain.context/context)
+                  (musics.domain.context/tctx-put :onsets 3)
+                  (musics.domain.context/tctx-put :steps 8)
+                  (musics.domain.context/tctx-put :rotation 99)   ; a name euclid's own tail reads
+                  (musics.domain.context/tctx-derive :twice (fn [_ get] (* 2 (get :onsets)))))
+        chain [tctx (musics.domain.context/context-root {"volume" 50})]
+        run   (fn [text]
+                (swap! e/state assoc :stack [])
+                (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
+                (e/with-tctx chain 0 #(e/eval-input text)))
+        shown (fn [r] (mapv p/show (:ok r)))]
+    (testing "without a tctx a keyword stays a keyword, as it always was"
+      (swap! e/state assoc :stack [])
+      (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
+      (is (:error (e/eval-input ":onsets 8 pattern/euclid"))))
+    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets 8 pattern/euclid"))) "a keyword in the first place")
+    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets :steps pattern/euclid"))) "in both")
+    (is (= (shown (run "6 8 pattern/euclid")) (shown (run ":twice :steps pattern/euclid"))) "a derived key")
+    (testing "a keyword the tctx lacks goes through"
+      (is (= [":kept"] (shown (run ":kept")))))
+    (testing "a keyword the function's own tail reads is its key, not a tctx reference"
+      (is (= (shown (run "3 8 :rotation 2 pattern/euclid")) (shown (run ":onsets :steps :rotation 2 pattern/euclid")))
+          "the tctx holds :rotation 99 and it is not used"))
+    (testing "what lies under the arguments is untouched"
+      (is (= [":onsets" "'[1 0 0 1 0 0 1 0]"] (shown (run ":onsets 3 8 pattern/euclid")))))
+    (testing "a cycle is a mu error naming the word"
+      (let [bad (-> (musics.domain.context/context)
+                    (musics.domain.context/tctx-derive :a (fn [_ get] (get :a))))
+            r   (do (swap! e/state assoc :stack [])
+                    (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
+                    (e/with-tctx [bad] 0 #(e/eval-input ":a 8 pattern/euclid")))]
+        (is (re-find #"^pattern/euclid: a cycle in the tctx: :a -> :a" (:error r)) (:error r))))))
+
 (deftest reqalgo-takes-a-quoted-or-written-name
   (swap! e/state assoc :stack [])
   (testing "reqalgo is require with musics.algo. in front"
