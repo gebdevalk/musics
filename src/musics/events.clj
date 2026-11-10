@@ -39,6 +39,7 @@
    read once, at the call -- a snapshot, until a :cutover hook swaps it
    (musics.engine/schedule-tx!)."
   (:require [musics.compose :as compose]
+            [musics.domain.context :as c]
             [musics.domain :as d]
             [musics.domain.ornaments :as orn]
             [musics.domain.resolve :as r]
@@ -337,6 +338,21 @@
                                  resolved)
                     k)))
 
+(defn- walk-source
+  "A voice fed by a function of beat (compose/source): the leaf at the beat the
+   walk is at, from (f beat get), is played, and the beat it leaves is asked
+   next, so the source is asked once for each leaf, lazily, as far as the stream
+   is read. get looks keys up at that same beat over the chain (the source's tctx
+   in front), and fire resolves the leaf at it, so production and resolution
+   read one time."
+  [{:keys [f tctx ctx] :as src} chain st k]
+  (let [chain (cond->> chain ctx (into [ctx]))
+        beat  (:beat st)
+        part  (f beat (c/getter (cond->> chain tctx (into [tctx])) beat))]
+    (if (nil? part)
+      (k st)
+      (walk-node part chain st #(walk-source src chain % k)))))
+
 (defn- walk-forms [forms chain st k]
   (if-let [[f & more] (seq forms)]
     (walk-form f chain st #(walk-forms more chain % k))
@@ -344,6 +360,9 @@
 
 (defn- walk-form [form chain st k]
   (cond
+    (compose/source-form? form)
+    (walk-source form chain st k)
+
     (keyword? form)
     (walk-node (get (:repo st) form) chain st k)
 
