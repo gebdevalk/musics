@@ -140,9 +140,9 @@
   (let [tctx  (-> (c/context)
                   (c/tctx-put :steps 8)
                   (c/tctx-put :arc (fn [t] (* 2 t)))
-                  (c/tctx-derive :density (fn [t get] (+ (get :arc) (get :steps))))
-                  (c/tctx-derive :pulses  (fn [t get] [:euclid (get :density) (get :steps)]))
-                  (c/tctx-derive :loud    (fn [t get] (+ 1 (get "volume")))))
+                  (c/tctx-derive :density (fn [_ get] (+ (get :arc) (get :steps))))
+                  (c/tctx-derive :pulses  (fn [_ get] [:euclid (get :density) (get :steps)]))
+                  (c/tctx-derive :loud    (fn [_ get] (+ 1 (get "volume")))))
         chain [tctx (c/context-root {"volume" 50})]]
     (is (= 14 (c/ctx-value-chain chain :density 3)) "arc at 3 is 6, steps 8")
     (is (= [:euclid 14 8] (c/ctx-value-chain chain :pulses 3)) "a derived value pulls a derived value")
