@@ -129,10 +129,13 @@ flowchart LR
   of the lookup that started it.
 - **Cycle guard.** The keys being computed are kept on a list; asking for one of
   them again is an error naming the cycle, not a hang.
-- **Cache.** A key computed once during one pull is not computed again in it. A
-  pull today is one top-level lookup, so `:density` and `:steps` asked separately
-  by `run-var` each start a fresh cache. A pull per leaf, shared by every lookup
-  made for that leaf (one `getter` for the chain and the beat), is not built yet.
+- **Cache.** A pull is memoized: inside it every answer (a value, a generator, a
+  derived entry, even a miss) is remembered, so a key is looked for and computed
+  once however often it is asked or reached through another key. A lookup made
+  alone starts its own pull. `context/getter` makes one pull for a chain and a beat;
+  the voice binds one for each leaf, so all the keyword arguments of that leaf share
+  it and the leaf sees one consistent value for each key. The next leaf gets a new
+  getter, so a change of the tctx is seen there.
 - **Depth.** Nothing limits it but the cycle guard; a deep graph costs one call
   per entry, for every leaf.
 

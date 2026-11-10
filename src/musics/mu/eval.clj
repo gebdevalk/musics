@@ -194,7 +194,8 @@
   "Call f (no arguments) with get, a function of a keyword that answers its value
    or nil, bound as *lookup*: a keyword argument of a word that get answers is
    that value (run-var). get closes over what it asks, a context chain with a tctx
-   in front and the time:  (fn [k] (ctx-value-chain chain k beat))."
+   in front and the time: (musics.domain.context/getter chain beat), one for each
+   leaf, so its lookups are one pull."
   [get f]
   (binding [*lookup* get]
     (f)))

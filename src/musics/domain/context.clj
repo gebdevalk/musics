@@ -243,25 +243,18 @@
 
 (defn- derived-value
   "[value] a Derived gives for key at time, or nil when its function answers nil.
-   One pull is one state: a cache of what it computed and the keys being
-   computed, so a key used by several others is computed once, and a key that
-   needs itself is an error naming the cycle."
+   One pull is one state (see lookup): the keys being computed are kept, and a key
+   that needs itself, however far round, is an error naming the cycle."
   [{:keys [f]} key time chain state]
   (let [state  (or state {:cache (atom {}) :active (atom [])})
-        cache  (:cache state)
         active (:active state)]
-    (if (contains? @cache key)
-      (when-some [v (get @cache key)] [v])
-      (do
-        (when (some #{key} @active)
-          (throw (ex-info (str "a cycle in the tctx: " (str/join " -> " (map pr-str (conj @active key))))
-                          {:cycle (conj @active key)})))
-        (swap! active conj key)
-        (try
-          (let [v (f time (fn [k] (lookup chain k time state)))]
-            (swap! cache assoc key v)
-            (when (some? v) [v]))
-          (finally (swap! active pop)))))))
+    (when (some #{key} @active)
+      (throw (ex-info (str "a cycle in the tctx: " (str/join " -> " (map pr-str (conj @active key))))
+                      {:cycle (conj @active key)})))
+    (swap! active conj key)
+    (try
+      (when-some [v (f time (fn [k] (lookup chain k time state)))] [v])
+      (finally (swap! active pop)))))
 
 (defn- latest-point-at-or-before
   "The most recent [time [value ip]] entry in env at-or-before time, or
@@ -507,10 +500,7 @@
   [link]
   (if (vector? link) link [link 0]))
 
-(defn- lookup
-  "The value of key at time over chain (contexts, or [context offset] links),
-   nearest first; state is the pull in progress (see derived-value), nil at the
-   start of one."
+(defn- lookup*
   [chain key time state]
   (loop [links (seq chain)]
     (when links
@@ -518,6 +508,34 @@
         (if-let [[v] (resolve-in-env-map @(:envelopes-atom ctx) key (- time offset) chain state)]
           v
           (recur (next links)))))))
+
+(defn- lookup
+  "The value of key at time over chain (contexts, or [context offset] links),
+   nearest first. state is the pull in progress, nil outside one: inside a pull
+   every answer, nil too, is remembered, so a key is looked for and computed once
+   however often it is asked, and the pull sees one consistent value for it."
+  [chain key time state]
+  (if state
+    (let [cache (:cache state)]
+      (if (contains? @cache key)
+        (get @cache key)
+        (let [v (lookup* chain key time state)]
+          (swap! cache assoc key v)
+          v)))
+    (lookup* chain key time nil)))
+
+(defn getter
+  "A function of a key that answers its value at time over chain (a context
+   chain, a tctx in front), nearest first; nil when none holds it. It is
+   memoized: every lookup it answers is one pull, so a key (a plain value, a
+   generator, a derived entry, a miss) is looked for and computed once, however
+   often it is asked or reached through another key, and a cycle is caught across
+   them. Make one for each leaf (its
+   chain and its beat) and bind it where a word runs (eval/with-lookup);
+   make another for the next leaf, so a change of a tctx is seen then."
+  [chain time]
+  (let [state {:cache (atom {}) :active (atom [])}]
+    (fn [k] (lookup chain k time state))))
 
 (defn sample-many
   "Sample MULTIPLE keys from chain-links in ONE pass over the chain,

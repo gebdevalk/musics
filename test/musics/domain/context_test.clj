@@ -184,3 +184,61 @@
       (is (= 2 (c/ctx-value-chain [voice piece] :half 0)) "half of the voice's own :steps")
       (is (= 4 (c/ctx-value-chain [piece] :half 0))))))
 
+(deftest a-getter-is-one-pull-for-every-key-it-answers
+  (let [calls (atom 0)
+        tctx  (-> (c/context)
+                  (c/tctx-put :steps 8)
+                  (c/tctx-derive :base (fn [t _] (swap! calls inc) (+ 10 t)))
+                  (c/tctx-derive :left (fn [_ get] (+ 1 (get :base))))
+                  (c/tctx-derive :right (fn [_ get] (+ 2 (get :base)))))
+        chain [tctx (c/context-root {"volume" 50})]]
+    (testing "separate top-level lookups each compute :base"
+      (c/ctx-value-chain chain :left 3)
+      (c/ctx-value-chain chain :right 3)
+      (is (= 2 @calls)))
+    (reset! calls 0)
+    (testing "one getter computes it once for both, and answers every kind of key"
+      (let [get (c/getter chain 3)]
+        (is (= [14 15 8 50 nil] [(get :left) (get :right) (get :steps) (get "volume") (get :nothing)]))
+        (is (= 1 @calls))
+        (is (= 14 (get :left)) "asked again: the same answer")
+        (is (= 1 @calls))))
+    (testing "a new getter is a new pull: it sees a change of the tctx"
+      (c/tctx-put tctx :steps 16)
+      (is (= 16 ((c/getter chain 3) :steps))))
+    (testing "a cycle is caught through a getter too"
+      (let [bad (-> (c/context)
+                    (c/tctx-derive :a (fn [_ get] (get :b)))
+                    (c/tctx-derive :b (fn [_ get] (get :a))))]
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #":a -> :b -> :a"
+              ((c/getter [bad] 0) :a)))))
+    (testing "the beat is the one it was made with, in a context with an offset too"
+      (let [shifted (c/tctx-put (c/context) :t identity)]
+        (is (= 5 ((c/getter [shifted] 5) :t)))))))
+
+(deftest a-getter-is-memoized-for-every-kind-of-key
+  (let [calls (atom 0)
+        tctx  (-> (c/context)
+                  (c/tctx-put :wave (fn [t] (swap! calls inc) (* 2 t)))
+                  (c/tctx-derive :twice (fn [_ get] (+ (get :wave) (get :wave)))))
+        chain [tctx (c/context-root {"volume" 50})]]
+    (testing "outside a pull a generator is asked every time"
+      (c/ctx-value-chain chain :wave 3)
+      (c/ctx-value-chain chain :wave 3)
+      (is (= 2 @calls)))
+    (reset! calls 0)
+    (testing "through a getter it is asked once, also when a derived key asks twice"
+      (let [get (c/getter chain 3)]
+        (is (= [6 12 6] [(get :wave) (get :twice) (get :wave)]))
+        (is (= 1 @calls))))
+    (testing "a miss is remembered too, so is a change made after the first ask"
+      (let [tctx (c/tctx-put (c/context) :x 1)
+            get  (c/getter [tctx] 0)]
+        (is (nil? (get :y)))
+        (is (= 1 (get :x)))
+        (c/tctx-put tctx :x 2)
+        (c/tctx-put tctx :y 3)
+        (is (nil? (get :y)) "this leaf keeps what it saw")
+        (is (= 1 (get :x)))
+        (is (= [3 2] [((c/getter [tctx] 0) :y) ((c/getter [tctx] 0) :x)]) "the next leaf sees the change")))))
+
