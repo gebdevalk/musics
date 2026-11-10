@@ -2,63 +2,61 @@
 
 A plan for a piece whose structure is not precompiled: the data is static, the
 derivation and the actualisation are dynamic, and a GUI can change what the
-music does while it plays. Solid boxes exist today; **dashed red boxes are
-planned**.
+music does while it plays. **A leaf has one beat, and every lookup made for it,
+producing or resolving, is made at that beat** (the mechanism is in
+`pull-voice.md`). Solid boxes exist today; **dashed red boxes are planned**.
 
-## Who calls whom, for one voice and one note
+## Who calls whom, for one voice and one leaf
 
 ```mermaid
 flowchart LR
   engine["engine sender thread<br/>reads the voice ~100 ms ahead of the clock"]
-  events["musics.events<br/>walks the skeleton: repeat ~ [r8]"]
-  wall["musics.wall → the voice's wall fn<br/>(musics.mu.voice, next-part!)"]
-  cursor{"spec changed<br/>(an input moved)?"}
-  next["next leaf of the cursor"]
-  word["mu word hoke-pass<br/>run again, position kept"]
-  lazy["a lazy seq of leaves, pass by pass<br/>(as-leaves accepts it)"]
-  leaf["leaf: pitch and duration<br/>no volume, no pan"]
-  resolve["musics.domain.resolve<br/>resolve-event(leaf, structural time)"]
-  chain["context chain, nearest first<br/>sample-many"]
+  events["musics.events<br/>the voice's state holds :beat b"]
+  source["source fn (b)<br/>one leaf"]
+  word["mu word hoke-leaf<br/>run-var, lookup bound at b"]
+  leaf["leaf: pitch or rest, duration<br/>no volume, no pan"]
+  resolve["musics.domain.resolve<br/>resolve-event(leaf, b)"]
+  chain["context chain, nearest first<br/>sample-many, at b"]
   midi["MIDI event → engine queue → note-on / note-off"]
 
-  engine --> events --> wall --> cursor
-  cursor -- no --> next --> leaf
-  cursor -- yes --> word --> lazy --> leaf
-  leaf --> resolve --> chain --> midi
+  engine --> events
+  events -- "b" --> source --> word --> leaf
+  leaf --> resolve
+  events -- "b" --> resolve
+  resolve --> chain --> midi
 
   classDef planned stroke-dasharray: 5 4,stroke:#c0392b,color:#c0392b
-  class lazy planned
+  class source,word,leaf planned
 ```
 
-## The word `hoke-pass`: parameters on the stack
+## The word `hoke-leaf`: parameters on the stack
 
 Read top to bottom; the stack is shown after each step. The voice's own inputs
 (`threshold`, `phase`, `instrument`, `side`) are held by the voice and changed
-by the GUI; the pass number `n` comes from the cursor's position.
+by the GUI. The only thing the word is given is the beat `b`; the rest it asks
+the lookup for, at `b`.
 
 ```mermaid
 flowchart LR
-  s0["n"]
-  s1["n  d<br/>the density at the pass start"]
-  s2["pulses<br/>a 1/0 list"]
-  s3["notes<br/>a note for a 1, a rest for a 0"]
-  s4["notes  pitches"]
-  s5["leaves<br/>pitch and duration only"]
+  s0["b"]
+  s1["i<br/>the pulse: the beat inside the pass<br/>over the pulse length"]
+  s2["i  d<br/>:density at b"]
+  s3["on?<br/>pulse i of the euclid pattern<br/>(d, steps)"]
+  s4["leaf<br/>a note with melody[i] if on?,<br/>a rest if not, one pulse long"]
 
-  s0 -- ":density t ctx-at" --> s1
-  s1 -- "d steps euclid" --> s2
-  s2 -- "1/16 pul>stp (the bridge decides)" --> s3
-  s3 -- "melody steps take" --> s4
-  s4 -- zip --> s5
+  s0 -- ":pass-length :pulse (keywords, at b)" --> s1
+  s1 -- ":density" --> s2
+  s2 -- "d :steps euclid, i nth" --> s3
+  s3 -- "melody i nth, pul>stp" --> s4
 
   classDef planned stroke-dasharray: 5 4,stroke:#c0392b,color:#c0392b
-  class s1 planned
+  class s0,s1,s2,s3,s4 planned
 ```
 
 Which pulses sound is decided here, by the algorithm and the bridge: `pul>stp`
-keeps a rest for every 0 (every voice has the same number of leaves per pass,
-so the voices stay in step); `pul>dur` would merge the rests into longer
-notes. Nothing in `resolve` or the engine gates a note.
+keeps a leaf for every pulse, a rest for a 0 (every voice has the same leaves at
+the same beats, so the voices stay in step). Nothing in `resolve` or the engine
+gates a note.
 
 ## The context chain and its readers
 
@@ -66,16 +64,16 @@ notes. Nothing in `resolve` or the engine gates a note.
 flowchart LR
   subgraph chain["chain, nearest first (a vector handed to the lookup)"]
     direction LR
-    tctx["tctx: a context with keyword keys<br/>:density :reps :spiral<br/>values or functions of time"] --> voice["voice and music contexts<br/>string keys: instrument, pan, phase,<br/>volume arc and swell as generators"]
+    tctx["tctx: a context with keyword keys<br/>:density :steps :reps :spiral<br/>values, functions of time, derived entries"] --> voice["voice and music contexts<br/>string keys: instrument, pan, phase,<br/>volume arc and swell as generators"]
     voice --> root["ROOT: a plain context<br/>string keys: volume, pan, Tempo ..."]
   end
-  resolve["resolve<br/>strings: volume, pan, instrument, tempo"] -. samples .-> chain
-  produce["hoke-pass<br/>:density, at the pass start"] -. samples .-> tctx
+  resolve["resolve, at the leaf's beat b<br/>strings: volume, pan, instrument, tempo"] -. samples .-> chain
+  produce["hoke-leaf, at the same b<br/>keywords: :density, :steps"] -. samples .-> tctx
   gui["GUI sliders"] -. edit .-> tctx
   gui -. inputs, generators .-> voice
 
   classDef planned stroke-dasharray: 5 4,stroke:#c0392b,color:#c0392b
-  class tctx planned
+  class produce planned
 ```
 
 The chain is as it always was: contexts are beads, there is no parent pointer,
@@ -86,10 +84,12 @@ refuses a keyword, `tctx-put` refuses a string). The two never meet, so the tctx
 can stand first in the chain without hiding any context value, and `"density"`
 (a context's) and `:density` (a tctx's) are two keys.
 
-A tctx is an ordinary `Context` whose keys are keywords; its values are bare
-numbers or functions of structural time (`tctx-put`). Whoever builds a chain
-puts it in front (`[tctx voice … ROOT]`); it is shared by atom, so a slider that
-edits it is seen by every voice holding the chain at the next sample.
+A tctx is an ordinary `Context` whose keys are keywords. Its values are bare
+numbers, functions of structural time (`tctx-put`), or entries computed from
+other keys (`tctx-derive`: `(f time get)`, one pull computing a key once and a
+cycle an error). Whoever builds a chain puts it in front (`[tctx voice … ROOT]`);
+it is shared by atom, so a slider that edits it is seen by every voice holding
+the chain at the next leaf.
 
 A generator is a pure function of structural time, local to the context that
 holds it (`generator`, `ctx-generate`). Anything on the musical keys that must
@@ -102,15 +102,19 @@ itself writes still wins.
 | Layer | Holds | Changes when |
 |---|---|---|
 | declaration (static data) | the melody, the voice table, the drums | never while playing |
-| inputs of a word voice | threshold, phase, instrument, side | a slider moves; the word runs again, the position is kept |
-| tctx, first in the chain | `:reps`, `:spiral`, `:density` as values or functions of time, keyword keys | the GUI edits them; read when a pass is produced |
-| voice or piece context | volume arc and swell as generators, pan, instrument | the GUI edits the numbers inside them; read by `resolve` on every note |
-| bridge | which pulses become notes | with the density, once for each pass |
-| resolve | volume, pan, instrument from the chain | on every note |
+| inputs of a word voice | threshold, phase, instrument, side | a slider moves; heard at the next leaf |
+| tctx, first in the chain | `:steps`, `:reps`, `:spiral`, `:density` as values, functions of time or derived entries | the GUI edits them; read at each leaf's beat |
+| voice or piece context | volume arc and swell as generators, pan, instrument | the GUI edits the numbers inside them; read by `resolve` at each leaf's beat |
+| the word `hoke-leaf` | which pulse sounds, and its pitch | computed again for every leaf, from the beat |
+| resolve | volume, pan, instrument from the chain | on every leaf |
 
 ## Order of building
 
-1. `as-leaves` accepts a lazy endless leaf seq (`musics.mu.live`), with a test.
-2. `ctx-at`, a word that samples a tctx key (a keyword) at a time.
-3. Where the tctx lives, and `build-chain` putting it first; a start word fills it and places the volume generators in a piece context.
-i first have an other question to orient myself, you remember the Call order 4. The word `hoke-pass` and a new hoketus file.
+1. Built: string keys for contexts and keyword keys for a tctx (`tctx-put`),
+   generators, derived entries (`tctx-derive`), the keyword-argument rule in
+   `run-var` (`*lookup*`, `with-lookup`).
+2. A voice as a function of beat in `musics.events` (see `pull-voice.md`): one
+   leaf per call, the lookup bound at the walk's `:beat`.
+3. Where the tctx lives, and the chain a voice holds with the tctx in front; a
+   start word fills it and places the volume generators in a piece context.
+4. The word `hoke-leaf` and a new hoketus file.

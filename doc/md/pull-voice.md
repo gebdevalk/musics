@@ -1,10 +1,13 @@
-# The pull voice: a voice fed by a source function
+# A voice as a function of beat
 
-A plan, not built. A live word voice today plays a skeleton of rests and a wall
-function swaps each rest for the next leaf of what the word produced. A pull
-voice drops that trick: `musics.events` is told "this voice is fed by a source
-function", asks the source for the next pass at its current beat, and plays what
-comes back. Solid boxes exist today; **dashed red boxes are planned**.
+A plan, not built. **A leaf has one beat, and every lookup made for it, whether
+while producing it or while resolving it, is made at that beat.** A live voice
+today plays a skeleton of rests and a wall function swaps each rest for the next
+leaf of a pass the word produced earlier. A voice as a function of beat drops
+that: `musics.events` is told "this voice is fed by a source function", asks the
+source for **one leaf at the beat it is at**, and plays what comes back. The
+source and `resolve` get the same `:beat`, so they cannot disagree about time.
+Solid boxes exist today; **dashed red boxes are planned**.
 
 ## Today: a skeleton and a wall function
 
@@ -17,7 +20,7 @@ flowchart LR
   next["next leaf of<br/>the cursor"]
   word["word runs<br/>(run-var)"]
   leaf["leaf"]
-  resolve["resolve<br/>contexts at the beat"]
+  resolve["resolve<br/>contexts at the leaf's beat"]
 
   engine --> events --> wall --> cursor
   cursor -- no --> next --> leaf
@@ -25,61 +28,85 @@ flowchart LR
   leaf --> resolve
 ```
 
-The word runs when an input changes, not when a pass is due. It knows nothing of
-time; the cursor counts leaves.
+The word runs when an input changes, at no beat at all; the cursor counts leaves.
+What the word read, it read once for the whole material.
 
-## Proposed: events asks a source at its beat
+## Proposed: one leaf, one beat
 
 ```mermaid
 flowchart LR
-  engine["engine sender thread"]
-  events["musics.events<br/>a voice with a source<br/>holds :beat and :t"]
-  source["source fn<br/>(beat) → one pass of leaves"]
-  bind["binds *tctx*<br/>the chain with the tctx in front<br/>and the pass's beat"]
-  word["word runs (run-var)<br/>a keyword argument the tctx<br/>holds is its value"]
-  pass["leaves of one pass"]
-  fire["events fires the leaves,<br/>:beat advances"]
-  resolve["resolve<br/>contexts at each leaf's beat"]
+  engine["engine sender thread<br/>asks the stream for its next event"]
+  events["musics.events<br/>a voice with a source<br/>state holds :beat b"]
+  source["source fn<br/>(b) → one leaf"]
+  lookup["lookup bound at b<br/>(fn [k] (ctx-value-chain chain k b))<br/>chain = tctx first, then the contexts"]
+  word["word runs (run-var)<br/>a keyword argument the lookup<br/>answers is its value, at b"]
+  leaf["one leaf<br/>pitch or rest, duration"]
+  fire["events fires it at b<br/>:beat advances by its duration"]
+  resolve["resolve(leaf, b)<br/>the same chain, the same b"]
   midi["MIDI event"]
 
   engine --> events
-  events -- "pass used up:<br/>ask at the beat" --> source --> bind --> word --> pass --> fire
-  fire -- "next pass" --> events
+  events -- "b" --> source --> lookup --> word --> leaf --> fire
+  fire -- "next event" --> events
+  events -- "b" --> resolve
   fire --> resolve --> midi
 
   classDef planned stroke-dasharray: 5 4,stroke:#c0392b,color:#c0392b
-  class source,bind,pass planned
+  class source,lookup,leaf planned
 ```
 
-There is no skeleton, no wall function, no cursor and no registry entry for such
-a voice. Time arrives because `events` already holds `:beat`.
+There is no skeleton, no wall function, no cursor, no pass and no registry entry
+for such a voice. The beat comes from the one place that already holds it, the
+walk's state, and it goes to both the source and `resolve`.
 
-## Time, call by call
+## One leaf, call by call
 
 ```mermaid
 sequenceDiagram
   participant E as events (voice state)
   participant S as source fn
   participant W as word / run-var
-  participant T as tctx (first in the chain)
+  participant C as chain (tctx first)
   participant R as resolve
 
-  E->>S: next pass, beat b
-  S->>W: run the word with *tctx* = chain + b
-  W->>T: :density (a keyword argument) at b
-  T-->>W: 3 (a generator of b, or a value)
-  W-->>S: leaves of the pass
-  S-->>E: the leaves
-  loop each leaf, at its own beat
-    E->>R: resolve the leaf at its beat
-    R->>R: string keys (volume, pan) from the context chain
-  end
-  Note over E,S: an input or a tctx change is heard at the next pass
+  Note over E: the walk is at beat b
+  E->>S: a leaf at b
+  S->>W: run the word, lookup bound at b
+  W->>C: :density (a keyword argument) at b
+  C-->>W: 3 (a value, or a function of b)
+  W-->>S: the leaf
+  S-->>E: the leaf, duration d
+  E->>R: resolve the leaf at b
+  R->>C: "volume", "pan" (string keys) at b
+  C-->>R: values at b
+  Note over E: the next beat is b + d
 ```
 
-Two granularities: **production** reads the tctx once per pass, at the pass's
-beat (the density arc, `reps`); **actualisation** reads the contexts once per
-leaf, at its own beat (volume, swell, pan).
+## The contract
+
+- **One beat per leaf.** The walk's `:beat` is the leaf's beat. The source gets it
+  as its argument; `resolve` gets it as it does today.
+- **Every lookup for the leaf is at that beat,** the tctx's keyword keys read
+  while the leaf is produced and the contexts' string keys read while it is
+  resolved. `with-lookup` is bound at that beat for each call of the source.
+- **The source is a pure function of the beat and the tctx.** The same beat gives
+  the same leaf, so a re-read or a rewind agrees with what was heard.
+- **A leaf may be of any length.** Its duration moves the beat on, so the source
+  needs no grid: a pulse number is derived from the beat (the beat inside the
+  pass, over the pulse length, both tctx keys).
+- **A batch is allowed only as an optimisation,** and only if it computes each of
+  its leaves at that leaf's own beat. A batch that reads the tctx once at its
+  start breaks the rule.
+
+## What it changes
+
+| | A pass per call (the first plan) | One leaf per call |
+|---|---|---|
+| production reads the tctx | once per pass, at the pass's start | once per leaf, at its own beat |
+| `resolve` reads the contexts | once per leaf, at its beat | the same |
+| the two beats | can differ | are the same beat |
+| a change heard | within a pass, 1–4 s | within the lookahead, about 100 ms |
+| word runs | once per pass | once per leaf |
 
 ## What goes, what stays
 
@@ -88,18 +115,23 @@ leaf, at its own beat (volume, swell, pan).
 | the skeleton `repeat ~ [r8]` of a word voice | goes |
 | the wall fn and cursor of `musics.mu.voice` for a word voice | go |
 | the registry entry of such a voice | goes |
-| a voice's inputs (`:bass/onsets`, the GUI's sliders) | stay; read when the next pass is asked for |
-| the tctx and the `*tctx*` binding | new; planned |
+| the idea of a pass as a unit of production | goes |
+| a voice's inputs (`:bass/onsets`, the GUI's sliders) | stay; read at the next leaf |
+| the tctx, `*lookup*` and `with-lookup`, derived entries | built; the voice binds them |
 | `:algo` tags, `assign-algo!`, the GUI's Wall window | stay until audited: they lean on the registry |
 
 ## Open questions
 
-- **Can events walk the source?** `walk-forms` consumes a form lazily, but a helper
-  it calls (`peel-group-contexts`) may force a whole sequence. Not checked.
+- **Can events walk the source one leaf at a time?** `walk-forms` consumes a form
+  lazily, but a helper it calls (`peel-group-contexts`) may force a whole
+  sequence. Not checked.
 - **The shape of the form.** A `{:source f}` map or a small record `Source`; one
   more case in `walk-form`, and a way to start such a voice (`engine/start-voice!`).
+- **Cost.** The word runs once per leaf (8 or 16 times per pass of hoketus). The
+  algorithms involved are small; to be measured, not assumed.
 - **Whose zero.** A voice counts `:beat` from its own start; a voice joined later
   is off by its start. One shared clock for a performance would need the engine's.
-- **A pass's beat in a hocket.** The B group starts late. Sampling at the pass's
-  nominal time (pass number × pass length) keeps both groups at one density.
+- **A hocket's late group.** The B group's leaves have beats later by the lag, and
+  so read the tctx later by the lag. That is the rule working: each leaf is timed
+  by its own beat.
 - **Where the GUI lists voices.** The Wall window reads the registry today.
