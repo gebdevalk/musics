@@ -42,3 +42,28 @@
   (is (= [42] (map :key (data/drum-matches "42"))))
   (is (= ["hat" "hh" "hihat"] (:also (first (data/drum-matches "closed")))))
   (is (= ["standard" "sfx"] (map :name (data/kit-matches "s")))))
+
+(deftest blends-name-general-midi-instruments
+  (let [names (into (set (keys data/gm-sound-set)) (keys data/orchestral-families))]
+    (is (every? names (mapcat val data/orchestral-families)))
+    (is (every? names (mapcat (fn [{[a b] :between}] (concat a b)) data/blend-pairs)))
+    (is (every? #{:harmonious :possible :harsh} (map :grade data/blend-pairs)))
+    (is (every? names (mapcat (fn [{[a b] :between}] (concat a b)) data/blends-not-in-general-midi)))
+    (is (every? :missing data/blends-not-in-general-midi))))
+
+(deftest blend-partners-find-the-family-and-the-pairings
+  (let [r (data/blend-partners "flute")]
+    (is (= :woodwinds (:family r)))
+    (is (= [:piccolo :oboe :clarinet :bassoon] (:same-family r)))
+    (is (contains? (set (map :partners (:pairs r))) [:orchestral-harp])))
+  (is (nil? (:family (data/blend-partners :marimba))) "an instrument the practice does not name")
+  (is (= [] (:pairs (data/blend-partners :marimba)))))
+
+(deftest blend-grade-says-how-two-instruments-blend
+  (is (= :harmonious (data/blend-grade :flute :oboe)))
+  (is (= :harmonious (data/blend-grade :violin :flute)) "strings with woodwinds")
+  (is (= :harmonious (data/blend-grade :oboe :clarinet)) "unison, and the same family")
+  (is (= :harsh (data/blend-grade :piccolo :clarinet)) "a named pair before its family")
+  (is (nil? (data/blend-grade :bagpipe :church-organ)) "a clash General MIDI can't sound is kept apart")
+  (is (= :possible (data/blend-grade :violin :trombone)) "strings with brass")
+  (is (nil? (data/blend-grade :marimba :tuba))))

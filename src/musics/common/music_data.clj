@@ -404,6 +404,114 @@
   (when (or (keyword? x) (string? x))
     (smart-get instrument-names x loose)))
 
+;; ---- instruments that blend ------------------------------------------------
+;; Orchestration practice, as a rule of thumb (two unsourced summaries): sounds
+;; fuse when their spectra, registers, attacks and dynamics are alike. A blend is
+;; graded :harmonious (fuses), :possible (works with care: register, balance,
+;; articulation, a role as contrast) or :harsh (prone to clash; composers use it
+;; on purpose for tension). A grade belongs to how, where and how loudly a pair is
+;; played, not to the pair for ever. Instruments are General MIDI names
+;; (gm-sound-set); a side may also be a family.
+
+(def orchestral-families
+  "Family -> its instruments. Within a family the blend is the most natural."
+  {:strings   [:violin :viola :cello :contrabass]
+   :woodwinds [:piccolo :flute :oboe :clarinet :bassoon]
+   :brass     [:french-horn :trumpet :muted-trumpet :trombone :tuba]})
+
+(defn- pair
+  "A blend: grade, the two sides (each a vector of instruments or families that
+   serve), why, and what else is known (:how :unison/:octave, :note, :contexts)."
+  [grade a b why & {:as more}]
+  (merge {:grade grade :between [a b] :why why} more))
+
+(def blend-pairs
+  "The blends the practice names, across families and between instruments of
+   one. :between holds two sides; any of one side with any of the other."
+  [(pair :harmonious [:strings] [:woodwinds] "among the most forgiving: the woodwinds soften the strings' bite and the composite is rounder and warmer" :note "the woodwinds are heard best placed higher or louder than the strings")
+   (pair :harmonious [:flute] [:oboe] "the flute smooths the oboe's nasal quality: a fuller, rounder sound" :how :unison)
+   (pair :harmonious [:oboe] [:clarinet] "a mysterious composite colour neither makes alone" :how :unison)
+   (pair :harmonious [:violin] [:trumpet] "a string-brass unison Rimsky-Korsakov recommended" :how :unison)
+   (pair :harmonious [:viola] [:french-horn] "a string-brass unison Rimsky-Korsakov recommended" :how :unison)
+   (pair :harmonious [:cello] [:french-horn] "shared mid-low pitches: a beautifully blended, soft, creamy unison" :how :unison :contexts [:orchestral :melody :film])
+   (pair :harmonious [:flute] [:violin] "similar lightness; the flute adds sheen or a floating quality" :how :unison :contexts [:doubling])
+   (pair :harmonious [:flute] [:orchestral-harp] "airy, delicate, dreamlike" :contexts [:orchestral :impressionist])
+   (pair :harmonious [:oboe] [:muted-trumpet] "a softened metallic edge with reedy colour" :note "stands for the muted trombone; General MIDI has no muted trombone" :substitute :trombone :contexts [:colour])
+   (pair :harmonious [:acoustic-guitar-nylon :acoustic-guitar-steel] [:acoustic-grand :violin :cello] "harmonic and melodic interplay, versatile across genres" :contexts [:popular :folk :chamber])
+   (pair :harmonious [:clarinet] [:brass] "the (bass) clarinet's dark, unassuming quality softens the edge of a full brass section" :note "the bass clarinet" :substitute :clarinet)
+   (pair :possible [:strings] [:brass] "never as perfect a blend as strings and woodwinds, unless horns join the violins" :how :unison :note "a horn on a violin line in the right register can be excellent")
+   (pair :possible [:flute] [:clarinet] "removes the oboe's bite, but the clarinet dominates and the flute mostly thickens the tone" :how :unison :note "the flute in a non-brilliant register")
+   (pair :possible [:oboe] [:bassoon] "the bassoon can't play the oboe's range, so the octave is sonorous and full" :how :octave)
+   (pair :possible [:acoustic-grand] [:strings :woodwinds] "the piano refuses to blend; it works as textural contrast, in chamber music with flute, clarinet or violins" :contexts [:chamber :sonata])
+   (pair :possible [:harpsichord] [:strings] "sharp attack and quick decay against sustained strings: give the harpsichord a role as rhythmic punctuation" :note "a rhythmic role, not sustained harmony")
+   (pair :possible [:clarinet] [:viola] "their tessituras overlap: close parallel motion in the shared middle register is muddy" :note "clarinet in the clarion register, viola on its lower strings" :contexts [:chamber :film])
+   (pair :possible [:woodwinds] [:french-horn] "doubling in unison can harm the melodic clarity; use with caution" :how :unison :note "soft brass with woodwind warmth; the bassoon often takes the bass")
+   (pair :possible [:acoustic-grand] [:clarinet] "a rich dialogue of melody and harmony, as contrast more than fusion" :contexts [:classical :jazz :contemporary])
+   (pair :harsh [:piccolo] [:clarinet] "a classic spectral clash: a bright piccolo with a dark bass clarinet gives a hybrid with two spectral peaks" :how :unison :note "the bass clarinet" :substitute :clarinet)
+   (pair :harsh [:flute] [:trumpet :trombone :tuba :french-horn] "a soft soloist against loud brass is inaudible: masked, not blended" :note :dynamics)])
+
+(def blends-not-in-general-midi
+  "Clashes the practice names that General MIDI can't sound and has nothing to
+   stand for, kept apart from blend-pairs: the instruments exist, the effect
+   does not."
+  [(pair :harsh [:bagpipe] [:acoustic-grand :church-organ :drawbar-organ :percussive-organ :rock-organ :reed-organ]
+         "the bagpipe is tuned in just intonation, the piano and organ in equal temperament; the chanter drowns the piano"
+         :missing :just-intonation :note "every General MIDI sound is in equal temperament")
+   (pair :harsh [:oboe] [:violin :viola :cello :contrabass]
+         "a smooth legato line over col legno strings: a dry, percussive underlay"
+         :missing :col-legno :note "General MIDI has tremolo and pizzicato strings, no col legno")])
+
+(def blend-factors
+  "What makes sounds blend, what makes them clash, the intervals a doubling uses."
+  {:factors [:similar-timbre :dark-spectrum :clean-attack :parallel-motion :onset-synchrony
+             :consonant-intervals :matching-attack-and-decay :matching-dynamics
+             :register-overlap :avoid-extreme-contrast]
+   :clash-causes [:spectral-opposition :tuning-system :envelope-conflict :frequency-masking
+                  :bright-or-noisy-attacks :dynamic-mismatch :articulation-conflict
+                  :high-register-brass-partials]
+   :doubling [:unison :octave :fifth]
+   :blend-least ["percussion" "plucked strings" "with sustained tones"]
+   :bridge [:french-horn]
+   :notes {:french-horn "blends best with other brass when softer than the trumpet and trombone; a bridge between brass, strings and woodwinds"
+           :muted-brass "softens the edges for a tighter fusion"
+           :octave-doubling "a high-timbre instrument with a medium or low one at the octave adds volume and projection without a spectral fight"
+           :same-family "two of a kind lose nothing of their quality and gain power; the blend is stable, the variety a little less"
+           :brass-partials "the upper partials of trumpet and trombone lie close and beat: the brass edge, abrasive when massed and loud"}})
+
+(defn- family-of [k] (some (fn [[f members]] (when (some #{k} members) f)) orchestral-families))
+
+(defn- side-has? [side k fam] (boolean (some #(or (= % k) (and fam (= % fam))) side)))
+
+(defn blend-partners
+  "What blends with an instrument (a General MIDI name, camelCase or short
+   name): {:instrument k :family f :same-family [...] :pairs [...]}, each pair
+   as in blend-pairs plus :partners, the other side."
+  [instrument]
+  (let [k   (program->name (program-of instrument))
+        fam (family-of k)]
+    {:instrument  k
+     :family      fam
+     :same-family (vec (remove #{k} (orchestral-families fam)))
+     :pairs       (vec (for [{[a b] :between :as pr} blend-pairs
+                             :when (or (side-has? a k fam) (side-has? b k fam))]
+                         (assoc pr :partners (vec (if (side-has? a k fam) b a)))))}))
+
+(defn blend-grade
+  "How two instruments blend: :harmonious, :possible or :harsh, from the pair
+   that names them (an instrument before a family); two of one family are
+   :harmonious; nil where the practice says nothing."
+  [x y]
+  (let [kx (program->name (program-of x)) ky (program->name (program-of y))
+        fx (family-of kx) fy (family-of ky)
+        hit (fn [specific?]
+              (first (for [{[a b] :between :as pr} blend-pairs
+                           :when (or (and (side-has? a kx (when-not specific? fx)) (side-has? b ky (when-not specific? fy)))
+                                     (and (side-has? b kx (when-not specific? fx)) (side-has? a ky (when-not specific? fy))))]
+                       (:grade pr))))]
+    (or (hit true)
+        (when (and fx (= fx fy)) :harmonious)
+        (hit false))))
+
 (def drum-kits
   "Drum kits by name: the program a program change on the drum channel
    selects (the GS/GM2 numbering most soundfonts follow; General MIDI 1

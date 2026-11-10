@@ -213,3 +213,22 @@
   ([lo hi period] (settled saw [lo hi period]))
   ([lo hi phase period] (settled saw [lo hi phase period])))
 
+;; ---- a spiral -------------------------------------------------------------
+;; `n-sines` sine waves, each a 1/n-sines of a cycle (360/n-sines degrees) behind the
+;; one before it: together they turn round like a spiral. nth (0 ..) picks one
+;; of them, idx is the position on the x axis, the value is its y.
+
+(defn spiral
+  "The y of the nth of n-sines sine waves at idx: wave nth is shifted by nth/n-sines of a cycle (360/n-sines degrees), nth counting from 0 and wrapping round. Between -1 and 1, or lo and hi; period (one by default) idxs make a cycle."
+  {:algo {:arity 6}}
+  ([nth idx n-sines] (spiral nth idx n-sines 1))
+  ([nth idx n-sines period] (spiral nth idx n-sines -1 1 period))
+  ([nth idx n-sines lo hi period] (sine idx lo hi (/ (mod nth n-sines) n-sines) period)))
+
+(defn spiral-fn
+  "A spiral as a fn of nth and idx, the settings taken once: (spiral-fn n-sines), (spiral-fn n-sines period) or (spiral-fn n-sines lo hi period)."
+  {:algo {:arity 4}}
+  ([n-sines] (spiral-fn n-sines 1))
+  ([n-sines period] (spiral-fn n-sines -1 1 period))
+  ([n-sines lo hi period] (fn [nth idx] (spiral nth idx n-sines lo hi period))))
+
