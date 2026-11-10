@@ -147,7 +147,7 @@ musics.mu                    182   mu, the musical REPL: the prompt loop (JLine)
 ├── mu.kernel                222   stack words: dup swap … quotations, :=, the play words
 ├── mu.tools                 187   tool words that read the stack's shape: seq par zip {n} [n] volta …
 ├── mu.algos                 165   the algos as words by shelf: pitch/lorenz, duration/euclid …
-├── mu.live                  157   a play word given a recipe plays live
+├── mu.live                  157   a play word given a recipe, or a word with $beat, plays live; the session tctx
 ├── mu.complete              163   Tab completion
 └── mu.feedback              151   rating what is heard, audition
 musics.kernel                257   kernel words: numbers, the repo, namespaces, require, help, files, load, render

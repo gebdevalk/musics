@@ -4,6 +4,7 @@
             [musics.persist :as persist]
             [musics.repo :as repo]
             [musics.compose :as compose]
+            [musics.engine :as engine]
             [musics.events :as ev]
             [musics.wall :as wall]
             [musics.domain :as d]
@@ -451,7 +452,7 @@
 
 ;; ---- a voice fed by a function of beat (compose/source) ----
 
-(defn- leaf-at [beat pitch] (d/leaf nil (c/context) 1/4 [pitch]))
+(defn- leaf-at [_beat pitch] (d/leaf nil (c/context) 1/4 [pitch]))
 
 (deftest a-source-is-asked-one-leaf-at-a-time-at-the-beat-the-voice-is-at
   (let [asked (atom [])
@@ -490,6 +491,6 @@
     (is (= 4 (count (distinct vs))))))
 
 (deftest a-source-voice-plays-through-the-engine
-  (is (nil? (#'musics.engine/validate-ids! {} (compose/source (fn [_ _] nil))))
+  (is (nil? (#'engine/validate-ids! {} (compose/source (fn [_ _] nil))))
       "a source is a form play accepts"))
 

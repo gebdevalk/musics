@@ -1229,6 +1229,52 @@ parameter. Two voices may have inputs of the same name: `:bass/onsets` and
 A local is written with its `$` in the body, `$onsets`, and a word that
 leaves nothing, or fails when it runs, is refused when the voice starts.
 
+### A voice as a function of the beat
+
+A word with **`$beat`** among its inputs is a different kind of live voice. Instead of
+giving a seq that the voice then plays through, it gives **one leaf for the beat the
+voice has reached**, and the engine asks it again for the beat that leaf leaves behind.
+Nothing is built ahead: what the voice plays is looked up as it plays.
+
+```
+: tick ( $beat $base -- note )
+    | '[1/16] '[1] $base $beat 16 * int 8 mod + * zip ;
+60 'tick :v ->
+```
+
+- `$beat` is the voice's own: the stack gives the other inputs (`60` is `$base`), and
+  no slider is made for it. The beat is a whole-note fraction, `1/16` for the second
+  sixteenth.
+- The word runs once for each leaf, so `3 :v/base !` is heard at the next leaf, and a
+  word that fails, or leaves nothing, is refused when the voice starts.
+- Under a context it plays as music does: `60 'tick ^{ !tempo:120 } :v ->`. It starts
+  now (`->`); `-|>` is refused.
+
+The settings such voices read live in the **tctx**, a table of keyword keys. A key can
+be a plain value, or **derived** from the beat and from other keys:
+
+```
+8 :steps tctx-put                              a setting
+'( :beat 16 * :steps / int ) :pass tctx-derive   the pass the beat is in
+:steps tctx-get                                8
+3 :steps tctx-put                              changed while it plays: the next leaf sees it
+```
+
+`:beat` is the beat of the leaf that asks, and `:steps` in the quotation is its value
+there. A derived key may ask other derived keys; a key that asks for itself, however far
+round, is refused (`a cycle in the tctx: :a -> :b -> :a`).
+
+Inside such a voice a **keyword where a number is needed is the key's value**:
+`:onsets 8 pattern/euclid` is `3 8 pattern/euclid` while the tctx holds `:onsets 3`.
+A keyword the tctx does not hold stays a keyword (`:hoketus R@`), and so does one a
+word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`). A word written
+with `: … ;` does not do this: it reads a key with `tctx-get`. Context keys are strings
+(`"volume"`), tctx keys keywords (`:volume` is a different key).
+
+`hoketus2.mus` is a whole piece written this way: `"hoketus2.mus" load start`, and
+`6 :steps tctx-put` while it plays. `doc/md/pull-voice.md` and
+`doc/md/hoketus-dynamic.md` draw the call order.
+
 ## 17. Rating what you hear
 
 mu keeps your taste in sounds (`~/.mu-feedback.edn`). The rating words are in the
