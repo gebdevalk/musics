@@ -194,7 +194,7 @@ time, so a lookup is **recursive**. A key is computed once per pull, and a key t
 needs itself, however far round, throws naming the cycle (`:a -> :b -> :a`).
 `(c/getter chain time)` is one memoized pull: every answer it gives (a miss too)
 is remembered, so one leaf sees one value for each key. The tctx is shared by
-atom: a change made to it (`tctx!`) is seen by the next lookup in every chain
+atom: a change made to it (`T!`) is seen by the next lookup in every chain
 that holds it.
 
 A function of time is also a value a context's own string key can hold

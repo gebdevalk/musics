@@ -307,6 +307,17 @@
       :else
       (run-defined stack name entry))))
 
+(declare call)
+
+(defn derived-fn
+  "The function (f time get) of a tctx entry computed by quotation q: run with
+   :beat and every key the lookup holds as keyword arguments."
+  [q]
+  (fn [beat get]
+    (with-lookup (fn [x] (if (= x :beat) beat (get x)))
+      #(let [left (call [] q)]
+         (when (seq left) (peek left))))))
+
 (defn call
   "Run a quotation on stack."
   [stack q]

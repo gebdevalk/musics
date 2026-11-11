@@ -19,6 +19,7 @@
   (:refer-clojure :exclude [load])
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
+            [musics.mu.eval :as e]
             [musics.mu.session :as mu-session]
             [musics.registries :as reg]
             [musics.repo :as repo]
@@ -26,7 +27,7 @@
             [musics.domain :as d]
             [musics.common.music-elements :as el])
   (:import (musics.common.music_elements Meter Key)
-           (musics.domain.context Envelope)))
+           (musics.domain.context Derived Envelope Generator)))
 
 ;; ============================================================
 ;; Context freeze/thaw
@@ -45,13 +46,35 @@
     (instance? Key v)
     {:record-type :key :signature (:signature v) :scale (:scale v) :pitches (:pitches v)}
 
+    (ratio? v)
+    {:record-type :ratio :n (numerator v) :d (denominator v)}
+
+    ;; a tctx entry computed by a quotation: its text, read again when first asked
+    (instance? Derived v)
+    {:record-type :derived :text (:text v)}
+
     :else v))
+
+(defn- savable?
+  "Can this context value be written? Not a function of time, nor a computed
+   entry that was made from no text."
+  [v]
+  (not (or (instance? Generator v) (and (instance? Derived v) (nil? (:text v))))))
+
+(defn- derived-from-text
+  "A Derived whose function reads its quotation, text, when first asked: the
+   words it uses need not be defined yet while a session is being restored."
+  [text]
+  (let [f (delay (e/derived-fn (peek (e/run-text [] text))))]
+    (c/->Derived (fn [t get] (@f t get)) text)))
 
 (defn- thaw-context-value [v]
   (if (map? v)
     (case (:record-type v)
-      :meter (el/make-meter (:num v) (:den v) (:subdivisions v))
-      :key   (el/->Key (:signature v) (:scale v) (:pitches v))
+      :meter   (el/make-meter (:num v) (:den v) (:subdivisions v))
+      :key     (el/->Key (:signature v) (:scale v) (:pitches v))
+      :ratio   (/ (:n v) (:d v))
+      :derived (derived-from-text (:text v))
       v)
     v))
 
@@ -82,13 +105,15 @@
    representation, so an already-saved session keeps loading unchanged."
   [ctx]
   (when ctx
-    {:envelopes (into {} (map (fn [[k v]]
-                                [k (if (instance? Envelope v)
-                                     {:points (mapv (fn [[t [val ip]]]
-                                                       {:time t :value (freeze-context-value val) :ip ip})
-                                                     @(:points-atom v))}
-                                     {:bare (freeze-context-value v)})])
-                              @(:envelopes-atom ctx)))
+    {:envelopes (into {}
+                      (comp (filter (comp savable? val))
+                            (map (fn [[k v]]
+                                   [k (if (instance? Envelope v)
+                                        {:points (mapv (fn [[t [val ip]]]
+                                                         {:time t :value (freeze-context-value val) :ip ip})
+                                                       @(:points-atom v))}
+                                        {:bare (freeze-context-value v)})])))
+                      @(:envelopes-atom ctx))
      :duration  (:duration ctx)
      :ref       (ctx-ref (:envelopes-atom ctx))}))
 
@@ -248,17 +273,32 @@
 ;; Files
 ;; ============================================================
 
+(defn- stored
+  "What is stored, with the session's tctx in it as :tctx."
+  []
+  (assoc (into {} @(repo/registry)) :tctx {:type :CONTEXT :id :tctx :context reg/tctx :children []}))
+
+(defn- adopt-tctx
+  "Put a loaded :tctx's values into the session's tctx, the one object voices
+   hold, and keep that one in the repo in place of the loaded copy. A file
+   without one leaves the tctx as it is."
+  [repo]
+  (if-let [node (get repo :tctx)]
+    (do (reset! (:envelopes-atom reg/tctx) @(:envelopes-atom (:context node)))
+        (assoc repo :tctx (assoc node :context reg/tctx)))
+    repo))
+
 (defn write
   "Write what is stored, and the auto-ids, to path as EDN."
   [path]
-  (spit path (repo->edn (into {} @(repo/registry)) (:auto-ids @reg/session)))
+  (spit path (repo->edn (stored) (:auto-ids @reg/session)))
   (println "[musics] Session written to" path))
 
 (defn load
   "Replace what is stored with a write'd file's (path), auto-ids too."
   [path]
   (let [loaded (edn->repo (slurp path))]
-    (repo/seed! (:repo loaded))
+    (repo/seed! (adopt-tctx (:repo loaded)))
     (swap! reg/session assoc :auto-ids (:auto-ids loaded)))
   (println "[musics] Session loaded from" path))
 
@@ -268,7 +308,7 @@
    -- a performance isn't a document."
   [path]
   (let [[mu skipped] (mu-session/text)]
-    (spit path (session->edn (into {} @(repo/registry)) (:auto-ids @reg/session) mu))
+    (spit path (session->edn (stored) (:auto-ids @reg/session) mu))
     (when (seq skipped)
       (println "[musics] Not saved, their values can't be written as text:" (str/join " " (map #(str "\\" %) skipped)))))
   (println "[musics] Session persisted to" path))
@@ -278,7 +318,7 @@
    file without them (write's) leaves mu's as they are."
   [path]
   (let [{:keys [repo auto-ids mu]} (edn->session (slurp path))]
-    (repo/seed! repo)
+    (repo/seed! (adopt-tctx repo))
     (swap! reg/session assoc :auto-ids auto-ids)
     ;; after the repo, so a binding can refer to what is stored
     (when (some? mu) (mu-session/restore! mu)))

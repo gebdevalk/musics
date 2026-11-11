@@ -41,7 +41,7 @@
 (def stack-effects
   {"settings" "( voice -- ) or ( 'name -- )", "pull" "( f n -- l )", "marks" "( 'name -- )"
    "R!" "( x [id] -- id )", "store" "( x [id] -- id )", "overwrite" "( x [id] -- id )", "R!!" "( x [id] -- id )"
-   "R@" "( id -- x )", "fetch" "( id -- x )"
+   "R@" "( id -- x )", "fetch" "( id -- x )", "R_" "( id -- )", "forget" "( id -- )"
    "abs" "( n -- n' )", "negate" "( n -- n' )", "round" "( n -- n' )", "int" "( n -- n' )"
    "float" "( n -- n' )", "rational" "( n -- n' )", "mod" "( n1 n2 -- n3 )"
    "max" "( n1 n2 -- n3 ) or ( l -- n )", "min" "( n1 n2 -- n3 ) or ( l -- n )"

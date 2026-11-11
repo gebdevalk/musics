@@ -14,7 +14,8 @@
             [musics.mu.print :as p]
             [musics.mu.value :as v]
             [musics.mu.voice :as voice]
-            [musics.registries :as reg]))
+            [musics.registries :as reg]
+            [musics.repo :as repo]))
 
 (defn recipe?
   "A quotation '( … ): what a play word plays live."
@@ -116,10 +117,19 @@
 (inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
 
 (def tctx
-  "The session's tctx: a Context whose keys are Clojure keywords (:reps, :steps),
-   first in the chain every voice fed by a function of beat reads, filled by
-   mu's tctx! and tctx-derive."
-  (c/context))
+  "The session's tctx (musics.registries/tctx): a Context whose keys are Clojure
+   keywords (:reps, :steps), first in the chain every voice fed by a function of
+   beat reads, filled by mu's T! and tctx-derive, and stored in the repo as
+   :tctx so a saved session keeps it."
+  reg/tctx)
+
+(defn tctx-node!
+  "The tctx, put in the repo as the :CONTEXT node :tctx when it is not there (a
+   reset empties the repo), and returned."
+  []
+  (when-not (identical? tctx (:context (repo/current :tctx)))
+    (repo/commit-node! :tctx {:type :CONTEXT :id :tctx :context tctx :children []}))
+  tctx)
 
 (defn- beat-word?
   "Does word take the beat as an input -- $beat in its stack effect? Then the
@@ -153,11 +163,11 @@
     (inputs/set-inputs! voice (map vector names values) specs)
     (let [f (beat-source word voice all-names)]
       ;; ask once now, at the start, so a word that fails is refused here, not heard
-      (try (f 0 (c/getter [tctx] 0))
+      (try (f 0 (c/getter [(tctx-node!)] 0))
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f tctx) (mt/read-text "repeat ~ [r8]") voice ctx))
+      (mt/play-source! (compose/source f (tctx-node!)) (mt/read-text "repeat ~ [r8]") voice ctx))
     voice))
 
 (defn- play-plain-word!

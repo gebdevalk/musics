@@ -80,12 +80,12 @@ The chain is as it always was: contexts are beads, there is no parent pointer,
 and a lookup walks the vector it is handed, nearest first. Nothing about `ROOT`
 changed. What changed is the type of a key: **a string is a context key, a
 keyword is a tctx key**, with no `(name key)` normalization (`ctx-append`
-refuses a keyword, `tctx!` refuses a string). The two never meet, so the tctx
+refuses a keyword, `T!` refuses a string). The two never meet, so the tctx
 can stand first in the chain without hiding any context value, and `"density"`
 (a context's) and `:density` (a tctx's) are two keys.
 
 A tctx is an ordinary `Context` whose keys are keywords. Its values are bare
-numbers, functions of structural time (`tctx!`), or entries computed from
+numbers, functions of structural time (`T!`), or entries computed from
 other keys (`tctx-derive`: `(f time get)`, one pull computing a key once and a
 cycle an error). Whoever builds a chain puts it in front (`[tctx voice … ROOT]`);
 it is shared by atom, so a slider that edits it is seen by every voice holding
@@ -152,7 +152,7 @@ flowchart LR
 
 ## Order of building
 
-1. Built: string keys for contexts and keyword keys for a tctx (`tctx!`),
+1. Built: string keys for contexts and keyword keys for a tctx (`T!`),
    generators, derived entries (`tctx-derive`), the keyword-argument rule in
    `run-var` (`*lookup*`, `with-lookup`).
 2. A voice as a function of beat in `musics.events` (see `pull-voice.md`): one
