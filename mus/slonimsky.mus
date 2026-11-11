@@ -36,27 +36,30 @@
 \tune '[] '[] '[] slonimsky/polation2 quarters .         % '[60 62 64 65]
 
 % ---- slonimsky: the polations of an equal division of the octaves -------------
-% ( divisor infra? inter? ultra? -- pitches ). The divisor is the interval in semitones
+% ( divisor infra inter ultra -- pitches ), the last three 1 (on) or 0 (off), or
+% ( divisor mask -- pitches ), the mask infra 1 + inter 2 + ultra 4 (5 is infra and ultra). The divisor is the interval in semitones
 % stacked from C4 until a C comes back (2 3 4 5 6 8 9 10); the primary tones are those.
 % After the lower tone of each pair come, in this order, the infra tone (a semitone
 % below it), the inter tone (a semitone above it) and the ultra tone (a semitone above
-% the higher tone of the pair), as the three booleans switch them on.
+% the higher tone of the pair), as the three ints switch them on.
 
-6 false false false slonimsky/polation quarters .   % the primary tones: C4 F#4 C5
-6 false true  false slonimsky/polation quarters .   % inter: C4 C#4 F#4 G4 C5
-6 false false true  slonimsky/polation quarters .   % ultra: C4 G4 F#4 C#5 C5
-6 true  false false slonimsky/polation quarters .   % infra: C4 B3 F#4 F4 C5
-6 true  true  false slonimsky/polation quarters .   % infra and inter
-6 true  false true  slonimsky/polation quarters .   % infra and ultra
-6 true  true  true  slonimsky/polation quarters .   % all three
+6 0 0 0 slonimsky/polation quarters .   % the primary tones: C4 F#4 C5
+6 0 1 0 slonimsky/polation quarters .   % inter: C4 C#4 F#4 G4 C5
+6 0 0 1 slonimsky/polation quarters .   % ultra: C4 G4 F#4 C#5 C5
+6 1 0 0 slonimsky/polation quarters .   % infra: C4 B3 F#4 F4 C5
+6 1 1 0 slonimsky/polation quarters .   % infra and inter
+6 1 0 1 slonimsky/polation quarters .   % infra and ultra
+6 1 1 1 slonimsky/polation quarters .   % all three
+6 7 slonimsky/polation quarters .       % the same as a mask: 1 + 2 + 4
+6 5 slonimsky/polation quarters .       % infra and ultra
 
 % other divisors: 4 (the augmented triad), 3 (the diminished seventh), 2 (the whole-tone scale)
-4 true true true slonimsky/polation quarters .
-3 false true false slonimsky/polation quarters .
-2 false true true slonimsky/polation quarters .
+4 1 1 1 slonimsky/polation quarters .
+3 0 1 0 slonimsky/polation quarters .
+2 0 1 1 slonimsky/polation quarters .
 
 % more than an octave: 8 spans two octaves, 9 three. 5 and 10 span five and end on pitch
 % 120 (C9), past the 24..119 that notes can be written in: as numbers they are fine
-% (10 false false false slonimsky/polation .), as notes with quarters they are not.
-8 false true false slonimsky/polation quarters .
-9 false true false slonimsky/polation quarters .
+% (10 0 0 0 slonimsky/polation .), as notes with quarters they are not.
+8 0 1 0 slonimsky/polation quarters .
+9 0 1 0 slonimsky/polation quarters .

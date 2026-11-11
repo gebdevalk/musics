@@ -82,21 +82,40 @@
   {:pre [(some #{d} divisors)]}
   (vec (range start (inc (+ start (lcm d 12))) d)))
 
+(defn- switches
+  "Which of infra, inter and ultra a mask turns on, as 0 or 1 each: infra is 1,
+   inter 2, ultra 4 (5 is infra and ultra, 7 all three)."
+  [mask]
+  {:pre [(integer? mask) (<= 0 mask 7)]}
+  [(bit-and mask 1) (quot (bit-and mask 2) 2) (quot (bit-and mask 4) 4)])
+
+(defn- arity-of
+  "The arity mu calls polation with, from the stack: 4 when the top three are
+   0 or 1 and a divisor lies under them, else 2 (a divisor and a mask)."
+  [stack]
+  (let [top (take-last 4 stack)]
+    (if (and (= 4 (count top)) (every? #{0 1} (rest top)) (some #{(first top)} divisors)) 4 2)))
+
 (defn polation
   "The primary tones of divisor d (2 3 4 5 6 8 9 10), each lower tone of a pair
-   followed by the infra (a - 1), inter (a + 1) and ultra (b + 1) tones the three
-   booleans switch on, in that order: [C4 B3 C#4 G4 F#4 ...] for 6 true true true."
-  {:algo {:in [] :out :pitch :arity 4
+   followed by the infra (a - 1), inter (a + 1) and ultra (b + 1) tones that are
+   on, in that order: [C4 B3 C#4 G4 F#4 ...] with all three. Which are on is given
+   as three ints, 1 on and 0 off (6 1 0 1), or as one mask: infra 1, inter 2, ultra
+   4 added (6 5 is the same as 6 1 0 1)."
+  {:mu {:arity arity-of}
+   :algo {:in [] :out :pitch
           :params {:divisor {:type :int :default 6 :min 2 :max 10 :choices [2 3 4 5 6 8 9 10] :doc "semitones stacked until a C comes back: 6 is C4 F#4 C5"}
-                   :infra? {:type :bool :default false :doc "a semitone below the lower tone of each pair"}
-                   :inter? {:type :bool :default false :doc "a semitone above the lower tone of each pair"}
-                   :ultra? {:type :bool :default false :doc "a semitone above the higher tone of each pair"}}}}
-  [divisor infra? inter? ultra?]
-  (let [tones (primary divisor)]
-    (conj (vec (mapcat (fn [[a b]]
-                         (concat [a]
-                                 (when infra? [(dec a)])
-                                 (when inter? [(inc a)])
-                                 (when ultra? [(inc b)])))
-                       (partition 2 1 tones)))
-          (peek tones))))
+                   :mask {:type :int :default 0 :min 0 :max 7 :doc "infra 1 + inter 2 + ultra 4: which polations are on"}}}}
+  ([divisor mask]
+   (let [[infra-on inter-on ultra-on] (switches mask)]
+     (polation divisor infra-on inter-on ultra-on)))
+  ([divisor infra-on inter-on ultra-on]
+   {:pre [(every? #{0 1} [infra-on inter-on ultra-on])]}
+   (let [tones (primary divisor)]
+     (conj (vec (mapcat (fn [[a b]]
+                          (concat [a]
+                                  (when (= 1 infra-on) [(dec a)])
+                                  (when (= 1 inter-on) [(inc a)])
+                                  (when (= 1 ultra-on) [(inc b)])))
+                        (partition 2 1 tones)))
+           (peek tones)))))
