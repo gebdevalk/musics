@@ -210,20 +210,13 @@ leisure and let it take over at a moment you choose:
 octave, and `3 -|>` plays it as voice 3. Voices go by index from low to
 high (`1` the lowest), the drums from `0` down.
 
-A voice can also play a **recipe**: a quotation that makes the music,
-or changes the music under it. Each note it reaches is the next one the
-recipe gives *now*, so a change to its settings is heard on the next
-note:
+A voice can also play a **recipe**: a quotation that changes the music
+under it, and a word you define can make a voice of its own (see the
+settings section below and `doc/md/mu-tutorial.md`, section 16):
 
 ```
-| '( duration/euclid [c e g] pitches zip [~] ) :riff ->
-:riff @^{ onsets:5 } set         five beats instead of three, heard at once
-:riff settings              every setting and its range
-[c d e g] [~] '( 5 + ) :up ->   the loop, a fourth higher
+[c d e g] [~] '( 5 + ) :up ->   the loop, a fourth higher, as the voice :up
 ```
-
-`doc/md/mu-tutorial.md` (section 16) and `doc/md/raw-algo-cookbook.md`
-go on from here.
 
 ## Settings: values a voice looks up
 
