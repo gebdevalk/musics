@@ -7,7 +7,7 @@ through the words that work on music, from writing a note to building
 a color-talea. Every example was run in mu; the seq under `→` is what
 mu printed.
 
-Start mu with `lein mu`; its first seq shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
+Start mu with `lein mu`; its first line shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
 ## 0. The stack
@@ -34,7 +34,7 @@ around on it, and you'll need them throughout:
 | `about` | `( ["name"] -- )` | what a name is and where it can appear, one sentence: `about tempo`, `about violin`, `about allegro` |
 | `settings` | `( "name" -- )` | a parameter's range, default and how it is written: `settings tempo` (a voice on top: its live settings) |
 | `marks` | `( "name" -- )` | the marks that set a parameter, by value: `marks tempo` |
-| `help` | `( ["text"] -- )` | mu in a few seqs; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
+| `help` | `( ["text"] -- )` | mu in a few lines; with a word, as `see`; with other text, the words that mention it: `"chord" help`; `help dup` looks `dup` up |
 
 A **quotation** `'( … )` is a piece of mu held for later, run by the
 words that take one (`vary`, `filter`, `within` …). The spaces inside
@@ -111,7 +111,7 @@ flag's place is refused, naming it.
 0 not                              → ERR not: needs a flag (true or false), got 0
 ```
 
-An error leaves the stack as it was before the input, so a typo costs the seq,
+An error leaves the stack as it was before the input, so a typo costs the line,
 not what you built. A word mu does not know says what it is now called, or
 what is close to it, and `help` shows the way in:
 

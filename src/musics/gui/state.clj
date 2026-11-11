@@ -1246,7 +1246,7 @@
 (defn close-wall! [] (swap! *state assoc :wall-open? false) nil)
 
 (defn- fmt-registered
-  "musics.wall/registered's {name -> entry} as one seq per algo: its
+  "musics.wall/registered's {name -> entry} as one line per algo: its
    name and doc -- for a live voice, what it follows."
   [m]
   (str/join "\n"

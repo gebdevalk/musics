@@ -602,7 +602,7 @@
   (str (fmt-value value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
 
 (defn- fmt-context
-  "A Context's own envelope points on one seq, nil when it has none."
+  "A Context's own envelope points on one line, nil when it has none."
   [ctx]
   (let [envs @(:envelopes-atom ctx)]
     (when (seq envs)

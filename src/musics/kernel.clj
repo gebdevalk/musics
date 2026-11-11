@@ -280,7 +280,7 @@
   (println (about/marks-text (str topic))))
 
 (defn help!
-  "mu in a few seqs; with a word, as see explains it; with other text,
+  "mu in a few lines; with a word, as see explains it; with other text,
    the words that mention it: help, help dup, \"chord\" help, \"transpose\" help"
   {:mu {:optional {:topic #(or (string? %) (symbol? %))}}}
   ([] (run! println guide))

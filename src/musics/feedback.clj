@@ -1,6 +1,6 @@
 (ns musics.feedback
   "Ratings of what was heard (doc/md/feedback.md): like 1, neutral 0,
-   dislike -1, appended one map per seq to a file. A trial's :what is
+   dislike -1, appended one map per line to a file. A trial's :what is
    the sound as mu prints it; what it is made of is read back from that
    text (sound-parts), so the file never needs migrating. Knows nothing
    of mu's stack or the engine."

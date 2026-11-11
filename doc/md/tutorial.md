@@ -30,7 +30,7 @@ To hear anything, connect a synthesizer once:
 Without either, everything below still works; you just don't hear it.
 
 A few words for finding your way:
-- `help` is mu in a few seqs, and `"chord" help` lists the words that mention chord;
+- `help` is mu in a few lines, and `"chord" help` lists the words that mention chord;
 - `words` lists every word;
 - `"dup" see` says what one word does (`dup ( a -- a a )  copy the top`);
 - a word mu does not know says what it is now called or what is close to it.
