@@ -380,7 +380,7 @@ different way:
   after the boundary — typically the next pass of a loop or the next
   item of a `[...]` play arg.
 
-mu's `forget` and `rename` (`musics.repo/forget!`/`rename!`) tidy the store: `rename` rewrites a name in one swap, wherever it is held (`:children`, nested ones, an override marker's `:ref` and `:raw`, an inline context's definition, a recipe's `:text`); `forget` refuses a name another id still refers to (`referrers`, wider than `usages`, which is direct children only).
+mu's `forget` and `rename` (`musics.repo/forget!`/`rename!`) tidy the store: `R_` is `forget`'s sign (`R!` stores, `R@` fetches, `R_` deletes); `rename` rewrites a name in one swap, wherever it is held (`:children`, nested ones, an override marker's `:ref` and `:raw`, an inline context's definition, a recipe's `:text`); `forget` refuses a name another id still refers to (`referrers`, wider than `usages`, which is direct children only).
 
 `musics.persist`'s `write`/`load` (the GUI's Persistence window)
 persist/replace whatever's currently committed (via `musics.repo/seed!`),
@@ -736,11 +736,11 @@ tctx holds `:onsets 3`. A keyword the lookup does not hold goes through (`:hoket
 R@`), and so does one the function's own keyword tail reads
 (`3 8 :rotation 2 euclid`); what lies under the arguments is untouched. The lookup
 is `eval/*lookup*`, bound by `eval/with-lookup` around a voice's run (unbound,
-nothing changes). `tctx!` (`8 :steps tctx!`), `tctx-derive`
+nothing changes). `T!` (`8 :steps T!`), `tctx-derive`
 (`'( :steps 2 * ) :twice tctx-derive`: the quotation runs at the beat of the asker
-with `:beat` and every tctx key as keywords) and `tctx@` (`:steps tctx@`: a
-key's value where a plain word needs one) fill and read the session's tctx
-(`musics.mu.live/tctx`, not saved in a session file: it holds functions).
+with `:beat` and every tctx key as keywords) and `T@` (`:steps T@`: a
+key's value where a plain word needs one) and `T_` (`:steps T_`: take a key out) fill, read and erase the session's tctx
+(`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a `tctx-derive` entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -1078,7 +1078,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   A context stores `"volume"`, `"Tempo"`, `"density"`; there is no `(name key)`
   normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
   and a keyword asked of a chain reaches only the contexts that hold keywords. A
-  **tctx** is an ordinary `Context` whose keys are keywords (`tctx!`,
+  **tctx** is an ordinary `Context` whose keys are keywords (`T!`,
   `tctx-derive`): whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
   `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
   hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
@@ -1089,7 +1089,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   **recursive**, a key computed once per pull, a cycle an error naming it
   (`:a -> :b -> :a`). `context/getter chain time` is one memoized pull: every answer,
   a miss too, is remembered, so a leaf sees one value for each key; make one for each
-  leaf. A tctx is shared by atom, so editing it (a GUI slider, `tctx!`) is seen at
+  leaf. A tctx is shared by atom, so editing it (a GUI slider, `T!`) is seen at
   the next lookup by every chain that holds it. A derived entry's time is the one
   its context was asked at: right for a tctx at offset 0 in front of a chain, not
   checked for an extracted context with another offset.

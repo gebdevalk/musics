@@ -68,7 +68,7 @@
       (let [l (marimba 0)]
         (is (= 12 (get-in l [:overrides :instrument])))
         (is (= -1.0 (get-in l [:overrides :panning])))
-        (is (<= 60 (get-in l [:overrides :volume]) 70))
+        (is (<= (- (at :soft 0) 10) (get-in l [:overrides :volume]) (+ (at :soft 0) 10)) "around the soft volume at the start")
         (is (< (get-in (marimba 0) [:overrides :volume]) (get-in (marimba 14) [:overrides :volume])) "louder at the climax")))
     (testing "every leaf is a sixteenth, so the voices stay in step"
       (is (every? #(= 1/16 (:duration %)) leaves)))))
@@ -78,9 +78,10 @@
   (let [b (voice "hoke" :b ["beat" "phase" "threshold" "instrument" "side" "late"]
                  [["phase" 0.0] ["threshold" 1] ["instrument" 12] ["side" 1] ["late" 1]])]
     (is (not (sounds? (b 0))))
-    (is (= 1/32 (:duration (b 0))) "a rest up to the lag")
-    (is (sounds? (b 1/32)) "its first pulse, half a pulse after group A")
-    (is (= 1.0 (get-in (b 1/32) [:overrides :panning])) "on the right")))
+    (let [lag (at :lag 0)]
+      (is (= lag (:duration (b 0))) "a rest up to the lag")
+      (is (sounds? (b lag)) "its first pulse, the lag after group A")
+      (is (= 1.0 (get-in (b lag) [:overrides :panning])) "on the right"))))
 
 (deftest a-voice-enters-when-the-density-reaches-its-threshold
   (load-piece!)

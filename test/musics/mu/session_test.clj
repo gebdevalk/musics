@@ -105,3 +105,27 @@
     (is (str/includes? text "'vec $<001110> :="))
     (is (str/includes? text ": triad ( -- s ) $[047] ;") "a word keeps the literal as written"))
   (is (= "$[047]" (top "triad")) "and it runs"))
+
+(deftest the-tctx-is-saved-in-the-repo-and-read-back
+  (with-file
+    (fn [f]
+      (let [tctx (requiring-resolve 'musics.registries/tctx)
+            at   (fn [k] (@(requiring-resolve 'musics.domain.context/ctx-value-chain) [@tctx] k 0))]
+        (reset! (:envelopes-atom @tctx) {})
+        (top ": twice ( $x -- y ) $x 2 * ;" "8 :steps T!" "1/32 :lag T!" "'[64 67] :melody T!"
+             "'( :steps twice ) :double tctx-derive")
+        (is (= :CONTEXT (:type (repo/current :tctx))) "it is a node of the repo")
+        (is (identical? @tctx (:context (repo/current :tctx))))
+        (with-out-str (top (str "\"" f "\" save-session")))
+        (reset! (:envelopes-atom @tctx) {})
+        (top "3 :steps T!")
+        (with-out-str (top (str "\"" f "\" restore-session")))
+        (testing "the values"
+          (is (= 8 (at :steps)))
+          (is (= 1/32 (at :lag)))
+          (is (= [64 67] (vec (at :melody)))))
+        (testing "a computed entry, from its quotation, with the words restored after the repo"
+          (is (= 16 (at :double))))
+        (testing "the one object the voices hold"
+          (is (identical? @tctx (:context (repo/current :tctx)))))
+        (reset! (:envelopes-atom @tctx) {})))))

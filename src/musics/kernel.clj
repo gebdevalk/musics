@@ -99,6 +99,7 @@
 (defn forget!
   "Take a stored name out of the repo, and out of :ROOT: :motif forget.
    Refused while something stored uses it; what plays keeps playing"
+  {:mu {:names ["R_"]}}
   [id]
   (repo/forget! (stored-id id)))
 

@@ -805,14 +805,30 @@
 
 (deftest tctx!-and-tctx-derive-fill-the-tctx-of-the-voices
   (try
-    (run "8 :steps tctx!")
+    (run "8 :steps T!")
     (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
     (run "'( :steps 2 * ) :twice tctx-derive")
     (is (= 16 (c/ctx-value-chain [live/tctx] :twice 0)) "a quotation computes it from another key")
     (run "'( :beat 4 * int ) :quarters tctx-derive")
     (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :beat is the beat it is asked at")
-    (is (re-find #"the key is a keyword" (:error (run "8 'steps tctx!"))))
+    (is (re-find #"the key is a keyword" (:error (run "8 'steps T!"))))
     (finally (clear-tctx!))))
+
+(deftest T_-takes-a-key-out-of-the-tctx
+  (try
+    (run "8 :steps T!")
+    (run ":steps T_")
+    (is (nil? (c/ctx-value-chain [live/tctx] :steps 0)) "nobody finds it any more")
+    (is (re-find #"is not in the tctx" (:error (run ":steps T@"))))
+    (is (re-find #"is not in the tctx" (:error (run ":steps T_"))) "erasing what is not there says so")
+    (is (re-find #"the key is a keyword" (:error (run "8 'steps T_"))))
+    (finally (clear-tctx!))))
+
+(deftest R_-is-forget
+  (run "[gone: c d] R!")
+  (run "clear :gone R_")
+  (is (nil? (repo/current :gone)))
+  (is (re-find #"something stored" (:error (run ":gone R_"))) "the same refusals as forget"))
 
 (deftest a-word-with-beat-in-its-stack-effect-is-a-voice-that-is-a-function-of-beat
   (try
@@ -826,7 +842,7 @@
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
     (testing "a keyword argument the tctx holds is its value, at the leaf's beat"
       (run ": tock ( $beat -- note ) | '[1/4] '[1] :base :bump + * zip ;")
-      (run "60 :base tctx!")
+      (run "60 :base T!")
       (run "'( :beat 4 * int ) :bump tctx-derive")
       (inputs/set-inputs! :w [])
       (is (= [60 62] (mapv #(-> ((#'live/beat-source "tock" :w ["beat"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))

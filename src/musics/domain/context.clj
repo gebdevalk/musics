@@ -236,10 +236,10 @@
 
 ;; A value computed from other keys: (f time get), where (get key) asks the chain
 ;; for another key at the same time. A tctx entry made with tctx-derive.
-(defrecord Derived [f]
+(defrecord Derived [f text]
   ValueSource
   (sample-at [_ _] (throw (ex-info "a derived value needs the chain it is asked through" {})))
-  (shift [_ offset] (if (zero? offset) (->Derived f) (->Derived (fn [t get] (f (- t offset) get))))))
+  (shift [_ offset] (if (zero? offset) (->Derived f text) (->Derived (fn [t get] (f (- t offset) get)) nil))))
 
 (defn- derived-value
   "[value] a Derived gives for key at time, or nil when its function answers nil.
@@ -376,16 +376,29 @@
   (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
   tctx)
 
+(defn tctx-forget
+  "Take key (a keyword) out of tctx: nobody finds it any more. Throws when tctx
+   holds nothing under it. Returns tctx."
+  [tctx key]
+  (assert (keyword? key) "a tctx key is a Clojure keyword")
+  (when-not (contains? @(:envelopes-atom tctx) key)
+    (throw (ex-info (str (pr-str key) " is not in the tctx") {:key key})))
+  (swap! (:envelopes-atom tctx) dissoc key)
+  tctx)
+
 (defn tctx-derive
   "In tctx, key (a keyword) is computed from other keys: f is called as
    (f time get) when the key is asked for, and (get :other) asks the chain for
    another key at the same time, a string (a context's) or a keyword (a tctx's).
    Within one lookup a key is computed once, and a key that depends on itself,
-   however far round, throws naming the cycle. Returns tctx."
-  [tctx key f]
-  (assert (keyword? key) "a tctx key is a Clojure keyword")
-  (swap! (:envelopes-atom tctx) assoc key (->Derived f))
-  tctx)
+   however far round, throws naming the cycle. text, when given, is what f was
+   made from (mu's quotation as it prints): what a saved session keeps of it.
+   Returns tctx."
+  ([tctx key f] (tctx-derive tctx key f nil))
+  ([tctx key f text]
+   (assert (keyword? key) "a tctx key is a Clojure keyword")
+   (swap! (:envelopes-atom tctx) assoc key (->Derived f text))
+   tctx))
 
 (defn ctx-shift
   "Return a new Context with every envelope's points shifted by offset --

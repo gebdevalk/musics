@@ -119,6 +119,12 @@ names; read by musics.assist as history facts."}
   (swap! *activity-log* #(vec (take-last 30 (conj % {:action action :when (System/currentTimeMillis)}))))
   nil)
 
+(defonce ^{:doc "The session's tctx, a Context (musics.domain.context) whose keys are
+Clojure keywords, kept as the repo's :tctx node (musics.mu.live/tctx-node!). One
+object for the whole session, so a voice that holds it reads what is stored in it
+later, a saved session's values included: loading fills it, never replaces it."}
+  tctx {:envelopes-atom (atom {}) :duration nil})
+
 (defonce ^{:doc "What reading text keeps between inputs: {:auto-ids {prefix n}},
 the auto-id counters, so a later input never reuses an earlier one's ids.
 Not dynamic: tests share it, as they share nothing that depends on it."}

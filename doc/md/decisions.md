@@ -3569,13 +3569,13 @@ accidental as any note does; a written accidental always wins.
 ## 2026-11-10 — a tctx of keyword keys, derived entries, and a voice that is a function of beat
 
 **Keys.** A context key is a string (`"volume"`), a tctx key is a keyword (`:density`).
-There is no `(name key)` normalization: `ctx-append` refuses a keyword, `tctx!`
+There is no `(name key)` normalization: `ctx-append` refuses a keyword, `T!`
 refuses a string, and a keyword asked of a chain reaches only the contexts that hold
 keywords. `"density"` (ROOT's) and `:density` (a tctx's) are two keys.
 
 **The tctx** is an ordinary Context whose keys are keywords, put in front of a chain
 by whoever builds it; the chain, the beads and ROOT are as they were. Its values are
-bare values, functions of structural time (`tctx!`), or entries computed from other
+bare values, functions of structural time (`T!`), or entries computed from other
 keys (`tctx-derive`, `(f time get)`): a lookup is recursive over the whole chain at one
 time, a cycle throws naming it, and `context/getter` makes one memoized pull for a
 chain and a beat.
@@ -3594,3 +3594,15 @@ prefix on every context key (about 200 call sites for no gain over the type spli
 Clojure facade that hides the stack (not built, see `pull-voice.md`).
 `doc/md/hoketus-dynamic.md` and `doc/md/pull-voice.md` have the diagrams; `hoketus2.mus`
 is the piece written this way.
+
+## 2026-11-10 -- the tctx is stored in the repo
+
+The session's tctx is one `Context` (`musics.registries/tctx`) and the repo's
+`:CONTEXT` node `:tctx`, so `write` and `save-session` keep it. A derived entry keeps
+the printed text of its quotation (`Derived` has a `:text`) and is rebuilt from it
+when first asked, after mu's words are restored; a generator made from a Clojure
+function is not saved (mu only makes values and quotations). Loading copies the
+saved values into the one object, because a voice's snapshot holds that object and
+a replacement would leave it reading the old one. Rejected: a node holding a copy,
+refreshed per leaf (a copy per leaf for no gain), and saving the tctx as mu text
+apart from the repo (a second place to look).
