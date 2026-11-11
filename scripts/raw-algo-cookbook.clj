@@ -159,9 +159,9 @@
             "11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64] 1 melody/markov-train 11 melody/markov-gen zip"]}
 
    {:title "Slonimsky: insertions below, between, above"
-    :text "`slonimsky/infra` puts a pattern after each principal tone but the last (tones you chose to lie below them); `slonimsky/slonimsky2` does infra, inter and ultra at once, in that order."
+    :text "`slonimsky/infra` puts a pattern after each principal tone but the last (tones you chose to lie below them); `slonimsky/polation2` does infra, inter and ultra at once, in that order."
     :lines ["'[60 64 67 72] '[59 62] slonimsky/infra"
-            "'[60 64 67 72] '[] '[65] '[62] slonimsky/slonimsky2"]}
+            "'[60 64 67 72] '[] '[65] '[62] slonimsky/polation2"]}
 
    {:title "An L-system melody"
     :text "`melody/lsys-melody` expands an axiom with rules and reads each letter as a note. The rules and the letters' pitches are maps, which mu text cannot write yet, so this one is only shown: `see` gives its parameters."

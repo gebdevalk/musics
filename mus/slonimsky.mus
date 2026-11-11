@@ -27,13 +27,13 @@
 % ---- the general form: ( tones infra inter ultra -- tones' ) ----------------------
 % after each tone but the last: the infra tones, then the inter tones, then the ultra tones
 
-\tune '[59] '[66] '[67] slonimsky/slonimsky2 quarters .   % '[60 59 66 67 62 59 66 67 64 59 66 67 65]
+\tune '[59] '[66] '[67] slonimsky/polation2 quarters .   % '[60 59 66 67 62 59 66 67 64 59 66 67 65]
 
 % an empty list switches that part off: only infra and ultra
-\tune '[59] '[] '[67] slonimsky/slonimsky2 quarters .     % '[60 59 67 62 59 67 64 59 67 65]
+\tune '[59] '[] '[67] slonimsky/polation2 quarters .     % '[60 59 67 62 59 67 64 59 67 65]
 
 % all of them off gives the tune back
-\tune '[] '[] '[] slonimsky/slonimsky2 quarters .         % '[60 62 64 65]
+\tune '[] '[] '[] slonimsky/polation2 quarters .         % '[60 62 64 65]
 
 % ---- slonimsky: the polations of an equal division of the octaves -------------
 % ( divisor infra? inter? ultra? -- pitches ). The divisor is the interval in semitones
@@ -42,21 +42,21 @@
 % below it), the inter tone (a semitone above it) and the ultra tone (a semitone above
 % the higher tone of the pair), as the three booleans switch them on.
 
-6 false false false slonimsky/slonimsky quarters .   % the primary tones: C4 F#4 C5
-6 false true  false slonimsky/slonimsky quarters .   % inter: C4 C#4 F#4 G4 C5
-6 false false true  slonimsky/slonimsky quarters .   % ultra: C4 G4 F#4 C#5 C5
-6 true  false false slonimsky/slonimsky quarters .   % infra: C4 B3 F#4 F4 C5
-6 true  true  false slonimsky/slonimsky quarters .   % infra and inter
-6 true  false true  slonimsky/slonimsky quarters .   % infra and ultra
-6 true  true  true  slonimsky/slonimsky quarters .   % all three
+6 false false false slonimsky/polation quarters .   % the primary tones: C4 F#4 C5
+6 false true  false slonimsky/polation quarters .   % inter: C4 C#4 F#4 G4 C5
+6 false false true  slonimsky/polation quarters .   % ultra: C4 G4 F#4 C#5 C5
+6 true  false false slonimsky/polation quarters .   % infra: C4 B3 F#4 F4 C5
+6 true  true  false slonimsky/polation quarters .   % infra and inter
+6 true  false true  slonimsky/polation quarters .   % infra and ultra
+6 true  true  true  slonimsky/polation quarters .   % all three
 
 % other divisors: 4 (the augmented triad), 3 (the diminished seventh), 2 (the whole-tone scale)
-4 true true true slonimsky/slonimsky quarters .
-3 false true false slonimsky/slonimsky quarters .
-2 false true true slonimsky/slonimsky quarters .
+4 true true true slonimsky/polation quarters .
+3 false true false slonimsky/polation quarters .
+2 false true true slonimsky/polation quarters .
 
 % more than an octave: 8 spans two octaves, 9 three. 5 and 10 span five and end on pitch
 % 120 (C9), past the 24..119 that notes can be written in: as numbers they are fine
-% (10 false false false slonimsky/slonimsky .), as notes with quarters they are not.
-8 false true false slonimsky/slonimsky quarters .
-9 false true false slonimsky/slonimsky quarters .
+% (10 false false false slonimsky/polation .), as notes with quarters they are not.
+8 false true false slonimsky/polation quarters .
+9 false true false slonimsky/polation quarters .
