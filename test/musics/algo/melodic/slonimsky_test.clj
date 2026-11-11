@@ -77,3 +77,20 @@
   (is (thrown? AssertionError (sl/polation 7 0 0 0)) "7 would reach seven octaves up, past MIDI")
   (is (thrown? AssertionError (sl/polation 11 0 0 0)))
   (is (thrown? AssertionError (sl/polation 12 0 0 0))))
+
+(deftest polation-fn-is-polation-as-a-function-of-the-index
+  (doseq [d sl/divisors, mask (range 8)]
+    (let [f      (sl/polation-fn d mask)
+          period (sl/polation-period d mask)
+          whole  (sl/polation d mask)]
+      (is (= (dec (count whole)) period) (str d " " mask " one pass, then the closing C"))
+      (is (= (butlast whole) (map f (range period))) (str d " " mask))))
+  (testing "three ints or a mask give the same function"
+    (let [a (sl/polation-fn 6 1 0 1) b (sl/polation-fn 6 5)]
+      (is (= (map a (range 12)) (map b (range 12))))))
+  (testing "it goes round, and an index is cheap at any size"
+    (let [f (sl/polation-fn 6 2)]
+      (is (= [60 61 66 67] (map f (range 4))))
+      (is (= (f 1) (f (+ 1 (sl/polation-period 6 2)))))
+      (is (= (f 3) (f 10000003))))
+    (is (= [60 62 64] (take 3 (map (sl/polation-fn 2 0) (range))))) "lazy: an endless range is read as far as it is taken"))

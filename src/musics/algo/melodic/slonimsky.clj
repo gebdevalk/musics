@@ -26,7 +26,24 @@
    has nothing after it.
      6 infra:        [C4 B3  F#4 F4  C5]
      6 inter:        [C4 C#4 F#4 G4  C5]
-     6 ultra:        [C4 G4  F#4 C#5 C5]")
+     6 ultra:        [C4 G4  F#4 C#5 C5]
+   
+   Here are the definitions for the interval names used by Nicolas Slonimsky in Thesaurus of Scales and Melodic Patterns, drawn directly from the book's terminology and presented below.
+
+· Tritone - an interval of 3 whole tones; an augmented fourth, or a diminished fifth. From Latin 'tritonus' (three tones).
+· Ditone - an interval of 2 whole tones; a major third. The name literally means 'two tones'.
+· Sesquitone - an interval of 1.5 tones; a minor third. The prefix 'sesqui-' means 'one-half more'.
+· Sesquiquadritone - an interval of 4.5 tones; a major sixth. This combines 'sesqui-' with 'quadri-' (four).
+· Sesquiquinquetone - an interval of 5.5 tones; a major seventh. It combines 'sesqui-' with 'quinque-' (five).
+· Quadritone - an interval of 4 whole tones; a minor sixth.
+· Quinquetone - an interval of 5 whole tones; a minor seventh. The prefix 'quinque-' means five.
+· Diatessaron - an interval of a perfect fourth. From the Greek for 'through four (notes)'.
+· Diapente - an interval of a perfect fifth. From the Greek for 'through five (notes)'.
+· Septitone - an interval of 7 whole tones; a major ninth.
+· Semitone - a half-step, meaning the chromatic scale. The same as our modern half-step.
+· Whole tone - a whole step; a major second. The same as our modern whole step.
+· Progression - a general term for any scale or melodic pattern."
+  (:require [musics.algo.common.factory :as factory]))
 
 ;; ---------------------------------------------------------------------------
 ;; polations of a given melody
@@ -119,3 +136,50 @@
                                   (when (= 1 ultra-on) [(inc b)])))
                         (partition 2 1 tones)))
            (peek tones)))))
+
+;; ---------------------------------------------------------------------------
+;; polation as a function of the index alone
+;; ---------------------------------------------------------------------------
+
+(defn- on-count [infra-on inter-on ultra-on] (+ infra-on inter-on ultra-on))
+
+(defn polation-period
+  "How many notes one pass of polation has before it starts over: one block of the
+   lower tone and the polated tones that are on for each step of the divisor, the
+   closing C left out (it is the first note of the next pass). The switches as for
+   polation: a mask, or three ints."
+  ([divisor mask] (apply polation-period divisor (switches mask)))
+  ([divisor infra-on inter-on ultra-on]
+   {:pre [(some #{divisor} divisors) (every? #{0 1} [infra-on inter-on ultra-on])]}
+   (* (dec (count (primary divisor))) (inc (on-count infra-on inter-on ultra-on)))))
+
+(defn polation-at
+  "The note at index idx of polation, going round at polation-period (the closing C
+   is the first note of the next pass, as C4). No list is built. The settings as
+   for polation, a divisor and a mask or three ints."
+  ([idx divisor mask] (apply polation-at idx divisor (switches mask)))
+  ([idx divisor infra-on inter-on ultra-on]
+   {:pre [(some #{divisor} divisors) (every? #{0 1} [infra-on inter-on ultra-on])]}
+   (let [width (inc (on-count infra-on inter-on ultra-on))
+         i     (mod idx (* (quot (lcm divisor 12) divisor) width))
+         r     (rem i width)
+         a     (+ start (* divisor (quot i width)))]
+     (if (zero? r)
+       a
+       (nth (cond-> []
+              (= 1 infra-on) (conj (dec a))
+              (= 1 inter-on) (conj (inc a))
+              (= 1 ultra-on) (conj (inc (+ a divisor))))
+            (dec r))))))
+
+(defn polation-fn
+  "polation as a function of the index alone (create-fn of polation-at), a pitch
+   for each idx, cheap at any index and lazy under map or take. The settings as for
+   polation, a divisor and a mask or three ints. It goes round: idx wraps at
+   polation-period, the pass starting again on C4."
+  {:mu {:arity arity-of}
+   :algo {:in [] :out :pitch
+          :params {:divisor {:type :int :default 6 :min 2 :max 10 :choices [2 3 4 5 6 8 9 10] :doc "semitones stacked until a C comes back: 6 is C4 F#4 C5"}
+                   :mask {:type :int :default 0 :min 0 :max 7 :doc "infra 1 + inter 2 + ultra 4: which polations are on"}}}}
+  ([divisor mask] (factory/create-fn polation-at divisor mask))
+  ([divisor infra-on inter-on ultra-on] (factory/create-fn polation-at divisor infra-on inter-on ultra-on)))
