@@ -13,12 +13,7 @@
      (prime-form [0 4 7])           [0 3 7], the set class
      (interval-vector [0 4 7])      [0 0 1 1 1 0]
 
-   And Slonimsky's polations (Thesaurus of Scales and Melodic Patterns,
-   1947), relative to a seq of principal tones:
-     (infra p ins)            ins before each tone
-     (ultra p ins)            ins after each tone
-     (inter p ins)            ins between neighbouring tones
-     (polations p infra inter ultra)  all three at once"
+   Slonimsky's polations are in musics.algo.melodic.slonimsky."
   (:require [musics.algo.numeric.random :as random]
             [musics.common.music-data :refer [quantity]]))
 
@@ -129,58 +124,3 @@
                   :let [d (- (s j) (s i))]]
               (min d (- 12 d)))]
     (mapv #(count (filter #{%} ics)) (range 1 7))))
-
-;; ---------------------------------------------------------------------------
-;; Slonimsky's polations
-;; ---------------------------------------------------------------------------
-
-(defn polations
-  "The general form of infra, inter and ultra, each optional (nil or empty switches it off): for each principal tone p in order, emit infra, then p, then ultra (after the last tone only when ultra-after-last? is true), then inter (never after the last tone). Slonimsky's most flexible general function."
-  {:algo {:in [:pitch] :out :pitch :arity 5
-          :params {:infra {:type :vector :default [] :doc "before each tone"}
-                   :inter {:type :vector :default [] :doc "between tones"}
-                   :ultra {:type :vector :default [] :doc "after each tone"}
-                   :ultra-after-last? {:type :bool :default false :doc "ultra after the last tone too"}}}}
-  ([principal] (polations principal nil nil nil false))
-  ([principal infra inter ultra] (polations principal infra inter ultra false))
-  ([principal infra inter ultra ultra-after-last?]
-   (let [infra (or infra [])
-         inter (or inter [])
-         ultra (or ultra [])
-         n     (count principal)]
-     (vec
-       (mapcat
-         (fn [i p]
-           (concat
-             infra
-             [p]
-             (when (or ultra-after-last? (< i (dec n))) ultra)
-             (when (< i (dec n)) inter)))
-         (range)
-         principal)))))
-
-(defn infra
-  "Insert insertion BEFORE each tone in principal."
-  {:algo {:in [:pitch :pitch] :out :pitch}}
-  [principal insertion]
-  (polations principal insertion nil nil false))
-
-(defn ultra
-  "Insert insertion AFTER each tone in principal (including the last,
-   matching Slonimsky's own 'ultrapolation' as a standalone operation --
-   contrast mixed-polations' own default of stopping after the last
-   tone when used as part of a MIXED form)."
-  {:algo {:in [:pitch :pitch] :out :pitch}}
-  [principal insertion]
-  (polations principal nil nil insertion true))
-
-(defn inter
-  "Insert insertion BETWEEN each pair of consecutive tones in principal.
-   A principal of fewer than 2 tones passes through unchanged -- nothing
-   to interpolate between."
-  {:algo {:in [:pitch :pitch] :out :pitch}}
-  [principal insertion]
-  (if (< (count principal) 2)
-    (vec principal)
-    (polations principal nil insertion nil false)))
-

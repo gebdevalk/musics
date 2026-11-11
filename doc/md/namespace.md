@@ -33,7 +33,8 @@ musics
 │   ├── melodic
 │   │   ├── melody
 │   │   ├── pitch
-│   │   └── serial
+│   │   ├── serial
+│   │   └── slonimsky
 │   ├── numeric
 │   │   ├── chaos
 │   │   │   ├── henon
@@ -251,7 +252,8 @@ musics.algo.rhythmic.*                          rhythm: pulses, onsets, layers
 └── decompose                                 48   bisect, split
 musics.algo.melodic.*                           pitches
 ├── melody                                   216   markov, L-system, grammar, constraints, modulation
-├── serial                                   186   rows, set classes, polations
+├── serial                                   126   rows, set classes
+├── slonimsky                                114   polations of a melody, and of an equal division of the octaves
 └── pitch                                     65   scales from keys
 musics.algo.harmonic.*                          chords
 ├── progression                              153   roman-numeral progressions
