@@ -1683,6 +1683,8 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   repo, and playback" above); zero dependencies on the domain model or
   anything else in the project, deliberately (it requires only
   `musics.registries`, the leaf namespace holding its actual atom).
+- `editor/mus/` — a TextMate grammar and VS Code language configuration for `.mus`
+  files and mu input (`editor/README.md`); comments `//` and `/* */`.
 - `musics/assist.clj` — REPL help worked out from action facts (see
   "Help" above).
 - `musics/conductor.clj` — the signal/schedule layer (see "Conductor" above);

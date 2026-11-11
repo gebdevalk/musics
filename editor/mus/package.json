@@ -1,0 +1,32 @@
+{
+  "name": "mus",
+  "displayName": "mu and .mus",
+  "description": "Syntax for musics text and mu input",
+  "version": "0.1.0",
+  "publisher": "musics",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "mus",
+        "aliases": [
+          "mu",
+          "mus"
+        ],
+        "extensions": [
+          ".mus"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mus",
+        "scopeName": "source.mus",
+        "path": "./mus.tmLanguage.json"
+      }
+    ]
+  }
+}
