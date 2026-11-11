@@ -66,6 +66,7 @@
    "'numeric.chaos.lorenz reqalgo"
    "'melodic.melody reqalgo"
    "'melodic.serial reqalgo"
+   "'melodic.slonimsky reqalgo"
    "'counterpoint.jeppesen reqalgo"
    "'bridge reqalgo"
    ": penta ( -- l ) '[60 62 64 67 69] ;"])
@@ -158,9 +159,9 @@
             "11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64] 1 melody/markov-train 11 melody/markov-gen zip"]}
 
    {:title "Slonimsky: insertions before, between, after"
-    :text "`serial/infra` puts a pattern before each principal tone; `serial/slonimsky` does infra, inter and ultra at once (the last argument: ultra after the last tone too)."
-    :lines ["'[60 64 67 72] '[59 62] serial/infra"
-            "'[60 64 67 72] '[] '[65] '[62] false serial/slonimsky"]}
+    :text "`slonimsky/infra` puts a pattern before each principal tone; `slonimsky/slonimsky2` does infra, inter and ultra at once (the last argument: ultra after the last tone too)."
+    :lines ["'[60 64 67 72] '[59 62] slonimsky/infra"
+            "'[60 64 67 72] '[] '[65] '[62] false slonimsky/slonimsky2"]}
 
    {:title "An L-system melody"
     :text "`melody/lsys-melody` expands an axiom with rules and reads each letter as a note. The rules and the letters' pitches are maps, which mu text cannot write yet, so this one is only shown: `see` gives its parameters."

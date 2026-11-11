@@ -5,7 +5,7 @@
 % Hear one: put its line on the stack without the . and play it, e.g.
 %   \tune '[59] slonimsky/infra quarters ->
 
-'melodic.serial 'slonimsky reqalgo
+'melodic.slonimsky 'slonimsky reqalgo
 
 'tune '[60 62 64 65] :=                 % the principal tones: C D E F
 
@@ -29,40 +29,37 @@
 % ---- the general form: ( tones infra inter ultra ultra-after-last? -- tones' ) -
 % for each tone: infra, the tone, ultra, then inter (never after the last tone)
 
-\tune '[59] '[66] '[67] true  slonimsky/slonimsky quarters .    % ultra after the last tone too
-\tune '[59] '[66] '[67] false slonimsky/slonimsky quarters .    % no ultra after the last tone
+\tune '[59] '[66] '[67] true  slonimsky/slonimsky2 quarters .    % ultra after the last tone too
+\tune '[59] '[66] '[67] false slonimsky/slonimsky2 quarters .    % no ultra after the last tone
 
 % an empty list switches that part off: only infra and ultra
-\tune '[59] '[] '[67] true slonimsky/slonimsky quarters .       % '[59 60 67 59 62 67 59 64 67 59 65 67]
+\tune '[59] '[] '[67] true slonimsky/slonimsky2 quarters .       % '[59 60 67 59 62 67 59 64 67 59 65 67]
 
 % all of them off gives the tune back
-\tune '[] '[] '[] false slonimsky/slonimsky quarters .          % '[60 62 64 65]
+\tune '[] '[] '[] false slonimsky/slonimsky2 quarters .          % '[60 62 64 65]
 
-\tune '[59] slonimsky/infra quarters ->
-% ---- slonimsky2: the polations of an equal division of the octaves -------------
+% ---- slonimsky: the polations of an equal division of the octaves -------------
 % ( divisor infra? inter? ultra? -- pitches ). The divisor is the interval in semitones
 % stacked from C4 until a C comes back (2 3 4 5 6 8 9 10); the primary tones are those.
 % After the lower tone of each pair come, in this order, the infra tone (a semitone
 % below it), the inter tone (a semitone above it) and the ultra tone (a semitone above
 % the higher tone of the pair), as the three booleans switch them on.
 
-'melodic.slonimsky2 'sl2 reqalgo
-
-6 false false false sl2/slonimsky2 quarters .   % the primary tones: C4 F#4 C5
-6 false true  false sl2/slonimsky2 quarters .   % inter: C4 C#4 F#4 G4 C5
-6 false false true  sl2/slonimsky2 quarters .   % ultra: C4 G4 F#4 C#5 C5
-6 true  false false sl2/slonimsky2 quarters .   % infra: C4 B3 F#4 F4 C5
-6 true  true  false sl2/slonimsky2 quarters .   % infra and inter
-6 true  false true  sl2/slonimsky2 quarters .   % infra and ultra
-6 true  true  true  sl2/slonimsky2 quarters .   % all three
+6 false false false slonimsky/slonimsky quarters .   % the primary tones: C4 F#4 C5
+6 false true  false slonimsky/slonimsky quarters .   % inter: C4 C#4 F#4 G4 C5
+6 false false true  slonimsky/slonimsky quarters .   % ultra: C4 G4 F#4 C#5 C5
+6 true  false false slonimsky/slonimsky quarters .   % infra: C4 B3 F#4 F4 C5
+6 true  true  false slonimsky/slonimsky quarters .   % infra and inter
+6 true  false true  slonimsky/slonimsky quarters .   % infra and ultra
+6 true  true  true  slonimsky/slonimsky quarters .   % all three
 
 % other divisors: 4 (the augmented triad), 3 (the diminished seventh), 2 (the whole-tone scale)
-4 true true true sl2/slonimsky2 quarters .
-3 false true false sl2/slonimsky2 quarters .
-2 false true true sl2/slonimsky2 quarters .
+4 true true true slonimsky/slonimsky quarters .
+3 false true false slonimsky/slonimsky quarters .
+2 false true true slonimsky/slonimsky quarters .
 
 % more than an octave: 8 spans two octaves, 9 three. 5 and 10 span five and end on pitch
 % 120 (C9), past the 24..119 that notes can be written in: as numbers they are fine
-% (10 false false false sl2/slonimsky2 .), as notes with quarters they are not.
-8 false true false sl2/slonimsky2 quarters .
-9 false true false sl2/slonimsky2 quarters .
+% (10 false false false slonimsky/slonimsky .), as notes with quarters they are not.
+8 false true false slonimsky/slonimsky quarters .
+9 false true false slonimsky/slonimsky quarters .
