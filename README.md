@@ -88,7 +88,8 @@ is built on (JavaFX brings native libraries).
 
 The documents are Markdown in `doc/md/`; `scripts/docs.sh` renders them
 to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in `doc/pdf/`.
-Read them roughly in this order, stopping when you have what you need.
+[doc/md/start-here.md](doc/md/start-here.md) says which one fits where you
+are. Read them roughly in this order, stopping when you have what you need.
 
 1. **Getting started.** [setup.md](doc/md/setup.md) (only for Fluidsynth),
    then [tutorial.md](doc/md/tutorial.md): from starting mu to writing,
