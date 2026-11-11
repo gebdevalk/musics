@@ -146,29 +146,20 @@ mu prints every value back in full, as shown after the `→`.
 [c d] [e f] {2}                             → {[C4/4 D4] [E4 F4]}   the top two side by side
 ```
 
-### Key, tempo, meter
+### Key, tempo, meter, and the rest
 
 ```
 [!key:D.major f4 c]                 → [!key:D.major F#4/4 C#4]   a bare letter takes the key's accidental
-[!acc:explicit !key:D.major f4]     → F4: every letter literal
 [!tempo:120 !Meter:7/8 c8 d e f g a b]
-[!tempo:3/8=90 !allegro c4]         a note value = BPM; a named tempo
+[3:2( c8 d e ) f4]                  a triplet: three eighths in the time of two
+[c d] 2 times                       → repeat 2 [C4/4 D4]
+[c4\trill d\mordent e( f g)]        ornaments, a slur
+[C4/1:7 | F3/2:m7 B&3:7]            chord symbols: a root and a quality
 ```
 
 An instruction always belongs inside a seq or a `^{ }` context; at the
-prompt on its own, `!mf` is refused.
-
-### Tuplets, repeats, grace notes, ornaments, chord symbols
-
-```
-[3:2( c8 d e ) f4]          a triplet: three eighths in the time of two
-repeat 2 [c4 d e f]
-[c d] 2 times               → repeat 2 [C4/4 D4]
-[acciaccatura c16 d4 e]     → [C4/16 D4/8. E4/4]   the grace note takes its time from the next
-[c4\trill d\mordent e( f g)]   ornaments, a slur
-[c4:32]                     a tremolo: 8, 16, 32, 64 or 128
-[C4/1:7 | F3/2:m7 B&3:7]    chord symbols: a root and a quality
-```
+prompt on its own, `!mf` is refused. Grace notes, tremolo, tempo names,
+repeats and the rest are in `doc/md/parsing.md`.
 
 ### Bar lines and comments
 
@@ -234,6 +225,42 @@ note:
 `doc/md/mu-tutorial.md` (section 16) and `doc/md/raw-algo-cookbook.md`
 go on from here.
 
+## Settings: values a voice looks up
+
+A **tctx** is a table of named values that lives with the session. Its
+keys are keywords. A voice that reads them as it plays hears a change at
+its next note.
+
+```
+8 :steps T!                          store a value under a key
+:steps T@                            fetch it            → 8
+'( :steps 2 * ) :twice tctx-derive   a value computed from the others
+:twice T@                            → 16
+6 :steps T!                          change :steps ...
+:twice T@                            → 12   ... and :twice follows it
+:steps T_                            take a key out
+```
+
+A derived value is a quotation; it runs when it is asked, with `:beat`
+and every key of the tctx as keywords. Inside a voice, a keyword where
+a word needs a number is replaced by its value, so `:steps 2 *` means
+"the steps, doubled". At the prompt `:steps T@` is how you read one.
+
+A voice can be a **function of the beat**: a word with `$beat` among its
+inputs, asked for one note at the beat the voice has reached. The
+settings are looked up at that beat, so nothing is precomputed:
+
+```
+"mus/hoketus2.mus" load              the piece, written out as such voices
+start                                hear it
+6 :steps T!                          heard at the next note
+stop-hoketus                         stop
+```
+
+`mus/hoketus2.mus` is commented as a walk through the idea;
+`doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
+Stored settings are saved with `save-session`.
+
 ## Files
 
 | Word | Does |
@@ -282,6 +309,7 @@ prompt stay two views of the same settings.
 
 ## Where to go next
 
+- `doc/md/start-here.md`: which document fits where you are.
 - `doc/md/mu-tutorial.md`: every music word, section by section.
 - `doc/md/raw-algo-cookbook.md`: algorithms as words, trees and recipes.
 - `doc/md/parsing.md`: the full notation.
