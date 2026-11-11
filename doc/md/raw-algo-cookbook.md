@@ -244,15 +244,15 @@ mu> 11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64
 [C4/8 D4/16 E4/8 D4/16 C4/8 D4/16 C4/8 D4/16 E4/8 D4/16 C4]
 ```
 
-#### 17. Slonimsky: insertions before, between, after
+#### 17. Slonimsky: insertions below, between, above
 
-`slonimsky/infra` puts a pattern before each principal tone; `slonimsky/slonimsky2` does infra, inter and ultra at once (the last argument: ultra after the last tone too).
+`slonimsky/infra` puts a pattern after each principal tone but the last (tones you chose to lie below them); `slonimsky/slonimsky2` does infra, inter and ultra at once, in that order.
 
 ```
 mu> '[60 64 67 72] '[59 62] slonimsky/infra
-'[59 62 60 59 62 64 59 62 67 59 62 72]
-mu> '[60 64 67 72] '[] '[65] '[62] false slonimsky/slonimsky2
-'[60 62 65 64 62 65 67 62 65 72]
+'[60 59 62 64 59 62 67 59 62 72]
+mu> '[60 64 67 72] '[] '[65] '[62] slonimsky/slonimsky2
+'[60 65 62 64 65 62 67 65 62 72]
 ```
 
 #### 18. An L-system melody

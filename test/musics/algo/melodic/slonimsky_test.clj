@@ -2,37 +2,22 @@
   (:require [clojure.test :refer [deftest is testing]]
             [musics.algo.melodic.slonimsky :as sl]))
 
-(deftest infrapolate-inserts-before-each-tone
-  (is (= [9 1 9 2 9 3] (sl/infra [1 2 3] [9]))))
+(deftest the-single-forms-put-the-insertion-after-every-tone-but-the-last
+  (doseq [f [sl/infra sl/inter sl/ultra]]
+    (is (= [1 9 2 9 3] (f [1 2 3] [9])) "never before a tone, nothing after the last")))
 
-(deftest ultrapolate-inserts-after-every-tone-including-the-last
-  (is (= [1 9 2 9 3 9] (sl/ultra [1 2 3] [9]))))
+(deftest fewer-than-2-tones-pass-through-unchanged
+  (doseq [f [sl/infra sl/inter sl/ultra]]
+    (is (= [1] (f [1] [9])))
+    (is (= [] (f [] [9])))))
 
-(deftest interpolate-inserts-between-consecutive-tones-only
-  (is (= [1 9 2 9 3] (sl/inter [1 2 3] [9]))
-      "no trailing insertion after the last tone -- nothing left to interpolate toward"))
+(deftest the-general-form-puts-infra-then-inter-then-ultra-after-a-tone
+  (is (= [1 8 9 7 2 8 9 7 3] (sl/slonimsky2 [1 2 3] [8] [9] [7]))))
 
-(deftest interpolate-passes-through-fewer-than-2-tones-unchanged
-  (is (= [1] (sl/inter [1] [9])))
-  (is (= [] (sl/inter [] [9]))))
-
-(deftest mixed-polations-combines-all-three-layers-in-slonimskys-own-order
-  ;; per tone: infra, principal, ultra (unless last & not ultra-after-last),
-  ;; inter (unless last)
-  (is (= [8 1 7 9 8 2 7 9 8 3]
-         (sl/slonimsky2 [1 2 3] [8] [9] [7]))))
-
-(deftest mixed-polations-ultra-after-last-forces-ultra-on-the-final-tone-too
-  (is (= [1 5 2 5] (sl/slonimsky2 [1 2] nil nil [5] true))))
-
-(deftest mixed-polations-with-no-insertions-is-the-identity
-  (is (= [1 2 3] (sl/slonimsky2 [1 2 3]))))
-
-(deftest mixed-polations-any-layer-can-be-independently-disabled
-  (is (= [1 9 2 9 3] (sl/slonimsky2 [1 2 3] nil [9] nil))
-      "only inter given -- same as interpolate")
-  (is (= [9 1 9 2 9 3] (sl/slonimsky2 [1 2 3] [9] nil nil))
-      "only infra given -- same as infrapolate"))
+(deftest a-layer-given-nil-or-empty-is-off
+  (is (= [1 9 2 9 3] (sl/slonimsky2 [1 2 3] nil [9] nil)))
+  (is (= [1 9 2 9 3] (sl/slonimsky2 [1 2 3] [9] [] [])))
+  (is (= [1 2 3] (sl/slonimsky2 [1 2 3])) "and with no insertions it is the identity"))
 
 (deftest the-primary-tones-are-the-divisor-stacked-until-a-c-comes-back
   (is (= [60 66 72] (sl/primary 6)) "C4 F#4 C5")
