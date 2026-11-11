@@ -18,7 +18,7 @@
      (infra p ins)            ins before each tone
      (ultra p ins)            ins after each tone
      (inter p ins)            ins between neighbouring tones
-     (polations p infra inter ultra)  all three at once"
+     (slonimsky p infra inter ultra)  all three at once"
   (:require [musics.algo.numeric.random :as random]
             [musics.common.music-data :refer [quantity]]))
 
@@ -134,15 +134,15 @@
 ;; Slonimsky's polations
 ;; ---------------------------------------------------------------------------
 
-(defn polations
+(defn slonimsky
   "The general form of infra, inter and ultra, each optional (nil or empty switches it off): for each principal tone p in order, emit infra, then p, then ultra (after the last tone only when ultra-after-last? is true), then inter (never after the last tone). Slonimsky's most flexible general function."
   {:algo {:in [:pitch] :out :pitch :arity 5
           :params {:infra {:type :vector :default [] :doc "before each tone"}
                    :inter {:type :vector :default [] :doc "between tones"}
                    :ultra {:type :vector :default [] :doc "after each tone"}
                    :ultra-after-last? {:type :bool :default false :doc "ultra after the last tone too"}}}}
-  ([principal] (polations principal nil nil nil false))
-  ([principal infra inter ultra] (polations principal infra inter ultra false))
+  ([principal] (slonimsky principal nil nil nil false))
+  ([principal infra inter ultra] (slonimsky principal infra inter ultra false))
   ([principal infra inter ultra ultra-after-last?]
    (let [infra (or infra [])
          inter (or inter [])
@@ -163,7 +163,7 @@
   "Insert insertion BEFORE each tone in principal."
   {:algo {:in [:pitch :pitch] :out :pitch}}
   [principal insertion]
-  (polations principal insertion nil nil false))
+  (slonimsky principal insertion nil nil false))
 
 (defn ultra
   "Insert insertion AFTER each tone in principal (including the last,
@@ -172,7 +172,7 @@
    tone when used as part of a MIXED form)."
   {:algo {:in [:pitch :pitch] :out :pitch}}
   [principal insertion]
-  (polations principal nil nil insertion true))
+  (slonimsky principal nil nil insertion true))
 
 (defn inter
   "Insert insertion BETWEEN each pair of consecutive tones in principal.
@@ -182,5 +182,5 @@
   [principal insertion]
   (if (< (count principal) 2)
     (vec principal)
-    (polations principal nil insertion nil false)))
+    (slonimsky principal nil insertion nil false)))
 

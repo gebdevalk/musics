@@ -59,17 +59,17 @@
   ;; per tone: infra, principal, ultra (unless last & not ultra-after-last),
   ;; inter (unless last)
   (is (= [8 1 7 9 8 2 7 9 8 3]
-         (s/polations [1 2 3] [8] [9] [7]))))
+         (s/slonimsky [1 2 3] [8] [9] [7]))))
 
 (deftest mixed-polations-ultra-after-last-forces-ultra-on-the-final-tone-too
-  (is (= [1 5 2 5] (s/polations [1 2] nil nil [5] true))))
+  (is (= [1 5 2 5] (s/slonimsky [1 2] nil nil [5] true))))
 
 (deftest mixed-polations-with-no-insertions-is-the-identity
-  (is (= [1 2 3] (s/polations [1 2 3]))))
+  (is (= [1 2 3] (s/slonimsky [1 2 3]))))
 
 (deftest mixed-polations-any-layer-can-be-independently-disabled
-  (is (= [1 9 2 9 3] (s/polations [1 2 3] nil [9] nil))
+  (is (= [1 9 2 9 3] (s/slonimsky [1 2 3] nil [9] nil))
       "only inter given -- same as interpolate")
-  (is (= [9 1 9 2 9 3] (s/polations [1 2 3] [9] nil nil))
+  (is (= [9 1 9 2 9 3] (s/slonimsky [1 2 3] [9] nil nil))
       "only infra given -- same as infrapolate"))
 

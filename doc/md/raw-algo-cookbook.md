@@ -244,12 +244,12 @@ mu> 11 16 pattern/euclid 1/16 bridge/pulses->durations '[60 62 64 62 60 67 65 64
 
 #### 17. Slonimsky: insertions before, between, after
 
-`serial/infra` puts a pattern before each principal tone; `serial/polations` does infra, inter and ultra at once (the last argument: ultra after the last tone too).
+`serial/infra` puts a pattern before each principal tone; `serial/slonimsky` does infra, inter and ultra at once (the last argument: ultra after the last tone too).
 
 ```
 mu> '[60 64 67 72] '[59 62] serial/infra
 '[59 62 60 59 62 64 59 62 67 59 62 72]
-mu> '[60 64 67 72] '[] '[65] '[62] false serial/polations
+mu> '[60 64 67 72] '[] '[65] '[62] false serial/slonimsky
 '[60 62 65 64 62 65 67 62 65 72]
 ```
 
