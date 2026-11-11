@@ -68,7 +68,7 @@
    repeat freely and appear in ANY order; a tie (~), if present, always
    comes last.
 
-   Comments: % to end of line, %{ ... %} for a block, LilyPond's.
+   Comments: // to end of line, /* ... */ for a block, as in C and Java.
 
    This file is the musical sublanguage: what a literal is. mu.ebnf
    (resources/musics/mu.ebnf), appended to it, is the top level --
@@ -687,14 +687,12 @@ Id        = Name <':'>
 Reference = <':'> Name
 
 (* ── Whitespace and comments ────────────────────────────── *)
-(* %... to end of line, and %{ ... %} for a block -- both share a
-   leading '%', so the line form excludes a following '{' (negative
-   lookahead, %(?!\{)) so it can never compete with the block form for
-   the same character; confirmed genuinely ambiguous without that
-   exclusion, not just theoretically risky (a block comment resolved to
-   only its first line instead of being swallowed whole). See
-   doc/md/decisions.md for why the line-comment character is %, not ;. *)
-Comment = #'%\{[\s\S]*?%\}'
-        | #'%(?!\{)[^\n]*'
+(* // to end of line, and /* ... */ for a block, the C family's comments.
+   Neither can start any other token: a / is a ratio, a duration, a word
+   or a name's separator (1/4, C4/8, ns/word, ./.), never two in a row.
+   See doc/md/decisions.md for why the comment is not % (LilyPond's) and
+   not ; (which ends a word's definition). *)
+Comment = #'/\*[\s\S]*?\*/'
+        | #'//[^\n]*'
 <Blank> = #'\s+'
 <ws>    = (Blank | Comment)+

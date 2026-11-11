@@ -174,7 +174,7 @@ repeat 2 [c4 d e f]
 
 ```
 [c4 d e f | g a b c' || c1]     bar lines: zero length, but cues while playing
-% a line comment; %{ a block comment %}
+// a line comment; /* a block comment */
 ```
 
 ## Playing it back

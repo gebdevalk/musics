@@ -1330,6 +1330,9 @@ The parsing layer's own detail -- comments, variables and how the
 walker handles them -- is in `doc/md/grammar-notes.md`; read it before
 changing the grammar or the walker.
 
+Comments are `//` to the end of the line and `/* … */` for a block, wherever
+whitespace is allowed (a `Comment` rule; the walker drops them).
+
 Current bracket scheme — GUIDO-inspired brackets/accidentals,
 LilyPond-inspired leaf/command spelling otherwise (checked directly
 against `resources/musics/input/musics.ebnf`'s own header comment, always the

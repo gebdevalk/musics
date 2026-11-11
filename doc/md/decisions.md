@@ -3606,3 +3606,16 @@ saved values into the one object, because a voice's snapshot holds that object a
 a replacement would leave it reading the old one. Rejected: a node holding a copy,
 refreshed per leaf (a copy per leaf for no gain), and saving the tctx as mu text
 apart from the repo (a second place to look).
+
+## 2026-11-11 -- comments are `//` and `/* */`, not `%`
+
+`.mus` text and mu input take `//` to the end of the line and `/* … */` for a block
+(`Comment` in `musics.ebnf`); every `.mus` file, the fixtures, the examples in the
+docs and the GUI's own message were migrated. Why: `%` (LilyPond's, MATLAB's, TeX's)
+is not the comment most readers expect, and the C-family spelling is the most widespread
+and collides with nothing in the notation: `/` is a ratio, a duration, a word or a
+name's separator, never two in a row. Rejected: `;` (ends `: word … ;`, and is why
+`;` was left once before), `--` (the stack-effect separator), `\` (`\name` is a
+variable), `( … )` (a group and the stack effect), `#` (the sharp: `c#`, `F#.dorian`,
+so a comment would need a token boundary and sit confusingly next to notes). The
+importers drop the comments of LilyPond, ABC and GUIDO text, so none is carried over.

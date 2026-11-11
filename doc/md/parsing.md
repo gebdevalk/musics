@@ -95,10 +95,10 @@ duration comes next (`C4/8`: C4, an eighth); without it the digits
 would run together.
 
 ```mus
-[c4 d e f]            % relative: C4 D4 E4 F4
-[C4/4 G4/4 C5/2]      % absolute
-[C5/4 D E <F A C>]    % absolute, the octave carried: C5 D5 E5 <F5 A5 C5>
-[c4 f# b& cn']        % sharp, flat, natural (the accidental comes before the octave)
+[c4 d e f]            // relative: C4 D4 E4 F4
+[C4/4 G4/4 C5/2]      // absolute
+[C5/4 D E <F A C>]    // absolute, the octave carried: C5 D5 E5 <F5 A5 C5>
+[c4 f# b& cn']        // sharp, flat, natural (the accidental comes before the octave)
 ```
 
 **Key-implied accidentals.** A bare letter takes the accidental its key
@@ -109,8 +109,8 @@ LilyPond and ABC text is literal); `!acc:implied` is the default. C major
 implies nothing, so a piece without `!key:` is unaffected.
 
 ```mus
-[!key:D.major f4 c d fn]    % F# C# D F
-[!acc:explicit f4 c]        % F C
+[!key:D.major f4 c d fn]    // F# C# D F
+[!acc:explicit f4 c]        // F C
 ```
 
 ### Duration
@@ -132,18 +132,18 @@ own, `*Ratio`, inherited by the following notes until a new duration is
 written: `c8*2/3` is a triplet eighth.
 
 ```mus
-[c4 d e f]                 % all quarters
-[3:2( c8 d e ) f4]        % an eighth-note triplet, then a quarter
-[c8*2/3 d e f4]            % the same, as factors on the notes
+[c4 d e f]                 // all quarters
+[3:2( c8 d e ) f4]        // an eighth-note triplet, then a quarter
+[c8*2/3 d e f4]            // the same, as factors on the notes
 ```
 
 ### Articulation, ornaments, dynamics
 
 ```mus
-[c4-. d-> e-_ f\staccato]         % shorthand -. -> -_ ..., or named
-[c4\trill d\mordent e\fermata]     % ornaments
-[c4 d\f e !vol:p< f g !vol:ff]    % a dynamic on one note; a crescendo
-[c4\vol:80 d\pan:0.5]              % a modifier: any context key, on one note
+[c4-. d-> e-_ f\staccato]         // shorthand -. -> -_ ..., or named
+[c4\trill d\mordent e\fermata]     // ornaments
+[c4 d\f e !vol:p< f g !vol:ff]    // a dynamic on one note; a crescendo
+[c4\vol:80 d\pan:0.5]              // a modifier: any context key, on one note
 ```
 
 - Shorthand articulations: `-.` `->` `-^` `-_` `-!` `-+` `--`. Named:
@@ -165,11 +165,11 @@ written: `c8*2/3` is a triplet eighth.
 ### Chords, ties, slurs, tremolo
 
 ```mus
-[<c e g>4 <d f# a>2.]      % chords: two or more pitches, one duration
-[c4~ c8 d]                 % tie
-[c4( d e f) g]             % slur
-[c4:32 <c e>4:16]          % tremolo on a note or chord: 8, 16, 32, 64 or 128
-[F3/1:7 | C4/2:m7 F3:7 | B&3/1:M7 | B3:d7 | G3:7.9-/B]   % chord symbols
+[<c e g>4 <d f# a>2.]      // chords: two or more pitches, one duration
+[c4~ c8 d]                 // tie
+[c4( d e f) g]             // slur
+[c4:32 <c e>4:16]          // tremolo on a note or chord: 8, 16, 32, 64 or 128
+[F3/1:7 | C4/2:m7 F3:7 | B&3/1:M7 | B3:d7 | G3:7.9-/B]   // chord symbols
 ```
 
 - A note with a `:` quality is a chord: its root, then the quality.
@@ -188,11 +188,11 @@ written: `c8*2/3` is a triplet eighth.
 ### Rests and drums
 
 ```mus
-[r4 r]                     % rests; a bare r keeps the previous duration
-[R1*4]                     % multi-measure rest: 4 bars of a whole note
-[x8\kick x x4\36 x]        % drum hits by name or MIDI number; a bare x is the previous drum
-[x4\snare~ x8 x\kick]      % a tie: the snare is struck once, held a dotted quarter
-[x8\kick,clap x x\42]      % layered: one stroke sounds every key listed
+[r4 r]                     // rests; a bare r keeps the previous duration
+[R1*4]                     // multi-measure rest: 4 bars of a whole note
+[x8\kick x x4\36 x]        // drum hits by name or MIDI number; a bare x is the previous drum
+[x4\snare~ x8 x\kick]      // a tie: the snare is struck once, held a dotted quarter
+[x8\kick,clap x x\42]      // layered: one stroke sounds every key listed
 ```
 
 A drum's key is inherited like a duration: `x` plays the drum before it
@@ -220,35 +220,35 @@ schedule actions on. A run of several (`c4 | | d4`) is legal.
 `!` followed by a name, with no spaces inside:
 
 ```mus
-[!mf !f c4 d]                        % a dynamic (a named constant)
-[!vol:80 !pan:-0.5 c4]               % key:value, any context key
-[!i:40 c4]                           % an instrument (a MIDI program)
-[!i:seashore c1 d\i:birdTweet]       % or its General MIDI name, camelCase
-[!i:sea c1 d\i:vib]                  % or its short name (vib the vibraphone; a drum's vib is the vibraslap)
-[!kit:brush x8\sna x\hhc]            % the drum kit: standard room power electronic tr808 jazz brush orchestra sfx, or a number
-[!i:40,73,0 c4 d]                    % several: each note played by all three
-[c4\i:40,73 d]                       % on one note: c by two instruments, d as before
-[!K:C.major !K:F#.dorian c4]         % a key: a tonic, # or &, and a scale (!K:, also !Key: !key: !k:)
+[!mf !f c4 d]                        // a dynamic (a named constant)
+[!vol:80 !pan:-0.5 c4]               // key:value, any context key
+[!i:40 c4]                           // an instrument (a MIDI program)
+[!i:seashore c1 d\i:birdTweet]       // or its General MIDI name, camelCase
+[!i:sea c1 d\i:vib]                  // or its short name (vib the vibraphone; a drum's vib is the vibraslap)
+[!kit:brush x8\sna x\hhc]            // the drum kit: standard room power electronic tr808 jazz brush orchestra sfx, or a number
+[!i:40,73,0 c4 d]                    // several: each note played by all three
+[c4\i:40,73 d]                       // on one note: c by two instruments, d as before
+[!K:C.major !K:F#.dorian c4]         // a key: a tonic, # or &, and a scale (!K:, also !Key: !key: !k:)
 [!key:B&.minor !key:d.harmonic-minor c4]
-[!tempo:120 c4]                      % tempo in BPM (a quarter note)
-[!tempo:3/8=90 c4]                   % note value = BPM (a dotted quarter at 90)
-[!tempo:4.=90 c4]                    % the same, the note value dotted
-[!allegro !marciaModerato c4]        % named tempo markings
-[!Meter:7/8 c4]                      % a meter
-[!Meter:"7/8(2+2+3)" c4]             % a meter with explicit grouping
-[!M:223 c8]                          % a meter as the factors of its pulses: 2x2x3 eighths (12/8)
-[!M:232 c8]                          % the same length grouped otherwise; !M:2232/16 sixteenths
-[!swing c8 d e f]                    % swung eighths, the off-beat late (0.6)
-[!swing:0.7 !swingUnit:16 c16 d e f] % the long note's share of a pair; sixteenths
-[!straight !shuffle c8 d]            % 0.5 straight; !shuffle 2/3, a triplet feel
-[!laidBack c16 d e f]                % weak places a little late (!groove:0.5)
-[!groove:-0.3 c16 d e f]             % pushed: a little early
-[!accent:metric c8 d e f g a b c]    % each note weighed by its level in the bar (by the meter)
-[!accent:barlow c8 d e f g a b c]    % by Barlow's finer ranking, every pulse its own weight
-[!accent:agogic !accentDepth:1 c16 d8 e4]   % or by its length; how much, 0..1 (0.5)
-[!left !center !right c4]            % panning
-[!/mf c4]                            % invalidate: clear a value set here
-[partial 8 c8 | c4 d e f]           % a pickup: the first bar is an eighth
+[!tempo:120 c4]                      // tempo in BPM (a quarter note)
+[!tempo:3/8=90 c4]                   // note value = BPM (a dotted quarter at 90)
+[!tempo:4.=90 c4]                    // the same, the note value dotted
+[!allegro !marciaModerato c4]        // named tempo markings
+[!Meter:7/8 c4]                      // a meter
+[!Meter:"7/8(2+2+3)" c4]             // a meter with explicit grouping
+[!M:223 c8]                          // a meter as the factors of its pulses: 2x2x3 eighths (12/8)
+[!M:232 c8]                          // the same length grouped otherwise; !M:2232/16 sixteenths
+[!swing c8 d e f]                    // swung eighths, the off-beat late (0.6)
+[!swing:0.7 !swingUnit:16 c16 d e f] // the long note's share of a pair; sixteenths
+[!straight !shuffle c8 d]            // 0.5 straight; !shuffle 2/3, a triplet feel
+[!laidBack c16 d e f]                // weak places a little late (!groove:0.5)
+[!groove:-0.3 c16 d e f]             // pushed: a little early
+[!accent:metric c8 d e f g a b c]    // each note weighed by its level in the bar (by the meter)
+[!accent:barlow c8 d e f g a b c]    // by Barlow's finer ranking, every pulse its own weight
+[!accent:agogic !accentDepth:1 c16 d8 e4]   // or by its length; how much, 0..1 (0.5)
+[!left !center !right c4]            // panning
+[!/mf c4]                            // invalidate: clear a value set here
+[partial 8 c8 | c4 d e f]           // a pickup: the first bar is an eighth
 ```
 
 `!tempo:`, `!Tempo:` and `!T:` are the same key; every context key has
@@ -265,11 +265,11 @@ the key name directly; an optional curve letter follows the direction
 (`l` linear, the default; `s` smooth; `i` ease-in; `o` ease-out):
 
 ```mus
-[!vol< c4 d !vol:ff e f]           % open-ended: ramps to the next value set
-[!vol<s c4 d !vol:p e]             % with a curve
-[!vol<16:ff c4 d e f]              % timed: over 16 (whole notes) to ff
-[!vol<s:16:ff c4 d e f]            % timed, with a curve
-[!vol:mf< c4 d !vol:ff e]          % set a value and start a ramp from it
+[!vol< c4 d !vol:ff e f]           // open-ended: ramps to the next value set
+[!vol<s c4 d !vol:p e]             // with a curve
+[!vol<16:ff c4 d e f]              // timed: over 16 (whole notes) to ff
+[!vol<s:16:ff c4 d e f]            // timed, with a curve
+[!vol:mf< c4 d !vol:ff e]          // set a value and start a ramp from it
 ```
 
 The timed form's duration is a whole-note count, a product (`16*4`) or
@@ -280,20 +280,20 @@ a ratio (`16/1`); its target a dynamic mark or a number.
 Backslash-prefixed, LilyPond-style.
 
 ```mus
-[transpose c d ( c4 e g )]                   % shift by the interval c -> d
-[retrograde ( c4 d e f )]                    % backwards (also R ( … ))
-[transpose 5 ( c4 d e )]                     % transpose by 5 semitones
+[transpose c d ( c4 e g )]                   // shift by the interval c -> d
+[retrograde ( c4 d e f )]                    // backwards (also R ( … ))
+[transpose 5 ( c4 d e )]                     // transpose by 5 semitones
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]
-repeat 3 [c4 d] volta [[e2] [f2]]  % several endings
-repeat tremolo 4 [c16 d]                     % measured tremolo
-repeat ~ [c4 d]                              % endlessly
-[: c4 d :] volta [[e2] [f2]]                 % repeat signs: repeat 2 [c4 d]
-[c4 $ d e DS f]                              % plays c d e d e f
-[c4 d Fine e DC]                             % plays c d e c d
-[c4 Coda d e DC Coda f]                      % plays c d e c f
-[c4 d | ./. | e]                             % plays c d c d e
+repeat 3 [c4 d] volta [[e2] [f2]]  // several endings
+repeat tremolo 4 [c16 d]                     // measured tremolo
+repeat ~ [c4 d]                              // endlessly
+[: c4 d :] volta [[e2] [f2]]                 // repeat signs: repeat 2 [c4 d]
+[c4 $ d e DS f]                              // plays c d e d e f
+[c4 d Fine e DC]                             // plays c d e c d
+[c4 Coda d e DC Coda f]                      // plays c d e c f
+[c4 d | ./. | e]                             // plays c d c d e
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
 ```
 
@@ -346,9 +346,9 @@ A variable is mu's: `'name value :=` binds, a backslash references:
 ## 6. Comments
 
 ```mus
-[c4 d e f]      % a line comment, to the end of the seq
-%{ a block
-   comment %}
+[c4 d e f]      // a line comment, to the end of the seq
+/* a block
+   comment */
 ```
 
 Both are grammar rules (`Comment`), allowed wherever whitespace is; the

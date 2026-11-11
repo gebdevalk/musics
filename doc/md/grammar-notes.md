@@ -24,7 +24,7 @@ replaced. Parsing the original text end to end removes the cause instead
 of working around it: nothing is ever stripped or substituted first, so
 positions can't drift.
 
-- **Comments** (`%...`, `%{...%}`) are a real, tagged `Comment` rule
+- **Comments** (`//...`, `/*...*/`) are a real, tagged `Comment` rule
   (`musics.ebnf`), reachable everywhere `ws` is (via `ws`'s own
   definition, `(Blank | Comment)+` — not by rewriting every place `ws`
   is referenced). Hiding a *rule* only suppresses that rule's own tag,

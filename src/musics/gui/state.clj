@@ -811,7 +811,7 @@
         (let [text (try
                      (rec/open-record instrument)
                      (catch Exception e
-                       (str "%% record-midi failed: " (ex-message e))))]
+                       (str "// record-midi failed: " (ex-message e))))]
           (swap! *state (fn [s] (-> s
                                      (assoc-in [:record :recording?] false)
                                      (assoc-in [:record :text] text)))))))

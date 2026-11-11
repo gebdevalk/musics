@@ -1,86 +1,86 @@
-% Slonimsky's polations (Thesaurus of Scales and Melodic Patterns): tones put in,
-% before, between or after the tones of a melody. Each word prints its result.
-%
-% Load it:  "mus/slonimsky.mus" load
-% Hear one: put its line on the stack without the . and play it, e.g.
-%   \tune '[59] slonimsky/infra quarters ->
+// Slonimsky's polations (Thesaurus of Scales and Melodic Patterns): tones put in,
+// before, between or after the tones of a melody. Each word prints its result.
+//
+// Load it:  "mus/slonimsky.mus" load
+// Hear one: put its line on the stack without the . and play it, e.g.
+//   \tune '[59] slonimsky/infra quarters ->
 
 
-% ---- the algorithms it calls ---------------------------------------------
+// ---- the algorithms it calls ---------------------------------------------
 
 'melodic.slonimsky 's reqalgo
 
-% ---- the settings: plain values in the tctx -------------------------------
+// ---- the settings: plain values in the tctx -------------------------------
 
-4 :div T!                        % number of divisions
-0 :inter T!                      % interpolation flag
-0 :infra T!                      % infrapolation flag
-0 :ultra T!                      % ultrapolation flag
+4 :div T!                        // number of divisions
+0 :inter T!                      // interpolation flag
+0 :infra T!                      // infrapolation flag
+0 :ultra T!                      // ultrapolation flag
 
-80 :soft T!                      % the volume it starts at (mf) ...
-90 :loud T!                      % ... and climbs to at the climax (fff)
-1.0 :width T!                    % panning of the two groups, -width and +width (0 .. 1)
-3/8 :lag T!                      % how late group B is, as a note length (a pulse is 1/16)
+80 :soft T!                      // the volume it starts at (mf) ...
+90 :loud T!                      // ... and climbs to at the climax (fff)
+1.0 :width T!                    // panning of the two groups, -width and +width (0 .. 1)
+3/8 :lag T!                      // how late group B is, as a note length (a pulse is 1/16)
 
-'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!   % E dorian, a rising and falling line
+'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!   // E dorian, a rising and falling line
 
-'tune '[60 62 64 65] :=                 % the principal tones: C D E F
+'tune '[60 62 64 65] :=                 // the principal tones: C D E F
 
-% the numbers of a result as notes, a quarter each: ( list -- music )
+// the numbers of a result as notes, a quarter each: ( list -- music )
 : quarters ( $p -- music ) | '[1/4] [~] $p zip $p length take ;
 
-% ---- the three single forms: ( tones insertion -- tones' ) --------------------
-% The insertion is tones you chose to lie below (infra), within (inter) or above
-% (ultra) the tones; it always sounds AFTER a tone, never before one, and nothing
-% follows the last tone.
+// ---- the three single forms: ( tones insertion -- tones' ) --------------------
+// The insertion is tones you chose to lie below (infra), within (inter) or above
+// (ultra) the tones; it always sounds AFTER a tone, never before one, and nothing
+// follows the last tone.
 
-%{
-\tune '[59] s/infra quarters .           % '[60 59 62 59 64 59 65]
-\tune '[66] s/inter quarters .           % '[60 66 62 66 64 66 65]
-\tune '[67] s/ultra quarters .           % '[60 67 62 67 64 67 65]
+/*
+\tune '[59] s/infra quarters .           // '[60 59 62 59 64 59 65]
+\tune '[66] s/inter quarters .           // '[60 66 62 66 64 66 65]
+\tune '[67] s/ultra quarters .           // '[60 67 62 67 64 67 65]
 
-% the insertion can be several tones
-\tune '[58 59] s/infra quarters .        % '[60 58 59 62 58 59 64 58 59 65]
+// the insertion can be several tones
+\tune '[58 59] s/infra quarters .        // '[60 58 59 62 58 59 64 58 59 65]
 
-% ---- the general form: ( tones infra inter ultra -- tones' ) ----------------------
-% after each tone but the last: the infra tones, then the inter tones, then the ultra tones
+// ---- the general form: ( tones infra inter ultra -- tones' ) ----------------------
+// after each tone but the last: the infra tones, then the inter tones, then the ultra tones
 
-\tune '[59] '[66] '[67] s/polation2 quarters .   % '[60 59 66 67 62 59 66 67 64 59 66 67 65]
+\tune '[59] '[66] '[67] s/polation2 quarters .   // '[60 59 66 67 62 59 66 67 64 59 66 67 65]
 
-% an empty list switches that part off: only infra and ultra
-\tune '[59] '[] '[67] s/polation2 quarters .     % '[60 59 67 62 59 67 64 59 67 65]
+// an empty list switches that part off: only infra and ultra
+\tune '[59] '[] '[67] s/polation2 quarters .     // '[60 59 67 62 59 67 64 59 67 65]
 
-% all of them off gives the tune back
-\tune '[] '[] '[] s/polation2 quarters .         % '[60 62 64 65]
-%}
+// all of them off gives the tune back
+\tune '[] '[] '[] s/polation2 quarters .         // '[60 62 64 65]
+*/
 
-% ---- s: the polations of an equal division of the octaves -------------
-% ( divisor infra inter ultra -- pitches ), the last three 1 (on) or 0 (off), or
-% ( divisor mask -- pitches ), the mask infra 1 + inter 2 + ultra 4 (5 is infra and ultra). The divisor is the interval in semitones
-% stacked from C4 until a C comes back (2 3 4 5 6 8 9 10); the primary tones are those.
-% After the lower tone of each pair come, in this order, the infra tone (a semitone
-% below it), the inter tone (a semitone above it) and the ultra tone (a semitone above
-% the higher tone of the pair), as the three ints switch them on.
+// ---- s: the polations of an equal division of the octaves -------------
+// ( divisor infra inter ultra -- pitches ), the last three 1 (on) or 0 (off), or
+// ( divisor mask -- pitches ), the mask infra 1 + inter 2 + ultra 4 (5 is infra and ultra). The divisor is the interval in semitones
+// stacked from C4 until a C comes back (2 3 4 5 6 8 9 10); the primary tones are those.
+// After the lower tone of each pair come, in this order, the infra tone (a semitone
+// below it), the inter tone (a semitone above it) and the ultra tone (a semitone above
+// the higher tone of the pair), as the three ints switch them on.
 
-%{
-6 0 0 0 s/polation quarters .   % the primary tones: C4 F#4 C5
-6 0 1 0 s/polation quarters .   % inter: C4 C#4 F#4 G4 C5
-6 0 0 1 s/polation quarters .   % ultra: C4 G4 F#4 C#5 C5
-6 1 0 0 s/polation quarters .   % infra: C4 B3 F#4 F4 C5
-6 1 1 0 s/polation quarters .   % infra and inter
-6 1 0 1 s/polation quarters .   % infra and ultra
-6 1 1 1 s/polation quarters .   % all three
-6 7 s/polation quarters .       % the same as a mask: 1 + 2 + 4
-6 5 s/polation quarters .       % infra and ultra
+/*
+6 0 0 0 s/polation quarters .   // the primary tones: C4 F#4 C5
+6 0 1 0 s/polation quarters .   // inter: C4 C#4 F#4 G4 C5
+6 0 0 1 s/polation quarters .   // ultra: C4 G4 F#4 C#5 C5
+6 1 0 0 s/polation quarters .   // infra: C4 B3 F#4 F4 C5
+6 1 1 0 s/polation quarters .   // infra and inter
+6 1 0 1 s/polation quarters .   // infra and ultra
+6 1 1 1 s/polation quarters .   // all three
+6 7 s/polation quarters .       // the same as a mask: 1 + 2 + 4
+6 5 s/polation quarters .       // infra and ultra
 
-% other divisors: 4 (the augmented triad), 3 (the diminished seventh), 2 (the whole-tone scale)
+// other divisors: 4 (the augmented triad), 3 (the diminished seventh), 2 (the whole-tone scale)
 4 1 1 1 s/polation quarters .
 3 0 1 0 s/polation quarters .
 2 0 1 1 s/polation quarters .
 
-% more than an octave: 8 spans two octaves, 9 three. 5 and 10 span five and end on pitch
-% 120 (C9), past the 24..119 that notes can be written in: as numbers they are fine
-% (10 0 0 0 s/polation .), as notes with quarters they are not.
+// more than an octave: 8 spans two octaves, 9 three. 5 and 10 span five and end on pitch
+// 120 (C9), past the 24..119 that notes can be written in: as numbers they are fine
+// (10 0 0 0 s/polation .), as notes with quarters they are not.
 8 0 1 0 s/polation quarters .
 9 0 1 0 s/polation quarters .
-%}
+*/

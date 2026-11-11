@@ -586,16 +586,16 @@
 ;;    walker's walk-var-def/walk-var-ref) ─────────────
 
 (deftest comments-are-discarded-by-the-walker-not-stripped-from-text
-  (testing "% line comments and %{ ... %} blocks are real, tagged grammar
+  (testing "// line comments and /* ... */ blocks are real, tagged grammar
             nodes now (Comment) -- nothing is ever removed from the text
             before instaparse sees it, so a later parse error's position
             is always relative to what was actually written. The walker
             discards Comment nodes, same as it already discards bare ws
             artifacts, leaving no trace in the domain model."
-    (let [{:keys [tree]} (v/read-domain "[v: c4 % a comment\nd4]")]
+    (let [{:keys [tree]} (v/read-domain "[v: c4 // a comment\nd4]")]
       (is (= 2 (count (:children (get tree :v))))))
     (let [{:keys [tree]} (v/read-domain
-                           "[v: c4 %{ a block\ncomment %} d4]")]
+                           "[v: c4 /* a block\ncomment */ d4]")]
       (is (= 2 (count (:children (get tree :v))))))))
 
 (deftest a-typo-inside-a-line-fails-where-it-is

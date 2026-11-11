@@ -103,7 +103,7 @@ the text leaves with one atomic `swap!` (`commit-many!`); it's visible the
 moment the call returns:
 
 ```
-[verse: !mf c4 d e8] R!        % the same at the prompt: musics.repo now holds :ROOT and :verse
+[verse: !mf c4 d e8] R!        // the same at the prompt: musics.repo now holds :ROOT and :verse
 ```
 
 `musics.repo` is a flat `id -> node` map holding only the current value of
