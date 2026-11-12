@@ -19,3 +19,13 @@
       :value (fn []
                (reset! x (* @r @x (- 1 @x))))})))
 
+
+(defn logistic-seq
+  "The logistic map as a lazy seq of its values: x1 = r*x0*(1-x0), x2 … No state, no seed:
+   the same r and x0 give the same stream, and it can be read from the start by any number of voices.
+     (take 4 (logistic-seq 3.8 0.5))"
+  {:algo {:in [] :out :number
+          :params {:r {:type :double :min 0.0 :max 4.0 :default 3.8 :doc "growth rate; chaotic above ~3.57"}
+                   :x {:type :double :min 0.0 :max 1.0 :default 0.5 :doc "starting value"}}}}
+  [r x]
+  (rest (iterate #(* r % (- 1 %)) x)))

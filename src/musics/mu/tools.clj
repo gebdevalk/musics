@@ -1,6 +1,6 @@
 (ns musics.mu.tools
   "The tool and music words that read the stack's shape
-   (doc/md/mu-repl.md, section 8): split-at (two values), what lies
+   (doc/md/mu-words.md): split-at (two values), what lies
    above a | mark or a repeat, the top n ({n} [n]), and choose and
    alternate with their quotations; each with its named twin. The other
    tool and music words are musics.tool and musics.music."

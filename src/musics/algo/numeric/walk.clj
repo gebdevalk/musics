@@ -3,7 +3,8 @@
 (ns musics.algo.numeric.walk
   "Random walks, noise and tendencies: number streams that move step by step, drawn from musics.algo.numeric.random."
   (:refer-clojure :exclude [shuffle])
-  (:require [musics.algo.numeric.scaling :as scaling]
+  (:require [musics.algo.numeric.counter :as counter]
+            [musics.algo.numeric.scaling :as scaling]
             [musics.algo.numeric.spec :refer [num-spec pos-spec unit-spec lo hi bias clip-lo clip-hi boundary]]
             [musics.algo.numeric.random :refer [rand-double shuffle uniform weighted-coin rising falling]]))
 
@@ -146,3 +147,24 @@
          :velocity (velocity-walk)
          :duration (duration-fn)
          :bend (* 2 (rising -1 1 0.6))}))))
+
+
+(defn walk-seq
+  "A random walk as a lazy seq: from start, each value moves by at most step-bound, the step the
+   next draw of seed (counter-based random: the same seed gives the same walk, however many
+   read it). Optional clipping as for walk.
+     (take 8 (walk-seq 7 60.0 2.0))"
+  {:algo {:in [] :out :number
+          :params {:seed       {:type :int :min 0 :max 1000000 :default 1 :doc "the walk"}
+                   :start      (assoc num-spec :default 60.0 :doc "value before the first step")
+                   :step-bound (assoc pos-spec :default 2.0 :doc "largest step")
+                   :clip-lo    clip-lo
+                   :clip-hi    clip-hi
+                   :boundary   boundary}}}
+  [seed start step-bound & {:keys [clip-lo clip-hi boundary] :or {boundary :clamp}}]
+  (map first
+       (rest (reductions (fn [[x _] i]
+                           (let [step (* step-bound (- (* 2 (counter/draw seed i)) 1))
+                                 nx   (scaling/bound boundary clip-lo clip-hi (+ x step))]
+                             [nx i]))
+                         [start -1] (range)))))

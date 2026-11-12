@@ -99,7 +99,7 @@ are. Read them roughly in this order, stopping when you have what you need.
    names; [lilypond.md](doc/md/lilypond.md) if you come from LilyPond.
 3. **Using mu.** [mu-tutorial.md](doc/md/mu-tutorial.md) goes through the
    words, sections 0-2 (the stack, writing, listening) first;
-   [mu-repl.md](doc/md/mu-repl.md) has every word. In mu itself: `words`,
+   [mu-words.md](doc/md/mu-words.md) has every word, [mu-repl.md](doc/md/mu-repl.md) the design. In mu itself: `words`,
    `"dup" see`, and Tab completion.
 4. **Composing with algorithms.**
    [raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) has 53 recipes, each

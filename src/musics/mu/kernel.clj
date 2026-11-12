@@ -2,7 +2,7 @@
   "mu's kernel words that read the stack itself (namespace kernel): the
    stack, quotations, printing the stack, binding; also the play words
    that read the stack's shape (play, ->, play-next, -|>, …)
-   (doc/md/mu-repl.md, section 8). The kernel's other words are
+   (doc/md/mu-words.md). The kernel's other words are
    musics.kernel, the rest of play musics.play, the music words
    musics.music."
   (:require [musics.arith :as arith]

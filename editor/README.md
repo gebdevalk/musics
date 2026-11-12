@@ -2,11 +2,11 @@
 
 `mus/` is a TextMate grammar (`mus.tmLanguage.json`) with a VS Code language
 configuration (`language-configuration.json`, `package.json`): comments `//` and
-`/* */`, brackets, strings, notes with their durations, rests, drums, ids
+`/* */`, brackets, strings, notes with their durations, rests and pulses (`r16~`, `p16~`), drums, ids
 (`verse:`, `:verse`, `:bass/onsets`), instructions (`!vol:50`), settings (`M:3/4`),
 `\name` references, `$` locals, pitch-class sets, quotations and data lists
 (`'( … )`, `'[ … ]`), the definition `: word ( stack effect ) … ;`, the play signs
-(`->`, `-|>`), `T!` `T@` `T_` `R!` `R@` `R_`, and `ns/word`.
+(`->`, `-|>`), `T!` `T@` `T@@` `T_` `R!` `R@` `R_`, and `ns/word`.
 
 ## IntelliJ (also Cursive)
 

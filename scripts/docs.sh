@@ -24,6 +24,11 @@ declare -A pages=(
   [doc/md/algo-context.md]=algo-context
   [doc/md/grid.md]=grid
   [doc/md/mu-repl.md]=mu-repl
+  [doc/md/mu-words.md]=mu-words
+  [doc/md/start-here.md]=start-here
+  [doc/md/cheat-sheet.md]=cheat-sheet
+  [doc/md/polations.md]=polations
+  [doc/md/algo-access.md]=algo-access
   [doc/md/mu-tutorial.md]=mu-tutorial
   [doc/md/raw-algo-cookbook.md]=raw-algo-cookbook
   [doc/md/namespace.md]=namespace
@@ -39,7 +44,7 @@ declare -A pages=(
   [doc/md/decisions.md]=decisions
   [CLAUDE.md]=CLAUDE
 )
-nav='<nav class="docs"><a href="index.html">musics</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="mu-tutorial.html">mu</a> · <a href="raw-algo-cookbook.html">algo cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
+nav='<nav class="docs"><a href="index.html">musics</a> · <a href="start-here.html">start here</a> · <a href="setup.html">setup</a> · <a href="tutorial.html">tutorial</a> · <a href="mu-tutorial.html">mu</a> · <a href="raw-algo-cookbook.html">algo cookbook</a> · <a href="parsing.html">parsing</a> · <a href="lilypond.html">lilypond</a> · <a href="domain.html">domain</a> · <a href="walk-through.html">walk-through</a> · <a href="decisions.html">decisions</a> · <a href="CLAUDE.html">architecture</a></nav>'
 navfile=$(mktemp); echo "$nav" > "$navfile"; trap 'rm -f "$navfile"' EXIT
 
 for src in "${!pages[@]}"; do
