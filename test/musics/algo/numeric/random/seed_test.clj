@@ -64,3 +64,18 @@
   (seed/seed! 1)
   (is (< 29000 (get (frequencies (repeatedly 40000 #(r/weighted-choose [0 1] [3 1]))) 0) 31000)
       "3,1 weights pick the first three times as often"))
+
+(deftest the-engine-is-the-counter-stream
+  (let [c (requiring-resolve 'musics.algo.numeric.counter/draw32)]
+    (seed/seed! 42)
+    (is (= (/ (double (c 42 0)) 0xFFFFFFFF) (r/rand-double)) "draw 0 of the seed")
+    (is (= (/ (double (c 42 1)) 0xFFFFFFFF) (r/rand-double)) "then draw 1")
+    (seed/seed! 42)
+    (is (= (/ (double (c 42 0)) 0xFFFFFFFF) (r/rand-double)) "a seed starts the stream over")))
+
+(deftest threads-drawing-from-one-rng-never-share-a-draw
+  (let [a (doto (atom nil) (seed/seed! 7))
+        n 8 per 1000]
+    (->> (repeatedly n #(future (dotimes [_ per] (seed/step! a seed/rnd-double))))
+         (mapv deref))
+    (is (= (* n per) (:i @a)) "every draw took exactly one place of the stream")))

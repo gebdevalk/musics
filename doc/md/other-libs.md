@@ -67,7 +67,7 @@ it:
 
 - It is a heavy dependency, and version 3 has been in alpha for a long
   time.
-- The seeded xorshift RNG (`musics.algo.numeric.rng`) must stay in charge of
+- The seeded counter-based RNG (`musics.algo.numeric.rng`) must stay in charge of
   randomness for reproducibility (`seed_test`).
 
 So either borrow the ideas, or wrap only its noise functions and drive

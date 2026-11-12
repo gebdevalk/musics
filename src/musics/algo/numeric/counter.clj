@@ -27,6 +27,11 @@
   ^long [seed i]
   (mix (unchecked-add (mix (long seed)) (unchecked-multiply gamma (unchecked-inc (long i))))))
 
+(defn draw32
+  "Draw i of seed as 32 bits, an integer in [0, 2^32): what musics.algo.numeric.rng steps through."
+  [seed i]
+  (bit-and (bits seed i) 0xFFFFFFFF))
+
 (defn draw
   "Draw i of seed: a double in [0,1). The same seed and i, the same value."
   [seed i]

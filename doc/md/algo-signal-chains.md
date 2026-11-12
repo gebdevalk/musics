@@ -46,7 +46,7 @@ flowchart TB
     end
 
     subgraph RNG[" randomness engine "]
-        RCORE["random.core<br/><i>xorshift32 engine</i>"]
+        RCORE["random.core<br/><i>counter-based engine</i>"]
         RAND["random<br/><i>uniform · markov · smooth-walk · weighted-choose</i>"]
     end
 

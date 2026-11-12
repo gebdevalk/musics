@@ -1,5 +1,5 @@
-;; The low-level, pure RNG engine for this project: xorshift32
-;; (rnd-new/rnd-step/rnd-double/rnd-int/rnd-choose/rnd-weighted/
+;; The low-level, pure RNG engine for this project: a counter-based stream
+;; (musics.algo.numeric.counter: draw i of a seed; rnd-new/rnd-step/rnd-double/rnd-int/rnd-choose/rnd-weighted/
 ;; rnd-markov/rnd-shuffle, each taking/returning [value rng']),
 ;; atom-backed seeding/state (default-rng, seed!, with-seed) instead
 ;; of the JVM's unseedable Math/random(), and a generic step! helper
@@ -21,35 +21,30 @@
 ;; deterministic given their own explicit state, no PRNG involved at
 ;; all.
 
-(ns musics.algo.numeric.rng)
+(ns musics.algo.numeric.rng
+  (:require [musics.algo.numeric.counter :as counter]))
 
 ;; ------------------------------------------------------------
 ;; RNG OBJECT
 ;; ------------------------------------------------------------
 
 (defn- rnd-new
-  "Create a new RNG with a 32-bit seed. Xorshift's state 0 never leaves
-   0 (every draw 0.0, so a rejection sampler loops forever): a seed
-   whose low 32 bits are 0 starts from a fixed odd state instead."
+  "Create a new RNG for seed (any integer): its stream is the counter-based one of
+   musics.algo.numeric.counter, draw 0 of seed, then draw 1 …, so the position is the
+   state (:i) and a seed gives the same stream whoever else draws."
   [seed]
-  (let [s (bit-and seed 0xFFFFFFFF)]
-    {:type :rng
-     :seed seed
-     :state (if (zero? s) 0x9E3779B9 s)}))
+  {:type :rng
+   :seed seed
+   :i    0})
 
 ;; ------------------------------------------------------------
-;; CORE STEP (Xorshift32)
+;; CORE STEP (counter-based)
 ;; ------------------------------------------------------------
 
 (defn- rnd-step
-  "Return [next-int updated-rng]: Marsaglia's xorshift32, each shift
-   applied to the result of the one before, kept to 32 bits."
-  [{:keys [state] :as rng}]
-  (let [m 0xFFFFFFFF
-        x (bit-and (bit-xor state (bit-shift-left state 13)) m)
-        x (bit-xor x (unsigned-bit-shift-right x 17))
-        x (bit-and (bit-xor x (bit-shift-left x 5)) m)]
-    [x (assoc rng :state x)]))
+  "Return [next-int updated-rng]: the next draw of the stream (32 bits), the position moved on by one."
+  [{:keys [seed i] :as rng}]
+  [(counter/draw32 seed i) (assoc rng :i (inc i))])
 
 ;; ------------------------------------------------------------
 ;; DERIVED VALUES
@@ -147,9 +142,10 @@
 (defn step!
   "Draw once from rng-atom via f (a pure [rng args...] -> [value rng']
    fn, e.g. rnd-double/rnd-int/rnd-choose/rnd-weighted/rnd-markov/
-   rnd-shuffle), swap the atom to the resulting state, and return just
-   the value."
+   rnd-shuffle), move the atom on to the resulting state, and return just
+   the value. One atomic swap, so two threads drawing from the same atom
+   never get the same draw."
   [rng-atom f & args]
-  (let [[result rng'] (apply f @rng-atom args)]
-    (reset! rng-atom rng')
-    result))
+  (let [result (volatile! nil)]
+    (swap! rng-atom (fn [rng] (let [[v rng'] (apply f rng args)] (vreset! result v) rng')))
+    @result))
