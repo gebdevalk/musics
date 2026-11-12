@@ -71,7 +71,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - **Each read starts fresh**: the default duration, and the default
   reference pitch for the first relative note.
 - One read is the whole input until it is complete (section 7), so a
-  melody across several seqs inside one `[ … ]` carries over.
+  melody across several lines inside one `[ … ]` carries over.
 - `|` at the top level is a **mark**, and the words that take as many
   values as you like gather what lies above the nearest one, **or the
   whole stack when there is none**: `zip` and `>ctx` their parts, `par` the
@@ -234,7 +234,7 @@ followed by nothing, a duration or `*n`.
   literal; a number bound to a name is pushed with a bare `\name`.
 - `:=` again rebinds: what comes later sees the new value; nothing is
   changed in place. An input's literals are read up to each `:=`, just
-  before that part runs, so `'m [c d] := [\m e]` works on one seq; a
+  before that part runs, so `'m [c d] := [\m e]` works on one line; a
   literal before the `:=` that binds its name is refused. After a `:=`
   the reading starts afresh (durations, relative pitch).
 - A name bound to another (`'dp 'duration-pulse :=`) is a short
@@ -393,7 +393,7 @@ Stack effects:
 | `roll` | `( xn xn-1 … x0 n -- xn-1 … x0 xn )` | move the n-th item to the top, the top being 0: `1 roll` is `swap`, `2 roll` is `rot` |
 | `depth` | `( -- n )` | the number of items (what `mu<n>` shows) |
 | `spread` or `**` | `( x -- a b … )` | x's elements on the stack: a seq's notes (no bar lines or jump marks), a parallel's parts, data's values (`[c d e] 2 [/] spread`) |
-| `.s` | `( -- )` | show the stack, one item a seq, top first, numbered as `pick` counts (`0> …`) |
+| `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 
 **Numbers** are the grammar's three primitives: Int, Float and Ratio
@@ -963,7 +963,7 @@ argument names: `( onsets pulses -- euclid )`.
   durations, `deg` degrees, `vol` volumes, `art` articulations, `wei` weights,
   `num` numbers, `ons` onsets, `str` steps, `cnt` counts, `lea` leaves, `ins`
   instruments. A bridge is `from>to`, the readers' plurals add an `s`:
-  `3 8 pattern/euclid 1/16 bridge/pul>dur`, `x pits`, `x durs`. `pul>stp` is a
+  `3 8 pattern/euclid 1/16 bridge/pul>dur`, `x pits`, `x durs`. `pul>evnt` is a
   bridge too: one duration per pulse, a note for every onset and a rest for every
   0, all of the pulse you give it (`pul>dur` lets a note last until the next
   onset).

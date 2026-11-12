@@ -19,7 +19,7 @@
   (let [{:keys [tree root-id]} (v/read-domain mus-text)]
     (letfn [(walk [node]
               (cond
-                (d/leaf? node)      [node]
+                (d/pitched? node)      [node]
                 (d/container? node) (mapcat walk (d/children tree node))
                 :else               []))]
       (vec (walk (get tree root-id))))))

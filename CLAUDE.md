@@ -905,6 +905,11 @@ start/end — and performs each as it comes due, parking until the next
 one. At one moment a note-off goes before signals, and signals before a
 note-on, so a repeated pitch is released before it sounds again.
 
+- Ties: a tied note holds one note open per voice (`:open`, scheduled in `schedule!`). The
+  note after a tied one -- a note, or a Rest with `:tied` -- is a continuation: no note-on,
+  its pitch unused. The one that is not tied ends it with a note-off carrying the box of
+  the note struck, so the remembered pitches are released; a rest with nothing open is
+  silence, and a voice ending closes what it holds. `musics.midi.file` does the same.
 - Channels: `musics.midi.channels`, a pool shared with
   `musics.midi.file` -- a channel carries one timbre, `[program cc]`
   (`cc` `{10 pan}`), voices playing exactly that sharing it, taken when a
@@ -1011,14 +1016,15 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   (`d/children repo container`). Auto-generated ids are short,
   type-prefixed (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`), assigned by
   `builder/next-auto-id`.
-- **Leaves are plain, `:type`-tagged maps**: `Leaf`, `Rest`, `Drum`
-  (pitches/duration/articulation/dynamic/modifiers/tied), plus `Pulse`
-  (`:duration`/`:value` only — no pitch at all; a duration/value cell for
-  pulse-grid-shaped generative material, e.g. `musics.algo.common.pulse/
-  grid->pulses`, and reachable directly from text too: `p<Duration>`
-  builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
-  in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
-  see `doc/md/decisions.md` for why). `Iterator` (a real record, deferred
+- **Leaves are plain, `:type`-tagged maps**: `Pitched` (`:PITCHED`: one pitch a note, several a chord; `note?` and `chord?` ask which), `Rest`, `Drum`
+  (pitches/duration/articulation/dynamic/modifiers/tied; all three derive from `:LEAF` in `d/leaf-types`, and `d/leaf?` asks for any of them, `d/pitched?` for the first), plus the **skeleton** (`:LEAF` itself: `d/skeleton`, `:duration` and a `:tied`
+  when needed, an optional `:value` from the grid slot it came from -- no pitch
+  at all; the half product a time-based generator makes, e.g.
+  `musics.algo.common.pulse/grid->pulses`, and `p<Duration>` in text, whose `value`
+  is a fixed `1`). mu's `zip` makes of a skeleton in the duration column a `Pitched`
+  (a pitch gives a note or a chord), a `Drum`, or a `Rest`, copying its tie; a
+  skeleton is never played as it is. Text spells it `p16~` (`p` a pulse, `~` its tie), a mu value that reads, prints and `zip`s onto a seq (a pitch makes it a `Pitched`, a drum key a `Drum`). A tie is written `~` on a rest too (`r16~`).
+  `Iterator` (a real record, deferred
   expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.
@@ -1329,6 +1335,9 @@ how MANY pulses sound, not how strongly rank predicts which ones do.
 The parsing layer's own detail -- comments, variables and how the
 walker handles them -- is in `doc/md/grammar-notes.md`; read it before
 changing the grammar or the walker.
+
+Comments are `//` to the end of the line and `/* … */` for a block, wherever
+whitespace is allowed (a `Comment` rule; the walker drops them).
 
 Current bracket scheme — GUIDO-inspired brackets/accidentals,
 LilyPond-inspired leaf/command spelling otherwise (checked directly
@@ -1680,6 +1689,8 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   repo, and playback" above); zero dependencies on the domain model or
   anything else in the project, deliberately (it requires only
   `musics.registries`, the leaf namespace holding its actual atom).
+- `editor/mus/` — a TextMate grammar and VS Code language configuration for `.mus`
+  files and mu input (`editor/README.md`); comments `//` and `/* */`.
 - `musics/assist.clj` — REPL help worked out from action facts (see
   "Help" above).
 - `musics/conductor.clj` — the signal/schedule layer (see "Conductor" above);

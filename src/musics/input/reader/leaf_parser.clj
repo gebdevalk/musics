@@ -285,15 +285,16 @@
    from the note before it. nil for anything else."
   ([part] (part->mus part true))
   ([part dur?]
-   (when (#{:REST :DRUM :LEAF} (:type part))
+   (when (#{:REST :DRUM :PITCHED :LEAF} (:type part))
     (let [dur (when dur? (duration-text part))]
       (case (:type part)
-        :REST (str "r" dur)
+        :REST (str "r" dur (when (:tied part) "~"))
+        :LEAF (str "p" dur (when (:tied part) "~"))
         :DRUM (str "x" dur (some->> (:program part) value->mus (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part))
                    (when (:tied part) "~"))
-        :LEAF (let [ps (:pitches part)]
+        :PITCHED (let [ps (:pitches part)]
                 (str (if (= 1 (count ps))
                        (let [p (spell-pitch (first ps) (:id part) (:key part) (flat-written? part))]
                          (if dur (str p dur) (str/replace p #"/$" "")))

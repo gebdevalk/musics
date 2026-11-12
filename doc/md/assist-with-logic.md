@@ -28,19 +28,19 @@ questions; it shows the same facts as the state of its buttons.
 The algo questions `musics.algo.logic.tree` already answers work the same way,
 so one `assist` entry point could answer both kinds of question. The
 code would be about the same size as today's adviser. What it buys is
-more answers and less drift, not fewer seqs.
+more answers and less drift, not fewer lines.
 
 ## The help system today
 
 | Part | Where | Size | What it does |
 |---|---|---|---|
-| Adviser | `src/musics/adviser.clj` | 208 seqs | `what-next`: 4 state checks + 1 fixed reminder, ranked by tier and an optional intent; `top-intent`; an activity log |
-| REPL wrappers | `src/musics/core.clj` (`print-suggestions!`, `uh?`, `advise`, `advise!`, `wipe-adviser!`) | ~85 seqs | print suggestions; `advise!` reads a phase from stdin |
-| GUI highlight | `src/musics/gui/core.clj` (`intent->opener`), `src/musics/gui/state.clj` (`suggested-intent`) | ~40 seqs | highlights the panel button for the top intent |
-| Command help | `musics.core/help` | 15 seqs | first docstring seq of each public `musics.core` fn |
-| Algo catalog | `musics.core/show-algos` + `algo-ns-syms`/`algo-category`/`algo-tree` | ~95 seqs | walks `musics/algo/` on disk, prints docstrings |
-| Algo questions | `src/musics/algo/logic/tree.clj` | 330 seqs | core.logic over the algo registry: `find-algos`, `how`, `steps`, `feeds`, `why-not`, `examples`, `surprise` |
-| Tests | `test/adviser_test.clj` | 153 seqs | activity log and ranking |
+| Adviser | `src/musics/adviser.clj` | 208 lines | `what-next`: 4 state checks + 1 fixed reminder, ranked by tier and an optional intent; `top-intent`; an activity log |
+| REPL wrappers | `src/musics/core.clj` (`print-suggestions!`, `uh?`, `advise`, `advise!`, `wipe-adviser!`) | ~85 lines | print suggestions; `advise!` reads a phase from stdin |
+| GUI highlight | `src/musics/gui/core.clj` (`intent->opener`), `src/musics/gui/state.clj` (`suggested-intent`) | ~40 lines | highlights the panel button for the top intent |
+| Command help | `musics.core/help` | 15 lines | first docstring line of each public `musics.core` fn |
+| Algo catalog | `musics.core/show-algos` + `algo-ns-syms`/`algo-category`/`algo-tree` | ~95 lines | walks `musics/algo/` on disk, prints docstrings |
+| Algo questions | `src/musics/algo/logic/tree.clj` | 330 lines | core.logic over the algo registry: `find-algos`, `how`, `steps`, `feeds`, `why-not`, `examples`, `surprise` |
+| Tests | `test/adviser_test.clj` | 153 lines | activity log and ranking |
 
 ## Problems with it
 
@@ -166,13 +166,13 @@ first, and a depth bound so an impossible goal fails quickly.
 
 - **About the same size.** About 200 lines: the action table, `stepo`,
   the plan search, the state readers, and printing. That replaces
-  `core.adviser` (208 seqs) and most of the `musics.core` wrappers
-  (~85). The gain is answers and staying current, not fewer seqs.
+  `core.adviser` (208 lines) and most of the `musics.core` wrappers
+  (~85). The gain is answers and staying current, not fewer lines.
 - **Harder to read than plain checks.** The action table itself stays
   plain data. The relation and the search are core.logic, as in
   `musics.algo.logic.tree`.
 - **Facts must stay true.** A wrong `:needs` gives a wrong plan. A
-  test can hold the seq the way `catalog_test.clj` does for algos:
+  test can hold the line the way `catalog_test.clj` does for algos:
   - every public `musics.core` command has a fact or a listed reason;
   - every fact's `:call` resolves to a real function.
 - **The log must see every action.** Today only some `musics.core`
@@ -185,7 +185,7 @@ first, and a depth bound so an impossible goal fails quickly.
 
 ## Independent of core.logic
 
-- **Algo catalog.** `show-algos` and its three helpers (~95 seqs) can
+- **Algo catalog.** `show-algos` and its three helpers (~95 lines) can
   become a thin printer over the registry (`t/algos`/`lt/find-algos`,
   by category), leaving one catalog of algos only. Helpers that aren't
   algos are reached through `doc` and their namespaces. They are already

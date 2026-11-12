@@ -194,8 +194,8 @@
      :mode (get mode-aliases mode-key :major)}))
 
 (defn- parse-header-lines
-  "Consume header field seqs (X:/T:/etc, one per seq, up to and
-   including K: which always ends the header) from the start of seqs.
+  "Consume header field lines (X:/T:/etc, one per line, up to and
+   including K: which always ends the header) from the start of lines.
    Returns [header-map remaining-lines]."
   [lines]
   (loop [lines lines header {}]

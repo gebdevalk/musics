@@ -70,6 +70,7 @@
     :queue          (PriorityQueue. 64 ^Comparator action-order)
     :n              (atom 0)
     :sounding       (atom {})           ; top path -> {[channel pitch] count}
+    :open           (atom {})           ; voice path -> box of the note a tie holds open
     :voices         (atom {})           ; path -> {:path :root-path :algo :t :beat}
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
@@ -134,20 +135,44 @@
   (.add ^PriorityQueue (:queue eng) (assoc action :n (swap! (:n eng) inc))))
 
 (defn- schedule!
-  "Queue e, an event of top's stream (origin: when its :t 0 is)."
+  "Queue e, an event of top's stream (origin: when its :t 0 is). A tie holds a
+   note open per voice path: the note after a tied one (a note, or a rest the
+   pulse grid gives) is a continuation -- no note-on, its pitch not used -- and
+   the one that is not tied ends it, the note-off carrying the box of the note
+   that was struck, so the pitches released are the remembered ones."
   [eng top origin e]
-  (let [at (+ origin (secs->ns (:t e)))]
+  (let [at   (+ origin (secs->ns (:t e)))
+        open (:open eng)
+        held (get @open (:path e))
+        off! (fn [when-ns box] (add! eng {:at when-ns :prio 0 :top top :type :off :box box}))
+        end  (+ at (secs->ns (or (:dur-played e) 0)))]
     (case (:kind e)
-      (:note :drum)
+      (:note :rest)
+      (cond
+        held (if (:tied e)
+               nil
+               (do (off! end held) (swap! open dissoc (:path e))))
+        (= :rest (:kind e)) nil
+        :else (let [[offset vel] (resolve/humanize e rand)
+                    e   (assoc e :velocity vel)
+                    on  (+ at (secs->ns offset))
+                    box (volatile! nil)]
+                (add! eng {:at on :prio 2 :top top :type :on :e e :box box})
+                (if (:tied e)
+                  (swap! open assoc (:path e) box)
+                  (off! (+ on (secs->ns (:dur-played e))) box))))
+      :drum
       (let [[offset vel] (resolve/humanize e rand)
             e   (assoc e :velocity vel)
             on  (+ at (secs->ns offset))
             box (volatile! nil)]
         (add! eng {:at on :prio 2 :top top :type :on :e e :box box})
-        (when-not (:tied e)
-          (add! eng {:at (+ on (secs->ns (:dur-played e))) :prio 0 :top top :type :off :box box})))
+        (off! (+ on (secs->ns (:dur-played e))) box))
       (:section :bar :mark :voice)
-      (add! eng {:at at :prio 1 :top top :type (:kind e) :e e})
+      (do (when (and held (= :voice (:kind e)) (= :end (:phase e)))
+            (off! at held)
+            (swap! open dissoc (:path e)))
+          (add! eng {:at at :prio 1 :top top :type (:kind e) :e e}))
       nil)))
 
 (defn- signal!
@@ -251,6 +276,7 @@
   (doseq [[[ch p] _] (get @(:sounding eng) top)]
     (send-midi-off! (:fs eng) {:channel ch :pitches [p]}))
   (swap! (:sounding eng) dissoc top)
+  (swap! (:open eng) (fn [m] (into {} (remove (fn [[path _]] (= top (vec (take (count top) path)))) m))))
   (doseq [[path v] @(:voices eng) :when (= top (:root-path v))]
     (release-voice-channel! eng path)
     (swap! (:voices eng) dissoc path))
@@ -674,7 +700,7 @@
          dur   (/ (* (/ note-ms 1000.0) tempo) 240)
          dyn   (- 1 (:default (data/quantity :volume)))
          part  {:type :SEQ :id ::warmup :context ctx
-                :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil dyn nil false)))}
+                :children (vec (repeatedly n #(d/pitched ::warmup ctx dur [1] nil dyn nil false)))}
          path  [::warmup]]
      (locking (:lock eng)
        (swap! (:streams eng) assoc path

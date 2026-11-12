@@ -36,9 +36,9 @@
 ;; ---- Leaf-based (split-leafs/split-leaf-voice) ----
 
 (def leaf-melody
-  [(d/leaf :n1 nil 1/4 [60])
-   (d/leaf :n2 nil 1/4 [62 65]) ;; a chord -- every pitch should move together
-   (d/leaf :n3 nil 1/2 [64] :staccato :mf [] true)])
+  [(d/pitched :n1 nil 1/4 [60])
+   (d/pitched :n2 nil 1/4 [62 65]) ;; a chord -- every pitch should move together
+   (d/pitched :n3 nil 1/2 [64] :staccato :mf [] true)])
 
 (deftest split-leafs-transposes-every-pitch-in-a-chord-together
   (let [v1 (nth (split/split-leafs leaf-melody 1) 1)]

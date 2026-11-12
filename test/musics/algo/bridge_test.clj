@@ -23,10 +23,10 @@
   (is (= [3/16 3/16 1/8 3/16 3/16] (take 5 (b/pulses->durations (cycle [1 0 0 1 0 0 1 0]) 1/16))) "lazy: a cycled source works"))
 
 (deftest pulses-become-steps-a-note-or-a-rest-each
-  (is (= [1/8 [:rest 1/8] 1/8 1/8 [:rest 1/8]] (durs (b/pulses->steps [1 0 1 1 0] 1/8))) "a 1 a note, a 0 a rest, all one pulse long")
-  (is (= [[:rest 1/16] [:rest 1/16] 1/16] (durs (b/pulses->steps [0 0 2] 1/16))) "any nonzero is an onset; leading 0s are rests, not one")
-  (is (= 5 (count (b/pulses->steps [1 0 0 1 0] 1/16))) "one duration for every pulse")
-  (is (= [1/16 [:rest 1/16] [:rest 1/16] 1/16] (durs (take 4 (b/pulses->steps (cycle [1 0 0]) 1/16)))) "lazy: a cycled source works"))
+  (is (= [1/8 [:rest 1/8] 1/8 1/8 [:rest 1/8]] (durs (b/pulses->events [1 0 1 1 0] 1/8))) "a 1 a note, a 0 a rest, all one pulse long")
+  (is (= [[:rest 1/16] [:rest 1/16] 1/16] (durs (b/pulses->events [0 0 2] 1/16))) "any nonzero is an onset; leading 0s are rests, not one")
+  (is (= 5 (count (b/pulses->events [1 0 0 1 0] 1/16))) "one duration for every pulse")
+  (is (= [1/16 [:rest 1/16] [:rest 1/16] 1/16] (durs (take 4 (b/pulses->events (cycle [1 0 0]) 1/16)))) "lazy: a cycled source works"))
 
 (deftest onsets-numbers-and-points-become-durations
   (is (= [1/8 1/16 3/16] (b/onsets->durations [0.0 0.5 0.75 1.5] 1/4 1/32)))
@@ -63,3 +63,12 @@
     (is (= 4 (count (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "one per note pulses->durations makes")
     (is (nil? (first (b/pulses->volumes [0 0 1 0 1 1] :metric 1/16 "4/4" 40.0 80.0))) "nil for the rest before the first onset")
     (is (nil? (first (b/pulses->articulations [0 1 1] :metric 1/16 "4/4" [:ghost nil :accent :marcato]))))))
+
+(deftest a-pulse-is-a-skeleton-tied-to-the-zeros-after-it
+  (let [view (fn [x] [(if (= :REST (:type x)) :rest :note) (boolean (:tied x)) (:duration x)])]
+    (is (= [[:note true 1/16] [:rest true 1/16] [:rest false 1/16] [:note true 1/16] [:rest true 1/16]]
+           (map view (b/pulses->skeletons [1 0 0 1 0] 1/16)))
+        "an onset a note, a 0 a rest, each tied when the pulse after it is a 0 (none counts as 0)")
+    (is (= [[:rest false 1/8] [:note true 1/8]] (map view (b/pulses->skeletons [0 2] 1/8))) "a rest before an onset is not tied; the last pulse counts as followed by a 0")
+    (is (= 6 (count (take 6 (b/pulses->skeletons (cycle [1 0 0]) 1/16)))) "lazy: an endless stream")
+    (is (= [:note true 1/16] (view (b/pulse->skeleton 1 0 1/16))) "one pulse, from its value and the next")))

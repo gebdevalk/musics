@@ -625,10 +625,17 @@
     (mt/leaf? x)    (one-note "duration" "durations" :duration x)
     (v/material? x) (let [n (length-of x)] (if (integer? n) (long n) n))
     :else           (fail "needs a note or a seq, got" (p/show x))))
+(defn- tied-duration
+  "A note's duration, as a number; a tied note's as a skeleton (a tied rest's as a
+   tied Rest), so the tie goes with it: zip puts it back."
+  [l]
+  (cond (not (:tied l)) (:duration l)
+        (d/rest? l)     (d/rest* nil nil (:duration l) true)
+        :else           (d/skeleton nil nil (:duration l) nil true)))
 (defn durations
-  "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
+  "Each note's duration, as a stream, a rest's too, a tied note's with its tie: x durations x pitches zip is x again"
   {:mu {:names ["durs"]}}
-  [line] (mt/as-part :duration (each-note "durations" :duration true line)))
+  [line] (mt/as-part :duration (each-note "durations" tied-duration true line)))
 (defn- own-volume [x] (get-in x [:overrides :volume]))
 (defn volume
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a seq, volumes"
@@ -660,8 +667,8 @@
   "Each note's drum, as a stream, a rest's nil: x x drums zip is x again"
   [line] (mt/as-part :drum (each-note "drums" drum-of true line)))
 
-(defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %)))) leaf))
-(defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %)))) leaf))
+(defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :PITCHED (:type %)) (= 1 (count (:pitches %)))) leaf))
+(defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :PITCHED (:type %)) (< 1 (count (:pitches %)))) leaf))
 (defn rest?  "True for a rest" [leaf] (one-note "rest?" nil #(= :REST (:type %)) leaf))
 (defn drum?  "True for a drum" [leaf] (one-note "drum?" nil #(= :DRUM (:type %)) leaf))
 
@@ -715,7 +722,7 @@
   "The key's tonic, in octave 4"
   [key]
   (when-not (mt/key? key) (fail "needs a key, as D.major, got" (p/show key)))
-  (d/leaf nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
+  (d/pitched nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
 
 (defn key
   "The key a note was written in, or a seq's own (else the defaults')"
@@ -860,7 +867,7 @@
   ([chords n]
    (when (and n (< n 1)) (fail "walks a number of times from 1, got" n))
    (let [cs (vec (for [l (played-leaves "walking-bass" chords)]
-                   {:pitches (when (= :LEAF (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))}))]
+                   {:pitches (when (= :PITCHED (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))}))]
      (when-not (some :pitches cs) (fail "there are no chords to walk under"))
      (mt/read-text (if n
                      (walking-bass/line->mus (vec (apply concat (clojure.core/repeat n cs))) {:end true})

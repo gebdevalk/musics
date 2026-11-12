@@ -89,7 +89,7 @@
      (cond
        (or (:choose part) (:alternate part))
        (let [cs    (vec children)
-             move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
+             move? #(or (d/pitched? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))
              pick  (when (seq idx)
                      (cond (:weights part) (rnd/weighted-choose idx (:weights part))
@@ -102,7 +102,7 @@
 
        :else
        (let [cs    (vec children)
-             move? #(or (d/leaf? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
+             move? #(or (d/pitched? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))
              xs    (mapv cs idx)
              xs    (if (:shuffle part)
@@ -445,7 +445,7 @@
    single-resolve-event path directly, no extra looping."
   [repo part ctx-chain clock structural]
   (cond
-    (d/leaf? part)
+    (d/pitched? part)
     (let [part     (r/rekey part ctx-chain structural)
           expanded (orn/expand part ctx-chain)]
       (if (= (count expanded) 1)

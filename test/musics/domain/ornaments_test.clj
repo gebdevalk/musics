@@ -7,7 +7,7 @@
             [musics.domain.ornaments :as o]))
 
 (defn test-leaf [pitch dur]
-  (d/leaf "test" (c/context) dur [pitch]))
+  (d/pitched "test" (c/context) dur [pitch]))
 
 (deftest plain-test
   (let [leaf (test-leaf 60 1/4)

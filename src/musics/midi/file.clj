@@ -118,12 +118,22 @@
         pool   (atom channels/empty-pool)
         dropped (atom 0)
         kit    (atom nil)
-        tick   #(long (Math/round (* (double %) ticks-per-sec)))]
+        open   (atom {})   ; voice path -> [[track channel pitch]] a tie holds open
+        tick   #(long (Math/round (* (double %) ticks-per-sec)))
+        release! (fn [path at]
+                   (doseq [[^Track tr ch p] (@open path)]
+                     (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) at)))
+                   (swap! open dissoc path))]
     (.add (.createTrack s) (MidiEvent. tempo 0))
     (doseq [{:keys [kind phase path pitches program cc channel t dur-played tied] :as e} events]
       (cond
         (and (= kind :voice) (= phase :end))
-        (swap! pool channels/release-voice path)
+        (do (release! path (tick (max 0.0 t)))
+            (swap! pool channels/release-voice path))
+
+        ;; the note after a tied one goes on (its pitch is not used); the one that is not tied ends it
+        (and (#{:note :rest} kind) (@open path))
+        (when-not tied (release! path (tick (max 0.0 (+ t dur-played)))))
 
         (and (#{:note :drum} kind) (seq pitches))
         (let [^Track tr (or (@tracks path) ((swap! tracks assoc path (.createTrack s)) path))
@@ -148,7 +158,8 @@
                            :else              (keep identity [(channel-of 0 program)]))
                   p pitches]
             (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_ON ch p velocity) on))
-            (when-not tied
+            (if (and tied (not= kind :drum))
+              (swap! open update path (fnil conj []) [tr ch p])
               (.add tr (MidiEvent. (short-msg ShortMessage/NOTE_OFF ch p 0) (tick (+ onset dur-played)))))))))
     (when (pos? @dropped)
       (println "musics.midi.file:" @dropped "notes left out -- 15 timbres sounded at once"))

@@ -186,7 +186,7 @@
                       (+ (- (el/meter-bar-length (:meter midi)) (:partial midi))))
           [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :beat + dur))
                                   dur (:meter midi) (:partial midi))]
-      (cons (merge (felt midi pos dur) (at st (cond (d/leaf? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
+      (cons (merge (felt midi pos dur) (at st (cond (d/pitched? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
             (lazy-seq (concat bars (lazy-seq (k (reduce #(boundary %1 (:n %2) :enter) st' bars)))))))
     (k st)))
 
@@ -285,7 +285,7 @@
   "musics.events/walk-node."
   [part chain st k]
   (cond
-    (d/leaf? part)
+    (d/pitched? part)
     (let [part (r/rekey part chain (:beat st))]
       (fire-all (mapcat #(orn/expand % chain) (apply-wall st chain [part])) chain st k))
 

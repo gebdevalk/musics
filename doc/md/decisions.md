@@ -3507,6 +3507,63 @@ ons str cnt lea ins`), the readers' plurals add an `s`, and a bridge is
 three innermost loops; Factor's `times`, `each` and `while`/`until` are not
 added for now. A user word named `loop` clashes with the built-in.
 
+## 2026-11-12 — the leaves: Pitched, Rest, Drum under Leaf
+
+`:LEAF` was both the pitched type and, in prose and in the walker, any terminal
+element. The pitched type is now `:PITCHED` (`d/pitched`, `d/pitched?`), and
+`:LEAF` is the parent of `:PITCHED`, `:REST` and `:DRUM` (`d/leaf-types`, `d/leaf?`),
+the skeleton a time-based generator will make: a duration and a tie, nothing yet
+pitched. A note and a chord stay one type, told apart by `note?` and `chord?`: the
+code treats a vector of pitches alike, and `zip` turns a pitch or a list into it.
+Rejected: separate Note and Chord types (every consumer would branch, and
+transpose, `zip`, `par` and chord symbols move between them); `Tone` and `Note` as
+the name (one for a single pitch, one for the commonest case only). Saved data with
+`:LEAF` is not migrated: none of any importance exists.
+
+## 2026-11-12 — every access is by time or by next
+
+Material -- finished seqs, half products, algorithm output, the voice itself -- is
+read by next (a lazy seq is the model: its cursor is a value, so a pure
+step and several readers) or by time (a context, a tctx value, an envelope: a
+function of the beat). The duration stream, made of skeletons, is the clock: its
+durations sum to the beat, and every other stream is read one position per skeleton.
+Positions are counted alike for every stream, rests and tied holds included, so a
+pitch list is indexed by pulse (`zip` and `hoketus2` already do). Access by index
+is not a third kind: a pure function of the index (`sine-fn`, `polation-fn`) can be
+read by next or sought, but a consumer needs only next, because a voice moves
+forward.
+
+What a function needs of its input is declared (`:works`): value, shape (a bounded
+look-ahead) or whole (a finite input). A `shuffle` is lazy per pass over a finite
+pool (the permutation of pass k a hash of seed and k) and per window on a stream; a
+whole-stream shuffle of an endless input is refused. Random is counter-based (draw i
+a hash of seed and i), so a random stream is pure, seekable and the same on a
+restart; the shared rng atom stays for one-off use. A function used as a voice or
+an index function must be pure, and an effectful one is flagged (`doc/md/algo-access.md`
+lists them). Rejected: index access as a third kind (a voice never needs a jump);
+whole-seq shuffle on streams (meaningless on an endless one).
+
+## 2026-11-12 — `Pulse` is the skeleton leaf
+
+`:PULSE` is gone: a cell of time with no pitch is `:LEAF` itself (`d/skeleton`),
+the root of the leaf types, with `:duration`, an optional `:value` and a `:tied`.
+`zip` fills it from the other columns (a pitch makes a `Pitched`, a drum key a
+`Drum`, none a `Rest`) and copies the tie, so time-based generators and value
+generators meet only in `zip`. A `Rest` takes a tie too, written `r16~`, because
+`zip` builds its result as text and reads it back.
+
+## 2026-11-12 — `pul>stp` is `pul>evnt`; a tie is the engine's, pitch is not
+
+`pul>stp` is `pul>evnt` (`pulses->events`): a 1 is a note, a 0 a rest, one pulse
+each, a function of the index alone. `pul>dur` stays the bridge where a 0 lengthens
+the note before it; for a voice asked one pulse at a time that is a tie, and the
+tie belongs to the engine: it keeps one open note per voice, a leaf after a tied
+one is a continuation (its pitch ignored), and the leaf that is not tied ends
+it with a note-off for the remembered pitches. Rejected: matching the pitch of
+each leaf of a tied run (every leaf repeats the onset's pitch, a look-back
+to the onset in the voice); a pitch 0 for a continuation (it is a real pitch, and
+transposition and rekey would move it).
+
 ## 2026-11-07 — a seq, not a line
 
 A piece of musics text in `[ ]` is called a seq everywhere in prose and
@@ -3606,3 +3663,16 @@ saved values into the one object, because a voice's snapshot holds that object a
 a replacement would leave it reading the old one. Rejected: a node holding a copy,
 refreshed per leaf (a copy per leaf for no gain), and saving the tctx as mu text
 apart from the repo (a second place to look).
+
+## 2026-11-11 -- comments are `//` and `/* */`, not `%`
+
+`.mus` text and mu input take `//` to the end of the line and `/* … */` for a block
+(`Comment` in `musics.ebnf`); every `.mus` file, the fixtures, the examples in the
+docs and the GUI's own message were migrated. Why: `%` (LilyPond's, MATLAB's, TeX's)
+is not the comment most readers expect, and the C-family spelling is the most widespread
+and collides with nothing in the notation: `/` is a ratio, a duration, a word or a
+name's separator, never two in a row. Rejected: `;` (ends `: word … ;`, and is why
+`;` was left once before), `--` (the stack-effect separator), `\` (`\name` is a
+variable), `( … )` (a group and the stack effect), `#` (the sharp: `c#`, `F#.dorian`,
+so a comment would need a token boundary and sit confusingly next to notes). The
+importers drop the comments of LilyPond, ABC and GUIDO text, so none is carried over.

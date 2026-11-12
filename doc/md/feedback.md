@@ -32,8 +32,8 @@ is lost and a later analysis can derive anything from it.
 
 ### The ratings file
 
-`~/.mu-feedback.edn`, one map per seq, only ever appended. A second
-rating of the same sound is another seq, so a mean shows taste
+`~/.mu-feedback.edn`, one map per line, only ever appended. A second
+rating of the same sound is another line, so a mean shows taste
 changing over time. The path is an atom (`musics.feedback/file`); tests
 point it at a scratch file.
 

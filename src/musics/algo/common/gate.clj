@@ -20,7 +20,7 @@
                            (d/rest* (:id part) (:context part) (:duration part)))
     (= :hold on-reject) (fn [part last-sounding]
                            (if last-sounding
-                             (-> (d/leaf (:id part) (:context part) (:duration part)
+                             (-> (d/pitched (:id part) (:context part) (:duration part)
                                          (:pitches last-sounding))
                                  (assoc :tied true))
                              ;; nothing has sounded yet -- nothing to hold onto
@@ -38,7 +38,7 @@
       (if (empty? remaining)
         out
         (let [part (first remaining)]
-          (if (d/leaf? part)
+          (if (d/pitched? part)
             (if (select-fn part raw-prev)
               (recur (rest remaining) part part (conj out part))
               (let [replacement (act part last-sounding)]

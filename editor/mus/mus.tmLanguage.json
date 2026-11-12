@@ -1,0 +1,135 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "mu",
+  "scopeName": "source.mus",
+  "fileTypes": [
+    "mus"
+  ],
+  "patterns": [
+    {
+      "name": "comment.block.mus",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.mus"
+        }
+      }
+    },
+    {
+      "name": "comment.line.double-slash.mus",
+      "match": "//.*$"
+    },
+    {
+      "name": "string.quoted.double.mus",
+      "match": "\"[^\"]*\""
+    },
+    {
+      "name": "comment.block.documentation.mus",
+      "match": "\\(\\s*(?:[$\\w'.…\\-]+\\s+)*--(?:\\s+[$\\w'.…\\-]+)*\\s*\\)"
+    },
+    {
+      "match": "(?<![\\w:])(:)(\\s+)([A-Za-z_][A-Za-z0-9_\\-?>+]*)",
+      "captures": {
+        "1": {
+          "name": "keyword.control.definition.mus"
+        },
+        "3": {
+          "name": "entity.name.function.mus"
+        }
+      }
+    },
+    {
+      "name": "keyword.control.definition.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&]);(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "variable.other.quoted.mus",
+      "match": "'[A-Za-z][A-Za-z0-9_\\-]*(?:\\.[A-Za-z][A-Za-z0-9_\\-]*)*"
+    },
+    {
+      "name": "punctuation.definition.quotation.mus",
+      "match": "'(?=[\\(\\[])"
+    },
+    {
+      "name": "constant.numeric.pcset.mus",
+      "match": "\\$(?:\\[[0-9TE ]*\\]|\\([0-9TE ]*\\)|<[0-9TE ]*>)"
+    },
+    {
+      "name": "variable.parameter.mus",
+      "match": "\\$[A-Za-z_][A-Za-z0-9_\\-]*"
+    },
+    {
+      "name": "variable.other.reference.mus",
+      "match": "\\\\[A-Za-z][A-Za-z0-9_]*(?::[^\\s\\]\\}\\)]*)?"
+    },
+    {
+      "name": "constant.other.symbol.mus",
+      "match": "(?<![\\w:])(?::)[A-Za-z][A-Za-z0-9_]*(?:/[A-Za-z][A-Za-z0-9_\\-?]*)?"
+    },
+    {
+      "name": "entity.name.tag.mus",
+      "match": "(?<![\\w:])[A-Za-z][A-Za-z0-9_]*:(?=\\s)"
+    },
+    {
+      "name": "keyword.other.instruction.mus",
+      "match": "(?<![\\w!])!(?=[A-Za-z/])/?[A-Za-z][A-Za-z0-9_]*(?::[^\\s\\]\\}\\)<>@]*)?[<>]?"
+    },
+    {
+      "name": "keyword.other.setting.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])[A-Za-z][A-Za-z0-9_]*:[^\\s\\]\\}\\)'\\\"]+"
+    },
+    {
+      "name": "keyword.operator.mark.mus",
+      "match": "\\|{1,4}"
+    },
+    {
+      "name": "keyword.control.jump.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:DS|DC|Fine|Coda|\\./\\.)(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "constant.numeric.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])[+-]?\\d+(?:/\\d+|\\.\\d+)?(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "constant.language.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:true|false|nil)(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "constant.character.note.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])[a-gA-G](?:##|&&|[#&n])?\\d*(?:/\\d+)?\\.*[',]*~?(?:-[.>_^])?(?![\\w\\-/'$:!?>+#&])"
+    },
+    {
+      "name": "constant.character.rest.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:r\\d*\\.*|R\\d*\\*\\d+|R)(?![\\w\\-/'$:!?>+#&])"
+    },
+    {
+      "name": "constant.character.drum.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])x\\d*\\.*(?![\\w\\-/'$:!?>+#&])"
+    },
+    {
+      "name": "support.function.namespaced.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])[A-Za-z_][A-Za-z0-9_\\-?>+]*/[A-Za-z_][A-Za-z0-9_\\-?>+]*(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "keyword.operator.play.mus",
+      "match": "(?<![\\w\\-])(?:-\\|>\\+|-\\|>|->\\+|->|<<-|<-|\\.>>\\+|\\.>>|\\.>\\+|\\.>|\\.<<|\\.<|>>\\+|>>|>\\+)(?![\\w\\-])"
+    },
+    {
+      "name": "keyword.operator.mus",
+      "match": "(?<![\\w\\-])(?::=|T!|T@|T_|R!!|R!|R@|R_|\\*\\*|<=|>=|<>|\\[[A-Za-z%~?!+/*\\\\|:_]*\\]|\\{\\+\\})"
+    },
+    {
+      "name": "keyword.control.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:if|else|execute|times|repeat|volta|shuffle|rotate|choose|alternate|transpose|retrograde|inversion|mirror|grace|partial|tremolo|tuplet)(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "support.function.stack.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:dup|drop|swap|over|rot|2dup|2drop|-rot|clear|nip|tuck|pick)(?![\\w\\-/'$\\\\:!?>+#&])"
+    },
+    {
+      "name": "punctuation.section.bracket.mus",
+      "match": "[\\[\\]\\{\\}\\(\\)]"
+    }
+  ]
+}

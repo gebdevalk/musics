@@ -77,7 +77,7 @@
   [node]
   (and (vector? node) (contains? literal-tags (first node))))
 
-(defn leaf? [x] (and (map? x) (contains? #{:LEAF :REST :DRUM} (:type x))))
+(defn leaf? [x] (and (map? x) (contains? #{:PITCHED :REST :DRUM :LEAF} (:type x))))
 
 (defn leaf-node? [node] (and (vector? node) (contains? leaf-tags (first node))))
 

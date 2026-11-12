@@ -3,7 +3,7 @@
 Every namespace under `src/`, by directory, with its size in lines and its
 role. The program is used through **mu** (`musics.mu`, `lein mu`) and the
 **GUI** (`musics.gui.core`, mu's `gui`); *unreached* marks a namespace
-neither of them loads (only tests do). about 109 namespaces, 32,000 seqs.
+neither of them loads (only tests do). about 109 namespaces, 32,000 lines.
 
 ## The tree
 

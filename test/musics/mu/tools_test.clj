@@ -6,6 +6,7 @@
             [musics.algo.numeric.rng :as rc]
             [musics.input.reader.builder :as builder]
             [musics.domain.context :as c]
+            [musics.domain :as d]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.library]
@@ -987,3 +988,26 @@
       (is (every? (fn [[a b]] (and (not= a b) (< (abs (- a b)) 3))) (partition 2 1 ns)) "no repeat, steps within a whole tone")))
   (testing "a group of something else is still refused"
     (is (re-find #"gathers music into a seq, plain values into a '\[ \] or quotations" (top "( \"a\" )")))))
+
+(deftest zip-fills-a-skeleton-with-a-pitch
+  (let [sk   (fn [dur tied] (d/skeleton nil nil dur nil tied))
+        rest (fn [dur tied] (d/rest* nil nil dur tied))]
+    (swap! e/state assoc :stack [:duration [(sk 1/16 true) (rest 1/16 true) (rest 1/16 false) (sk 1/16 false)]
+                                 :pitch [60 64]])
+    (let [r      (e/eval-input "zip")
+          leaves (mt/leaves (first (:ok r)))]
+      (is (nil? (:error r)))
+      (is (= [:PITCHED :REST :REST :PITCHED] (map :type leaves)))
+      (is (= [[60] nil nil [64]] (map :pitches leaves)) "a pitch for each position, a rest's unused: the note at position 3 gets the second")
+      (is (= [true true nil nil] (map #(when (:tied %) true) leaves)) "the tie rides on the skeleton, notes and rests alike"))))
+
+(deftest a-skeleton-is-a-mu-value
+  (is (= "p16~" (top "p16~")) "read from text and printed back, its tie kept")
+  (is (= "[p16~ C4/4 r8~]" (top "[p16~ c4 r8~]")))
+  (is (= "[C4/16~ D4 r]" (top "[p16~ p16 r16] :pitch '[60 62 64] zip")) "zip onto a seq of skeletons: a pitch makes a note, a rest stays")
+  (is (re-find #"^\[x16\\\w+ " (top "[p16~ p16] :drum '[:kick :snare] zip")) "a skeleton given a drum key is a drum"))
+
+(deftest durations-keep-ties
+  (is (= "'[p4~ 1/4 1/4 r8~ 1/8]" (top "[c4~ c4 d4 r8~ e8] durs")) "a tied note a skeleton, a tied rest a tied Rest")
+  (is (= "[C4/4~ C4 D4 r8~ E4]" (top "[c4~ c4 d4 r8~ e8] dup durs swap pits zip")) "taken apart and zipped, tied music is itself again")
+  (is (= "'[1/4 1/4]" (top "[c4 d4] durs")) "untied notes stay plain numbers"))

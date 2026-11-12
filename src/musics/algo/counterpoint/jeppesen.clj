@@ -449,7 +449,7 @@
                                :choices [:auto :dorian :phrygian :lydian :mixolydian :aeolian :ionian :major :minor]}
                    :seed      {:type :int :min 0 :max 1000000 :default 1 :doc "search order (reproducible)"}}}}
   [cantus voices kind cantus-in mode seed]
-  (mapv (fn [voice] (mapv (fn [[p dur]] (d/leaf nil nil dur (if p [p] []))) voice))
+  (mapv (fn [voice] (mapv (fn [[p dur]] (d/pitched nil nil dur (if p [p] []))) voice))
         (:voices (counterpoint {:cantus (vec cantus) :voices voices :kind kind :seed seed
                                 :cantus-in (when (not= :auto cantus-in) cantus-in)
                                 :mode (when (not= :auto mode) mode)}))))

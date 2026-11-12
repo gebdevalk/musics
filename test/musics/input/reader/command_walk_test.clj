@@ -211,7 +211,7 @@
   (let [{:keys [tree root-id]} (v/read-domain text)]
     (letfn [(walk [node]
               (cond
-                (d/leaf? node)      [node]
+                (d/pitched? node)      [node]
                 (d/container? node) (mapcat walk (map (partial resolve-child tree) (:children node)))
                 :else               []))]
       (vec (walk (get tree root-id))))))
@@ -252,14 +252,14 @@
             resolving p as an actual pitch threw a NullPointerException,
             since musics.common.music-data/diatonic-pcs has no p entry)"
     (let [t (first-wrapped-token "p4")]
-      (is (d/pulse? t))
+      (is (d/skeleton? t))
       (is (= 1/4 (:duration t)))
       (is (= 1 (:value t)) "fixed default value for now -- see doc/md/decisions.md")))
   (testing "duration follows the same rules as any other leaf -- an
             explicit Duration, or falling back to the last one written"
     (let [ts (wrapped-tokens "p4 p8 p")]
       (is (= [1/4 1/8 1/8] (mapv :duration ts)))
-      (is (every? d/pulse? ts))))
+      (is (every? d/skeleton? ts))))
   (testing "a p pulse never disturbs :last-pitch -- the next relative
             note still resolves against whatever was last actually sounded"
     (let [ts (wrapped-tokens "c4 p8 d4")]
@@ -423,7 +423,7 @@
 (deftest chord-symbols-in-a-line-are-leaves-of-their-own
   (let [ts (wrapped-tokens "C4:m G4:7")]
     (is (= 2 (count ts)))
-    (is (every? d/leaf? ts))
+    (is (every? d/pitched? ts))
     (is (= [60 63 67] (:pitches (first ts))))
     (is (= [67 71 74 77] (:pitches (second ts))))))
 
@@ -855,7 +855,7 @@
 (deftest a-bound-name-splices-flat-into-the-reference-site
   (let [tree (read-mu "'motif [c4 d4] := [v: \\motif e4]")]
     (is (= 3 (count (:children (get tree :v)))))
-    (is (every? d/leaf? (:children (get tree :v))))))
+    (is (every? d/pitched? (:children (get tree :v))))))
 
 (deftest a-name-must-be-bound-first
   (let [saved @e/state]

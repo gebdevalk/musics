@@ -76,7 +76,7 @@
       (do (reset! *last-dur* d) (lp/part->mus part)))))
 
 (defn- tuplet-of [x]
-  (when (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (lp/tuplet-factor x)))
+  (when (and (map? x) (#{:PITCHED :REST :DRUM :LEAF} (:type x))) (lp/tuplet-factor x)))
 
 (defn- show-children
   "A container's children as text; consecutive notes whose length is no
@@ -143,7 +143,7 @@
     (symbol? x)      (str "'" x)
     (instance? musics.common.music_elements.Key x) (el/key->str x)
     (instance? musics.common.music_elements.Meter x) (el/meter->str x)
-    (and (map? x) (#{:LEAF :REST :DRUM} (:type x))) (leaf-text x)
+    (and (map? x) (#{:PITCHED :REST :DRUM :LEAF} (:type x))) (leaf-text x)
     (and (map? x) (d/bar? x)) (apply str (repeat (:count x) "|"))
     (and (map? x) (d/jump? x)) (d/jump-text x)
     (and (vector? x) (contains? (meta x) :data-type))
@@ -153,6 +153,6 @@
     (let [shown (take 17 x)
           more  (> (count shown) 16)
           items (str/join " " (map show (take 16 shown)))
-          leaves? (and (seq shown) (every? #(and (map? %) (#{:LEAF :REST :DRUM} (:type %))) (take 16 shown)))]
+          leaves? (and (seq shown) (every? #(and (map? %) (#{:PITCHED :REST :DRUM :LEAF} (:type %))) (take 16 shown)))]
       (str (if leaves? "[" "'[") items (when more " …") "]"))
     :else (pr-str x)))

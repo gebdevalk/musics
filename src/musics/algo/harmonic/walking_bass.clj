@@ -146,7 +146,7 @@
   "The chords and rests under node, in the order they're written (nested
    seqs included, a repeat left out)."
   [reg node]
-  (vec (mapcat #(cond (d/leaf? %)         [{:pitches (:pitches %) :duration (:duration %) :token (str (:id %))}]
+  (vec (mapcat #(cond (d/pitched? %)         [{:pitches (:pitches %) :duration (:duration %) :token (str (:id %))}]
                       (= :REST (:type %)) [{:pitches nil :duration (:duration %)}]
                       (d/container? %)    (flat-chords reg %)
                       :else               [])

@@ -117,11 +117,14 @@
 ;; ---------------------------------------------------------------------------
 
 (defn leaves->durations
-  "Each note's duration, a rest as itself: a seq's rhythm, as a seq
-   taken apart gives it."
+  "Each note's duration, a rest as itself, a tied note as a skeleton with its tie: a
+   seq's rhythm, as a seq taken apart gives it."
   {:mu {:names ["lea>dur"]} :algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
   [leaves]
-  (map #(if (d/rest? %) % (:duration %)) leaves))
+  (map #(cond (d/rest? %) %
+              (:tied %)   (d/skeleton nil nil (:duration %) nil true)
+              :else       (:duration %))
+       leaves))
 
 (defn leaves->pitches
   "Each note's pitch -- a chord's lowest, nil for a rest or a drum -- as a
@@ -138,15 +141,39 @@
   [pulses pulse]
   (run-durations #(and % (not= 0 %)) pulses pulse))
 
-(defn pulses->steps
+(defn pulses->events
   "One duration per pulse, all of `pulse`: a note for every onset (any
    nonzero) and a Rest for every 0 -- the grid as it is, where
    pulses->durations lets a 0 lengthen the note before it."
-  {:mu {:names ["pul>stp"]}
+  {:mu {:names ["pul>evnt"]}
    :algo {:category "bridge" :works :value :in [:pulse] :out :duration
           :params {:pulse pulse-spec}}}
   [pulses pulse]
   (map #(if (and % (not= 0 %)) pulse (d/rest* nil nil pulse)) pulses))
+
+(defn pulse->skeleton
+  "The skeleton of one pulse, given its value and the next pulse's: an onset (any
+   nonzero) a note, a 0 a Rest, one pulse long, either tied when the next pulse is
+   a 0 (or there is none). Tied, the note goes on into the 0s after it: the engine
+   holds a note open through a tied rest and ends it at the first that is not tied,
+   a rest with no tied note before it being silence. No pitch is written: zip puts
+   one on a note."
+  [this next pulse]
+  (let [on?  #(and % (not= 0 %))
+        tied (not (on? next))]
+    (if (on? this) (d/skeleton nil nil pulse nil tied) (d/rest* nil nil pulse tied))))
+
+(defn pulses->skeletons
+  "A skeleton for every pulse: a note for an onset, a Rest for a 0, each tied
+   when the pulse after it is a 0. One pulse of look-ahead, lazy, so an endless
+   stream is fine. Where pulses->durations lengthens the note before a 0, this
+   ties it, which is the same sound one pulse at a time (a voice asked for a single
+   pulse asks (pulse->skeleton this next pulse)). zip fills the notes with pitches."
+  {:mu {:names ["pul>tie"]}
+   :algo {:category "bridge" :works :shape :in [:pulse] :out :duration
+          :params {:pulse pulse-spec}}}
+  [pulses pulse]
+  (map #(pulse->skeleton %1 %2 pulse) pulses (concat (rest pulses) [0])))
 
 (defn strokes->durations
   "A syllable starts a note, \"-\" lengthens it; \"-\" before the first

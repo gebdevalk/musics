@@ -35,7 +35,7 @@
   [micro-value]
   (with-fresh-registries
     (let [onsets*  (atom [])
-          n1       (d/leaf :n1 (c/context) 1/4 [60])
+          n1       (d/pitched :n1 (c/context) 1/4 [60])
           verse    {:type :SEQ :id :verse :context (c/context) :children [n1]}
           root-ctx (cond-> {"Tempo" 6000 "volume" 80}
                      micro-value (assoc "micro" micro-value))
@@ -67,14 +67,14 @@
         (str "with micro=0.2s, onset should land roughly 200ms later -- got " with-ms "ms"))))
 
 (deftest resolve-event-carries-micro-and-humanization-through-for-a-leaf
-  (let [n1  (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1  (d/pitched :n1 (c/context) 1/4 [60])
         ctx (c/context-root {"micro" 0.3 "humanization" 0.5})
         ev  (r/resolve-event {:part n1 :ctx-chain [ctx]} 0 0.0 0)]
     (is (= 0.3 (:micro ev)))
     (is (= 0.5 (:humanization ev)))))
 
 (deftest resolve-event-defaults-micro-and-humanization-to-0-when-unset
-  (let [n1  (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1  (d/pitched :n1 (c/context) 1/4 [60])
         ctx (c/context-root {})
         ev  (r/resolve-event {:part n1 :ctx-chain [ctx]} 0 0.0 0)]
     (is (= 0.0 (:micro ev)))

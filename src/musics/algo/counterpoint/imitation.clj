@@ -213,7 +213,7 @@
                                             :delay-beats 1.0 :strictness 0.8 :transpose 4
                                             :density-envelope (vec (repeat 8 1)) :tolerance 3}]}}}}
   ([scale pitch-range rules beat-durations voice-specs]
-   (mapv (fn [voice] (mapv (fn [[p q]] (d/leaf nil nil (/ (rationalize q) 4) [p])) voice))
+   (mapv (fn [voice] (mapv (fn [[p q]] (d/pitched nil nil (/ (rationalize q) 4) [p])) voice))
          (generate scale pitch-range rules beat-durations voice-specs))))
 
 (comment

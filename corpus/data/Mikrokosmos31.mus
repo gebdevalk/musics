@@ -1,9 +1,9 @@
 
-%{
+/*
 	title = "Little Dance in Canon Form"
 	subtitle = "Mokrokosmos 31"
 	composer = "Bela Bartok"
-%}
+*/
 
 { mikrokosmos31:
   !tempo:160

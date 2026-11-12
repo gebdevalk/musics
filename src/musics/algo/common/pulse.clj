@@ -15,7 +15,7 @@
      (map :duration (grid->pulses [1 0 0 1 0 0 1 0]))
      ;; => (1 2 1 2 1 1), what color-talea takes as a talea"
   [grid]
-  (map (fn [run] (d/pulse nil nil (count run) (first run)))
+  (map (fn [run] (d/skeleton nil nil (count run) (first run)))
        (partition-by identity grid)))
 
 (comment
