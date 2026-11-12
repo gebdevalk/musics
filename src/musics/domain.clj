@@ -625,7 +625,7 @@
      (pitched? part)
      {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
 
-     (or (rest? part) (drum? part) (bar? part))
+     (or (rest? part) (drum? part) (bar? part) (skeleton? part))
      {:sum 0 :n 0}
 
      (iterator? part)

@@ -505,3 +505,10 @@
                 [(if (= ShortMessage/NOTE_ON (.getCommand ^ShortMessage m)) :on :off) (.getData1 ^ShortMessage m)])]
     (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] (vec cmds))
         "one note-on for the tied run, one note-off after its last note")))
+
+(deftest a-skeleton-plays-as-a-rest-of-its-length
+  (parse! "[sk: !tempo:240 p4 c4 p4~ d4]")
+  (let [evs (filter #(#{:note :rest} (:kind %)) (ev/events (repo/registry) :sk))]
+    (is (= [:rest :note :rest :note] (map :kind evs)) "a skeleton is silence, but it takes its time")
+    (is (every? true? (map #(< (abs (- %1 %2)) 1e-9) [0.0 0.25 0.5 0.75] (map :t evs))))
+    (is (= [false false true false] (map #(boolean (:tied %)) evs)) "and keeps its tie")))

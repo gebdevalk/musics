@@ -7,6 +7,7 @@
             [musics.input.reader.builder :as builder]
             [musics.mu.eval :as e]
             [musics.mu.inputs :as inputs]
+            [musics.engine :as engine]
             [musics.mu.kernel]
             [musics.mu.library]
             [musics.mu.live :as live]
@@ -35,7 +36,8 @@
    : one ( $x -- list ) '[1] $x * ;
    : pulse-at ( $beat -- i ) $beat 16 * int ;
    : on ( $i -- n ) :pattern T@ $i :pattern T@ length mod @ ;
-   : tied ( $i -- leaf ) | ( $i on $i 1 + on ) 1/16 b/pul>tied 1 take  :melody T@ $i @ one  zip ;
+   : pitch-at ( $i -- n ) :melody T@ $i :melody T@ length mod @ ;
+   : tied ( $i -- leaf ) | ( $i on $i 1 + on ) 1/16 b/pul>tied 1 take  $i pitch-at one  zip ;
    : tvoice ( $beat -- leaf ) $beat pulse-at tied ;")
 
 (deftest a-beat-voice-makes-a-skeleton-a-pulse-at-a-time
@@ -50,3 +52,17 @@
         "each tied when the pulse after it is 0; pulse 7 is followed by the next pass's onset")
     (is (every? #(= 1/16 (:duration %)) leaves))
     (is (= [60 nil nil 65 nil nil 71 nil] (map (comp first :pitches) leaves)) "a pitch for each position, a rest's unused")))
+
+(deftest the-engine-strikes-a-tied-run-once-and-releases-it-with-the-last
+  (e/eval-input words)
+  (let [sent (atom [])]
+    (with-redefs [engine/receiver (atom :silent)
+                  engine/send-midi-on!  (fn [fs ev _] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:on p]))))
+                  engine/send-midi-off! (fn [fs ev] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:off p]))))]
+      (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
+        (let [r (e/eval-input "| :duration '[1] :Tempo '[1] 240 * >ctx  'tvoice swap :t ->")]
+          (is (nil? (:error r)) (str (:error r))))
+        (Thread/sleep 1300)
+        (engine/stop!)))
+    (is (= [[:on 60] [:off 60] [:on 65] [:off 65] [:on 71] [:off 71] [:on 60] [:off 60]] (take 8 @sent))
+        "each note struck once, held through its tied rests, released at the end of the last: three notes a pass, then the pass goes round")))

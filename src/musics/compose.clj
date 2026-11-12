@@ -459,7 +459,7 @@
               (recur (rest ls) (conj steps midi)
                      (+ clock (:dur-secs midi)) (+ structural (d/part-duration l))))))))
 
-    (or (d/rest? part) (d/drum? part))
+    (or (d/rest? part) (d/drum? part) (d/skeleton? part))
     (let [midi (r/resolve-event {:part part :ctx-chain ctx-chain} nil clock structural)]
       [[midi] (+ clock (:dur-secs midi)) (+ structural (d/part-duration part))])
 
