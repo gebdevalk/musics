@@ -70,7 +70,7 @@
     :queue          (PriorityQueue. 64 ^Comparator action-order)
     :n              (atom 0)
     :sounding       (atom {})           ; top path -> {[channel pitch] count}
-    :held           (atom {})           ; top path -> #{[channel pitch]} sounding on, their note tied
+    :open           (atom {})           ; voice path -> box of the note a tie holds open
     :voices         (atom {})           ; path -> {:path :root-path :algo :t :beat}
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
@@ -135,20 +135,44 @@
   (.add ^PriorityQueue (:queue eng) (assoc action :n (swap! (:n eng) inc))))
 
 (defn- schedule!
-  "Queue e, an event of top's stream (origin: when its :t 0 is)."
+  "Queue e, an event of top's stream (origin: when its :t 0 is). A tie holds a
+   note open per voice path: the note after a tied one (a note, or a rest the
+   pulse grid gives) is a continuation -- no note-on, its pitch not used -- and
+   the one that is not tied ends it, the note-off carrying the box of the note
+   that was struck, so the pitches released are the remembered ones."
   [eng top origin e]
-  (let [at (+ origin (secs->ns (:t e)))]
+  (let [at   (+ origin (secs->ns (:t e)))
+        open (:open eng)
+        held (get @open (:path e))
+        off! (fn [when-ns box] (add! eng {:at when-ns :prio 0 :top top :type :off :box box}))
+        end  (+ at (secs->ns (or (:dur-played e) 0)))]
     (case (:kind e)
-      (:note :drum)
+      (:note :rest)
+      (cond
+        held (if (:tied e)
+               nil
+               (do (off! end held) (swap! open dissoc (:path e))))
+        (= :rest (:kind e)) nil
+        :else (let [[offset vel] (resolve/humanize e rand)
+                    e   (assoc e :velocity vel)
+                    on  (+ at (secs->ns offset))
+                    box (volatile! nil)]
+                (add! eng {:at on :prio 2 :top top :type :on :e e :box box})
+                (if (:tied e)
+                  (swap! open assoc (:path e) box)
+                  (off! (+ on (secs->ns (:dur-played e))) box))))
+      :drum
       (let [[offset vel] (resolve/humanize e rand)
             e   (assoc e :velocity vel)
             on  (+ at (secs->ns offset))
             box (volatile! nil)]
         (add! eng {:at on :prio 2 :top top :type :on :e e :box box})
-        (when-not (:tied e)
-          (add! eng {:at (+ on (secs->ns (:dur-played e))) :prio 0 :top top :type :off :box box})))
+        (off! (+ on (secs->ns (:dur-played e))) box))
       (:section :bar :mark :voice)
-      (add! eng {:at at :prio 1 :top top :type (:kind e) :e e})
+      (do (when (and held (= :voice (:kind e)) (= :end (:phase e)))
+            (off! at held)
+            (swap! open dissoc (:path e)))
+          (add! eng {:at at :prio 1 :top top :type (:kind e) :e e}))
       nil)))
 
 (defn- signal!
@@ -193,17 +217,10 @@
         midis (vec (for [[m [ch sends]] layers]
                      (let [midi (assoc m :channel ch)]
                        (when ch
-                         ;; a pitch the note before tied into is still sounding: not struck again
-                         (let [held  (get @(:held eng) top #{})
-                               fresh (vec (remove #(contains? held [ch %]) (:pitches m)))
-                               fresh-midi (assoc midi :pitches fresh)]
-                           (send-midi-on! (:fs eng) fresh-midi sends)
-                           (when (seq fresh) (when-let [f @echo] (f fresh-midi)))
-                           (doseq [p fresh]
-                             (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0)))
-                           (swap! (:held eng) update top
-                                  (fn [h] (let [ks (map (fn [p] [ch p]) (:pitches m))]
-                                            (if (:tied m) (into (or h #{}) ks) (reduce disj (or h #{}) ks)))))))
+                         (send-midi-on! (:fs eng) midi sends)
+                         (when-let [f @echo] (f midi))
+                         (doseq [p (:pitches m)]
+                           (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))
                        midi)))]
     (vreset! box midis)
     (when (contains? @(:voices eng) (:path e))
@@ -259,7 +276,7 @@
   (doseq [[[ch p] _] (get @(:sounding eng) top)]
     (send-midi-off! (:fs eng) {:channel ch :pitches [p]}))
   (swap! (:sounding eng) dissoc top)
-  (swap! (:held eng) dissoc top)
+  (swap! (:open eng) (fn [m] (into {} (remove (fn [[path _]] (= top (vec (take (count top) path)))) m))))
   (doseq [[path v] @(:voices eng) :when (= top (:root-path v))]
     (release-voice-channel! eng path)
     (swap! (:voices eng) dissoc path))

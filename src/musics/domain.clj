@@ -44,8 +44,11 @@
       :modifiers (vec modifiers) :tied (boolean tied)})))
 
 (defn rest*
-  "Create a Rest (silent duration)."
-  ([id context duration] {:type :REST :id id :context context :duration duration}))
+  "Create a Rest (silent duration). tied: the note before it goes on through it
+   (a hold the engine makes of it when a note is open, else silence)."
+  ([id context duration] {:type :REST :id id :context context :duration duration})
+  ([id context duration tied]
+   (cond-> {:type :REST :id id :context context :duration duration} tied (assoc :tied true))))
 
 (defn drum
   "Create a Drum (unpitched percussive event). program is its GM drum

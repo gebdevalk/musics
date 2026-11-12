@@ -905,6 +905,11 @@ start/end — and performs each as it comes due, parking until the next
 one. At one moment a note-off goes before signals, and signals before a
 note-on, so a repeated pitch is released before it sounds again.
 
+- Ties: a tied note holds one note open per voice (`:open`, scheduled in `schedule!`). The
+  note after a tied one -- a note, or a Rest with `:tied` -- is a continuation: no note-on,
+  its pitch unused. The one that is not tied ends it with a note-off carrying the box of
+  the note struck, so the remembered pitches are released; a rest with nothing open is
+  silence, and a voice ending closes what it holds. `musics.midi.file` does the same.
 - Channels: `musics.midi.channels`, a pool shared with
   `musics.midi.file` -- a channel carries one timbre, `[program cc]`
   (`cc` `{10 pan}`), voices playing exactly that sharing it, taken when a

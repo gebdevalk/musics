@@ -138,11 +138,11 @@
   [pulses pulse]
   (run-durations #(and % (not= 0 %)) pulses pulse))
 
-(defn pulses->steps
+(defn pulses->events
   "One duration per pulse, all of `pulse`: a note for every onset (any
    nonzero) and a Rest for every 0 -- the grid as it is, where
    pulses->durations lets a 0 lengthen the note before it."
-  {:mu {:names ["pul>stp"]}
+  {:mu {:names ["pul>evnt"]}
    :algo {:category "bridge" :works :value :in [:pulse] :out :duration
           :params {:pulse pulse-spec}}}
   [pulses pulse]

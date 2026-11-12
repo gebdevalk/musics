@@ -23,10 +23,10 @@
   (is (= [3/16 3/16 1/8 3/16 3/16] (take 5 (b/pulses->durations (cycle [1 0 0 1 0 0 1 0]) 1/16))) "lazy: a cycled source works"))
 
 (deftest pulses-become-steps-a-note-or-a-rest-each
-  (is (= [1/8 [:rest 1/8] 1/8 1/8 [:rest 1/8]] (durs (b/pulses->steps [1 0 1 1 0] 1/8))) "a 1 a note, a 0 a rest, all one pulse long")
-  (is (= [[:rest 1/16] [:rest 1/16] 1/16] (durs (b/pulses->steps [0 0 2] 1/16))) "any nonzero is an onset; leading 0s are rests, not one")
-  (is (= 5 (count (b/pulses->steps [1 0 0 1 0] 1/16))) "one duration for every pulse")
-  (is (= [1/16 [:rest 1/16] [:rest 1/16] 1/16] (durs (take 4 (b/pulses->steps (cycle [1 0 0]) 1/16)))) "lazy: a cycled source works"))
+  (is (= [1/8 [:rest 1/8] 1/8 1/8 [:rest 1/8]] (durs (b/pulses->events [1 0 1 1 0] 1/8))) "a 1 a note, a 0 a rest, all one pulse long")
+  (is (= [[:rest 1/16] [:rest 1/16] 1/16] (durs (b/pulses->events [0 0 2] 1/16))) "any nonzero is an onset; leading 0s are rests, not one")
+  (is (= 5 (count (b/pulses->events [1 0 0 1 0] 1/16))) "one duration for every pulse")
+  (is (= [1/16 [:rest 1/16] [:rest 1/16] 1/16] (durs (take 4 (b/pulses->events (cycle [1 0 0]) 1/16)))) "lazy: a cycled source works"))
 
 (deftest onsets-numbers-and-points-become-durations
   (is (= [1/8 1/16 3/16] (b/onsets->durations [0.0 0.5 0.75 1.5] 1/4 1/32)))

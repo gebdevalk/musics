@@ -494,3 +494,14 @@
   (is (nil? (#'engine/validate-ids! {} (compose/source (fn [_ _] nil))))
       "a source is a form play accepts"))
 
+
+(deftest a-file-strikes-a-tied-note-once
+  (parse! "[ti: !tempo:240 c4~ c4~ c4 d4]")
+  (let [seq-  (midi-file/events->sequence (ev/events (repo/registry) :ti))
+        cmds  (for [tr (.getTracks seq-) i (range (.size tr))
+                    :let [m (.getMessage (.get tr i))]
+                    :when (and (instance? ShortMessage m)
+                               (#{ShortMessage/NOTE_ON ShortMessage/NOTE_OFF} (.getCommand ^ShortMessage m)))]
+                [(if (= ShortMessage/NOTE_ON (.getCommand ^ShortMessage m)) :on :off) (.getData1 ^ShortMessage m)])]
+    (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] (vec cmds))
+        "one note-on for the tied run, one note-off after its last note")))

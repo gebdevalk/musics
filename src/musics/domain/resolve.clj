@@ -368,7 +368,7 @@
      :dur-secs   dur-secs
      :dur-played dur-played
      :program    0
-     :tied       false
+     :tied       (boolean (:tied part))
      :cc         {}
      :meter      meter
      :partial    partial

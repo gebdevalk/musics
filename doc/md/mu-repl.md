@@ -963,7 +963,7 @@ argument names: `( onsets pulses -- euclid )`.
   durations, `deg` degrees, `vol` volumes, `art` articulations, `wei` weights,
   `num` numbers, `ons` onsets, `str` steps, `cnt` counts, `lea` leaves, `ins`
   instruments. A bridge is `from>to`, the readers' plurals add an `s`:
-  `3 8 pattern/euclid 1/16 bridge/pul>dur`, `x pits`, `x durs`. `pul>stp` is a
+  `3 8 pattern/euclid 1/16 bridge/pul>dur`, `x pits`, `x durs`. `pul>evnt` is a
   bridge too: one duration per pulse, a note for every onset and a rest for every
   0, all of the pulse you give it (`pul>dur` lets a note last until the next
   onset).

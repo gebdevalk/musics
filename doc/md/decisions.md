@@ -3507,6 +3507,18 @@ ons str cnt lea ins`), the readers' plurals add an `s`, and a bridge is
 three innermost loops; Factor's `times`, `each` and `while`/`until` are not
 added for now. A user word named `loop` clashes with the built-in.
 
+## 2026-11-12 — `pul>stp` is `pul>evnt`; a tie is the engine's, pitch is not
+
+`pul>stp` is `pul>evnt` (`pulses->events`): a 1 is a note, a 0 a rest, one pulse
+each, a function of the index alone. `pul>dur` stays the bridge where a 0 lengthens
+the note before it; for a voice asked one pulse at a time that is a tie, and the
+tie belongs to the engine: it keeps one open note per voice, a leaf after a tied
+one is a continuation (its pitch ignored), and the leaf that is not tied ends
+it with a note-off for the remembered pitches. Rejected: matching the pitch of
+each leaf of a tied run (every leaf repeats the onset's pitch, a look-back
+to the onset in the voice); a pitch 0 for a continuation (it is a real pitch, and
+transposition and rekey would move it).
+
 ## 2026-11-07 — a seq, not a line
 
 A piece of musics text in `[ ]` is called a seq everywhere in prose and

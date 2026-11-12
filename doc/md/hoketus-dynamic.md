@@ -47,13 +47,13 @@ flowchart LR
   s0 -- ":pass-length :pulse (keywords, at b)" --> s1
   s1 -- ":density" --> s2
   s2 -- "d :steps euclid, i nth" --> s3
-  s3 -- "melody i nth, pul>stp" --> s4
+  s3 -- "melody i nth, pul>evnt" --> s4
 
   classDef planned stroke-dasharray: 5 4,stroke:#c0392b,color:#c0392b
   class s0,s1,s2,s3,s4 planned
 ```
 
-Which pulses sound is decided here, by the algorithm and the bridge: `pul>stp`
+Which pulses sound is decided here, by the algorithm and the bridge: `pul>evnt`
 keeps a leaf for every pulse, a rest for a 0 (every voice has the same leaves at
 the same beats, so the voices stay in step). Nothing in `resolve` or the engine
 gates a note.

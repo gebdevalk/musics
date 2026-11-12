@@ -1284,3 +1284,19 @@
         (engine/stop!)))
     (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] @sent)
         "struck once, released after the last tied note; nothing between"))))
+
+(deftest a-rest-after-a-tied-note-holds-it
+  (with-fresh-session
+   (let [sent (atom [])
+         tie  (d/leaf nil nil 1/8 [60] nil nil [] true)
+         hold (d/rest* nil nil 1/8 true)
+         end  (d/rest* nil nil 1/8)
+         gap  (d/rest* nil nil 1/8)]
+    (with-redefs [engine/send-midi-on!  (fn [fs ev _] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:on p]))))
+                  engine/send-midi-off! (fn [fs ev] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:off p]))))]
+      (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
+        (engine/play [tie hold hold end gap (d/leaf nil nil 1/8 [62] nil nil [] false)] )
+        (Thread/sleep 1500)
+        (engine/stop!)))
+    (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] @sent)
+        "struck once, held through two tied rests, released by the next rest; a plain rest is silence"))))

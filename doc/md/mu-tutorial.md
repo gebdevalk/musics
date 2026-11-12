@@ -1039,7 +1039,7 @@ durations, `deg` degrees, `vol` volumes, `art` articulations, `wei`
 weights, `num` numbers, `ons` onsets, `str` steps, `cnt` counts, `lea`
 leaves, `ins` instruments. A bridge is `from>to`, a plural reader adds an
 `s` (`pits`, `durs`, `vols`, `arts`): `bridge/pul>dur`, `x pits`.
-`pul>stp` gives one duration per pulse, a note for every onset and a rest
+`pul>evnt` gives one duration per pulse, a note for every onset and a rest
 for every 0; `pul>dur` lets a note last until the next onset.
 
 ## 14. The color-talea
