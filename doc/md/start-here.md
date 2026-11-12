@@ -19,6 +19,7 @@ have what you need.
 | Looking for one word | `words`, `"dup" see`, `"chord" help` in mu; [mu-repl.md](mu-repl.md) | find what a word takes and gives |
 | Want algorithms | [raw-algo-cookbook.md](raw-algo-cookbook.md) | call `3 8 p/euclid` and put it on notes |
 | Want Slonimsky's polations | [polations.md](polations.md) | insert tones between a melody's tones |
+| Want to know how material is read (time, next) | [algo-access.md](algo-access.md) | see which algorithms are lazy, seekable or stateful |
 | Want one technique | [blending.md](blending.md), [counterpoint.md](counterpoint.md), [row-forms.md](row-forms.md), [grid.md](grid.md) | use it on its own |
 | Want something that changes while it plays | [pull-voice.md](pull-voice.md), [hoketus-dynamic.md](hoketus-dynamic.md), `mus/hoketus2.mus` | write a voice as a function of the beat |
 | Want to know how it works | [walk-through.md](walk-through.md), [domain.md](domain.md), [grammar-notes.md](grammar-notes.md) | follow one piece from text to sound |

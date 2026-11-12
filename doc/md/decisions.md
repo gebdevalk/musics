@@ -3520,6 +3520,29 @@ transpose, `zip`, `par` and chord symbols move between them); `Tone` and `Note` 
 the name (one for a single pitch, one for the commonest case only). Saved data with
 `:LEAF` is not migrated: none of any importance exists.
 
+## 2026-11-12 — every access is by time or by next
+
+Material -- finished seqs, half products, algorithm output, the voice itself -- is
+read by next (a lazy seq is the model: its cursor is a value, so a pure
+step and several readers) or by time (a context, a tctx value, an envelope: a
+function of the beat). The duration stream, made of skeletons, is the clock: its
+durations sum to the beat, and every other stream is read one position per skeleton.
+Positions are counted alike for every stream, rests and tied holds included, so a
+pitch list is indexed by pulse (`zip` and `hoketus2` already do). Access by index
+is not a third kind: a pure function of the index (`sine-fn`, `polation-fn`) can be
+read by next or sought, but a consumer needs only next, because a voice moves
+forward.
+
+What a function needs of its input is declared (`:works`): value, shape (a bounded
+look-ahead) or whole (a finite input). A `shuffle` is lazy per pass over a finite
+pool (the permutation of pass k a hash of seed and k) and per window on a stream; a
+whole-stream shuffle of an endless input is refused. Random is counter-based (draw i
+a hash of seed and i), so a random stream is pure, seekable and the same on a
+restart; the shared rng atom stays for one-off use. A function used as a voice or
+an index function must be pure, and an effectful one is flagged (`doc/md/algo-access.md`
+lists them). Rejected: index access as a third kind (a voice never needs a jump);
+whole-seq shuffle on streams (meaningless on an endless one).
+
 ## 2026-11-12 — `Pulse` is the skeleton leaf
 
 `:PULSE` is gone: a cell of time with no pitch is `:LEAF` itself (`d/skeleton`),
