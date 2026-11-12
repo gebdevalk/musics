@@ -1036,6 +1036,11 @@
 
 (defn- rest-value? [v] (and (map? v) (= :REST (:type v))))
 
+(defn- time-of
+  "The length of a duration column's value: a number, or a rest's or a skeleton's :duration."
+  [v]
+  (if (and (map? v) (d/leaf? v)) (:duration v) v))
+
 (defn- write-part
   "Leaf l with part's value v written on it, a nil writing nothing: its
    duration (a rest's makes it a rest), pitch (a chord's pitches), drum
@@ -1045,10 +1050,13 @@
   (if (nil? v)
     l
     (case part
-      :duration (let [dur (if (rest-value? v) (:duration v) v)]
+      :duration (let [dur  (time-of v)
+                      tied (and (map? v) (:tied v))]
                   (when-not (and (number? dur) (pos? dur))
                     (e/mu-error "zip: a duration is a length, got" (p/show v)))
-                  (if (rest-value? v) (d/rest* nil nil dur) (-> l (assoc :duration dur) (dissoc :ratio))))
+                  (if (rest-value? v)
+                    (d/rest* nil nil dur tied)
+                    (cond-> (-> l (assoc :duration dur) (dissoc :ratio)) tied (assoc :tied true))))
       :pitch (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no pitch")
                    (not (or (number? v) (coll? v))) (e/mu-error "zip: a pitch is a MIDI number, got" (p/show v))
                    :else (-> l (assoc :pitches (if (coll? v) (vec v) [v])) (dissoc :key :key-shift :key-root)))
@@ -1092,17 +1100,19 @@
    a nil writing nothing."
   [vals]
   (let [d    (get vals :duration)
-        dur  (if (rest-value? d) (:duration d) d)
+        dur  (time-of d)
+        tied (and (map? d) (:tied d))
         _    (when-not (and (number? dur) (pos? dur))
                (e/mu-error "zip: a duration is a length, got" (p/show d)))
         drum (contains? vals :drum)
         tone (get vals (if drum :drum :pitch))]
     (if (or (rest-value? d) (nil? tone))
-      (d/rest* nil nil dur)
-      (written (if drum
-                 (d/drum nil nil dur (drum-key "zip" tone))
-                 (d/pitched nil nil dur (if (coll? tone) (vec tone) [tone])))
-               (dissoc vals :duration :pitch :drum)))))
+      (d/rest* nil nil dur tied)
+      (cond-> (written (if drum
+                         (d/drum nil nil dur (drum-key "zip" tone))
+                         (d/pitched nil nil dur (if (coll? tone) (vec tone) [tone])))
+                       (dissoc vals :duration :pitch :drum))
+        (and tied (not drum)) (assoc :tied true)))))
 
 (defn- parts-of
   "[base [[part x] …]] of what zip takes: an unnamed seq (or note) is

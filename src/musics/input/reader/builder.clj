@@ -331,7 +331,7 @@
                     [st alt] (if alt (box st alt) [st nil])]
                 [st (cond-> (assoc c :source src) alt (assoc-in [:params :alternative] alt))])
 
-              (and (map? c) (#{:PITCHED :REST :DRUM :PULSE} (:type c))) [st (leaf-f c)]
+              (and (map? c) (#{:PITCHED :REST :DRUM :LEAF} (:type c))) [st (leaf-f c)]
               :else [st c]))]
     (kids state :SEQ children)))
 

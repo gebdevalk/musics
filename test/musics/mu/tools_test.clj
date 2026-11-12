@@ -6,6 +6,7 @@
             [musics.algo.numeric.rng :as rc]
             [musics.input.reader.builder :as builder]
             [musics.domain.context :as c]
+            [musics.domain :as d]
             [musics.mu.eval :as e]
             [musics.mu.kernel]
             [musics.mu.library]
@@ -987,3 +988,15 @@
       (is (every? (fn [[a b]] (and (not= a b) (< (abs (- a b)) 3))) (partition 2 1 ns)) "no repeat, steps within a whole tone")))
   (testing "a group of something else is still refused"
     (is (re-find #"gathers music into a seq, plain values into a '\[ \] or quotations" (top "( \"a\" )")))))
+
+(deftest zip-fills-a-skeleton-with-a-pitch
+  (let [sk   (fn [dur tied] (d/skeleton nil nil dur nil tied))
+        rest (fn [dur tied] (d/rest* nil nil dur tied))]
+    (swap! e/state assoc :stack [:duration [(sk 1/16 true) (rest 1/16 true) (rest 1/16 false) (sk 1/16 false)]
+                                 :pitch [60 64]])
+    (let [r      (e/eval-input "zip")
+          leaves (mt/leaves (first (:ok r)))]
+      (is (nil? (:error r)))
+      (is (= [:PITCHED :REST :REST :PITCHED] (map :type leaves)))
+      (is (= [[60] nil nil [64]] (map :pitches leaves)) "the rests take no pitch, so the second note gets the second pitch")
+      (is (= [true true nil nil] (map #(when (:tied %) true) leaves)) "the tie rides on the skeleton, notes and rests alike"))))

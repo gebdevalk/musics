@@ -1017,13 +1017,14 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   type-prefixed (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`), assigned by
   `builder/next-auto-id`.
 - **Leaves are plain, `:type`-tagged maps**: `Pitched` (`:PITCHED`: one pitch a note, several a chord; `note?` and `chord?` ask which), `Rest`, `Drum`
-  (pitches/duration/articulation/dynamic/modifiers/tied; all three derive from `:LEAF` in `d/leaf-types`, and `d/leaf?` asks for any of them, `d/pitched?` for the first), plus `Pulse`
-  (`:duration`/`:value` only — no pitch at all; a duration/value cell for
-  pulse-grid-shaped generative material, e.g. `musics.algo.common.pulse/
-  grid->pulses`, and reachable directly from text too: `p<Duration>`
-  builds one, `PitchLetterRel`'s own long-reserved-but-unwired `p` slot
-  in `musics.ebnf` — `value` is always a fixed `1` for now, deliberately;
-  see `doc/md/decisions.md` for why). `Iterator` (a real record, deferred
+  (pitches/duration/articulation/dynamic/modifiers/tied; all three derive from `:LEAF` in `d/leaf-types`, and `d/leaf?` asks for any of them, `d/pitched?` for the first), plus the **skeleton** (`:LEAF` itself: `d/skeleton`, `:duration` and a `:tied`
+  when needed, an optional `:value` from the grid slot it came from -- no pitch
+  at all; the half product a time-based generator makes, e.g.
+  `musics.algo.common.pulse/grid->pulses`, and `p<Duration>` in text, whose `value`
+  is a fixed `1`). mu's `zip` makes of a skeleton in the duration column a `Pitched`
+  (a pitch gives a note or a chord), a `Drum`, or a `Rest`, copying its tie; a
+  skeleton is never played as it is. A tie is written `~` on a rest too (`r16~`).
+  `Iterator` (a real record, deferred
   expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."
 - **Transient containers** (`:TRANSPOSE`/`:REVERSE`/`:DECORATED`, i.e.

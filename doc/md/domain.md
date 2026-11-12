@@ -218,7 +218,7 @@ algorithms" section.
 
 ## Leaf types
 
-Plain, `:type`-tagged maps (`:PITCHED`, `:REST`, `:DRUM`, `:PULSE`, `:BAR`), one per musical event.
+Plain, `:type`-tagged maps (`:PITCHED`, `:REST`, `:DRUM`, `:LEAF` (the skeleton), `:BAR`), one per musical event.
 
 ### Leaf (pitched note or chord)
 
@@ -247,19 +247,22 @@ Fields: `id`, `context`, `duration`.
 
 Fields: `id`, `context`, `duration`, `program` (MIDI note number).
 
-### Pulse (duration/value cell, no pitch)
+### Skeleton (a leaf with only its time)
 
 ```clojure
-(d/pulse "p1" ctx 1/8 1)
+(d/skeleton "p1" ctx 1/8 1)          ;; id, context, duration, value
+(d/skeleton "p1" ctx 1/8 1 true)     ;; tied: the note goes on into the next
 ```
 
-Fields: `id`, `context`, `duration`, `value` (deliberately untyped —
-`0`/`1` for a plain onset grid, or a wider range for a weighted one; a
-caller interprets it, this constructor doesn't). For pulse-grid-shaped
-generative material (`musics.algo.common.pulse/grid->pulses` converts a raw
-grid vector into a sequence of these) that needs to occupy real
-duration and be walked/resolved like any other part, without being
-pitched content the way a Leaf/Drum is.
+`:type :LEAF`, the parent of `:PITCHED`, `:REST` and `:DRUM`. Fields: `id`,
+`context`, `duration`, `tied` (when true) and `value` (deliberately untyped:
+`0`/`1` for a plain onset grid, or a wider range for a weighted one; a caller
+interprets it). It is what a time-based generator makes
+(`musics.algo.common.pulse/grid->pulses` converts a raw grid vector into a
+sequence of these) and what `zip` fills: with a pitch it becomes a `Pitched`, with a
+drum key a `Drum`, with nothing a `Rest`, the tie copied. A rest is tied too
+(`d/rest*` with a fourth argument, `r16~` in text): the engine holds a note open
+through it.
 
 ### Bar (structural marker, zero duration)
 
@@ -395,7 +398,7 @@ LilyPond-style: the factor is **notes / replaced** (e.g. 3/2 means
 (d/leaf? x)        ;; true if Leaf
 (d/rest? x)        ;; true if Rest
 (d/drum? x)        ;; true if Drum
-(d/pulse? x)       ;; true if Pulse
+(d/skeleton? x)    ;; true if a skeleton
 (d/bar? x)         ;; true if Bar
 (d/container? x)   ;; true if a container map (see above)
 (d/iterator? x)    ;; true if Iterator

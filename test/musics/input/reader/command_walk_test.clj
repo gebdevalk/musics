@@ -252,14 +252,14 @@
             resolving p as an actual pitch threw a NullPointerException,
             since musics.common.music-data/diatonic-pcs has no p entry)"
     (let [t (first-wrapped-token "p4")]
-      (is (d/pulse? t))
+      (is (d/skeleton? t))
       (is (= 1/4 (:duration t)))
       (is (= 1 (:value t)) "fixed default value for now -- see doc/md/decisions.md")))
   (testing "duration follows the same rules as any other leaf -- an
             explicit Duration, or falling back to the last one written"
     (let [ts (wrapped-tokens "p4 p8 p")]
       (is (= [1/4 1/8 1/8] (mapv :duration ts)))
-      (is (every? d/pulse? ts))))
+      (is (every? d/skeleton? ts))))
   (testing "a p pulse never disturbs :last-pitch -- the next relative
             note still resolves against whatever was last actually sounded"
     (let [ts (wrapped-tokens "c4 p8 d4")]

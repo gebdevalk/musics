@@ -1163,7 +1163,7 @@
     (cond
       (and pitch-node (pulse-letter? pitch-node))
       (flat/append-child state
-                         (assoc (d/pulse (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
+                         (assoc (d/skeleton (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
                                 :ctx-chain chain))
 
       pitch-node
@@ -1318,7 +1318,7 @@
         chain (flat/current-context-chain state)
         dur   (resolve-duration+ratio! state children)]
     (flat/append-child state
-                       (assoc (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur)
+                       (assoc (d/rest* (or token (str "rest-" dur)) (or ctx (c/context)) dur (has-tie? children))
                               :ctx-chain chain))))
 
 (defn- walk-multi-rest
@@ -1429,7 +1429,7 @@
 ;; the elements a reorder moves: notes, seqs and repeats -- instructions,
 ;; bar lines and jumps keep their places (as musics.compose/play-order)
 (defn- movable? [c]
-  (or (keyword? c) (d/iterator? c) (and (map? c) (#{:PITCHED :REST :DRUM :PULSE} (:type c)))))
+  (or (keyword? c) (d/iterator? c) (and (map? c) (#{:PITCHED :REST :DRUM :LEAF} (:type c)))))
 
 (defn- reorder-movable
   "children with the movable ones (movable?) put in the order f gives them."

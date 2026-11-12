@@ -7,7 +7,7 @@
   (let [pulses (vec (p/grid->pulses [1 0 0 1 0 0 1 0]))]
     (is (= [[1 1] [2 0] [1 1] [2 0] [1 1] [1 0]]
            (mapv (juxt :duration :value) pulses)))
-    (is (every? d/pulse? pulses))))
+    (is (every? d/skeleton? pulses))))
 
 (deftest grid->pulses-durations-feed-color-talea-style-talea-directly
   (is (= [1 2 1 2 1 1] (mapv :duration (p/grid->pulses [1 0 0 1 0 0 1 0])))))

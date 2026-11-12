@@ -3520,6 +3520,15 @@ transpose, `zip`, `par` and chord symbols move between them); `Tone` and `Note` 
 the name (one for a single pitch, one for the commonest case only). Saved data with
 `:LEAF` is not migrated: none of any importance exists.
 
+## 2026-11-12 — `Pulse` is the skeleton leaf
+
+`:PULSE` is gone: a cell of time with no pitch is `:LEAF` itself (`d/skeleton`),
+the root of the leaf types, with `:duration`, an optional `:value` and a `:tied`.
+`zip` fills it from the other columns (a pitch makes a `Pitched`, a drum key a
+`Drum`, none a `Rest`) and copies the tie, so time-based generators and value
+generators meet only in `zip`. A `Rest` takes a tie too, written `r16~`, because
+`zip` builds its result as text and reads it back.
+
 ## 2026-11-12 — `pul>stp` is `pul>evnt`; a tie is the engine's, pitch is not
 
 `pul>stp` is `pul>evnt` (`pulses->events`): a 1 is a note, a 0 a rest, one pulse

@@ -288,7 +288,7 @@
    (when (#{:REST :DRUM :PITCHED} (:type part))
     (let [dur (when dur? (duration-text part))]
       (case (:type part)
-        :REST (str "r" dur)
+        :REST (str "r" dur (when (:tied part) "~"))
         :DRUM (str "x" dur (some->> (:program part) value->mus (str "\\"))
                    (some-> (:dynamic part) long drum-accents)
                    (overrides->mus (:overrides part))

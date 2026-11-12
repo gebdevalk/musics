@@ -636,8 +636,8 @@ Chord = '<' !'<' ChordPitches '>' Duration NoteSuffix* Tie?
 
 (* ── Rest ────────────────────────────────────────────────── *)
 
-Rest = 'r' Duration
-     | 'r'
+Rest = 'r' Duration Tie?
+     | 'r' Tie?
 
 (* ── MultiRest ───────────────────────────────────────────── *)
 (* R, LilyPond's own multi-measure rest -- superset of real LilyPond in
