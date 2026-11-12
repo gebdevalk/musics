@@ -277,6 +277,10 @@ stored part and the buttons that open the other windows:
 - **A watched part** gets a window of its own, its contexts as sliders
   that change what plays (`Root panel...` does the same for the
   defaults).
+  Beside a slider, `z` narrows its range around the value (again and again, and
+  it wraps back to the whole range) and `Z` widens it: symmetrical around the
+  value, so a slider at 8 goes to 0..16, then -8..24, never past a range the
+  parameter has.
 - **Editor...**: text read as mu reads a file.
 - **Browser...**: the stored parts and their structure.
 - **Play Builder...**: what to play, and how, built by hand.

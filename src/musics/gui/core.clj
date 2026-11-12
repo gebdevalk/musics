@@ -197,7 +197,7 @@
 ;; ============================================================
 
 (defn- zoomable-slider
-  "A param slider paired with a 'Z' button -- see musics.gui.state/zoom!'s
+  "A param slider paired with a 'z' (in) and a 'Z' (out) button -- see musics.gui.state/zoom!'s
    own docstring for the circular in/in/in/out-to-the-beginning
    behavior it drives. bounds is id's own [:zoom key] entry, or nil to
    use spec's full :min/:max (the un-zoomed default).
@@ -220,7 +220,8 @@
                         :value value
                         :show-label? show-labels?
                         :on-change {:event/type :set-param :id id :key key}))}
-        (ui/button {:text "Z" :on-action {:event/type :zoom :id id :key key}})]})))
+        (ui/button {:text "z" :tooltip "zoom in" :on-action {:event/type :zoom :id id :key key}})
+        (ui/button {:text "Z" :tooltip "zoom out" :on-action {:event/type :zoom-out :id id :key key}})]})))
 
 (defn- choice-control
   "A combo-specs control: a switch (a toggle between its two names), or
@@ -1063,6 +1064,7 @@
     :set-param      (state/set-param! (:id event) (:key event) (ui/slider-value event))
     :set-combo      (state/set-combo! (:id event) (:key event) (or (:value event) (:fx/event event)))
     :zoom           (state/zoom! (:id event) (:key event))
+    :zoom-out       (state/zoom-out! (:id event) (:key event))
     :toggle-hot     (state/toggle-hot! (:id event))
     :toggle-unified (state/toggle-unified! (:id event))
     :toggle-collapsed (state/toggle-collapsed! (:id event))

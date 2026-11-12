@@ -70,6 +70,7 @@
     [musics.assist :as assist]
     [musics.common.context-keys :as ck]
     [musics.common.music-elements :as el]
+    [musics.gui.components :as ui]
     [musics.gui.data :as data]
     [musics.input.midi-record :as rec]
     [musics.input.midi :as midi-in]
@@ -612,6 +613,18 @@
            (if (> (- new-max new-min) zoom-floor)
              {:min new-min :max new-max}
              {:min (double min) :max (double max)})))
+  nil)
+
+(defn zoom-out!
+  "The opposite of zoom!: widen key's visible slider range on id around its current value,
+   by doubling the distance from the value to the bounds, never past the parameter's own
+   range (musics.gui.components/zoom-out-bounds). Display range only."
+  [id key]
+  (let [{:keys [min max]} (get param-specs key)
+        value (get-in @*state [:watched id :params key] min)
+        cur   (get-in @*state [:watched id :zoom key])]
+    (swap! *state assoc-in [:watched id :zoom key]
+           (ui/zoom-out-bounds {:min min :max max} cur value)))
   nil)
 
 ;; ============================================================

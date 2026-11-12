@@ -265,15 +265,44 @@
             [lo hi] (if (= :int type) [(Math/floor lo) (Math/ceil hi)] [lo hi])]
         (if (> (- hi lo) floor) {:min (double lo) :max (double hi)} full)))))
 
+(defn zoom-out-bounds
+  "The next, wider visible range of a slider: the zoom-out that undoes `z`. Always
+   symmetrical around value, and always including zero where it can: with no range yet
+   (a setting with no spec) the first step is value - |value| .. value + |value|, so 8 gives
+   0..16, 0.5 gives 0..1, -0.5 gives -1..0, and 0 gives -1..1; every further step doubles the
+   distance from the value, so 0..16 becomes -8..24. A parameter with a finite :min and :max
+   widens the same way but never past them, and a slider already showing its whole range
+   stays there. Nothing to centre on (no value): the whole range, if there is one. Purely a
+   display range, never the value."
+  [{:keys [type min max]} current value]
+  (let [finite? (and (number? min) (number? max)
+                     (Double/isFinite (double min)) (Double/isFinite (double max)))
+        full    (when finite? {:min (double min) :max (double max)})
+        v       (when (and (number? value) (Double/isFinite (double value))) (double value))]
+    (cond
+      (nil? v)   full
+      (and full (nil? current)) full
+      :else
+      (let [half  (cond (nil? current) (let [a (Math/abs v)] (if (zero? a) 1.0 a))
+                        :else (let [d (clojure.core/max (- v (:min current)) (- (:max current) v))]
+                                (* 2.0 (if (zero? d) 1.0 d))))
+            lo    (- v half)
+            hi    (+ v half)
+            [lo hi] (if (= :int type) [(Math/floor lo) (Math/ceil hi)] [lo hi])]
+        (if full
+          (let [lo (clojure.core/max lo (:min full)) hi (clojure.core/min hi (:max full))]
+            (if (and (<= lo (:min full)) (>= hi (:max full))) full {:min lo :max hi}))
+          {:min (double lo) :max (double hi)})))))
+
 (defn param-control
   "One control for one voice input: a slider for a finite numeric range, a
    dropdown for :choices, a note for a function (set in the recipe),
    else a text field applied on Enter -- EDN, or plain text for a
    :string. An unset (##NaN) value is marked required. `ev` is merged
    into every event it sends (e.g. {:name nm}); param-input reads the
-   value back out of one. A slider is paired with a Z button when `zoom`
-   is given, {:bounds {:min :max} or nil, :event event-map}: the visible
-   range, zoomed, and the event Z sends (with :key); the slider is made
+   value back out of one. A slider is paired with a z (in) and a Z (out) button
+   when `zoom` is given, {:bounds {:min :max} or nil, :event event-map,
+   :out-event event-map}: the visible range, zoomed, and the events they send (with :key); the slider is made
    afresh for every range, as JavaFX's Slider skin does not redraw a
    changed one."
   ([ev k v spec] (param-control ev k v spec nil))
@@ -296,7 +325,8 @@
           (button-row
             {:children
              [{:fx/type recreate-on-key-changed :key [lo hi] :desc sl}
-              (button {:text "Z" :on-action (merge ev (:event zoom) {:key k})})]})
+              (button {:text "z" :tooltip "zoom in" :on-action (merge ev (:event zoom) {:key k})})
+              (button {:text "Z" :tooltip "zoom out" :on-action (merge ev (:out-event zoom) {:key k})})]})
           sl))
 
       choices

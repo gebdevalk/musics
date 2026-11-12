@@ -48,7 +48,7 @@
                                     {:title (str (symbol algo))
                                      :children (vec (for [[k v spec] rows]
                                                       (ui/param-control {} k v spec
-                                                                        {:bounds (get zoom k) :event {:event/type ::zoom}})))})))}})
+                                                                        {:bounds (get zoom k) :event {:event/type ::zoom} :out-event {:event/type ::zoom-out}})))})))}})
              :v-box/vgrow :always)
       (ui/label {:text (or message "")})
       (ui/button {:text "Close" :on-action {:event/type ::close}})]}}})
@@ -70,6 +70,9 @@
       ::zoom  (let [k (:key event) v (:inputs-value @st)]
                 (swap! st update :zoom assoc k
                        (ui/zoom-bounds (get-in v [:specs k]) (get-in @st [:zoom k]) (get-in v [:params k]))))
+      ::zoom-out (let [k (:key event) v (:inputs-value @st)]
+                   (swap! st update :zoom assoc k
+                          (ui/zoom-out-bounds (get-in v [:specs k]) (get-in @st [:zoom k]) (get-in v [:params k]))))
       ::close (close! voice)
       nil)))
 
