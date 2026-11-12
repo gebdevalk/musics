@@ -1853,7 +1853,7 @@ other formats are in `corpus/` (`abc/`, `guido/`, `mus/`, `data/`).
   - `numeric/` -- numbers for any musical parameter: `random` (draws,
     distributions, picks), `walk` (random walks, pink noise, glide),
     `markov`, `lsystem` (the rewriting both L-system algos share), `chaos/{logistic,henon,lorenz}` (deterministic maps, no PRNG),
-    `rng` (the pure xorshift32 engine, atom-backed seeding -- see its header
+    `rng` (the pure engine, a counter-based stream, atom-backed seeding -- see its header
     comment), `spec` (the param specs the generators share), and small
     maths (`integer`, `scaling`, `trig` -- sines and the other waves between `lo` and
     `hi` with a phase and a period, `sine-fn` and the other `-fn` ones as functions

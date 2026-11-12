@@ -11,14 +11,16 @@
    or a string is a text field read as EDN on Enter. A computed setting (a quotation given to
    T!) and a function of time are shown, not edited. A change is heard on the voice's next
    leaf, and one made elsewhere (8 :steps T!) moves the control."
-  (:require [cljfx.api :as fx]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [musics.domain.context :as c]
             [musics.gui.components :as ui]
             [musics.gui.state :as state]
             [musics.gui.theme :as theme]
-            [musics.registries :as reg])
-  (:import [javafx.application Platform]))
+            [musics.registries :as reg]))
+
+;; cljfx.api and JavaFX are loaded when the window opens, not when this namespace is: loading
+;; them starts the toolkit, which needs a display, and the logic above is tested without one.
+(defn- fx [sym] (requiring-resolve (symbol "cljfx.api" (name sym))))
 
 ;; ---------------------------------------------------------------------------
 ;; what the tctx holds, as rows
@@ -147,16 +149,15 @@
 
 (defn- handler [st]
   (fn [event]
-    (do
-      (case (:event/type event)
-        :set-tree-param      (report! st #(c/tctx! reg/tctx (:key event) (ui/param-input event)))
-        :set-tree-param-text (report! st #(c/tctx! reg/tctx (:key event) (edn/read-string (ui/param-input event))))
-        ::zoom     (swap! st (fn [s] (update s :ranges zoom-in (:key event) (:type event)
-                                            (get @(:envelopes-atom reg/tctx) (:key event)))))
-        ::zoom-out (swap! st (fn [s] (update s :ranges zoom-out (:key event) (:type event)
-                                            (get @(:envelopes-atom reg/tctx) (:key event)))))
-        ::close    (close!)
-        nil))))
+    (case (:event/type event)
+      :set-tree-param      (report! st #(c/tctx! reg/tctx (:key event) (ui/param-input event)))
+      :set-tree-param-text (report! st #(c/tctx! reg/tctx (:key event) (edn/read-string (ui/param-input event))))
+      ::zoom     (swap! st (fn [s] (update s :ranges zoom-in (:key event) (:type event)
+                                          (get @(:envelopes-atom reg/tctx) (:key event)))))
+      ::zoom-out (swap! st (fn [s] (update s :ranges zoom-out (:key event) (:type event)
+                                          (get @(:envelopes-atom reg/tctx) (:key event)))))
+      ::close    (close!)
+      nil)))
 
 (defn close!
   "Close the settings window."
@@ -164,21 +165,22 @@
   (when-let [{:keys [state renderer]} @window]
     (remove-watch (:envelopes-atom reg/tctx) ::window)
     (swap! state assoc :showing false)
-    (fx/unmount-renderer state renderer)
+    ((fx 'unmount-renderer) state renderer)
     (reset! window nil))
   nil)
 
 (defn open-settings!
   "A window of the session's tctx, a control each. One window."
   []
-  (Platform/setImplicitExit false)             ; closing this window mustn't end JavaFX
+  (clojure.lang.Reflector/invokeStaticMethod "javafx.application.Platform" "setImplicitExit"
+                                             (object-array [false]))   ; closing this window mustn't end JavaFX
   (if-let [{:keys [state]} @window]
     (swap! state assoc :showing true)
     (let [st (atom (refresh {:showing true :theme (:theme @state/*state :dark) :ranges {}}))
-          r  (fx/create-renderer
-               :middleware (fx/wrap-map-desc view)
-               :opts {:fx.opt/map-event-handler (handler st)})]
+          r  ((fx 'create-renderer)
+              :middleware ((fx 'wrap-map-desc) view)
+              :opts {:fx.opt/map-event-handler (handler st)})]
       (add-watch (:envelopes-atom reg/tctx) ::window (fn [_ _ _ _] (swap! st refresh)))
       (reset! window {:state st :renderer r})
-      (fx/mount-renderer st r)))
+      ((fx 'mount-renderer) st r)))
   nil)

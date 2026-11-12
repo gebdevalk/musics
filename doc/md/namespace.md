@@ -116,7 +116,7 @@ musics.algo.numeric.integer                      30   gcd, lcm
 musics.algo.numeric.lsystem                      12   L-system rewriting, shared by lsys-rhythm and lsys-melody
 musics.algo.numeric.markov                       22   a Markov chain over a transition table
 musics.algo.numeric.random                      428   draws, distributions, picks (uniform, normal, beta, int-*, choose …)
-musics.algo.numeric.rng                         155   the xorshift engine, seeding
+musics.algo.numeric.rng                         155   the counter-based engine (draw i of a seed), seeding
 musics.algo.numeric.scaling                      75   clamp, scale, bound
 musics.algo.numeric.spec                         37   param specs shared by the generators' :algo metadata
 musics.algo.numeric.trig                        234   waves

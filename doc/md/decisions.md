@@ -3552,6 +3552,16 @@ preview of a shuffle is the order a voice with no path would play, not the order
 plays. The one-off `shuffle` word and the distributions of `numeric.random` stay on the atom;
 converting them changes what every seed produces and is not done.
 
+## 2026-11-12 — the shared rng is the counter stream
+
+`numeric.rng` steps through `numeric.counter`'s stream (draw i of a seed, the position `:i` its state)
+instead of xorshift32, so `numeric.random` and everything built on it draw counter-based numbers, and
+`step!` is one atomic swap (two threads never take the same draw). The `[value rng']` interface is
+unchanged, so nothing above it was edited. What a given seed produces is different from before;
+no test depended on the old numbers. Drawing from the shared atom is still order-dependent (a call
+gets the next place in the stream); independence of one voice from another comes from giving that voice
+an rng of its own (`counter/subseed`), as a shuffle and a choose do (previous entry).
+
 ## 2026-11-12 — every access is by time or by next
 
 Material -- finished seqs, half products, algorithm output, the voice itself -- is

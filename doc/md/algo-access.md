@@ -67,5 +67,9 @@ not:
 4. **Skeletons as the duration element** everywhere (a ratio is a skeleton with no tie): started
    (`pul>tied`, `durations` keep ties), not everywhere.
 
-Still on the shared atom: the distributions and picks of `numeric.random`, and every algorithm built
-on them (`rhythmic.process`, `nature`, `melody`, `walking-bass` …).
+The shared generator itself is the counter stream (`numeric.rng`: draw i of a seed, `:i` the position),
+so everything on it -- the distributions and picks of `numeric.random` and every algorithm built on them
+(`rhythmic.process`, `nature`, `melody`, `walking-bass` …) -- is repeatable from a seed and draws one
+place of the stream atomically. A call that draws from the shared atom still depends on how many draws
+came before it, so a voice that must not be moved by others passes its own rng (a seed of its own:
+`counter/subseed`) as `play-order` does.
