@@ -1456,8 +1456,11 @@ in turn, one each time it is entered, counted per voice like `rotate`.
 and repeats play in a new random order each time it is entered, so
 `repeat 4 [ shuffle [c d e] ]` shuffles every pass; instructions, bar
 seqs and jumps keep their places (`musics.compose/play-order`, used by
-`musics.events` and `display-timed`; `musics.algo.numeric.random`, so a seed
-repeats it). mu's `[?]` makes one.
+`musics.events` and `display-timed`). The order of a pass is counter-based
+(`musics.algo.numeric.counter`): pass n of the part, under the voice's seed (`compose/voice-seed`: the
+shared rng's seed, which `N rng/seed` sets, mixed with the voice's path), is the same every time it
+is asked, so a seed repeats a piece, a restart plays it again, and one voice's draws do not move
+another's. `choose [ ]` picks the same way. mu's `[?]` makes one.
 `[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
 an Iterator marked `:bars` so the printers write it back that way;
 a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,

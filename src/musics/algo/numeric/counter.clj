@@ -57,8 +57,9 @@
   [seed]
   (map #(draw seed %) (range)))
 
-(defn- substream
-  "A seed of its own for pass k of seed."
+(defn subseed
+  "A seed of its own derived from seed and k (a pass, a voice's path, a part's id): another
+   stream, so two things drawing with the same seed do not draw the same numbers."
   [seed k]
   (mix (unchecked-add (long seed) (unchecked-multiply gamma (unchecked-inc (long k))))))
 
@@ -66,7 +67,7 @@
   "The permutation of 0..n-1 that pass k of seed makes (Fisher-Yates, each step
    drawn from the pass's own stream). Pure: the same seed, k and n, the same vector."
   [seed k n]
-  (let [sub (substream seed k)]
+  (let [sub (subseed seed k)]
     (loop [v (vec (range n)) i (dec n)]
       (if (pos? i)
         (let [j (draw-int sub i (inc i))]

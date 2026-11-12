@@ -1009,7 +1009,7 @@ and play it, or rate them (section 17).
 'motif [c e g] :=
 \motif 5 +              → [!K:F.major F4/4 A4 C5]
 [c d e] :mel R!         → :mel
-:mel R@ 7 +             → [!K:G.major G4/4 A4 B4]
+:mel R@ 7 +             → [mel: !K:G.major G4/4 A4 B4]
 ```
 
 Forth's `value` and `variable` keep a number or a thing under a name:

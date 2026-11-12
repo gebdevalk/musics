@@ -47,3 +47,6 @@ __pycache__/
 # the soundfont files themselves (soundfonts/README.md says where to get them)
 /soundfonts/*.sf2
 /soundfonts/*.sf3
+
+# sessions saved with save-session: the user's own, and large
+/sessions/

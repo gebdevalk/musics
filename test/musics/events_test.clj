@@ -512,3 +512,21 @@
     (is (= [:rest :note :rest :note] (map :kind evs)) "a skeleton is silence, but it takes its time")
     (is (every? true? (map #(< (abs (- %1 %2)) 1e-9) [0.0 0.25 0.5 0.75] (map :t evs))))
     (is (= [false false true false] (map #(boolean (:tied %)) evs)) "and keeps its tie")))
+
+(deftest a-shuffle-and-a-choose-are-counter-based-so-a-seed-repeats-them
+  (parse! "[sh: repeat 8 [ shuffle [c4 d e f g a b] ]]")
+  (parse! "[ch: repeat 12 [ choose [c4 d e f g a] ]]")
+  (let [play (fn [id seed]
+               (rc/seed! seed)
+               (mapv (comp first :pitches) (filter #(= :note (:kind %)) (ev/events (repo/registry) id))))]
+    (is (= (play :sh 7) (play :sh 7)) "the same seed, the same shuffles")
+    (is (not= (play :sh 7) (play :sh 8)) "another seed")
+    (let [passes (partition 7 (play :sh 7))]
+      (is (every? #(= (sort (first passes)) (sort %)) passes) "every pass holds the same notes")
+      (is (> (count (distinct passes)) 1) "in a new order each pass"))
+    (is (= (play :ch 7) (play :ch 7)))
+    (is (> (count (distinct (play :ch 7))) 1) "a choose picks anew each time it is entered"))
+  (testing "another voice path chooses another way, the same path the same way"
+    (rc/seed! 7)
+    (is (= (compose/voice-seed [:TA]) (compose/voice-seed [:TA])))
+    (is (not= (compose/voice-seed [:TA]) (compose/voice-seed [:TB])))))

@@ -56,14 +56,16 @@ not:
 
 ## What follows
 
-1. **Counter-based random.** The pure part of `numeric.rng` already exists
-   (`rnd-step` and the `rnd-*` functions return `[value rng']`). A draw `i` of a seed is
-   a hash of the two (splitmix style), so a random stream is a pure function of its
-   index. `numeric.random` keeps its atom for one-off use.
-2. **A lazy shuffle**, as in `decisions.md`: per pass a permutation of a finite pool,
-   or per window on a stream; whole-stream shuffle refuses an endless input.
-3. **Samplers as lazy seqs**: `iterate` over the state, so a cursor is a value and
-   several voices can each hold one.
-4. **Skeletons as the duration element** everywhere (a ratio is a skeleton with no tie).
+1. **Counter-based random** (`numeric.counter`, built): a draw `i` of a seed is a hash of the
+   two (SplitMix64), so a random stream is a pure function of its index. `numeric.random`
+   keeps its atom for one-off use (`shuffle` now, `choose-n`, the distributions).
+2. **A lazy shuffle** (built): `counter/shuffled` per pass of a finite pool, `shuffled-windows`
+   per window of a stream. mu's `[?]` and `choose [ ]` as they play use it too
+   (`compose/play-order`, seeded per voice by `compose/voice-seed`).
+3. **Samplers as lazy seqs** (built): `logistic-seq`, `henon-seq`, `lorenz-seq`, `markov/chain-seq`,
+   `walk/walk-seq`. The closures `walk`, `markov/chain` and the chaos maps stay for `pull`.
+4. **Skeletons as the duration element** everywhere (a ratio is a skeleton with no tie): started
+   (`pul>tied`, `durations` keep ties), not everywhere.
 
-Nothing here is built yet beyond the skeleton and `pul>tied`.
+Still on the shared atom: the distributions and picks of `numeric.random`, and every algorithm built
+on them (`rhythmic.process`, `nature`, `melody`, `walking-bass` …).
