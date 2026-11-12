@@ -19,7 +19,7 @@
    musics.engine requires this ns (for the Form grammar its own
    play-form* family needs); this ns requires only musics.domain.* (and
    musics.input.reader.leaf-parser, to spell notes for display, and
-   musics.algo.numeric.random, to order a shuffle [ … ] as it plays) -- never
+   musics.algo.numeric.counter, to order a shuffle [ … ] as it plays) -- never
    musics.repo, never musics.engine -- so the dependency runs
    exactly one way. Moved out of musics.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
@@ -27,7 +27,8 @@
    layer, which needed none of it -- see doc/md/decisions.md for the
    fuller reasoning."
   (:require [clojure.string :as str]
-            [musics.algo.numeric.random :as rnd]
+            [musics.algo.numeric.counter :as counter]
+            [musics.algo.numeric.rng :as rng]
             [musics.domain :as d]
             [musics.domain.resolve :as r]
             [musics.domain.context :as c]
@@ -73,27 +74,37 @@
   (when (and (map? node) (= :override (:key node)) (:ref node))
     (some-> (get repo (:ref node)) :context override)))
 
+(defn voice-seed
+  "The seed of the random choices a voice makes as it plays: the shared rng's seed (what
+   `N rng/seed` sets) mixed with the voice's path, so two voices do not choose alike, and
+   the same voice with the same seed chooses the same way every time."
+  [path]
+  (counter/subseed (:seed @rng/default-rng) (hash path)))
+
 (defn play-order
   "children (resolved nodes) in the order part plays them, entered for
    the n-th time (0 the first): as written; for a shuffle [ … ] its
-   notes, seqs and repeats in a new random order (musics.algo.numeric.random,
-   so a seed repeats it); for a rotate k [ … ] rotated k·n places; for a
-   choose [ … ] one of them, picked at random (as often as its :weights
-   say, if it has them); for an alternate [ … ] the
-   n-th, round again --
+   notes, seqs and repeats in a new random order each time; for a rotate k [ … ] rotated k·n
+   places; for a choose [ … ] one of them, picked at random (as often as its :weights
+   say, if it has them); for an alternate [ … ] the n-th, round again --
    instructions, bar lines and jumps keeping their places. Called each
-   time part is entered, so every pass of a repeat around it differs."
+   time part is entered, so every pass of a repeat around it differs.
+   The random orders and picks are counter-based (musics.algo.numeric.counter): pass n of
+   part under seed (a voice-seed) is the same every time it is asked, whoever else is
+   drawing, so a seed repeats a piece and a restart plays it again."
   ([part children] (play-order part children 0))
-  ([part children n]
-   (let [k (:rotate part)]
+  ([part children n] (play-order part children n (voice-seed nil)))
+  ([part children n voice-seed]
+   (let [k    (:rotate part)
+         seed (counter/subseed voice-seed (hash (:id part)))]
      (cond
        (or (:choose part) (:alternate part))
        (let [cs    (vec children)
              move? #(or (d/pitched? %) (d/rest? %) (d/drum? %) (d/container? %) (d/iterator? %))
              idx   (filterv #(move? (cs %)) (range (count cs)))
              pick  (when (seq idx)
-                     (cond (:weights part) (rnd/weighted-choose idx (:weights part))
-                           (:choose part)  (rnd/choose idx)
+                     (cond (:weights part) (counter/pick-weighted seed n idx (:weights part))
+                           (:choose part)  (counter/pick seed n idx)
                            :else           (idx (mod n (count idx)))))]
          (vec (keep-indexed (fn [i c] (when (or (= i pick) (not (move? c))) c)) cs)))
 
@@ -106,7 +117,7 @@
              idx   (filterv #(move? (cs %)) (range (count cs)))
              xs    (mapv cs idx)
              xs    (if (:shuffle part)
-                     (rnd/shuffle xs)
+                     (mapv xs (counter/permutation seed n (count xs)))
                      (let [m (if (seq xs) (mod (* k n) (count xs)) 0)] (into (subvec xs m) (subvec xs 0 m))))]
          (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx xs)))))))
 
@@ -471,7 +482,7 @@
 
     (d/container? part)
     (let [chain    (build-chain part ctx-chain structural)
-          n        (if-let [e (and (or (:rotate part) (:alternate part)) *entered*)] (dec (get (swap! e update (:id part) (fnil inc 0)) (:id part))) 0)
+          n        (if-let [e (and (or (:rotate part) (:alternate part) (:shuffle part) (:choose part)) *entered*)] (dec (get (swap! e update (:id part) (fnil inc 0)) (:id part))) 0)
           children (play-order part (d/children (live-repo repo) part) n)]
       (if (= (:type part) :PAR)
         (par-step (mapv #(realize-node repo % chain clock structural) children) clock structural)

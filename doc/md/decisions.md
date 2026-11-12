@@ -3539,6 +3539,19 @@ Clojure-function words, and a setting must not be named like a stored id or a zi
 Rejected: `T@@` for nothing but the quotation, a quotation stored as a plain value (a voice
 would have to run it itself).
 
+## 2026-11-12 — a shuffle and a choose as they play are counter-based
+
+`shuffle [ ]` (`[?]`) and `choose [ ]` draw their order and pick from `numeric.counter`, not
+from the shared rng atom: pass n of a part under a voice's seed is a pure function of
+(seed, voice path, part id, n). `compose/voice-seed` is the shared rng's seed (`N rng/seed`
+sets it) mixed with the voice's path. Entries are now counted for these parts too (they were
+counted only for `rotate` and `alternate`), since the pass number is the draw. A seed still
+repeats a piece, and now a restart plays it again, two voices do not move each other's draws,
+and a look-ahead that asks twice gets one answer. `display-timed` has no voice path, so its
+preview of a shuffle is the order a voice with no path would play, not the order voice `:TA`
+plays. The one-off `shuffle` word and the distributions of `numeric.random` stay on the atom;
+converting them changes what every seed produces and is not done.
+
 ## 2026-11-12 — every access is by time or by next
 
 Material -- finished seqs, half products, algorithm output, the voice itself -- is
