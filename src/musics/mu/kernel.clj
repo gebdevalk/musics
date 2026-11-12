@@ -316,7 +316,7 @@
 
 ;; -- the tctx of the voices that are a function of beat --------------------------------
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the beat of the leaf asking (it reads a key as :steps@ and the beat as :beat@). Read a key with :key@ or T@"
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the beat of the leaf asking (q runs with :beat and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
        (fn [s]
          (need s 2 "T!")
          (let [k (peek s) x (peek (pop s))]
@@ -327,7 +327,7 @@
            (pop (pop s)))))
 
 ;; take a key out of the tctx
-(word! "play" "T_" "( :key -- )  take :key out of the tctx: :key@ no longer finds it, and T@ says it is not there. An error when it was not set"
+(word! "play" "T_" "( :key -- )  take :key out of the tctx: a keyword argument no longer finds it, and T@ says it is not there. An error when it was not set"
        (fn [s]
          (need s 1 "T_")
          (let [k (peek s)]
@@ -336,14 +336,37 @@
                 (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex))))
            (pop s))))
 
-;; the value of a key: inside a voice that is a function of beat at its leaf's beat, outside one at
-;; beat 0 (:beat 0); a computed key is run. :steps@ is the same, written in place.
-(word! "play" "T@" "( :key -- x )  the tctx's value for :key, a computed key run, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it. :key@ is the same, written in place (:steps@ 2 *); :key' is what is stored, a computed key's quotation not run"
+;; the tctx value of a key: inside a voice that is a function of beat at the beat of its leaf; outside
+;; one at beat 0 (:beat 0). A computed key is run.
+(defn- tctx-value [k]
+  (let [lookup (or e/*lookup*
+                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :beat) 0 (g x)))))]
+    (lookup k)))
+
+;; what the tctx holds for a key, as it was stored: a quotation not run
+(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. An error when it holds nothing for it"
        (fn [s]
          (need s 1 "T@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (conj (pop s) (e/setting k)))))
+           (let [entry (get @(:envelopes-atom (live/tctx-node!)) k)]
+             (cond
+               (nil? entry) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! it")
+               (instance? musics.domain.context.Derived entry)
+               (if-let [text (:text entry)]
+                 (conj (pop s) (peek (e/run-text [] text)))
+                 (e/mu-error "T@:" (pr-str k) "was made in Clojure, with no quotation to give -- T@@ gives its value"))
+               :else (conj (pop s) (tctx-value k)))))))
+
+;; the value, a computed key run
+(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+       (fn [s]
+         (need s 1 "T@@")
+         (let [k (peek s)]
+           (when-not (keyword? k) (e/mu-error "T@@:" "the key is a keyword, :reps -- got" (p/show k)))
+           (let [v (tctx-value k)]
+             (when (nil? v) (e/mu-error "T@@:" (pr-str k) "is not in the tctx -- T! it"))
+             (conj (pop s) v)))))
 
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."

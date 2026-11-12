@@ -30,7 +30,7 @@
 |---|---|
 | `R!` `R@` `R_` | store, fetch, forget (in the repo) |
 | `ids` `usages` `ctx` | what is stored, who uses it, its contexts |
-| `T!` `T@` `T_` `:key@` `:key'` | store, read, erase a setting in the tctx (key a keyword); `:steps@` is its value written in place (`:steps@ 2 *`), `:twice'` what was stored; `T!` with a quotation `'( … )` stores a setting computed from others |
+| `T!` `T@` `T@@` `T_` | store, fetch, fetch and run, erase a setting in the tctx (key a keyword); `T!` with a quotation `'( … )` stores a setting computed from others, `T@` gives the quotation, `T@@` its value; inside a voice a keyword argument of a word (`:steps 2 *`) is the setting's value |
 | `load` `render` `save-session` `restore-session` | files |
 
 ## Playing

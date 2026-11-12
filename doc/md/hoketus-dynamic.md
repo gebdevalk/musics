@@ -133,7 +133,7 @@ flowchart LR
   derived entry, even a miss) is remembered, so a key is looked for and computed
   once however often it is asked or reached through another key. A lookup made
   alone starts its own pull. `context/getter` makes one pull for a chain and a beat;
-  the voice binds one for each leaf, so all the settings read for that leaf share
+  the voice binds one for each leaf, so all the keyword arguments of that leaf share
   it and the leaf sees one consistent value for each key. The next leaf gets a new
   getter, so a change of the tctx is seen there.
 - **Depth.** Nothing limits it but the cycle guard; a deep graph costs one call

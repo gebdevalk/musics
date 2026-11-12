@@ -141,8 +141,8 @@
 (defn- beat-source
   "The function of a voice fed by a function of beat (compose/source): (beat lookup)
    -> the one leaf word gives at beat, the other inputs read as they are now
-   (:voice/input stores one), and a setting (:key@) the word reads is what the
-   lookup gives for it -- also :beat."
+   (:voice/input stores one), and any keyword argument of a word it runs the
+   value lookup gives for it -- also :beat."
   [word voice all-names]
   (fn [beat lk]
     (let [vals   (inputs/values voice)

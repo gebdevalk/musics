@@ -1257,7 +1257,7 @@ be a plain value, or **derived** from the beat and from other keys:
 8 :steps T!                              a setting
 '( :beat 16 * :steps / int ) :pass T!   the pass the beat is in
 :steps T@                                8
-:pass@                                  the pass the beat is in, run; :pass' is its quotation
+:pass T@@                                the pass the beat is in, run; :pass T@ is the quotation
 3 :steps T!                              changed while it plays: the next leaf sees it
 ```
 
@@ -1265,11 +1265,15 @@ be a plain value, or **derived** from the beat and from other keys:
 there. A derived key may ask other derived keys; a key that asks for itself, however far
 round, is refused (`a cycle in the tctx: :a -> :b -> :a`).
 
-A setting is read where it is written, with an `@` after its name:
-`:onsets@ 8 pattern/euclid` is `3 8 pattern/euclid` while the tctx holds `:onsets 3`, and
-`:beat@` is the beat. It works the same in a quotation, in a `: … ;` word and at the prompt.
-A keyword without the `@` is only a keyword (`:hoketus R@`, `3 8 :rotation 2 pattern/euclid`),
-and `:twice'` is what the tctx holds as it was stored, the quotation of a computed key. Context keys are strings
+Inside such a voice a **keyword where a number is needed is the key's value**:
+`:onsets 8 pattern/euclid` is `3 8 pattern/euclid` while the tctx holds `:onsets 3`.
+This is the one piece of magic here, so know its edges. It happens only while a voice (or a
+computed key) runs, never at the prompt. It applies to words that are Clojure functions
+(`/`, `+`, `@`, `pattern/euclid`), not to stack words or the `$` inputs of a `: … ;` word, which
+read a key with `T@@`. A keyword the tctx does not hold stays a keyword (`:hoketus R@`), and so
+does one a word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`); but a key the
+tctx *does* hold is replaced wherever it stands as an argument, so give settings names that are
+not also ids you store. `:twice T@` shows a computed key as stored, `:twice T@@` runs it. Context keys are strings
 (`"volume"`), tctx keys keywords (`:volume` is a different key).
 
 `mus/hoketus2.mus` is a whole piece written this way: `"mus/hoketus2.mus" load start`, and

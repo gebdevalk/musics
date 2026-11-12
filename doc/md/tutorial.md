@@ -226,18 +226,19 @@ its next note.
 
 ```
 8 :steps T!                          store a value under a key
-:steps@                              fetch it            → 8 (the word T@ does the same)
-'( :steps@ 2 * ) :twice T!           a value computed from the others
-:twice'                              the quotation, as stored
-:twice@                              → 16, run
+:steps T@                           fetch it            → 8
+'( :steps 2 * ) :twice T!            a value computed from the others
+:twice T@                            the quotation, as stored
+:twice T@@                           → 16, run
 6 :steps T!                          change :steps ...
-:twice@                              → 12   ... and :twice follows it
+:twice T@@                           → 12   ... and :twice follows it
 :steps T_                            take a key out
 ```
 
 A computed value is a quotation given to `T!`; it runs when it is asked, with `:beat`
-and reads a setting where it is written with an `@` after its name, so `:steps@ 2 *` means
-"the steps, doubled". It works in a voice, in a quotation and at the prompt alike.
+and every key of the tctx as keywords. Inside a voice or a computed key, a keyword where
+a word needs a number is replaced by its value, so `:steps 2 *` means "the steps, doubled"; at the
+prompt that does not happen, so use `T@@` there (`:steps T@@ 2 *`).
 
 A voice can be a **function of the beat**: a word with `$beat` among its
 inputs, asked for one note at the beat the voice has reached. The

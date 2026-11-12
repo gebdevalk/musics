@@ -728,15 +728,20 @@ before any sound. The keyword `:beat` is answered too, so a word reads the beat 
 `:beat`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
 call order, and `mus/hoketus2.mus` for a piece written this way.
 
-**The tctx and its settings.** A setting is read where it is written: `:onsets@ 8 euclid`
-is `3 8 euclid` while the tctx holds `:onsets 3` (`SettingRead`, `eval/setting`), and `:beat@` is
-the beat. A keyword without the `@` is only a keyword, whatever the tctx holds (`:hoketus R@`,
-`3 8 :rotation 2 euclid`), so a keyword means one thing; `:onsets'` (`SettingQuote`) is what
-the tctx holds as it was stored, the quotation of a computed key, not run. The lookup is
-`eval/*lookup*`, bound by `eval/with-lookup` around a voice's run; outside one a setting is read
-at beat 0 from the session's tctx. `T!` (`8 :steps T!`; a quotation,
-`'( :steps@ 2 * ) :twice T!`, is a computed key: it runs at the beat of the asker, reading the
-tctx as it reads any setting), `T@` (`:steps T@`: the word for `:steps@`) and `T_`
+**The tctx and keyword arguments.** While a voice (or a computed key) runs, a *lookup* is in
+force (`eval/*lookup*`, bound by `eval/with-lookup`; unbound at the prompt, so nothing below happens
+there). Under it, a word that is a Clojure function takes, for each of its arguments that is a keyword
+the lookup holds, that value: `:onsets 8 euclid` is `3 8 euclid` while the tctx holds `:onsets 3`,
+`:pass :reps /` divides two settings, and `:beat` is the beat. The rule is deliberately implicit and
+has edges: (1) it applies to Clojure-function words only, not to stack words (`dup`, `T!`), `: … ;`
+words' `$` inputs, or quotation bodies' own words once a stack word has taken the keyword; (2) a
+keyword the lookup does not hold goes through (`:hoketus R@`), and so does one the function's own
+keyword tail reads (`3 8 :rotation 2 euclid`) -- but if the tctx *does* hold a key spelled like an id,
+that keyword is replaced, so keep setting names distinct from stored ids; (3) what lies under the
+arguments is untouched. Where the rule does not reach, read a setting with `T@@`. `T!`
+(`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key: it runs at the beat of
+the asker, with `:beat` and every tctx key as keywords), `T@` (`:steps T@`: what is stored, a
+computed key as its quotation, not run), `T@@` (`:twice T@@`: the value, a computed key run) and `T_`
 (`:steps T_`: take a key out) fill, read and erase the session's tctx
 (`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a computed entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
 

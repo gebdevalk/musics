@@ -10,7 +10,6 @@
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
             [musics.common.music-elements :as el]
-            [musics.domain.context :as c]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.inputs :as inputs]
@@ -193,47 +192,44 @@
 
 (defn with-lookup
   "Call f (no arguments) with get, a function of a keyword that answers its value
-   or nil, bound as *lookup*: what :steps@ and the word T@ read. get closes over what it asks, a context chain with a tctx
+   or nil, bound as *lookup*: a keyword argument of a word that get answers is
+   that value (run-var). get closes over what it asks, a context chain with a tctx
    in front and the time: (musics.domain.context/getter chain beat), one for each
    leaf, so its lookups are one pull."
   [get f]
   (binding [*lookup* get]
     (f)))
 
-(defn setting
-  "The value of the setting k (a keyword) in the tctx: inside a voice, at the beat of
-   the leaf it is making (*lookup*); outside one, at beat 0 (:beat 0). A computed
-   setting is run. An error when the tctx holds nothing for it."
-  [k]
-  (let [lookup (or *lookup* (let [g (c/getter [reg/tctx] 0)] (fn [x] (if (= x :beat) 0 (g x)))))
-        v      (lookup k)]
-    (when (nil? v)
-      (mu-error (str (name k) "@:") "is not in the tctx -- T! it, e.g. 8" k "T!"))
-    v))
-
-(declare run-text)
-
-(defn setting-quote
-  "What the tctx holds under the keyword k as it was stored: the quotation of a computed
-   setting, not run, else its value. An error when it holds nothing for it."
-  [k]
-  (let [entry (get @(:envelopes-atom reg/tctx) k)]
-    (cond
-      (nil? entry) (mu-error (str (name k) "':") "is not in the tctx -- T! it")
-      (instance? musics.domain.context.Derived entry)
-      (if-let [text (:text entry)]
-        (peek (run-text [] text))
-        (mu-error (str (name k) "':") "was made in Clojure, with no quotation to give -- :" (name k) "@ gives its value"))
-      :else (setting k))))
+(defn- from-lookup
+  "stack with, in the places the arguments of the function v stand, each keyword
+   that *lookup* answers replaced by its value; a keyword it does not answer
+   stays, so :hoketus R@ is untouched, and so is a keyword v's own tail reads
+   (3 8 :rotation 2 euclid). Unbound, stack as it is."
+  [stack v]
+  (if-let [get *lookup*]
+    (let [lists  (map split-tail (:arglists (meta v)))
+          tailks (into #{} (mapcat (comp tail-keys second)) lists)
+          width  (+ (apply max 0 (map (comp count first) lists)) (* 2 (count tailks)))]
+      (loop [i (max 0 (- (count stack) width))
+             s stack]
+        (if (< i (count s))
+          (let [x     (nth s i)
+                found (when (and (keyword? x) (not (tailks x))) (get x))]
+            (recur (inc i) (if (some? found) (assoc s i found) s)))
+          s)))
+    stack))
 
 (defn- run-var
   "Run the Clojure function v as the word name: its arguments taken from
    stack, music first; its value pushed, unless it is done for its effect.
    A keyword tail (& {:keys [..]}) takes the :key value pairs written just before the
-   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. An error it throws
+   word, or none: 3 8 euclid, 3 8 :rotation 2 euclid. A keyword among the arguments
+   that *lookup* answers is its value (:onsets 8 euclid). An error it throws
    is a mu error, named by the word."
   [stack name v]
   (let [below stack          ; what is left under the arguments stays as it was
+        stack (try (from-lookup stack v)
+                   (catch clojure.lang.ExceptionInfo ex (throw (named name ex))))
         al   (arity-for v stack)
         _    (try (need stack (count al) name)
                   (catch clojure.lang.ExceptionInfo ex
@@ -315,7 +311,7 @@
 
 (defn derived-fn
   "The function (f time get) of a tctx entry computed by quotation q: run with
-   the lookup in force, so it reads :beat@ and every key the tctx holds as :key@."
+   :beat and every key the lookup holds as keyword arguments."
   [q]
   (fn [beat get]
     (with-lookup (fn [x] (if (= x :beat) beat (get x)))
@@ -345,8 +341,6 @@
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
-    :SettingRead  (conj stack (setting (keyword (second node))))
-    :SettingQuote (conj stack (setting-quote (keyword (second node))))
     :IdName    (let [[_ id input] node]
                  (conj stack (if input (inputs/ref-of (keyword id) input) (keyword id))))
     :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))

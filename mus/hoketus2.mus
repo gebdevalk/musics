@@ -8,7 +8,7 @@
 // The model. A voice is a word with $beat in its stack effect: the engine asks it
 // for ONE leaf at the beat it has reached, a sixteenth long, and plays it; the
 // beat that leaf leaves is asked next. The word reads the settings from the tctx
-// (:steps@ where a value is needed: :steps@ 2 * ) at that same beat, and the
+// (see below: how a keyword stands for a setting) at that same beat, and the
 // volume, pan and instrument of the leaf are looked up when it sounds. So:
 //  - the settings (steps, reps, spiral ...) are plain values in the tctx and can be
 //    changed at any time; the next leaf already sees the change;
@@ -17,20 +17,36 @@
 //  - what is left in a voice is only what differs between voices: its phase, the
 //    density it enters at, its instrument, its side, whether it is the late group.
 
+// How a keyword stands for a setting. Under a running voice (and inside the quotations below,
+// which are run by one) a word that is a Clojure function -- + / @ p/euclid ... -- replaces each
+// keyword among its arguments by the tctx's value, at the beat of the leaf asked for:
+//     :steps 2 *        is   8 2 *       while the tctx holds  8 :steps T!
+//     :pass :reps /     divides two settings;   :beat is the beat itself
+// It is the one piece of magic in this file, so these are its edges:
+//  - it does not happen at the prompt, only while a voice or a computed key runs;
+//  - it does not reach stack words (dup, swap, T!) or the $ inputs of a  : ... ;  word, so
+//    where a setting is wanted there (the words below) it is read with  T@  (the value of a
+//    plain setting) or  T@@  (the value of a computed one, run at this beat);
+//  - a keyword the tctx does not hold stays a keyword (:pan, :instrument, :volume are zip's
+//    part names), but one it does hold is replaced wherever it stands as an argument, so a
+//    setting is never named like a part or like an id that is stored;
+//  - T@ on a computed setting gives its quotation, not run.
+
 // ---- the algorithms it calls ---------------------------------------------
 
 'rhythmic.pattern 'p reqalgo          // p/euclid
 'numeric.trig 'tr reqalgo             // tr/sine
+'bridge 'b reqalgo                    // b/pul>evnt
 
 // ---- the settings: plain values in the tctx -------------------------------
 
-8 :steps T!                      // pulses of a pass (a melody of that many pitches)
+16 :steps T!                      // pulses of a pass (a melody of that many pitches)
 4 :reps T!                       // times each incarnation is played
 24 :spiral T!                    // passes in one swell-and-fade of the colour wheel
-80 :soft T!                      // the volume it starts at (mf) ...
+60 :soft T!                      // the volume it starts at (mf) ...
 90 :loud T!                      // ... and climbs to at the climax (fff)
 1.0 :width T!                    // panning of the two groups, -width and +width (0 .. 1)
-3/8 :lag T!                      // how late group B is, as a note length (a pulse is 1/16)
+1/8 :lag T!                      // how late group B is, as a note length (a pulse is 1/16)
 '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!   // E dorian, a rising and falling line
 
 // ---- the arc: derived from the beat, as it is asked ------------------------
@@ -38,49 +54,47 @@
 // Each quotation runs at the beat of the leaf that asks, with :beat and every key of
 // the tctx as keywords; the keyword where a number is needed is its value there.
 
-'( :beat@ 16 * :steps@ / int ) :pass T!                    // the pass the beat is in
-'( :pass@ :reps@ / int ) :incarnation T!                   // the incarnation the pass is in
-'( :incarnation@ :steps@ 2 * 1 - mod ) :arc T!              // 0 .. 2*steps-2, round again after
-'( :steps@ :steps@ 1 - :arc@ - abs - ) :density T!           // notes this incarnation sounds: 1 .. steps .. 1
-'( :steps@ 1 - :steps@ 1 - :arc@ - abs - ) :climb T!          // how high the arc is: 0 at either end, steps-1 at the climax
-'( :density@ :steps@ p/euclid ) :pulses T!                 // which pulses of a pass sound
-'( :climb@ :loud@ :soft@ - * :steps@ 1 - / :soft@ + ) :baseVolume T!   // from soft to loud and back
-'( :climb@ 8 * :steps@ 1 - / 6 + ) :swell T!                // the size of the swell on top of it
+'( :beat 16 * :steps / int ) :pass T!                    // the pass the beat is in
+'( :pass :reps / int ) :incarnation T!                   // the incarnation the pass is in
+'( :incarnation :steps 2 * 1 - mod ) :arc T!              // 0 .. 2*steps-2, round again after
+'( :steps :steps 1 - :arc - abs - ) :density T!           // notes this incarnation sounds: 1 .. steps .. 1
+'( :steps 1 - :steps 1 - :arc - abs - ) :climb T!          // how high the arc is: 0 at either end, steps-1 at the climax
+'( :density :steps p/euclid ) :pulses T!                 // which pulses of a pass sound
+'( :climb :loud :soft - * :steps 1 - / :soft + ) :baseVolume T!   // from soft to loud and back
+'( :climb 8 * :steps 1 - / 6 + ) :swell T!                // the size of the swell on top of it
 
 // ---- what a voice reads -----------------------------------------------------
 
 // a data list of one value
 : one ( $x -- list ) '[1] $x * ;
 
+// a flag as the pulse pul>evnt takes: 1 for true, 0 for false
+: bit ( $flag -- n ) $flag '( 1 ) '( 0 ) if ;
+
 // the pulse the beat is on, counted from the start of the voice (late by lag)
-: pulse-at ( $beat $lag -- i ) $beat $lag - 16 * int :steps@ mod ;
+: pulse-at ( $beat $lag -- i ) $beat $lag - 16 * int :steps T@ mod ;
 
 // the volume at a beat for a voice whose swell is shifted by phase (0 .. 1) of the spiral
 : volume-of ( $beat $phase -- volume )
-  $beat 16 * :steps@ /
-  :baseVolume@ :swell@ -
-  :baseVolume@ :swell@ +
-  $phase :spiral@ tr/sine  round  100 min 20 max ;
+  $beat 16 * :steps T@ /
+  :baseVolume T@@ :swell T@@ -
+  :baseVolume T@@ :swell T@@ +
+  $phase :spiral T@ tr/sine  round  100 min 20 max ;
 
 // how late a voice is: the lag, if it is the late group (1), else none (0)
-: lag-of ( $late -- lag ) $late :lag@ * ;
+: lag-of ( $late -- lag ) $late :lag T@ * ;
 
 // ---- the melodic voices ---------------------------------------------------
 
-// the leaf of pulse i when it sounds: its pitch, instrument, pan and volume as parts
-: sounding ( $i $beat $phase $instrument $side -- note )
-  | '[1/16] :melody@ $i @ one
-    :instrument $instrument one
-    :pan $side :width@ * one
-    :volume $beat $phase volume-of one  zip ;
-
-// the leaf of pulse i: the note when the Euclidean pattern has the pulse on and the
-// density has reached the voice's threshold, else a rest, a sixteenth long
+// the leaf of pulse i: a note, with its pitch, instrument, pan and volume as parts, when the
+// Euclidean pattern has the pulse on and the density has reached the voice's threshold, else
+// a rest. pul>evnt makes of the flag a sixteenth (a note for a 1, a rest for a 0), zip fills it.
 : pulse ( $i $beat $phase $threshold $instrument $side -- leaf )
-  :pulses@ $i @ 1 =  :density@ $threshold >=  and
-  '( $i $beat $phase $instrument $side sounding )
-  '( [] 1/16 delay )
-  if ;
+  | ( :pulses T@@ $i @ 1 =  :density T@@ $threshold >=  and bit ) 1/16 b/pul>evnt 1 take
+    :melody T@ $i @ one
+    :instrument $instrument one
+    :pan $side :width T@ * one
+    :volume $beat $phase volume-of one  zip ;
 
 // the voice: before its start (late by lag) a rest up to it, then pulse after pulse
 : hoke ( $beat $phase $threshold $instrument $side $late -- leaf )
@@ -92,30 +106,26 @@
 // ---- drums and the chord ----------------------------------------------------
 
 // is pulse i one of the hits spread over the pass (a Euclidean rhythm turned rotation places)?
-: on-at ( $hits $rotation $i -- flag ) $hits :steps@ p/euclid $rotation rotate $i @ 1 = ;
+: on-at ( $hits $rotation $i -- flag ) $hits :steps T@ p/euclid $rotation rotate $i @ 1 = ;
 
 // does a percussive voice sound at pulse i: the hits are the density divided by divisor
 // (at least 1), and the density has reached the threshold
 : hit? ( $i $threshold $divisor $rotation -- flag )
-  :density@ $divisor / int 1 max  $rotation $i on-at
-  :density@ $threshold >=  and ;
+  :density T@@ $divisor / int 1 max  $rotation $i on-at
+  :density T@@ $threshold >=  and ;
 
 // the volume of a percussive voice: the arc's base, louder or softer
-: loudness ( $louder -- list ) :baseVolume@ $louder + round one ;
+: loudness ( $louder -- list ) :baseVolume T@@ $louder + round one ;
 
 // a drum from the list, a sixteenth long, when the pulse is a hit, else a rest
 : thump ( $beat $threshold $divisor $rotation $louder $drum -- leaf )
-  $beat 0 pulse-at $threshold $divisor $rotation hit?
-  '( | '[1/16] '[60] :volume $louder loudness zip $drum [~] as-drums )
-  '( [] 1/16 delay )
-  if ;
+  | ( $beat 0 pulse-at $threshold $divisor $rotation hit? bit ) 1/16 b/pul>evnt 1 take
+    '[60] :volume $louder loudness zip $drum [~] as-drums ;
 
 // the staccato chord of the piano, a sixteenth long, when the pulse is a hit
 : stab ( $beat $threshold $divisor $rotation $louder -- leaf )
-  $beat 0 pulse-at $threshold $divisor $rotation hit?
-  '( | '[1/16] '[ '[40 47 55 62] ] :volume $louder loudness :articulation '[:staccato] zip )
-  '( [] 1/16 delay )
-  if ;
+  | ( $beat 0 pulse-at $threshold $divisor $rotation hit? bit ) 1/16 b/pul>evnt 1 take
+    '[ '[40 47 55 62] ] :volume $louder loudness :articulation '[:staccato] zip ;
 
 // ---- start and stop --------------------------------------------------------
 
@@ -137,7 +147,7 @@
   4 2 2 -2 'stab $ctx :piano ->+ ;
 
 // Plays it, stopping what plays. Change a setting while it plays: 6 :steps T!
-: start ( -- ) stop :tempo@ tempo-ctx start-voices ;
+: start ( -- ) stop :tempo T@ tempo-ctx start-voices ;
 
 // Stops it.
 : stop-hoketus ( -- ) stop ;
