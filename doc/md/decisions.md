@@ -3520,6 +3520,21 @@ transpose, `zip`, `par` and chord symbols move between them); `Tone` and `Note` 
 the name (one for a single pitch, one for the commonest case only). Saved data with
 `:LEAF` is not migrated: none of any importance exists.
 
+## 2026-11-12 — `T!` takes a quotation; a setting is read as `:key@`
+
+A computed setting is a quotation given to `T!` (`'( :steps@ 2 * ) :twice T!`), so one
+word stores into the tctx and `tctx-derive` is gone as a word (the Clojure
+`context/tctx-derive` stays; `T!` calls it). A setting is read where it is written, with
+an `@` after its name (`:steps@ 2 *`, `SettingRead`), a computed one run at the beat of the
+leaf asking; `T@` is the same as a word. `:twice'` (`SettingQuote`) is what the tctx holds as it
+was stored, the quotation not run. The earlier rule, that a Clojure-function word replaced
+any keyword argument the tctx held by its value, is gone: it made `:hoketus R@` mean
+something else once the tctx held `:hoketus`, and it worked for some kinds of word and not
+others (not for `: … ;` words, stack words or the prompt). Now a keyword is only a keyword,
+and the `@` is the one visible rule. Rejected: `T@@` for the quotation (the single `@` is
+the value everywhere); a quotation stored as a plain value (a voice would have to run it
+itself).
+
 ## 2026-11-12 — every access is by time or by next
 
 Material -- finished seqs, half products, algorithm output, the voice itself -- is

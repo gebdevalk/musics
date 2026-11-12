@@ -316,25 +316,18 @@
 
 ;; -- the tctx of the voices that are a function of beat --------------------------------
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value. A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the beat of the leaf asking (it reads a key as :steps@ and the beat as :beat@). Read a key with :key@ or T@"
        (fn [s]
          (need s 2 "T!")
-         (let [k (peek s)]
+         (let [k (peek s) x (peek (pop s))]
            (when-not (keyword? k) (e/mu-error "T!:" "the key is a keyword, :reps -- got" (p/show k)))
-           (c/tctx! (live/tctx-node!) k (peek (pop s)))
-           (pop (pop s)))))
-
-(word! "play" "tctx-derive" "( 'q :key -- )  in the tctx, :key is computed by the quotation q when it is asked for, at the beat of the leaf asking: q runs with :beat, and any key of the tctx, as keyword arguments"
-       (fn [s]
-         (need s 2 "tctx-derive")
-         (let [k (peek s) q (peek (pop s))]
-           (when-not (keyword? k) (e/mu-error "tctx-derive:" "the key is a keyword, :density -- got" (p/show k)))
-           (when-not (v/quotation? q) (e/mu-error "tctx-derive:" "needs a quotation '( … ) under the key"))
-           (c/tctx-derive (live/tctx-node!) k (e/derived-fn q) (p/show q))
+           (if (v/quotation? x)
+             (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
+             (c/tctx! (live/tctx-node!) k x))
            (pop (pop s)))))
 
 ;; take a key out of the tctx
-(word! "play" "T_" "( :key -- )  take :key out of the tctx: a keyword argument no longer finds it, and T@ says it is not there. An error when it was not set"
+(word! "play" "T_" "( :key -- )  take :key out of the tctx: :key@ no longer finds it, and T@ says it is not there. An error when it was not set"
        (fn [s]
          (need s 1 "T_")
          (let [k (peek s)]
@@ -343,17 +336,14 @@
                 (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex))))
            (pop s))))
 
-;; the tctx value of a key, inside a voice that is a function of beat at its leaf's beat
-(word! "play" "T@" "( :key -- x )  the tctx's value for :key, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+;; the value of a key: inside a voice that is a function of beat at its leaf's beat, outside one at
+;; beat 0 (:beat 0); a computed key is run. :steps@ is the same, written in place.
+(word! "play" "T@" "( :key -- x )  the tctx's value for :key, a computed key run, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it. :key@ is the same, written in place (:steps@ 2 *); :key' is what is stored, a computed key's quotation not run"
        (fn [s]
          (need s 1 "T@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [lookup (or e/*lookup*
-                            (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :beat) 0 (g x)))))
-                 v      (lookup k)]
-             (when (nil? v) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! or tctx-derive it"))
-             (conj (pop s) v)))))
+           (conj (pop s) (e/setting k)))))
 
 (defn- play-now
   "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."

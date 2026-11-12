@@ -728,18 +728,17 @@ before any sound. The keyword `:beat` is answered too, so a word reads the beat 
 `:beat`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
 call order, and `mus/hoketus2.mus` for a piece written this way.
 
-**The tctx and keyword arguments.** A word that is a Clojure function (not a
-stack word, not a `: … ;` word) takes, for each of its arguments that is a keyword
-the lookup in force holds, that value: `:onsets 8 euclid` is `3 8 euclid` while the
-tctx holds `:onsets 3`. A keyword the lookup does not hold goes through (`:hoketus
-R@`), and so does one the function's own keyword tail reads
-(`3 8 :rotation 2 euclid`); what lies under the arguments is untouched. The lookup
-is `eval/*lookup*`, bound by `eval/with-lookup` around a voice's run (unbound,
-nothing changes). `T!` (`8 :steps T!`), `tctx-derive`
-(`'( :steps 2 * ) :twice tctx-derive`: the quotation runs at the beat of the asker
-with `:beat` and every tctx key as keywords) and `T@` (`:steps T@`: a
-key's value where a plain word needs one) and `T_` (`:steps T_`: take a key out) fill, read and erase the session's tctx
-(`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a `tctx-derive` entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
+**The tctx and its settings.** A setting is read where it is written: `:onsets@ 8 euclid`
+is `3 8 euclid` while the tctx holds `:onsets 3` (`SettingRead`, `eval/setting`), and `:beat@` is
+the beat. A keyword without the `@` is only a keyword, whatever the tctx holds (`:hoketus R@`,
+`3 8 :rotation 2 euclid`), so a keyword means one thing; `:onsets'` (`SettingQuote`) is what
+the tctx holds as it was stored, the quotation of a computed key, not run. The lookup is
+`eval/*lookup*`, bound by `eval/with-lookup` around a voice's run; outside one a setting is read
+at beat 0 from the session's tctx. `T!` (`8 :steps T!`; a quotation,
+`'( :steps@ 2 * ) :twice T!`, is a computed key: it runs at the beat of the asker, reading the
+tctx as it reads any setting), `T@` (`:steps T@`: the word for `:steps@`) and `T_`
+(`:steps T_`: take a key out) fill, read and erase the session's tctx
+(`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a computed entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -1083,13 +1082,13 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   A context stores `"volume"`, `"Tempo"`, `"density"`; there is no `(name key)`
   normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
   and a keyword asked of a chain reaches only the contexts that hold keywords. A
-  **tctx** is an ordinary `Context` whose keys are keywords (`T!`,
-  `tctx-derive`): whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
+  **tctx** is an ordinary `Context` whose keys are keywords (`T!`):
+  whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
   `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
   hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
   keys. Its values are bare values, `Generator`s (a function of the context's local
   time, `generator`/`ctx-generate`, also usable on a context's string key: a
-  volume arc) or `Derived` entries (`tctx-derive`, `(f time get)`): `get` asks the
+  volume arc) or `Derived` entries (`T!` with a quotation, `context/tctx-derive`, `(f time get)`): `get` asks the
   chain for another key, a string or a keyword, at the same time, so a lookup is
   **recursive**, a key computed once per pull, a cycle an error naming it
   (`:a -> :b -> :a`). `context/getter chain time` is one memoized pull: every answer,

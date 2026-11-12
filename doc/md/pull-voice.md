@@ -39,7 +39,7 @@ flowchart LR
   events["musics.events<br/>a voice with a source<br/>state holds :beat b"]
   source["source fn<br/>(b) → one leaf"]
   lookup["lookup bound at b<br/>(fn [k] (ctx-value-chain chain k b))<br/>chain = tctx first, then the contexts"]
-  word["word runs (run-var)<br/>a keyword argument the lookup<br/>answers is its value, at b"]
+  word["word runs (run-var)<br/>a setting :key@ reads<br/>the lookup's value, at b"]
   leaf["one leaf<br/>pitch or rest, duration"]
   fire["events fires it at b<br/>:beat advances by its duration"]
   resolve["resolve(leaf, b)<br/>the same chain, the same b"]
@@ -72,7 +72,7 @@ sequenceDiagram
   Note over E: the walk is at beat b
   E->>S: a leaf at b
   S->>W: run the word, lookup bound at b
-  W->>C: :density (a keyword argument) at b
+  W->>C: :density@ (a setting) at b
   Note over C: :density is derived: it asks the chain again, at b
   C->>C: :arc at b (a function of b)
   C->>C: :steps at b (a value)

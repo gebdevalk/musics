@@ -748,7 +748,7 @@
     (is (re-find #"^pattern/euclid: refused, it needs <= onsets pulses" (:error r)) (:error r))
     (is (= [] (:stack @e/state)) "the stack as it was")))
 
-(deftest a-keyword-argument-the-tctx-holds-is-its-value
+(deftest a-setting-is-read-in-place-with-key-at
   (let [tctx  (-> (musics.domain.context/context)
                   (musics.domain.context/tctx! :onsets 3)
                   (musics.domain.context/tctx! :steps 8)
@@ -760,27 +760,23 @@
                 (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
                 (e/with-lookup (musics.domain.context/getter chain 0) #(e/eval-input text)))
         shown (fn [r] (mapv p/show (:ok r)))]
-    (testing "without a tctx a keyword stays a keyword, as it always was"
-      (swap! e/state assoc :stack [])
-      (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
-      (is (:error (e/eval-input ":onsets 8 pattern/euclid"))))
-    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets 8 pattern/euclid"))) "a keyword in the first place")
-    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets :steps pattern/euclid"))) "in both")
-    (is (= (shown (run "6 8 pattern/euclid")) (shown (run ":twice :steps pattern/euclid"))) "a derived key")
-    (testing "a keyword the tctx lacks goes through"
-      (is (= [":kept"] (shown (run ":kept")))))
-    (testing "a keyword the function's own tail reads is its key, not a tctx reference"
-      (is (= (shown (run "3 8 :rotation 2 pattern/euclid")) (shown (run ":onsets :steps :rotation 2 pattern/euclid")))
-          "the tctx holds :rotation 99 and it is not used"))
-    (testing "what lies under the arguments is untouched"
+    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets@ 8 pattern/euclid"))) "a setting in the first place")
+    (is (= (shown (run "3 8 pattern/euclid")) (shown (run ":onsets@ :steps@ pattern/euclid"))) "in both")
+    (is (= (shown (run "6 8 pattern/euclid")) (shown (run ":twice@ :steps@ pattern/euclid"))) "a computed one")
+    (testing "a keyword without the @ is only a keyword, whatever the tctx holds"
+      (is (= [":onsets"] (shown (run ":onsets"))))
       (is (= [":onsets" "'[1 0 0 1 0 0 1 0]"] (shown (run ":onsets 3 8 pattern/euclid")))))
-    (testing "a cycle is a mu error naming the word"
+    (testing "a function's own keyword tail is its key, not a setting"
+      (is (= (shown (run "3 8 :rotation 2 pattern/euclid")) (shown (run ":onsets@ :steps@ :rotation 2 pattern/euclid")))
+          "the tctx holds :rotation 99 and it is not used"))
+    (testing "a setting the tctx lacks is an error naming it"
+      (is (re-find #"is not in the tctx" (:error (run ":nothing@")))))
+    (testing "a cycle is an error naming it"
       (let [bad (-> (musics.domain.context/context)
                     (musics.domain.context/tctx-derive :a (fn [_ get] (get :a))))
             r   (do (swap! e/state assoc :stack [])
-                    (e/eval-input "\"musics.algo.rhythmic.pattern\" require")
-                    (e/with-lookup (musics.domain.context/getter [bad] 0) #(e/eval-input ":a 8 pattern/euclid")))]
-        (is (re-find #"^pattern/euclid: a cycle in the tctx: :a -> :a" (:error r)) (:error r))))))
+                    (e/with-lookup (musics.domain.context/getter [bad] 0) #(e/eval-input ":a@")))]
+        (is (re-find #"a cycle in the tctx: :a -> :a" (:error r)) (:error r))))))
 
 (deftest reqalgo-takes-a-quoted-or-written-name
   (swap! e/state assoc :stack [])
@@ -801,17 +797,26 @@
 
 ;; ---- a voice that is a function of beat ($beat in the word's stack effect) ----
 
+(defn- top-of [input] (p/show (peek (:ok (run input)))))
+
 (defn- clear-tctx! [] (reset! (:envelopes-atom live/tctx) {}))
 
-(deftest tctx!-and-tctx-derive-fill-the-tctx-of-the-voices
+(deftest T!-fills-the-tctx-of-the-voices-with-values-and-quotations
   (try
     (run "8 :steps T!")
     (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
-    (run "'( :steps 2 * ) :twice tctx-derive")
+    (run "'( :steps@ 2 * ) :twice T!")
     (is (= 16 (c/ctx-value-chain [live/tctx] :twice 0)) "a quotation computes it from another key")
-    (run "'( :beat 4 * int ) :quarters tctx-derive")
+    (run "'( :beat@ 4 * int ) :quarters T!")
     (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :beat is the beat it is asked at")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T!"))))
+    (testing ":key@ is the value (a computed key run), :key' what was stored"
+      (is (= "16" (top-of ":twice@")))
+      (is (= "'( :steps@ 2 * )" (str/trim (top-of ":twice'"))) "the quotation, not run")
+      (is (= "8" (top-of ":steps@")))
+      (is (= "8" (top-of ":steps'")) "a value is itself")
+      (is (= "16" (top-of ":twice T@")) "the word T@ is the same as :twice@")
+      (is (re-find #"is not in the tctx" (:error (run ":nothing@")))))
     (finally (clear-tctx!))))
 
 (deftest T_-takes-a-key-out-of-the-tctx
@@ -819,7 +824,7 @@
     (run "8 :steps T!")
     (run ":steps T_")
     (is (nil? (c/ctx-value-chain [live/tctx] :steps 0)) "nobody finds it any more")
-    (is (re-find #"is not in the tctx" (:error (run ":steps T@"))))
+    (is (re-find #"is not in the tctx" (:error (run ":steps@"))))
     (is (re-find #"is not in the tctx" (:error (run ":steps T_"))) "erasing what is not there says so")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T_"))))
     (finally (clear-tctx!))))
@@ -841,9 +846,9 @@
         (is (= [60 62 64] [(at 0 60) (at 1/2 60) (at 1 60)]) "a function of the beat")
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
     (testing "a keyword argument the tctx holds is its value, at the leaf's beat"
-      (run ": tock ( $beat -- note ) | '[1/4] '[1] :base :bump + * zip ;")
+      (run ": tock ( $beat -- note ) | '[1/4] '[1] :base@ :bump@ + * zip ;")
       (run "60 :base T!")
-      (run "'( :beat 4 * int ) :bump tctx-derive")
+      (run "'( :beat@ 4 * int ) :bump T!")
       (inputs/set-inputs! :w [])
       (is (= [60 62] (mapv #(-> ((#'live/beat-source "tock" :w ["beat"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))
     (testing "it starts as a voice: $beat is the voice's own, the stack gives the rest"

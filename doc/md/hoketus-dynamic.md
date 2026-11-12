@@ -86,7 +86,7 @@ can stand first in the chain without hiding any context value, and `"density"`
 
 A tctx is an ordinary `Context` whose keys are keywords. Its values are bare
 numbers, functions of structural time (`T!`), or entries computed from
-other keys (`tctx-derive`: `(f time get)`, one pull computing a key once and a
+other keys (`T!` with a quotation, `context/tctx-derive`: `(f time get)`, one pull computing a key once and a
 cycle an error). Whoever builds a chain puts it in front (`[tctx voice … ROOT]`);
 it is shared by atom, so a slider that edits it is seen by every voice holding
 the chain at the next leaf.
@@ -133,7 +133,7 @@ flowchart LR
   derived entry, even a miss) is remembered, so a key is looked for and computed
   once however often it is asked or reached through another key. A lookup made
   alone starts its own pull. `context/getter` makes one pull for a chain and a beat;
-  the voice binds one for each leaf, so all the keyword arguments of that leaf share
+  the voice binds one for each leaf, so all the settings read for that leaf share
   it and the leaf sees one consistent value for each key. The next leaf gets a new
   getter, so a change of the tctx is seen there.
 - **Depth.** Nothing limits it but the cycle guard; a deep graph costs one call
@@ -153,7 +153,7 @@ flowchart LR
 ## Order of building
 
 1. Built: string keys for contexts and keyword keys for a tctx (`T!`),
-   generators, derived entries (`tctx-derive`), the keyword-argument rule in
+   generators, derived entries (`T!` with a quotation), the keyword-argument rule in
    `run-var` (`*lookup*`, `with-lookup`).
 2. A voice as a function of beat in `musics.events` (see `pull-voice.md`): one
    leaf per call, the lookup bound at the walk's `:beat`.

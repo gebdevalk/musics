@@ -113,7 +113,7 @@
             at   (fn [k] (@(requiring-resolve 'musics.domain.context/ctx-value-chain) [@tctx] k 0))]
         (reset! (:envelopes-atom @tctx) {})
         (top ": twice ( $x -- y ) $x 2 * ;" "8 :steps T!" "1/32 :lag T!" "'[64 67] :melody T!"
-             "'( :steps twice ) :double tctx-derive")
+             "'( :steps@ twice ) :double T!")
         (is (= :CONTEXT (:type (repo/current :tctx))) "it is a node of the repo")
         (is (identical? @tctx (:context (repo/current :tctx))))
         (with-out-str (top (str "\"" f "\" save-session")))
