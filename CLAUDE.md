@@ -1023,7 +1023,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   `musics.algo.common.pulse/grid->pulses`, and `p<Duration>` in text, whose `value`
   is a fixed `1`). mu's `zip` makes of a skeleton in the duration column a `Pitched`
   (a pitch gives a note or a chord), a `Drum`, or a `Rest`, copying its tie; a
-  skeleton is never played as it is. A tie is written `~` on a rest too (`r16~`).
+  skeleton is never played as it is. Text spells it `p16~` (`p` a pulse, `~` its tie), a mu value that reads, prints and `zip`s onto a seq (a pitch makes it a `Pitched`, a drum key a `Drum`). A tie is written `~` on a rest too (`r16~`).
   `Iterator` (a real record, deferred
   expansion for `repeat`/tremolo, holding a `:source` container +
   `:params`) is the one exception to "plain map."

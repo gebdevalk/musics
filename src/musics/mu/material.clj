@@ -1059,10 +1059,13 @@
                     (cond-> (-> l (assoc :duration dur) (dissoc :ratio)) tied (assoc :tied true))))
       :pitch (cond (= :DRUM (:type l)) (e/mu-error "zip: a drum has no pitch")
                    (not (or (number? v) (coll? v))) (e/mu-error "zip: a pitch is a MIDI number, got" (p/show v))
-                   :else (-> l (assoc :pitches (if (coll? v) (vec v) [v])) (dissoc :key :key-shift :key-root)))
-      :drum (if (= :DRUM (:type l))
-              (assoc l :program (drum-key "zip" v))
-              (e/mu-error "zip: a note is no drum -- as-drums turns notes into drums"))
+                   :else (-> (if (d/skeleton? l)   ; a skeleton given a pitch is a note or a chord
+                               (-> l (dissoc :value) (assoc :type :PITCHED :articulation nil :dynamic nil :modifiers []))
+                               l)
+                             (assoc :pitches (if (coll? v) (vec v) [v])) (dissoc :key :key-shift :key-root)))
+      :drum (cond (= :DRUM (:type l))  (assoc l :program (drum-key "zip" v))
+                  (d/skeleton? l)      (-> l (dissoc :value :tied) (assoc :type :DRUM :program (drum-key "zip" v)))
+                  :else (e/mu-error "zip: a note is no drum -- as-drums turns notes into drums"))
       :articulation (articulate "zip" l v)
       :dynamic (let [w (when (number? v) (long v))
                      l' (assoc l :dynamic w)]

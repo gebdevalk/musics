@@ -1163,7 +1163,7 @@
     (cond
       (and pitch-node (pulse-letter? pitch-node))
       (flat/append-child state
-                         (assoc (d/skeleton (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1)
+                         (assoc (d/skeleton (or token (str "pulse-" dur)) (or ctx (c/context)) dur 1 tied)
                                 :ctx-chain chain))
 
       pitch-node

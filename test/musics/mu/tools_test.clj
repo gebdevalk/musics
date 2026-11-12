@@ -1000,3 +1000,9 @@
       (is (= [:PITCHED :REST :REST :PITCHED] (map :type leaves)))
       (is (= [[60] nil nil [64]] (map :pitches leaves)) "a pitch for each position, a rest's unused: the note at position 3 gets the second")
       (is (= [true true nil nil] (map #(when (:tied %) true) leaves)) "the tie rides on the skeleton, notes and rests alike"))))
+
+(deftest a-skeleton-is-a-mu-value
+  (is (= "p16~" (top "p16~")) "read from text and printed back, its tie kept")
+  (is (= "[p16~ C4/4 r8~]" (top "[p16~ c4 r8~]")))
+  (is (= "[C4/16~ D4 r]" (top "[p16~ p16 r16] :pitch '[60 62 64] zip")) "zip onto a seq of skeletons: a pitch makes a note, a rest stays")
+  (is (re-find #"^\[x16\\\w+ " (top "[p16~ p16] :drum '[:kick :snare] zip")) "a skeleton given a drum key is a drum"))
