@@ -226,18 +226,19 @@ its next note.
 
 ```
 8 :steps T!                          store a value under a key
-:steps T@                            fetch it            → 8
-'( :steps 2 * ) :twice tctx-derive   a value computed from the others
-:twice T@                            → 16
+:steps T@                           fetch it            → 8
+'( :steps 2 * ) :twice T!            a value computed from the others
+:twice T@                            the quotation, as stored
+:twice T@@                           → 16, run
 6 :steps T!                          change :steps ...
-:twice T@                            → 12   ... and :twice follows it
+:twice T@@                           → 12   ... and :twice follows it
 :steps T_                            take a key out
 ```
 
-A derived value is a quotation; it runs when it is asked, with `:beat`
-and every key of the tctx as keywords. Inside a voice, a keyword where
-a word needs a number is replaced by its value, so `:steps 2 *` means
-"the steps, doubled". At the prompt `:steps T@` is how you read one.
+A computed value is a quotation given to `T!`; it runs when it is asked, with `:beat`
+and every key of the tctx as keywords. Inside a voice or a computed key, a keyword where
+a word needs a number is replaced by its value, so `:steps 2 *` means "the steps, doubled"; at the
+prompt that does not happen, so use `T@@` there (`:steps T@@ 2 *`).
 
 A voice can be a **function of the beat**: a word with `$beat` among its
 inputs, asked for one note at the beat the voice has reached. The

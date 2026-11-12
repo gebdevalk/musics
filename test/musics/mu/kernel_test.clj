@@ -801,17 +801,25 @@
 
 ;; ---- a voice that is a function of beat ($beat in the word's stack effect) ----
 
+(defn- top-of [input] (p/show (peek (:ok (run input)))))
+
 (defn- clear-tctx! [] (reset! (:envelopes-atom live/tctx) {}))
 
-(deftest tctx!-and-tctx-derive-fill-the-tctx-of-the-voices
+(deftest T!-fills-the-tctx-of-the-voices-with-values-and-quotations
   (try
     (run "8 :steps T!")
     (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
-    (run "'( :steps 2 * ) :twice tctx-derive")
+    (run "'( :steps 2 * ) :twice T!")
     (is (= 16 (c/ctx-value-chain [live/tctx] :twice 0)) "a quotation computes it from another key")
-    (run "'( :beat 4 * int ) :quarters tctx-derive")
+    (run "'( :beat 4 * int ) :quarters T!")
     (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :beat is the beat it is asked at")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T!"))))
+    (testing "T@ gives a computed key as the quotation, not run; T@@ runs it"
+      (is (= "'( :steps 2 * )" (str/trim (top-of ":twice T@"))) "as it was stored")
+      (is (= "16" (str/trim (top-of ":twice T@@"))) "run, at beat 0")
+      (is (= "8" (str/trim (top-of ":steps T@"))) "a value is itself")
+      (is (= "8" (str/trim (top-of ":steps T@@"))))
+      (is (re-find #"is not in the tctx" (:error (run ":nothing T@@")))))
     (finally (clear-tctx!))))
 
 (deftest T_-takes-a-key-out-of-the-tctx
@@ -843,7 +851,7 @@
     (testing "a keyword argument the tctx holds is its value, at the leaf's beat"
       (run ": tock ( $beat -- note ) | '[1/4] '[1] :base :bump + * zip ;")
       (run "60 :base T!")
-      (run "'( :beat 4 * int ) :bump tctx-derive")
+      (run "'( :beat 4 * int ) :bump T!")
       (inputs/set-inputs! :w [])
       (is (= [60 62] (mapv #(-> ((#'live/beat-source "tock" :w ["beat"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))
     (testing "it starts as a voice: $beat is the voice's own, the stack gives the rest"

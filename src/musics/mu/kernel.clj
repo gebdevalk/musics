@@ -316,21 +316,14 @@
 
 ;; -- the tctx of the voices that are a function of beat --------------------------------
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value. A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the beat of the leaf asking (q runs with :beat and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
        (fn [s]
          (need s 2 "T!")
-         (let [k (peek s)]
+         (let [k (peek s) x (peek (pop s))]
            (when-not (keyword? k) (e/mu-error "T!:" "the key is a keyword, :reps -- got" (p/show k)))
-           (c/tctx! (live/tctx-node!) k (peek (pop s)))
-           (pop (pop s)))))
-
-(word! "play" "tctx-derive" "( 'q :key -- )  in the tctx, :key is computed by the quotation q when it is asked for, at the beat of the leaf asking: q runs with :beat, and any key of the tctx, as keyword arguments"
-       (fn [s]
-         (need s 2 "tctx-derive")
-         (let [k (peek s) q (peek (pop s))]
-           (when-not (keyword? k) (e/mu-error "tctx-derive:" "the key is a keyword, :density -- got" (p/show k)))
-           (when-not (v/quotation? q) (e/mu-error "tctx-derive:" "needs a quotation '( … ) under the key"))
-           (c/tctx-derive (live/tctx-node!) k (e/derived-fn q) (p/show q))
+           (if (v/quotation? x)
+             (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
+             (c/tctx! (live/tctx-node!) k x))
            (pop (pop s)))))
 
 ;; take a key out of the tctx
@@ -343,16 +336,36 @@
                 (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex))))
            (pop s))))
 
-;; the tctx value of a key, inside a voice that is a function of beat at its leaf's beat
-(word! "play" "T@" "( :key -- x )  the tctx's value for :key, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+;; the tctx value of a key: inside a voice that is a function of beat at the beat of its leaf; outside
+;; one at beat 0 (:beat 0). A computed key is run.
+(defn- tctx-value [k]
+  (let [lookup (or e/*lookup*
+                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :beat) 0 (g x)))))]
+    (lookup k)))
+
+;; what the tctx holds for a key, as it was stored: a quotation not run
+(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. An error when it holds nothing for it"
        (fn [s]
          (need s 1 "T@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [lookup (or e/*lookup*
-                            (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :beat) 0 (g x)))))
-                 v      (lookup k)]
-             (when (nil? v) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! or tctx-derive it"))
+           (let [entry (get @(:envelopes-atom (live/tctx-node!)) k)]
+             (cond
+               (nil? entry) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! it")
+               (instance? musics.domain.context.Derived entry)
+               (if-let [text (:text entry)]
+                 (conj (pop s) (peek (e/run-text [] text)))
+                 (e/mu-error "T@:" (pr-str k) "was made in Clojure, with no quotation to give -- T@@ gives its value"))
+               :else (conj (pop s) (tctx-value k)))))))
+
+;; the value, a computed key run
+(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+       (fn [s]
+         (need s 1 "T@@")
+         (let [k (peek s)]
+           (when-not (keyword? k) (e/mu-error "T@@:" "the key is a keyword, :reps -- got" (p/show k)))
+           (let [v (tctx-value k)]
+             (when (nil? v) (e/mu-error "T@@:" (pr-str k) "is not in the tctx -- T! it"))
              (conj (pop s) v)))))
 
 (defn- play-now

@@ -119,7 +119,7 @@
 (def tctx
   "The session's tctx (musics.registries/tctx): a Context whose keys are Clojure
    keywords (:reps, :steps), first in the chain every voice fed by a function of
-   beat reads, filled by mu's T! and tctx-derive, and stored in the repo as
+   beat reads, filled by mu's T!, and stored in the repo as
    :tctx so a saved session keeps it."
   reg/tctx)
 

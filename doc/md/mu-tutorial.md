@@ -1255,8 +1255,9 @@ be a plain value, or **derived** from the beat and from other keys:
 
 ```
 8 :steps T!                              a setting
-'( :beat 16 * :steps / int ) :pass tctx-derive   the pass the beat is in
+'( :beat 16 * :steps / int ) :pass T!   the pass the beat is in
 :steps T@                                8
+:pass T@@                                the pass the beat is in, run; :pass T@ is the quotation
 3 :steps T!                              changed while it plays: the next leaf sees it
 ```
 
@@ -1266,9 +1267,13 @@ round, is refused (`a cycle in the tctx: :a -> :b -> :a`).
 
 Inside such a voice a **keyword where a number is needed is the key's value**:
 `:onsets 8 pattern/euclid` is `3 8 pattern/euclid` while the tctx holds `:onsets 3`.
-A keyword the tctx does not hold stays a keyword (`:hoketus R@`), and so does one a
-word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`). A word written
-with `: … ;` does not do this: it reads a key with `T@`. Context keys are strings
+This is the one piece of magic here, so know its edges. It happens only while a voice (or a
+computed key) runs, never at the prompt. It applies to words that are Clojure functions
+(`/`, `+`, `@`, `pattern/euclid`), not to stack words or the `$` inputs of a `: … ;` word, which
+read a key with `T@@`. A keyword the tctx does not hold stays a keyword (`:hoketus R@`), and so
+does one a word's own keyword arguments read (`3 8 :rotation 2 pattern/euclid`); but a key the
+tctx *does* hold is replaced wherever it stands as an argument, so give settings names that are
+not also ids you store. `:twice T@` shows a computed key as stored, `:twice T@@` runs it. Context keys are strings
 (`"volume"`), tctx keys keywords (`:volume` is a different key).
 
 `mus/hoketus2.mus` is a whole piece written this way: `"mus/hoketus2.mus" load start`, and
