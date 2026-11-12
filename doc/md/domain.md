@@ -218,7 +218,7 @@ algorithms" section.
 
 ## Leaf types
 
-Plain, `:type`-tagged maps (`:LEAF`, `:REST`, `:DRUM`, `:PULSE`, `:BAR`), one per musical event.
+Plain, `:type`-tagged maps (`:PITCHED`, `:REST`, `:DRUM`, `:PULSE`, `:BAR`), one per musical event.
 
 ### Leaf (pitched note or chord)
 

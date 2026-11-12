@@ -24,7 +24,7 @@
 (use-fixtures :each fresh-registries-fixture)
 
 (deftest section-boundary-signals-fire-during-playback
-  (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -47,10 +47,10 @@
 
 (deftest bar-boundary-signal-fires-during-playback
   (let [meter (el/make-meter 4 4)
-        n1    (d/leaf :n1 (c/context) 1/4 [60])
-        n2    (d/leaf :n2 (c/context) 1/4 [62])
-        n3    (d/leaf :n3 (c/context) 1/4 [64])
-        n4    (d/leaf :n4 (c/context) 1/4 [65])
+        n1    (d/pitched :n1 (c/context) 1/4 [60])
+        n2    (d/pitched :n2 (c/context) 1/4 [62])
+        n3    (d/pitched :n3 (c/context) 1/4 [64])
+        n4    (d/pitched :n4 (c/context) 1/4 [65])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3 n4]}
         root  {:type :ROOT :id :ROOT
                ;; tempo cranked way up so the whole bar plays in a few ms
@@ -69,9 +69,9 @@
 
 (deftest bar-boundary-respects-a-non-default-meter
   (let [meter (el/make-meter 3 4)
-        n1    (d/leaf :n1 (c/context) 1/4 [60])
-        n2    (d/leaf :n2 (c/context) 1/4 [62])
-        n3    (d/leaf :n3 (c/context) 1/4 [64])
+        n1    (d/pitched :n1 (c/context) 1/4 [60])
+        n2    (d/pitched :n2 (c/context) 1/4 [62])
+        n3    (d/pitched :n3 (c/context) 1/4 [64])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 6000 "volume" 80 "Meter" meter})
@@ -88,8 +88,8 @@
             "three quarter notes exactly fill one 3/4 bar, so bar 2 starts right after")))))
 
 (deftest mark-signal-fires-for-a-barline
-  (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
-        n2    (d/leaf :n2 (c/context) 1/16 [62])
+  (let [n1    (d/pitched :n1 (c/context) 1/16 [60])
+        n2    (d/pitched :n2 (c/context) 1/16 [62])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [n1 (d/bar 1) n2]}
         root  {:type :ROOT :id :ROOT
@@ -112,7 +112,7 @@
   ;; A BarLine has zero duration -- it must never itself trigger a :bar
   ;; crossing, only the notes around it can.
   (let [meter (el/make-meter 4 4)
-        n1    (d/leaf :n1 (c/context) 1/4 [60])
+        n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 1) (d/bar 1) n1]}
         root  {:type :ROOT :id :ROOT
@@ -134,7 +134,7 @@
             "three bare BarLines plus one quarter note never fill a 4/4 bar")))))
 
 (deftest mark-signal-counts-per-strength-independently
-  (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(d/bar 1) (d/bar 2) (d/bar 1) n1]}
         root  {:type :ROOT :id :ROOT
@@ -164,7 +164,7 @@
               {:count :infinite}))
 
 (defn- one-note [id pitch dur]
-  {:type :SEQ :id id :context (c/context) :children [(d/leaf (keyword (str (name id) "-n")) (c/context) dur [pitch])]})
+  {:type :SEQ :id id :context (c/context) :children [(d/pitched (keyword (str (name id) "-n")) (c/context) dur [pitch])]})
 
 (defn- pitches-of [evs] (map (comp first :pitches) (filter #(= :note (:kind %)) evs)))
 
@@ -276,8 +276,8 @@
 ;; ============================================================
 
 (deftest display-resolves-a-simple-sequence
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
-        n2    (d/leaf :n2 (c/context) 1/4 [62])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
+        n2    (d/pitched :n2 (c/context) 1/4 [62])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1 n2]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 120 "volume" 80})
@@ -294,7 +294,7 @@
 (deftest display-needs-no-connect-or-live-engine
   ;; confirms display works directly against a plain repo/atom, with no
   ;; (connect)/(set-engine! ...) call at all -- it's pure data, no MIDI.
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 120 "volume" 80})
@@ -318,16 +318,16 @@
   ;; time block2's own leaves resolve, structural-time has already
   ;; passed block2's own locally-authored 0..1 ramp range entirely,
   ;; without musics.domain.context/ctx-shift rebasing it first.
-  (let [b1n1     (d/leaf :b1n1 (c/context) 1/4 [60])
-        b1n2     (d/leaf :b1n2 (c/context) 1/4 [62])
+  (let [b1n1     (d/pitched :b1n1 (c/context) 1/4 [60])
+        b1n2     (d/pitched :b1n2 (c/context) 1/4 [62])
         block1   {:type :SEQ :id :block1 :context (c/context) :children [b1n1 b1n2]}
         ramp-ctx (c/context)
         _        (c/ctx-append ramp-ctx "volume" 0 30 :lin-up)
         _        (c/ctx-append ramp-ctx "volume" 1 80 :fixed)
-        b2n1     (d/leaf :b2n1 ramp-ctx 1/4 [64])
-        b2n2     (d/leaf :b2n2 ramp-ctx 1/4 [65])
-        b2n3     (d/leaf :b2n3 ramp-ctx 1/4 [67])
-        b2n4     (d/leaf :b2n4 ramp-ctx 1/4 [69])
+        b2n1     (d/pitched :b2n1 ramp-ctx 1/4 [64])
+        b2n2     (d/pitched :b2n2 ramp-ctx 1/4 [65])
+        b2n3     (d/pitched :b2n3 ramp-ctx 1/4 [67])
+        b2n4     (d/pitched :b2n4 ramp-ctx 1/4 [69])
         block2   {:type :SEQ :id :block2 :context ramp-ctx :children [b2n1 b2n2 b2n3 b2n4]}
         root     {:type :ROOT :id :ROOT
                   :context (c/context-root {"Tempo" 120 "volume" 50})
@@ -352,8 +352,8 @@
   ;; the way a literal, ordered [:par ...] vector used to, so a real
   ;; mean-pitch-rank input is required here for the low-to-high voice
   ;; order this test asserts to be deterministic at all.
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
-        n2     (d/leaf :n2 (c/context) 1/4 [67])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
+        n2     (d/pitched :n2 (c/context) 1/4 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]
                 :pitch-sum 60 :pitch-n 1}
         bass   {:type :SEQ :id :bass :context (c/context) :children [n2]
@@ -385,8 +385,8 @@
   ;; used to come back [:seq ...], not [:par ...] -- and this must keep
   ;; working exactly the same after the []=seq/#{}=par redesign, since
   ;; sq's own metadata answer is untouched by it.
-  (let [n1      (d/leaf :n1 (c/context) 1/4 [60])
-        n2      (d/leaf :n2 (c/context) 1/4 [67])
+  (let [n1      (d/pitched :n1 (c/context) 1/4 [60])
+        n2      (d/pitched :n2 (c/context) 1/4 [67])
         sop     {:type :SEQ :id :sop :context (c/context) :children [n1]}
         bass    {:type :SEQ :id :bass :context (c/context) :children [n2]}
         chorale {:type :PAR :id :chorale :context (c/context) :children [:sop :bass]}
@@ -411,7 +411,7 @@
   ;; play-form/realize-form's d/part? branch -- a raw Leaf handed straight
   ;; to display/play (as ordinary seq functions like cycle/take/map would
   ;; produce from `sq`), not looked up by keyword.
-  (let [n1   (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1   (d/pitched :n1 (c/context) 1/4 [60])
         root {:type :ROOT :id :ROOT
               :context (c/context-root {"Tempo" 120 "volume" 80})
               :children []}]
@@ -425,8 +425,8 @@
   ;; there's no longer a vector-vs-list DEFAULT distinction the way there
   ;; used to be (a literal [:par ...] vector doesn't exist anymore --
   ;; :par is spelled #{...} now, a shape a plain list can't produce).
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
-        n2     (d/leaf :n2 (c/context) 1/4 [67])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
+        n2     (d/pitched :n2 (c/context) 1/4 [67])
         melody {:type :SEQ :id :melody :context (c/context) :children [n1]}
         bass   {:type :SEQ :id :bass :context (c/context) :children [n2]}
         root   {:type :ROOT :id :ROOT
@@ -446,9 +446,9 @@
   ;; The motivating end-to-end shape: (play (take n (cycle (sq id)))) --
   ;; here using a plain resolved-children vector directly (as `sq` itself
   ;; is just `children` plus metadata), fed through ordinary cycle/take.
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
-        n2     (d/leaf :n2 (c/context) 1/4 [62])
-        n3     (d/leaf :n3 (c/context) 1/4 [64])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
+        n2     (d/pitched :n2 (c/context) 1/4 [62])
+        n3     (d/pitched :n3 (c/context) 1/4 [64])
         verse  {:type :SEQ :id :verse :context (c/context) :children [n1 n2 n3]}
         root   {:type :ROOT :id :ROOT
                 :context (c/context-root {"Tempo" 120 "volume" 80})
@@ -460,7 +460,7 @@
       (is (= [[60] [62] [64] [60] [62]] (mapv :pitches steps))))))
 
 (deftest display-includes-mark-steps-for-barlines
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [(d/bar 2) n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 120 "volume" 80})
@@ -472,7 +472,7 @@
       (is (= [60] (:pitches (second steps)))))))
 
 (deftest display-expands-a-finite-iterator
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
         source {:type :SEQ :id :s1 :context (c/context) :children [n1]}
         iter   (d/iterator :REPEAT :r1 (c/context) source {:count 3})
         verse  {:type :SEQ :id :verse :context (c/context) :children [iter]}
@@ -487,7 +487,7 @@
           "each pass starts strictly after the previous one finished"))))
 
 (deftest display-throws-on-infinite-iterator
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
         source {:type :SEQ :id :s1 :context (c/context) :children [n1]}
         iter   (d/iterator :REPEAT :r1 (c/context) source {:count :infinite})
         verse  {:type :SEQ :id :verse :context (c/context) :children [iter]}
@@ -501,10 +501,10 @@
 (deftest display-continues-after-a-par
   ;; A :SEQ sibling right after a :PAR starts after the :PAR's children,
   ;; as play-par's continue-after-fork! does.
-  (let [a     (d/leaf :a (c/context) 1/4 [60])
-        x     (d/leaf :x (c/context) 1/4 [64])
-        y     (d/leaf :y (c/context) 1/4 [67])
-        b     (d/leaf :b (c/context) 1/4 [72])
+  (let [a     (d/pitched :a (c/context) 1/4 [60])
+        x     (d/pitched :x (c/context) 1/4 [64])
+        y     (d/pitched :y (c/context) 1/4 [67])
+        b     (d/pitched :b (c/context) 1/4 [72])
         par   {:type :PAR :id :xy :context (c/context) :children [x y]}
         verse {:type :SEQ :id :verse :context (c/context) :children [a :xy b]}
         root  {:type :ROOT :id :ROOT
@@ -541,7 +541,7 @@
 
 
 (deftest play-returns-at-once-for-an-endless-seq
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}]
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse verse)
@@ -582,7 +582,7 @@
   ;; too-broad version of the nonsense-form guard), even though
   ;; (play :verse) directly never did. validate-ids! must let this
   ;; through, same as it always let a real id's own children through.
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
         assign {:type :assignment :key :i :val 32 :raw "!i:32"}
         root   {:type :ROOT :id :ROOT :context (c/context-root {}) :children []}]
     (repo/commit-node! :ROOT root)
@@ -616,7 +616,7 @@
   ;; (play :verse) directly (no sq involved) never did. Only nil (sq
   ;; failing to resolve an id at all) should be rejected; a real,
   ;; recognized-but-inert node shape must pass through untouched.
-  (let [n1     (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1     (d/pitched :n1 (c/context) 1/4 [60])
         assign {:type :assignment :key :i :val 32 :raw "!i:32"}
         verse  {:type :SEQ :id :verse :context (c/context) :children [assign n1]}
         root   {:type :ROOT :id :ROOT
@@ -646,7 +646,7 @@
           "nil clears an assignment back to identity, not to 'unassigned'"))))
 
 (deftest play-mints-a-short-track-id-and-assigns-the-algorithm
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -675,7 +675,7 @@
   ;; :algo tag, by contrast, is NOT written back into :algo-prepared --
   ;; it only ever bakes onto the one voice this call itself mints (see
   ;; play-mints-a-short-track-id-and-assigns-the-algorithm above)."
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -701,7 +701,7 @@
   ;; single-item vector had to be deliberately distinguished from an
   ;; [:algo name] marker. tagged-form? requires exactly 3 elements with
   ;; :algo at index 1, so a 1-element vector was never even a candidate.
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -719,7 +719,7 @@
   ;; touches directly) is gone after play runs; and since the flush
   ;; always runs first, a solo call deterministically lands on :TA --
   ;; there is never anything left over from a PRIOR play call to skip.
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -739,7 +739,7 @@
 ;; ============================================================
 
 (deftest play-add-mints-a-short-track-id-and-assigns-the-algorithm
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -761,7 +761,7 @@
   ;; registered survives a play-add call untouched, and a SECOND
   ;; play-add call (unlike a second play call) does NOT reuse :TA,
   ;; since the first one is still occupying it.
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -786,8 +786,8 @@
   ;; :verse lists :high BEFORE :low -- proving the ranking is by pitch,
   ;; not by written/positional order (the old child-segment behavior
   ;; this replaces would have put :high at index 0, :low at index 1).
-  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
-        lo    (d/leaf :lo (c/context) 1/4 [40])
+  (let [hi    (d/pitched :hi (c/context) 1/4 [80])
+        lo    (d/pitched :lo (c/context) 1/4 [40])
         ;; Hand-built fixtures bypass the real parser, so :pitch-sum/
         ;; :pitch-n (normally baked at pop-container time, see
         ;; builder) have to be baked here too, the same way,
@@ -836,8 +836,8 @@
   ;; assign-algo!'d onto ITS OWN freshly-forked (here: freshly-minted
   ;; top-level) path before that voice's first node runs -- the
   ;; motivating case for tagging in the first place.
-  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
-        lo    (d/leaf :lo (c/context) 1/4 [40])
+  (let [hi    (d/pitched :hi (c/context) 1/4 [80])
+        lo    (d/pitched :lo (c/context) 1/4 [40])
         high0 {:type :SEQ :id :high :context (c/context) :children [hi]}
         low0  {:type :SEQ :id :low :context (c/context) :children [lo]}
         high  (d/set-container-pitch-stats high0 (d/pitch-stats nil high0))
@@ -867,8 +867,8 @@
 ;; ============================================================
 
 (deftest par-of-distinct-forms-behaves-identically-to-a-literal-set
-  (let [hi    (d/leaf :hi (c/context) 1/4 [80])
-        lo    (d/leaf :lo (c/context) 1/4 [40])
+  (let [hi    (d/pitched :hi (c/context) 1/4 [80])
+        lo    (d/pitched :lo (c/context) 1/4 [40])
         high0 {:type :SEQ :id :high :context (c/context) :children [hi]}
         low0  {:type :SEQ :id :low :context (c/context) :children [lo]}
         high  (d/set-container-pitch-stats high0 (d/pitch-stats nil high0))
@@ -888,7 +888,7 @@
 (deftest par-mints-two-real-voices-for-the-same-id-written-twice
   ;; #{:melody :melody} is a reader error before this code even runs --
   ;; (par :melody :melody) is a plain vector, no such restriction.
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse0 {:type :SEQ :id :verse :context (c/context) :children [n1]}
         verse  (d/set-container-pitch-stats verse0 (d/pitch-stats nil verse0))
         root  {:type :ROOT :id :ROOT
@@ -910,7 +910,7 @@
   ;; literal set when the algo itself is meant to be the same on both
   ;; (e.g. two offset copies of one phrase running the same transform --
   ;; the real motivating case, not a contrived one).
-  (let [n1    (d/leaf :n1 (c/context) 1/4 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/4 [60])
         verse0 {:type :SEQ :id :verse :context (c/context) :children [n1]}
         verse  (d/set-container-pitch-stats verse0 (d/pitch-stats nil verse0))
         root  {:type :ROOT :id :ROOT
@@ -940,7 +940,7 @@
   ;; even though 80 > both a's and b's pitches.
   (let [mk     (fn [id pitch]
                  (let [c0 {:type :SEQ :id id :context (c/context)
-                           :children [(d/leaf (keyword (str (name id) "-n")) (c/context) 1/4 [pitch])]}]
+                           :children [(d/pitched (keyword (str (name id) "-n")) (c/context) 1/4 [pitch])]}]
                    (d/set-container-pitch-stats c0 (d/pitch-stats nil c0))))
         melody (mk :melody 80)
         a      (mk :a 40)
@@ -968,9 +968,9 @@
   ;; nesting composes: a tag nested inside an already-tagged outer span
   ;; falls back to the OUTER tag afterward, not identity.
   (let [log    (atom [])
-        before {:type :SEQ :id :before :context (c/context) :children [(d/leaf :b1 (c/context) 1/32 [60])]}
-        middle {:type :SEQ :id :middle :context (c/context) :children [(d/leaf :m1 (c/context) 1/32 [62])]}
-        after  {:type :SEQ :id :after  :context (c/context) :children [(d/leaf :a1 (c/context) 1/32 [64])]}
+        before {:type :SEQ :id :before :context (c/context) :children [(d/pitched :b1 (c/context) 1/32 [60])]}
+        middle {:type :SEQ :id :middle :context (c/context) :children [(d/pitched :m1 (c/context) 1/32 [62])]}
+        after  {:type :SEQ :id :after  :context (c/context) :children [(d/pitched :a1 (c/context) 1/32 [64])]}
         root   {:type :ROOT :id :ROOT
                 :context (c/context-root {"Tempo" 240 "volume" 80})
                 :children [:before :middle :after]}]
@@ -1004,7 +1004,7 @@
    closed by the time the caller does anything; each caller wraps its
    OWN remaining body in (binding [engine/*engine* eng] ...) instead."
   [_eng]
-  (let [n1    (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1    (d/pitched :n1 (c/context) 1/32 [60])
         verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
         root  {:type :ROOT :id :ROOT
                :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -1055,7 +1055,7 @@
   ;; against verse-fixture!/:done when run as part of the full suite,
   ;; passing in isolation -- a uniquely namespaced container id and
   ;; action-id removes the collision instead of chasing the timing.
-  (let [n1     (d/leaf :n1 (c/context) 1/32 [60])
+  (let [n1     (d/pitched :n1 (c/context) 1/32 [60])
         verse  {:type :SEQ :id ::doubler-verse :context (c/context) :children [n1]}
         root   {:type :ROOT :id :ROOT
                 :context (c/context-root {"Tempo" 240 "volume" 80})
@@ -1153,8 +1153,8 @@
   ;; a set, so if the metadata branch were ever skipped a genuinely
   ;; parallel container would silently play back sequentially (vectors
   ;; are always :seq now with no metadata present).
-  (let [n1      (d/leaf :n1 (c/context) 1/4 [60])
-        n2      (d/leaf :n2 (c/context) 1/4 [67])
+  (let [n1      (d/pitched :n1 (c/context) 1/4 [60])
+        n2      (d/pitched :n2 (c/context) 1/4 [67])
         sop     {:type :SEQ :id :sop :context (c/context) :children [n1]}
         bass    {:type :SEQ :id :bass :context (c/context) :children [n2]}
         chorale {:type :PAR :id :chorale :context (c/context) :children [:sop :bass]}
@@ -1176,7 +1176,7 @@
   ;; Namespaced ids: musics.conductor's tables are shared, so a common name
   ;; could be triggered by another test's voice still unwinding.
   (let [meter (el/make-meter 4 4)
-        mk    (fn [id p] (d/leaf id (c/context) 1/4 [p]))
+        mk    (fn [id p] (d/pitched id (c/context) 1/4 [p]))
         bar1  {:type :SEQ :id ::lookahead-e2e-bar1 :context (c/context)
                :children [(mk :n1 60) (mk :n2 62) (mk :n3 64) (mk :n4 65)]}
         bar2  {:type :SEQ :id ::lookahead-e2e-bar2 :context (c/context)
@@ -1208,7 +1208,7 @@
   ;; [ {[c d] [e]} g ] -- g's clock continues after the whole block;
   ;; left at the block's start, g's deadline was already past, so it was
   ;; released the instant it sounded
-  (let [q     #(d/leaf %1 (c/context) 1/4 [%2])
+  (let [q     #(d/pitched %1 (c/context) 1/4 [%2])
         s1    {:type :SEQ :id :s1 :context (c/context) :children [(q :c 60) (q :d 62)]}
         s2    {:type :SEQ :id :s2 :context (c/context) :children [(q :e 64)]}
         p1    {:type :PAR :id :p1 :context (c/context) :children [:s1 :s2]}
@@ -1228,7 +1228,7 @@
           (is (< 60 held-ms 200) (str "g held " held-ms "ms, not ~90ms")))))))
 
 (deftest a-mark-of-a-strength-fires-whichever-its-number
-  (let [n     #(d/leaf % (c/context) 1/16 [60])
+  (let [n     #(d/pitched % (c/context) 1/16 [60])
         verse {:type :SEQ :id :verse :context (c/context)
                :children [(n :a) (d/bar 1) (n :b) (d/bar 2) (n :c)]}
         root  {:type :ROOT :id :ROOT
@@ -1247,7 +1247,7 @@
           (is (number? (:at event)) "the moment it is due"))))))
 
 (deftest play-from-starts-exactly-at-the-boundary
-  (let [n      #(d/leaf % (c/context) 1/8 [60])
+  (let [n      #(d/pitched % (c/context) 1/8 [60])
         verse  {:type :SEQ :id :verse :context (c/context) :children [(n :a) (d/bar 1) (n :b) (n :c)]}
         chorus {:type :SEQ :id :chorus :context (c/context) :children [(n :d)]}
         root   {:type :ROOT :id :ROOT
@@ -1288,14 +1288,14 @@
 (deftest a-rest-after-a-tied-note-holds-it
   (with-fresh-session
    (let [sent (atom [])
-         tie  (d/leaf nil nil 1/8 [60] nil nil [] true)
+         tie  (d/pitched nil nil 1/8 [60] nil nil [] true)
          hold (d/rest* nil nil 1/8 true)
          end  (d/rest* nil nil 1/8)
          gap  (d/rest* nil nil 1/8)]
     (with-redefs [engine/send-midi-on!  (fn [fs ev _] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:on p]))))
                   engine/send-midi-off! (fn [fs ev] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:off p]))))]
       (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
-        (engine/play [tie hold hold end gap (d/leaf nil nil 1/8 [62] nil nil [] false)] )
+        (engine/play [tie hold hold end gap (d/pitched nil nil 1/8 [62] nil nil [] false)] )
         (Thread/sleep 1500)
         (engine/stop!)))
     (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] @sent)

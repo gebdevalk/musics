@@ -1171,7 +1171,7 @@
             ks              (written-key state)]
         (reset! (:last-pitch state) new-last)
         (flat/append-child state
-                           (cond-> (assoc (d/leaf (or token (str "note-" midi))
+                           (cond-> (assoc (d/pitched (or token (str "note-" midi))
                                                   (or ctx (c/context)) dur (if midi [midi] [])
                                                   (slur-articulation! state (articulation-ratio art) slur-marks)
                                                   (when (map? art) (:dynamic art)) modifiers tied)
@@ -1202,7 +1202,7 @@
             (reset! (:last-pitch state) l)))
         (reset! (:last-pitch state) @first-ref)
         (flat/append-child state
-                           (cond-> (assoc (d/leaf (or token (str "chord-" (str/join "-" @midis)))
+                           (cond-> (assoc (d/pitched (or token (str "chord-" (str/join "-" @midis)))
                                                   (or ctx (c/context)) dur (vec @midis)
                                                   (slur-articulation! state (articulation-ratio art) slur-marks)
                                                   (when (map? art) (:dynamic art)) modifiers tied)
@@ -1302,7 +1302,7 @@
               (vec (cons bass-below kept)))
             chord-midis)]
       (flat/append-child state
-                          (cond-> (assoc (d/leaf (or token (str "chord-" (str/join "-" final-midis)))
+                          (cond-> (assoc (d/pitched (or token (str "chord-" (str/join "-" final-midis)))
                                                  (or ctx (c/context)) dur final-midis
                                                  (slur-articulation! state (articulation-ratio art) slur-marks)
                                                  (when (map? art) (:dynamic art)) modifiers tied)
@@ -1429,7 +1429,7 @@
 ;; the elements a reorder moves: notes, seqs and repeats -- instructions,
 ;; bar lines and jumps keep their places (as musics.compose/play-order)
 (defn- movable? [c]
-  (or (keyword? c) (d/iterator? c) (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c)))))
+  (or (keyword? c) (d/iterator? c) (and (map? c) (#{:PITCHED :REST :DRUM :PULSE} (:type c)))))
 
 (defn- reorder-movable
   "children with the movable ones (movable?) put in the order f gives them."
@@ -1552,7 +1552,7 @@
   "A note moved by interval, respelled by respell (see respell-fn)."
   [interval respell]
   (fn [leaf]
-    (if (and (= :LEAF (:type leaf)) (seq (:pitches leaf)))
+    (if (and (= :PITCHED (:type leaf)) (seq (:pitches leaf)))
       (let [ps (mapv #(+ interval %) (:pitches leaf))
             id (respell leaf ps)]
         (cond-> (assoc leaf :pitches ps)
@@ -1586,7 +1586,7 @@
   "A note mirrored around axis: a pitch p becomes 2·axis - p."
   [axis]
   (fn [leaf]
-    (if (and (= :LEAF (:type leaf)) (seq (:pitches leaf)))
+    (if (and (= :PITCHED (:type leaf)) (seq (:pitches leaf)))
       (-> leaf (update :pitches (partial mapv #(- (* 2 axis) %))) (dissoc :key-root))
       leaf)))
 
@@ -1613,7 +1613,7 @@
    wherever it plays; the note's own override wins."
   [body-ctx]
   (fn [leaf]
-    (if-not (#{:LEAF :REST :DRUM} (:type leaf))
+    (if-not (#{:PITCHED :REST :DRUM} (:type leaf))
       leaf
       (let [chain (:ctx-chain leaf)
             scope (let [[in [b]] (split-with #(not (identical? (:envelopes-atom (first %)) (:envelopes-atom body-ctx))) chain)]

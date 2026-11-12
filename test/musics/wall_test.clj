@@ -15,7 +15,7 @@
   (with-fresh-registries
     (repo/commit-node! :ROOT {:type :ROOT :id :ROOT :context (c/context-root {}) :children [:verse]})
     (repo/commit-node! :verse {:type :SEQ :id :verse :context (c/context)
-                               :children [(d/leaf :n1 (c/context) 1/4 [60])]})
+                               :children [(d/pitched :n1 (c/context) 1/4 [60])]})
     (wall/build-algo! ::bright (stamp 1 2))
     (let [eng (engine/engine nil (repo/registry) :ROOT)]
       (binding [engine/*engine* eng]

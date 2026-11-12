@@ -700,7 +700,7 @@
          dur   (/ (* (/ note-ms 1000.0) tempo) 240)
          dyn   (- 1 (:default (data/quantity :volume)))
          part  {:type :SEQ :id ::warmup :context ctx
-                :children (vec (repeatedly n #(d/leaf ::warmup ctx dur [1] nil dyn nil false)))}
+                :children (vec (repeatedly n #(d/pitched ::warmup ctx dur [1] nil dyn nil false)))}
          path  [::warmup]]
      (locking (:lock eng)
        (swap! (:streams eng) assoc path

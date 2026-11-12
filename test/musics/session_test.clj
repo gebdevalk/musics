@@ -135,7 +135,7 @@
 (deftest locate-navigates-the-session-with-no-repo-argument
   (parse! "[verse: c4 d4]")
   (let [{:keys [part]} (r/locate @(repo/registry) :verse [1])]
-    (is (d/leaf? part))
+    (is (d/pitched? part))
     (is (= [62] (:pitches part)))))
 
 (deftest cross-parse-references-resolve
@@ -306,7 +306,7 @@
   (parse! "[verse: c4 d4]")
   (let [ch (repo/children :verse)]
     (is (= 2 (count ch)) "two children")
-    (is (every? d/leaf? ch) "both are leaves")))
+    (is (every? d/pitched? ch) "both are leaves")))
 
 ;; ============================================================
 ;; sq -- real Clojure seqs over container children
@@ -335,7 +335,7 @@
 (deftest sq-result-composes-with-ordinary-clojure-seq-functions
   (parse! "[verse: c4 d4 e4]")
   (is (= 5 (count (take 5 (cycle (compose/sq :verse))))))
-  (is (every? d/leaf? (map identity (compose/sq :verse)))))
+  (is (every? d/pitched? (map identity (compose/sq :verse)))))
 
 ;; ============================================================
 ;; times -- n full passes of a container's material, playable directly
@@ -497,7 +497,7 @@
   ;; path back to its ancestors) -- musics/expand has to build the real
   ;; chain itself (full-ctx-chain) and hand it over.
   (parse! "[outer: !key:D.major [inner: c4\\trill]]")
-  (let [leaf     (first (filter d/leaf? (repo/children :inner)))
+  (let [leaf     (first (filter d/pitched? (repo/children :inner)))
         expanded (orn/expand leaf (r/full-ctx-chain @(repo/registry) leaf))]
     (is (< 1 (count expanded)) "trill actually expanded into sub-notes")
     (is (not (apply = (map :pitches expanded)))

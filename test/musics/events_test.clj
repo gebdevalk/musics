@@ -100,7 +100,7 @@
   (repo/commit-many!
    {:endless (d/iterator :REPEAT :endless (c/context)
                          {:type :SEQ :id :endless-body :context (c/context)
-                          :children [(d/leaf :n1 (c/context) 1/8 [60])]}
+                          :children [(d/pitched :n1 (c/context) 1/8 [60])]}
                          {:count :infinite})})
   (is (= (map #(* 1/8 %) (range 50))
          (map :beat (take 50 (notes (ev/events (repo/registry) :endless)))))))
@@ -296,10 +296,10 @@
   (is (= [[60] [62] [60] [62] [60] [62]] (note-pitches :sim2)) "./. after ./. repeats it again")
   (is (= 3/2 (d/duration @(repo/registry) :sim2)))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"right after a bar line"
-                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/jump :simile)])))
+                        (d/play-segments [(d/pitched :a (c/context) 1/4 [60]) (d/jump :simile)])))
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"fills its bar alone"
-                        (d/play-segments [(d/leaf :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
-                                          (d/leaf :b (c/context) 1/4 [62])]))
+                        (d/play-segments [(d/pitched :a (c/context) 1/4 [60]) (d/bar 1) (d/jump :simile)
+                                          (d/pitched :b (c/context) 1/4 [62])]))
       "[c | ./. d] is refused"))
 
 (deftest an-endless-repeat-plays-on
@@ -452,7 +452,7 @@
 
 ;; ---- a voice fed by a function of beat (compose/source) ----
 
-(defn- leaf-at [_beat pitch] (d/leaf nil (c/context) 1/4 [pitch]))
+(defn- leaf-at [_beat pitch] (d/pitched nil (c/context) 1/4 [pitch]))
 
 (deftest a-source-is-asked-one-leaf-at-a-time-at-the-beat-the-voice-is-at
   (let [asked (atom [])

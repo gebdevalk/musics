@@ -211,7 +211,7 @@
   (let [{:keys [tree root-id]} (v/read-domain text)]
     (letfn [(walk [node]
               (cond
-                (d/leaf? node)      [node]
+                (d/pitched? node)      [node]
                 (d/container? node) (mapcat walk (map (partial resolve-child tree) (:children node)))
                 :else               []))]
       (vec (walk (get tree root-id))))))
@@ -423,7 +423,7 @@
 (deftest chord-symbols-in-a-line-are-leaves-of-their-own
   (let [ts (wrapped-tokens "C4:m G4:7")]
     (is (= 2 (count ts)))
-    (is (every? d/leaf? ts))
+    (is (every? d/pitched? ts))
     (is (= [60 63 67] (:pitches (first ts))))
     (is (= [67 71 74 77] (:pitches (second ts))))))
 
@@ -855,7 +855,7 @@
 (deftest a-bound-name-splices-flat-into-the-reference-site
   (let [tree (read-mu "'motif [c4 d4] := [v: \\motif e4]")]
     (is (= 3 (count (:children (get tree :v)))))
-    (is (every? d/leaf? (:children (get tree :v))))))
+    (is (every? d/pitched? (:children (get tree :v))))))
 
 (deftest a-name-must-be-bound-first
   (let [saved @e/state]

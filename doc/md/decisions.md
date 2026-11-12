@@ -3507,6 +3507,19 @@ ons str cnt lea ins`), the readers' plurals add an `s`, and a bridge is
 three innermost loops; Factor's `times`, `each` and `while`/`until` are not
 added for now. A user word named `loop` clashes with the built-in.
 
+## 2026-11-12 — the leaves: Pitched, Rest, Drum under Leaf
+
+`:LEAF` was both the pitched type and, in prose and in the walker, any terminal
+element. The pitched type is now `:PITCHED` (`d/pitched`, `d/pitched?`), and
+`:LEAF` is the parent of `:PITCHED`, `:REST` and `:DRUM` (`d/leaf-types`, `d/leaf?`),
+the skeleton a time-based generator will make: a duration and a tie, nothing yet
+pitched. A note and a chord stay one type, told apart by `note?` and `chord?`: the
+code treats a vector of pitches alike, and `zip` turns a pitch or a list into it.
+Rejected: separate Note and Chord types (every consumer would branch, and
+transpose, `zip`, `par` and chord symbols move between them); `Tone` and `Note` as
+the name (one for a single pitch, one for the commonest case only). Saved data with
+`:LEAF` is not migrated: none of any importance exists.
+
 ## 2026-11-12 — `pul>stp` is `pul>evnt`; a tie is the engine's, pitch is not
 
 `pul>stp` is `pul>evnt` (`pulses->events`): a 1 is a note, a 0 a rest, one pulse

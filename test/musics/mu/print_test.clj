@@ -14,7 +14,7 @@
 
 (defn- leaves [x]
   (if (v/material? x)
-    (filter #(#{:LEAF :REST :DRUM} (:type %)) (d/children (:repo x) (v/node x)))
+    (filter #(#{:PITCHED :REST :DRUM} (:type %)) (d/children (:repo x) (v/node x)))
     [x]))
 
 (defn- content [x]

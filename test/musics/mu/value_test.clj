@@ -27,7 +27,7 @@
     (is (= [[[60] 1/4] [[62] 1/4] [[64] 1/4]] (mapv pitch+dur (values "c4 d e"))))
     (is (= [[[72] 1/8] [[74] 1/8]] (mapv pitch+dur (values "C5/8 d")))))
   (testing "a bare leaf is the leaf itself"
-    (is (every? d/leaf? (values "c4 d e"))))
+    (is (every? d/pitched? (values "c4 d e"))))
   (testing "each input starts fresh"
     (is (= [[[62] 1/4]] (mapv pitch+dur (values "d"))))))
 

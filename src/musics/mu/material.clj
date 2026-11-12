@@ -387,7 +387,7 @@
   [x n]
   (let [shift (fn [k] (el/transpose-key k n))]
     (map-nodes (fn [l]
-                 (if (and (= :LEAF (:type l)) (seq (:pitches l)))
+                 (if (and (= :PITCHED (:type l)) (seq (:pitches l)))
                    (cond-> (update l :pitches #(mapv (partial + n) %))
                      (:key l)      (update :key shift)
                      (:key-root l) (update :key-root + n))
@@ -733,14 +733,14 @@
         :else           0))
 
 (defn- splittable? [c]
-  (and (map? c) (#{:LEAF :REST :DRUM} (:type c)) (nil? (:ratio c))
+  (and (map? c) (#{:PITCHED :REST :DRUM} (:type c)) (nil? (:ratio c))
        (let [r (rationalize (:duration c))] (or (integer? r) (= 1 (Long/bitCount (denominator r)))))))
 
 (defn- pieces
   "The first d of leaf c, as note values summing to d, each tied to
    what follows (a rest isn't tied; a tied drum is struck once)."
   [c d]
-  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (#{:LEAF :DRUM} (:type c)) (assoc :tied true)))
+  (map (fn [v] (cond-> (assoc c :duration v :ratio nil) (#{:PITCHED :DRUM} (:type c)) (assoc :tied true)))
        (note-values d)))
 
 (defn- barred-children
@@ -997,7 +997,7 @@
       (e/mu-error (str word ":") (pr-str i) "is not a drum -- a key 35-81 or a name (kick, bd1, hhc)")))
 
 (def part-ranks
-  "A leaf's parts in the order musics.domain/leaf holds them: a drum in
+  "A leaf's parts in the order musics.domain/pitched holds them: a drum in
    a pitch's place, an ornament and a tremolo its modifiers. An override
    (a context key: :volume, :instrument, :pan …) comes after them all."
   {:duration 1 :pitch 2 :drum 2 :articulation 3 :dynamic 4 :ornament 5 :tremolo 5 :tied 6})
@@ -1030,7 +1030,7 @@
   [part l]
   (case part
     :duration (if (= :REST (:type l)) l (:duration l))
-    :pitch    (when (= :LEAF (:type l)) (let [ps (sort (:pitches l))] (if (next ps) (vec ps) (first ps))))
+    :pitch    (when (= :PITCHED (:type l)) (let [ps (sort (:pitches l))] (if (next ps) (vec ps) (first ps))))
     :drum     (when (= :DRUM (:type l)) (:program l))
     (e/mu-error "zip: a seq gives durations, pitches or drums -- for the" (name part) "give its stream (x volumes …)")))
 
@@ -1101,7 +1101,7 @@
       (d/rest* nil nil dur)
       (written (if drum
                  (d/drum nil nil dur (drum-key "zip" tone))
-                 (d/leaf nil nil dur (if (coll? tone) (vec tone) [tone])))
+                 (d/pitched nil nil dur (if (coll? tone) (vec tone) [tone])))
                (dissoc vals :duration :pitch :drum)))))
 
 (defn- parts-of

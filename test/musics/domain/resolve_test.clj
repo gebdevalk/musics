@@ -23,7 +23,7 @@
 (deftest locate-finds-a-leaf-through-nested-containers
   (let [{:keys [tree root-id]} (walk "[verse: c4 d4 e4]")
         {:keys [part ctx-chain path]} (r/locate tree root-id [0 1])]
-    (is (d/leaf? part) "path lands on the 2nd leaf of :verse")
+    (is (d/pitched? part) "path lands on the 2nd leaf of :verse")
     (is (= [62] (:pitches part)))
     (is (= [0 1] path))
     (is (= 2 (count ctx-chain))
@@ -66,7 +66,7 @@
 (deftest locate-mixes-id-and-index-selectors
   (let [{:keys [tree root-id]} (walk "[verse: c4 d4] [chorus: g4 a4]")
         {:keys [part]} (r/locate tree root-id [:chorus 1])]
-    (is (d/leaf? part))
+    (is (d/pitched? part))
     (is (= [69] (:pitches part)) "chorus's 2nd leaf (a4)")))
 
 (deftest locate-returns-nil-for-unmatched-id

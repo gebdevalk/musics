@@ -61,7 +61,7 @@
               reg/*conductor-action-registry*   (atom {})
               reg/*conductor-schedule*          (atom {})
               reg/*conductor-repeating*         (atom {})]
-      (let [n1    (d/leaf :n1 (c/context) 1/16 [60])
+      (let [n1    (d/pitched :n1 (c/context) 1/16 [60])
             verse {:type :SEQ :id :verse :context (c/context) :children [n1]}
             root  {:type :ROOT :id :ROOT
                    :context (c/context-root {"Tempo" 6000 "volume" 80})

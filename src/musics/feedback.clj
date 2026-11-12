@@ -40,12 +40,12 @@
   [text]
   (try
     (let [{:keys [tree]} (v/read-domain (str "[" text "]"))
-          leaf (some #(when (#{:LEAF :DRUM} (:type %)) %)
+          leaf (some #(when (#{:PITCHED :DRUM} (:type %)) %)
                      (mapcat :children (filter #(= :SEQ (:type %)) (vals tree))))
           many (fn [x] (cond (vector? x) x (nil? x) nil :else [x]))]
       (case (:type leaf)
         :DRUM {:kind :drum :keys (or (many (:program leaf)) [35])}
-        :LEAF {:kind :note :instruments (or (many (get-in leaf [:overrides :instrument])) [0])}
+        :PITCHED {:kind :note :instruments (or (many (get-in leaf [:overrides :instrument])) [0])}
         nil))
     (catch Exception _ nil)))
 

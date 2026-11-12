@@ -39,114 +39,114 @@
   (let [dur (:duration leaf) d8 (/ dur 8) p (:pitches leaf)
         ctx (:context leaf) art (:articulation leaf) dyn (:dynamic leaf)
         hi (mapv #(upper ks %) p)]
-    [(d/leaf "" ctx d8 hi art dyn nil false)
-     (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf (:id leaf) ctx (* dur 3/4) p art dyn nil false)]))
+    [(d/pitched "" ctx d8 hi art dyn nil false)
+     (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched (:id leaf) ctx (* dur 3/4) p art dyn nil false)]))
 
 (defn upprall [leaf ks]
   (let [d8 (/ (:duration leaf) 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d8 lo art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)]))
+    [(d/pitched "" ctx d8 lo art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)]))
 
 (defn downprall [leaf ks]
   (let [d8 (/ (:duration leaf) 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 lo art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)]))
+    [(d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 lo art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)]))
 
 (defn prallprall [leaf ks]
   (let [d8 (/ (:duration leaf) 8) dur (:duration leaf) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p)]
-    [(d/leaf "" ctx d8 p art dyn nil false) (d/leaf "" ctx d8 hi art dyn nil false)
-     (d/leaf "" ctx d8 p art dyn nil false) (d/leaf "" ctx d8 hi art dyn nil false)
-     (d/leaf "" ctx (* dur 1/2) p art dyn nil false)]))
+    [(d/pitched "" ctx d8 p art dyn nil false) (d/pitched "" ctx d8 hi art dyn nil false)
+     (d/pitched "" ctx d8 p art dyn nil false) (d/pitched "" ctx d8 hi art dyn nil false)
+     (d/pitched "" ctx (* dur 1/2) p art dyn nil false)]))
 
 (defn lineprall [leaf ks]
   (let [d16 (/ (:duration leaf) 16) dur (:duration leaf) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p)]
-    [(d/leaf "" ctx (/ dur 2) hi art dyn nil false)
-     (d/leaf "" ctx d16 p art dyn nil false) (d/leaf "" ctx d16 hi art dyn nil false)
-     (d/leaf "" ctx d16 p art dyn nil false) (d/leaf "" ctx d16 hi art dyn nil false)
-     (d/leaf "" ctx (/ dur 4) p art dyn nil false)]))
+    [(d/pitched "" ctx (/ dur 2) hi art dyn nil false)
+     (d/pitched "" ctx d16 p art dyn nil false) (d/pitched "" ctx d16 hi art dyn nil false)
+     (d/pitched "" ctx d16 p art dyn nil false) (d/pitched "" ctx d16 hi art dyn nil false)
+     (d/pitched "" ctx (/ dur 4) p art dyn nil false)]))
 
 (defn prallmordent [leaf ks]
   (let [d8 (/ (:duration leaf) 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 lo art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)]))
+    [(d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 lo art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)]))
 
 (defn mordent [leaf ks]
   (let [dur (:duration leaf) d8 (/ dur 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d8 p art dyn nil false) (d/leaf "" ctx d8 lo art dyn nil false)
-     (d/leaf "" ctx (* dur 3/4) p art dyn nil false)]))
+    [(d/pitched "" ctx d8 p art dyn nil false) (d/pitched "" ctx d8 lo art dyn nil false)
+     (d/pitched "" ctx (* dur 3/4) p art dyn nil false)]))
 
 (defn upmordent [leaf ks]
   (let [d8 (/ (:duration leaf) 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d8 lo art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 lo art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)]))
+    [(d/pitched "" ctx d8 lo art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 lo art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)]))
 
 (defn downmordent [leaf ks]
   (let [d12 (/ (:duration leaf) 12) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p) lo (mapv #(lower ks %) p)]
-    [(d/leaf "" ctx d12 hi art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)
-     (d/leaf "" ctx d12 lo art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)
-     (d/leaf "" ctx d12 hi art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)
-     (d/leaf "" ctx d12 hi art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)
-     (d/leaf "" ctx d12 hi art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)
-     (d/leaf "" ctx d12 lo art dyn nil false) (d/leaf "" ctx d12 p art dyn nil false)]))
+    [(d/pitched "" ctx d12 hi art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)
+     (d/pitched "" ctx d12 lo art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)
+     (d/pitched "" ctx d12 hi art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)
+     (d/pitched "" ctx d12 hi art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)
+     (d/pitched "" ctx d12 hi art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)
+     (d/pitched "" ctx d12 lo art dyn nil false) (d/pitched "" ctx d12 p art dyn nil false)]))
 
 (defn trill [leaf ks]
   (let [dur (:duration leaf) d8 (/ dur 8) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf)
         p (:pitches leaf) hi (mapv #(upper ks %) p)]
-    [(d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false) (d/leaf "" ctx d8 p art dyn nil false)
-     (d/leaf "" ctx d8 hi art dyn nil false)
-     (d/leaf "" ctx (* dur 3/8) p art dyn nil false)]))
+    [(d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false) (d/pitched "" ctx d8 p art dyn nil false)
+     (d/pitched "" ctx d8 hi art dyn nil false)
+     (d/pitched "" ctx (* dur 3/8) p art dyn nil false)]))
 
 (defn turn [leaf ks]
   (let [d4 (/ (:duration leaf) 4) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf) p (:pitches leaf)]
-    [(d/leaf "" ctx d4 (mapv #(upper ks %) p) art dyn nil false)
-     (d/leaf "" ctx d4 p art dyn nil false)
-     (d/leaf "" ctx d4 (mapv #(lower ks %) p) art dyn nil false)
-     (d/leaf "" ctx d4 p art dyn nil false)]))
+    [(d/pitched "" ctx d4 (mapv #(upper ks %) p) art dyn nil false)
+     (d/pitched "" ctx d4 p art dyn nil false)
+     (d/pitched "" ctx d4 (mapv #(lower ks %) p) art dyn nil false)
+     (d/pitched "" ctx d4 p art dyn nil false)]))
 
 (defn reverseturn [leaf ks]
   (let [d4 (/ (:duration leaf) 4) ctx (:context leaf)
         art (:articulation leaf) dyn (:dynamic leaf) p (:pitches leaf)]
-    [(d/leaf "" ctx d4 (mapv #(lower ks %) p) art dyn nil false)
-     (d/leaf "" ctx d4 p art dyn nil false)
-     (d/leaf "" ctx d4 (mapv #(upper ks %) p) art dyn nil false)
-     (d/leaf "" ctx d4 p art dyn nil false)]))
+    [(d/pitched "" ctx d4 (mapv #(lower ks %) p) art dyn nil false)
+     (d/pitched "" ctx d4 p art dyn nil false)
+     (d/pitched "" ctx d4 (mapv #(upper ks %) p) art dyn nil false)
+     (d/pitched "" ctx d4 p art dyn nil false)]))
 
 (defn shortfermata [leaf _]
-    [(d/leaf (:id leaf) (:context leaf) (* (:duration leaf) 3/2) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
+    [(d/pitched (:id leaf) (:context leaf) (* (:duration leaf) 3/2) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
 (defn fermata [leaf _]
-    [(d/leaf (:id leaf) (:context leaf) (* (:duration leaf) 2) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
+    [(d/pitched (:id leaf) (:context leaf) (* (:duration leaf) 2) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
 (defn longfermata [leaf _]
-    [(d/leaf (:id leaf) (:context leaf) (* (:duration leaf) 3) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
+    [(d/pitched (:id leaf) (:context leaf) (* (:duration leaf) 3) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
 (defn verylongfermata [leaf _]
-    [(d/leaf (:id leaf) (:context leaf) (* (:duration leaf) 4) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
+    [(d/pitched (:id leaf) (:context leaf) (* (:duration leaf) 4) (:pitches leaf) (:articulation leaf) (:dynamic leaf) nil false)])
 
 ;; ============================================================
 ;; Grace note expansion
@@ -166,7 +166,7 @@
   "Expand a grace-tagged leaf — assign a short real duration."
   [leaf grace-type]
   (let [dur (get grace-durations grace-type 1/32)]
-    [(d/leaf (:id leaf) (:context leaf) dur (:pitches leaf)
+    [(d/pitched (:id leaf) (:context leaf) dur (:pitches leaf)
              (:articulation leaf) (:dynamic leaf) nil false)]))
 
 ;; ============================================================
@@ -182,7 +182,7 @@
   (let [sub-dur (/ 1 subdiv)
         n       (max 1 (long (/ (:duration leaf) sub-dur)))]
     (vec (repeat n
-           (d/leaf "" (:context leaf) sub-dur (:pitches leaf)
+           (d/pitched "" (:context leaf) sub-dur (:pitches leaf)
                    (:articulation leaf) (:dynamic leaf) nil false)))))
 
 ;; ============================================================

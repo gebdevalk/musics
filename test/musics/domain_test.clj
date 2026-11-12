@@ -21,7 +21,7 @@
 ;; ============================================================
 
 (deftest invert-mirrors-pitches-around-an-axis
-  (let [n ((d/invert 60) (d/leaf :n nil 1/4 [60 64 67]))]
+  (let [n ((d/invert 60) (d/pitched :n nil 1/4 [60 64 67]))]
     (is (= [60 56 53] (:pitches n)))))
 
 (deftest invert-is-a-no-op-on-a-pitchless-part
@@ -29,12 +29,12 @@
     (is (nil? (:pitches r)))))
 
 (deftest invert-with-no-axis-uses-its-own-rounded-pitch-mean
-  (let [n ((d/invert) (d/leaf :n nil 1/4 [60 64 67]))]
+  (let [n ((d/invert) (d/pitched :n nil 1/4 [60 64 67]))]
     (is (= [68 64 61] (:pitches n))
         "mean (60+64+67)/3 = 191/3 rounds to 64, mirrored around that")))
 
 (deftest invert-with-no-axis-is-unchanged-on-a-single-pitch
-  (let [n ((d/invert) (d/leaf :n nil 1/4 [60]))]
+  (let [n ((d/invert) (d/pitched :n nil 1/4 [60]))]
     (is (= [60] (:pitches n)) "a single pitch is its own mean")))
 
 (deftest invert-with-no-axis-is-a-no-op-on-a-pitchless-part
@@ -46,7 +46,7 @@
   ;; exactly the same scale descending -- the cleanest possible check
   ;; that scale-step (not semitone) distance is what's being reflected.
   (let [ck (el/parse-key "C.major")
-        n  ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+        n  ((d/tonal-invert ck 60) (d/pitched :n nil 1/4 [60 62 64 65 67 69 71]))]
     (is (= [60 59 57 55 53 52 50] (:pitches n)))))
 
 (deftest tonal-invert-differs-from-semitone-invert-off-symmetric-axis
@@ -54,8 +54,8 @@
   ;; textbook asymmetry a plain semitone invert can't produce) --
   ;; E4(64, +4 semitones) -> A3(57, -3 semitones), not G#3(56, -4).
   (let [ck (el/parse-key "C.major")]
-    (is (= [57] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [64])))))
-    (is (= [56] (:pitches ((d/invert 60) (d/leaf :n nil 1/4 [64])))))))
+    (is (= [57] (:pitches ((d/tonal-invert ck 60) (d/pitched :n nil 1/4 [64])))))
+    (is (= [56] (:pitches ((d/invert 60) (d/pitched :n nil 1/4 [64])))))))
 
 (deftest tonal-invert-respects-a-non-c-tonic
   ;; Regression coverage: musics.common.music-elements/key-pitches walks scale
@@ -68,14 +68,14 @@
   ;; tonic, must come back as the same scale descending -- same shape
   ;; as the C-major check above, proving the wrap is handled.
   (let [gk (el/parse-key "G.major")
-        n  ((d/tonal-invert gk 67) (d/leaf :n nil 1/4 [67 69 71 72 74 76 78]))]
+        n  ((d/tonal-invert gk 67) (d/pitched :n nil 1/4 [67 69 71 72 74 76 78]))]
     (is (= [67 66 64 62 60 59 57] (:pitches n)))))
 
 (deftest tonal-invert-snaps-an-out-of-scale-pitch-up-first
   (let [ck (el/parse-key "C.major")]
     ;; C#4 (61) isn't in C major -- snaps up to D4 (62, degree 1) before
     ;; reflecting around C4 (degree 0), landing on B3 (59, degree -1).
-    (is (= [59] (:pitches ((d/tonal-invert ck 60) (d/leaf :n nil 1/4 [61])))))))
+    (is (= [59] (:pitches ((d/tonal-invert ck 60) (d/pitched :n nil 1/4 [61])))))))
 
 (deftest tonal-invert-is-a-no-op-on-a-pitchless-part
   (let [ck (el/parse-key "C.major")
@@ -100,7 +100,7 @@
 (deftest degree-leaf-result-is-an-ordinary-leaf-no-degree-or-key-retained
   (let [ck (el/parse-key "C.major")
         n  (d/degree-leaf :n nil ck 1/4 35)]
-    (is (d/leaf? n))
+    (is (d/pitched? n))
     (is (not (contains? n :degrees)))
     (is (not (contains? n :key)))))
 
@@ -117,17 +117,17 @@
   ;; D->F is only 3 -- the diatonic asymmetry a plain semitone transpose
   ;; can't produce.
   (let [ck (el/parse-key "C.major")]
-    (is (= [64] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [60])))))
-    (is (= [65] (:pitches ((d/tonal-transpose ck 2) (d/leaf :n nil 1/4 [62])))))))
+    (is (= [64] (:pitches ((d/tonal-transpose ck 2) (d/pitched :n nil 1/4 [60])))))
+    (is (= [65] (:pitches ((d/tonal-transpose ck 2) (d/pitched :n nil 1/4 [62])))))))
 
 (deftest tonal-transpose-shifts-a-whole-scale-run-by-one-degree
   (let [ck (el/parse-key "C.major")
-        n  ((d/tonal-transpose ck 1) (d/leaf :n nil 1/4 [60 62 64 65 67 69 71]))]
+        n  ((d/tonal-transpose ck 1) (d/pitched :n nil 1/4 [60 62 64 65 67 69 71]))]
     (is (= [62 64 65 67 69 71 72] (:pitches n)))))
 
 (deftest tonal-transpose-respects-a-non-c-tonic
   (let [gk (el/parse-key "G.major")]
-    (is (= [71] (:pitches ((d/tonal-transpose gk 2) (d/leaf :n nil 1/4 [67])))))))
+    (is (= [71] (:pitches ((d/tonal-transpose gk 2) (d/pitched :n nil 1/4 [67])))))))
 
 (deftest tonal-transpose-is-a-no-op-on-a-pitchless-part
   (let [ck (el/parse-key "C.major")
@@ -136,18 +136,18 @@
 
 (deftest snap-to-scale-leaves-an-in-scale-pitch-unchanged
   (let [ck (el/parse-key "C.major")]
-    (is (= [60] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [60])))))))
+    (is (= [60] (:pitches ((d/snap-to-scale ck) (d/pitched :n nil 1/4 [60])))))))
 
 (deftest snap-to-scale-snaps-a-chromatic-pitch-up
   (let [ck (el/parse-key "C.major")]
-    (is (= [62] (:pitches ((d/snap-to-scale ck) (d/leaf :n nil 1/4 [61])))))))
+    (is (= [62] (:pitches ((d/snap-to-scale ck) (d/pitched :n nil 1/4 [61])))))))
 
 (deftest snap-to-scale-respects-a-non-c-tonic
   ;; C5 (72) is G major's own 4th degree, but only reachable via
   ;; key-pitches' raw (unwrapped) form as 12 -- same regression shape
   ;; as tonal-invert/tonal-transpose's non-C-tonic coverage.
   (let [gk (el/parse-key "G.major")]
-    (is (= [72] (:pitches ((d/snap-to-scale gk) (d/leaf :n nil 1/4 [72])))))))
+    (is (= [72] (:pitches ((d/snap-to-scale gk) (d/pitched :n nil 1/4 [72])))))))
 
 (deftest snap-to-scale-is-a-no-op-on-a-pitchless-part
   (let [ck (el/parse-key "C.major")
@@ -156,17 +156,17 @@
 
 (deftest tonal-harmonize-adds-a-scale-third-above-keeping-the-original
   (let [ck (el/parse-key "C.major")]
-    (is (= [60 64] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60])))))
-    (is (= [62 65] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [62]))))
+    (is (= [60 64] (:pitches ((d/tonal-harmonize ck 2) (d/pitched :n nil 1/4 [60])))))
+    (is (= [62 65] (:pitches ((d/tonal-harmonize ck 2) (d/pitched :n nil 1/4 [62]))))
         "D->F is a minor third, not a major one -- same diatonic asymmetry as tonal-transpose")))
 
 (deftest tonal-harmonize-supports-a-negative-step-for-harmony-below
   (let [ck (el/parse-key "C.major")]
-    (is (= [57 60] (:pitches ((d/tonal-harmonize ck -2) (d/leaf :n nil 1/4 [60])))))))
+    (is (= [57 60] (:pitches ((d/tonal-harmonize ck -2) (d/pitched :n nil 1/4 [60])))))))
 
 (deftest tonal-harmonize-thickens-every-pitch-of-an-existing-chord
   (let [ck (el/parse-key "C.major")]
-    (is (= [60 64 64 67] (:pitches ((d/tonal-harmonize ck 2) (d/leaf :n nil 1/4 [60 64])))))))
+    (is (= [60 64 64 67] (:pitches ((d/tonal-harmonize ck 2) (d/pitched :n nil 1/4 [60 64])))))))
 
 (deftest tonal-harmonize-is-a-no-op-on-a-pitchless-part
   (let [ck (el/parse-key "C.major")
@@ -174,9 +174,9 @@
     (is (nil? (:pitches r)))))
 
 (deftest dynamic-shifts-the-offset-and-defaults-a-nil-one-to-zero
-  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60]))]
+  (let [n ((d/dynamic 10) (d/pitched :n nil 1/4 [60]))]
     (is (= 10 (:dynamic n))))
-  (let [n ((d/dynamic 10) (d/leaf :n nil 1/4 [60] nil -5 [] false))]
+  (let [n ((d/dynamic 10) (d/pitched :n nil 1/4 [60] nil -5 [] false))]
     (is (= 5 (:dynamic n)))))
 
 (deftest dynamic-is-a-no-op-on-a-part-with-no-dynamic-field
@@ -189,7 +189,7 @@
 ;; ============================================================
 
 (deftest fold-node-applies-a-toy-algebra-through-real-repo-resolution
-  (let [n1     (d/leaf :n1 nil 1/4 [60])
+  (let [n1     (d/pitched :n1 nil 1/4 [60])
         r1     (d/rest* :r1 nil 1/4)
         inner  {:type :SEQ :id :inner :context nil :children [n1]}
         repo   {:inner inner}
@@ -230,7 +230,7 @@
     (is (= 1/8 (:duration p)))
     (is (= 1 (:value p)))
     (is (d/pulse? p))
-    (is (not (d/leaf? p)))))
+    (is (not (d/pitched? p)))))
 
 (deftest pulse-participates-in-duration-and-part?
   (let [p (d/pulse :p1 nil 3/16 0)]
@@ -379,9 +379,9 @@
     (is (= [1 1] (dur "[w: c4 repeat 2 [d4] e4]" :w)) "a repeat among notes")))
 
 (deftest a-leaf-without-pitches-is-a-rest
-  (is (= (d/rest* :r nil 1/4) (d/leaf :r nil 1/4 [])))
-  (is (= :REST (:type (d/leaf :r nil 1/2 [] :staccato 5 [] true))))
-  (is (= :LEAF (:type (d/leaf :n nil 1/4 [60])))))
+  (is (= (d/rest* :r nil 1/4) (d/pitched :r nil 1/4 [])))
+  (is (= :REST (:type (d/pitched :r nil 1/2 [] :staccato 5 [] true))))
+  (is (= :PITCHED (:type (d/pitched :n nil 1/4 [60])))))
 
 ;; ============================================================
 ;; Navigation marks
@@ -389,7 +389,7 @@
 
 (deftest play-segments-orders-a-sequence
   (let [[s ds dc fine coda] (map d/jump [:segno :ds :dc :fine :coda])
-        n {:type :LEAF :duration 1/4}]
+        n {:type :PITCHED :duration 1/4}]
     (is (= [[0 2]] (d/play-segments [n n])) "no jump: as written")
     (is (= [[0 3] [2 5]] (d/play-segments [n s n ds n])) "DS: up to it, then on from the segno")
     (is (= [[0 1] [0 3]] (d/play-segments [n dc n])) "DC: from the start")

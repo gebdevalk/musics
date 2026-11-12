@@ -16,7 +16,7 @@
 (defn sound?
   "A note, chord or drum -- what can be rated as a sound."
   [x]
-  (boolean (and (mt/leaf? x) (#{:LEAF :DRUM} (:type x)))))
+  (boolean (and (mt/leaf? x) (#{:PITCHED :DRUM} (:type x)))))
 
 (defn- say [line] (@e/print-above line))
 

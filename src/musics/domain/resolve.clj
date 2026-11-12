@@ -415,7 +415,7 @@
   (let [links (chain-links part ctx-chain structural-time)
         event {:part part :chain-links links}]
     (cond
-      (d/leaf? part) (resolve-leaf  event channel onset structural-time)
+      (d/pitched? part) (resolve-leaf  event channel onset structural-time)
       (d/rest? part) (resolve-rest  event onset structural-time)
       (d/drum? part) (if (:held part)                       ; tied to: not struck
                        (resolve-rest event onset structural-time)
@@ -508,7 +508,7 @@
       (empty? remaining)
       {:part part :ctx-chain chain :path path}
 
-      (or (d/leaf? part) (d/rest? part) (d/drum? part)) nil
+      (or (d/pitched? part) (d/rest? part) (d/drum? part)) nil
 
       (d/iterator? part)
       (recur (:source part) (build-chain part chain) (rest remaining))
@@ -525,8 +525,8 @@
       :else nil)))
 
 (comment
-  (def n1 (d/leaf :n1 (c/context) 1/4 [60]))
-  (def n2 (d/leaf :n2 (c/context) 1/4 [62]))
+  (def n1 (d/pitched :n1 (c/context) 1/4 [60]))
+  (def n2 (d/pitched :n2 (c/context) 1/4 [62]))
 
   (def seq1 {:type :SEQ :id :s1
              :context (c/set-duration (c/context) 1/2)

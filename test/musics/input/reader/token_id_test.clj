@@ -21,7 +21,7 @@
               :else               []))]
     (walk (get tree root-id))))
 
-(defn- all-leaves [result] (collect d/leaf? result))
+(defn- all-leaves [result] (collect d/pitched? result))
 (defn- all-rests  [result] (collect d/rest? result))
 
 ;; ============================================================

@@ -54,7 +54,7 @@
     (if (every? ::step nodes)
       nodes
       (map (fn [node]
-             (if (or (::step node) (not (or (d/leaf? node) (d/rest? node))))
+             (if (or (::step node) (not (or (d/pitched? node) (d/rest? node))))
                node
                ;; no material at all (the only runs failed): the note as written
                (assoc (or (next-part! cursors (:path voice) spec ctx-chain) node)

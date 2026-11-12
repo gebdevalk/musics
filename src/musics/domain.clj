@@ -25,21 +25,21 @@
 
 (declare rest*)
 
-(defn leaf
-  "Create a Leaf (pitched note or chord).
+(defn pitched
+  "Create a :PITCHED leaf (a note is one pitch, a chord several).
    duration should be a Ratio (Clojure fraction).
    pitches is a vector of ints (MIDI note numbers); with none it is
    silence, so a Rest of the same duration."
   ([id context duration pitches]
    (if (empty? pitches)
      (rest* id context duration)
-     {:type :LEAF :id id :context context :duration duration
+     {:type :PITCHED :id id :context context :duration duration
       :pitches (vec pitches) :articulation nil :dynamic nil
       :modifiers [] :tied false}))
   ([id context duration pitches articulation dynamic modifiers tied]
    (if (empty? pitches)
      (rest* id context duration)
-     {:type :LEAF :id id :context context :duration duration
+     {:type :PITCHED :id id :context context :duration duration
       :pitches (vec pitches) :articulation articulation :dynamic dynamic
       :modifiers (vec modifiers) :tied (boolean tied)})))
 
@@ -109,7 +109,14 @@
 ;; Predicates
 ;; ============================================================
 
-(defn leaf?  [x] (= :LEAF  (:type x)))
+(defn pitched? [x] (= :PITCHED (:type x)))
+
+;; The leaves: every terminal element with a duration (and a tie). :LEAF itself is the
+;; skeleton, a leaf that is nothing more yet; zip makes of it a :PITCHED (a note is one
+;; pitch, a chord several), a :DRUM, or a :REST.
+(def leaf-types
+  (-> (make-hierarchy) (derive :PITCHED :LEAF) (derive :REST :LEAF) (derive :DRUM :LEAF)))
+(defn leaf? [x] (and (map? x) (isa? leaf-types (:type x) :LEAF)))
 (defn rest?  [x] (= :REST  (:type x)))
 (defn drum?  [x] (= :DRUM  (:type x)))
 (defn pulse? [x] (= :PULSE (:type x)))
@@ -122,7 +129,7 @@
 (defn part?
   "True if x is any musical part (leaf, rest, drum, pulse, container, or iterator)."
   [x]
-  (or (leaf? x) (rest? x) (drum? x) (pulse? x) (container? x) (iterator? x)))
+  (or (pitched? x) (rest? x) (drum? x) (pulse? x) (container? x) (iterator? x)))
 
 ;; ============================================================
 ;; Container helpers
@@ -258,7 +265,7 @@
   ([id context ks duration degree-or-degrees articulation dynamic modifiers tied]
    (let [scale-pcs (scale-pitch-classes ks)
          degrees   (if (sequential? degree-or-degrees) degree-or-degrees [degree-or-degrees])]
-     (leaf id context duration (mapv (partial degree-index->pitch scale-pcs) degrees)
+     (pitched id context duration (mapv (partial degree-index->pitch scale-pcs) degrees)
            articulation dynamic modifiers tied))))
 
 (defn tonal-invert
@@ -505,7 +512,7 @@
   ([repo part]
    (cond
      ;; --- Leaf / Rest / Drum / Pulse ---
-     (or (leaf? part) (rest? part) (drum? part) (pulse? part))
+     (or (pitched? part) (rest? part) (drum? part) (pulse? part))
      (:duration part 0)
 
      ;; --- Container: dispatch on type ---
@@ -615,7 +622,7 @@
   ([part] (pitch-stats nil part))
   ([repo part]
    (cond
-     (leaf? part)
+     (pitched? part)
      {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
 
      (or (rest? part) (drum? part) (bar? part))
@@ -654,7 +661,7 @@
   (cond
     (container? part) {:sum (get part :pitch-sum 0) :n (get part :pitch-n 0)}
     (iterator? part)  (part-pitch-stats (:source part))
-    (leaf? part)      {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
+    (pitched? part)      {:sum (reduce + (:pitches part)) :n (count (:pitches part))}
     :else             {:sum 0 :n 0}))
 
 (defn mean-pitch
@@ -673,7 +680,7 @@
    otherwise the scaled value)."
   [repo part factor]
   (cond
-    (or (leaf? part) (rest? part) (drum? part) (pulse? part))
+    (or (pitched? part) (rest? part) (drum? part) (pulse? part))
     [repo (update part :duration * factor)]
 
     (keyword? part)
@@ -714,7 +721,7 @@
     (container? x)                         :container
     (or (iterator? x)
         (= :iterator (:record-type x)))    :iterator
-    (leaf? x)      :leaf
+    (pitched? x)      :leaf
     (rest? x)      :rest
     (drum? x)      :drum
     (pulse? x)     :pulse
@@ -901,7 +908,7 @@
 
 (comment
   ;; --- Leaf / transforms ---
-  (def n (leaf "c4" (c/context) 1/4 [60]))
+  (def n (pitched "c4" (c/context) 1/4 [60]))
   ((times 2) n)                                             ;; => duration 1/2
   ((to-tuplet 3/2) n)                                       ;; => duration 1/6 (triplet)
   ((dotted) n)                                              ;; => duration 3/8

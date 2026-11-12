@@ -50,9 +50,9 @@ flat map `id -> node`. `:verse` in it:
 {:type :SEQ
  :id :verse
  :children [{:type :instruction :const :mf :raw "!mf"}
-            {:type :LEAF :pitches [60] :duration 1/4 ...}
-            {:type :LEAF :pitches [62] :duration 1/4 ...}
-            {:type :LEAF :pitches [64] :duration 1/8 ...}]
+            {:type :PITCHED :pitches [60] :duration 1/4 ...}
+            {:type :PITCHED :pitches [62] :duration 1/4 ...}
+            {:type :PITCHED :pitches [64] :duration 1/8 ...}]
  :context   <volume set to mf; duration 5/8>
  :pitch-sum 186
  :pitch-n   3}
@@ -70,7 +70,7 @@ flat map `id -> node`. `:verse` in it:
 Each note is a plain map:
 
 ```clojure
-{:type :LEAF :id "c4" :pitches [60] :duration 1/4
+{:type :PITCHED :id "c4" :pitches [60] :duration 1/4
  :articulation nil :dynamic nil :modifiers [] :tied false
  :ctx-chain [...]}   ; the enclosing contexts, baked in when it was walked
 ```

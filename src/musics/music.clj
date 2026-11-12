@@ -660,8 +660,8 @@
   "Each note's drum, as a stream, a rest's nil: x x drums zip is x again"
   [line] (mt/as-part :drum (each-note "drums" drum-of true line)))
 
-(defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :LEAF (:type %)) (= 1 (count (:pitches %)))) leaf))
-(defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :LEAF (:type %)) (< 1 (count (:pitches %)))) leaf))
+(defn note?  "True for a note with one pitch" [leaf] (one-note "note?" nil #(and (= :PITCHED (:type %)) (= 1 (count (:pitches %)))) leaf))
+(defn chord? "True for a chord" [leaf] (one-note "chord?" nil #(and (= :PITCHED (:type %)) (< 1 (count (:pitches %)))) leaf))
 (defn rest?  "True for a rest" [leaf] (one-note "rest?" nil #(= :REST (:type %)) leaf))
 (defn drum?  "True for a drum" [leaf] (one-note "drum?" nil #(= :DRUM (:type %)) leaf))
 
@@ -715,7 +715,7 @@
   "The key's tonic, in octave 4"
   [key]
   (when-not (mt/key? key) (fail "needs a key, as D.major, got" (p/show key)))
-  (d/leaf nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
+  (d/pitched nil nil 1/4 [(+ 60 (first (el/key-pitches key)))]))
 
 (defn key
   "The key a note was written in, or a seq's own (else the defaults')"
@@ -860,7 +860,7 @@
   ([chords n]
    (when (and n (< n 1)) (fail "walks a number of times from 1, got" n))
    (let [cs (vec (for [l (played-leaves "walking-bass" chords)]
-                   {:pitches (when (= :LEAF (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))}))]
+                   {:pitches (when (= :PITCHED (:type l)) (:pitches l)) :duration (:duration l) :token (str (:id l))}))]
      (when-not (some :pitches cs) (fail "there are no chords to walk under"))
      (mt/read-text (if n
                      (walking-bass/line->mus (vec (apply concat (clojure.core/repeat n cs))) {:end true})

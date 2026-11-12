@@ -331,7 +331,7 @@
                     [st alt] (if alt (box st alt) [st nil])]
                 [st (cond-> (assoc c :source src) alt (assoc-in [:params :alternative] alt))])
 
-              (and (map? c) (#{:LEAF :REST :DRUM :PULSE} (:type c))) [st (leaf-f c)]
+              (and (map? c) (#{:PITCHED :REST :DRUM :PULSE} (:type c))) [st (leaf-f c)]
               :else [st c]))]
     (kids state :SEQ children)))
 
@@ -347,7 +347,7 @@
                              (if (and b (not (#{:CONTEXT :DATA} (:type b)))) (walk (:children b)) []))
               (d/iterator? c) (concat (walk (:children (:source c)))
                                       (some-> c :params :alternative :children walk))
-              (and (map? c) (= :LEAF (:type c))) (:pitches c)
+              (and (map? c) (= :PITCHED (:type c))) (:pitches c)
               :else []))]
     (vec (walk children))))
 

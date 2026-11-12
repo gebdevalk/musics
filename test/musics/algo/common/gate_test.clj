@@ -9,7 +9,7 @@
             [musics.domain :as d]
             [musics.domain.context :as c]))
 
-(defn- leaf [id p] (d/leaf id (c/context) 1/4 [p]))
+(defn- leaf [id p] (d/pitched id (c/context) 1/4 [p]))
 
 ;; ============================================================
 ;; gate -- the pure engine, on-reject strategies
@@ -20,7 +20,7 @@
     (is (= [60 50] (mapv (comp first :pitches) out)))))
 
 (deftest gate-rest-replaces-rejected-parts-with-a-rest-of-the-same-duration
-  (let [n (d/leaf :b (c/context) 3/8 [67])
+  (let [n (d/pitched :b (c/context) 3/8 [67])
         out (gate/gate (gate/lo-criterion 65) :rest [(leaf :a 60) n])]
     (is (d/rest? (second out)))
     (is (= :b (:id (second out))))

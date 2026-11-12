@@ -1016,8 +1016,8 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   (`d/children repo container`). Auto-generated ids are short,
   type-prefixed (`:s1`/`:p1`/`:u1`/`:c1`/`:d1`/`:a1`/`:e1`), assigned by
   `builder/next-auto-id`.
-- **Leaves are plain, `:type`-tagged maps**: `Leaf`, `Rest`, `Drum`
-  (pitches/duration/articulation/dynamic/modifiers/tied), plus `Pulse`
+- **Leaves are plain, `:type`-tagged maps**: `Pitched` (`:PITCHED`: one pitch a note, several a chord; `note?` and `chord?` ask which), `Rest`, `Drum`
+  (pitches/duration/articulation/dynamic/modifiers/tied; all three derive from `:LEAF` in `d/leaf-types`, and `d/leaf?` asks for any of them, `d/pitched?` for the first), plus `Pulse`
   (`:duration`/`:value` only — no pitch at all; a duration/value cell for
   pulse-grid-shaped generative material, e.g. `musics.algo.common.pulse/
   grid->pulses`, and reachable directly from text too: `p<Duration>`
