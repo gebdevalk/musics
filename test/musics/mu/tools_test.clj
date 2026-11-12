@@ -998,5 +998,5 @@
           leaves (mt/leaves (first (:ok r)))]
       (is (nil? (:error r)))
       (is (= [:PITCHED :REST :REST :PITCHED] (map :type leaves)))
-      (is (= [[60] nil nil [64]] (map :pitches leaves)) "the rests take no pitch, so the second note gets the second pitch")
+      (is (= [[60] nil nil [64]] (map :pitches leaves)) "a pitch for each position, a rest's unused: the note at position 3 gets the second")
       (is (= [true true nil nil] (map #(when (:tied %) true) leaves)) "the tie rides on the skeleton, notes and rests alike"))))

@@ -148,6 +148,30 @@
   [pulses pulse]
   (map #(if (and % (not= 0 %)) pulse (d/rest* nil nil pulse)) pulses))
 
+(defn pulse->skeleton
+  "The skeleton of one pulse, given its value and the next pulse's: an onset (any
+   nonzero) a note, a 0 a Rest, one pulse long, either tied when the next pulse is
+   a 0 (or there is none). Tied, the note goes on into the 0s after it: the engine
+   holds a note open through a tied rest and ends it at the first that is not tied,
+   a rest with no tied note before it being silence. No pitch is written: zip puts
+   one on a note."
+  [this next pulse]
+  (let [on?  #(and % (not= 0 %))
+        tied (not (on? next))]
+    (if (on? this) (d/skeleton nil nil pulse nil tied) (d/rest* nil nil pulse tied))))
+
+(defn pulses->skeletons
+  "A skeleton for every pulse: a note for an onset, a Rest for a 0, each tied
+   when the pulse after it is a 0. One pulse of look-ahead, lazy, so an endless
+   stream is fine. Where pulses->durations lengthens the note before a 0, this
+   ties it, which is the same sound one pulse at a time (a voice asked for a single
+   pulse asks (pulse->skeleton this next pulse)). zip fills the notes with pitches."
+  {:mu {:names ["pul>tie"]}
+   :algo {:category "bridge" :works :shape :in [:pulse] :out :duration
+          :params {:pulse pulse-spec}}}
+  [pulses pulse]
+  (map #(pulse->skeleton %1 %2 pulse) pulses (concat (rest pulses) [0])))
+
 (defn strokes->durations
   "A syllable starts a note, \"-\" lengthens it; \"-\" before the first
    syllable is a Rest."
