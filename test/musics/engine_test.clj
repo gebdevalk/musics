@@ -1271,3 +1271,16 @@
           (is (number? t) "the chorus started")
           (is (< (/ (- t at) 1e6) 20) "within a few ms of the bar line it waited for")
           (is (not (contains? (engine/playing-ids eng) :verse)) "the verse was replaced"))))))
+
+(deftest a-tied-note-is-not-struck-again
+  (with-fresh-session
+   (with-out-str (store/read! "[l: !tempo:240 c4~ c4~ c4 d4]"))
+   (let [sent (atom [])]
+    (with-redefs [engine/send-midi-on!  (fn [fs ev _] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:on p]))))
+                  engine/send-midi-off! (fn [fs ev] (when (= fs ::fs) (doseq [p (:pitches ev)] (swap! sent conj [:off p]))))]
+      (binding [engine/*engine* (engine/engine ::fs (repo/registry) :ROOT)]
+        (engine/play :l)
+        (Thread/sleep 800)
+        (engine/stop!)))
+    (is (= [[:on 60] [:off 60] [:on 62] [:off 62]] @sent)
+        "struck once, released after the last tied note; nothing between"))))

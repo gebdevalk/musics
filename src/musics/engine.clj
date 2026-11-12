@@ -70,6 +70,7 @@
     :queue          (PriorityQueue. 64 ^Comparator action-order)
     :n              (atom 0)
     :sounding       (atom {})           ; top path -> {[channel pitch] count}
+    :held           (atom {})           ; top path -> #{[channel pitch]} sounding on, their note tied
     :voices         (atom {})           ; path -> {:path :root-path :algo :t :beat}
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
@@ -192,10 +193,17 @@
         midis (vec (for [[m [ch sends]] layers]
                      (let [midi (assoc m :channel ch)]
                        (when ch
-                         (send-midi-on! (:fs eng) midi sends)
-                         (when-let [f @echo] (f midi))
-                         (doseq [p (:pitches m)]
-                           (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0))))
+                         ;; a pitch the note before tied into is still sounding: not struck again
+                         (let [held  (get @(:held eng) top #{})
+                               fresh (vec (remove #(contains? held [ch %]) (:pitches m)))
+                               fresh-midi (assoc midi :pitches fresh)]
+                           (send-midi-on! (:fs eng) fresh-midi sends)
+                           (when (seq fresh) (when-let [f @echo] (f fresh-midi)))
+                           (doseq [p fresh]
+                             (swap! (:sounding eng) update-in [top [ch p]] (fnil inc 0)))
+                           (swap! (:held eng) update top
+                                  (fn [h] (let [ks (map (fn [p] [ch p]) (:pitches m))]
+                                            (if (:tied m) (into (or h #{}) ks) (reduce disj (or h #{}) ks)))))))
                        midi)))]
     (vreset! box midis)
     (when (contains? @(:voices eng) (:path e))
@@ -251,6 +259,7 @@
   (doseq [[[ch p] _] (get @(:sounding eng) top)]
     (send-midi-off! (:fs eng) {:channel ch :pitches [p]}))
   (swap! (:sounding eng) dissoc top)
+  (swap! (:held eng) dissoc top)
   (doseq [[path v] @(:voices eng) :when (= top (:root-path v))]
     (release-voice-channel! eng path)
     (swap! (:voices eng) dissoc path))
