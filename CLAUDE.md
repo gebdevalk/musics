@@ -455,8 +455,7 @@ it, just passes it through.
 
 ### Wall: per-voice playback algorithms
 
-See `doc/md/algorithms.md` for the practical guide; this section is the
-mechanism's architecture reference.
+This section is the mechanism's architecture reference.
 
 `musics.wall` (`src/musics/wall.clj`) is one registry, `*algo-registry*`:
 name -> `{:fn f :doc doc ...}`. A wall fn is seq-in/seq-out:

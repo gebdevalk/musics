@@ -289,7 +289,7 @@
     (let [part (r/rekey part chain (:beat st))]
       (fire-all (mapcat #(orn/expand % chain) (apply-wall st chain [part])) chain st k))
 
-    (or (d/rest? part) (d/drum? part))
+    (or (d/rest? part) (d/drum? part) (d/skeleton? part))
     (fire-all (apply-wall st chain [part]) chain st k)
 
     (d/iterator? part)

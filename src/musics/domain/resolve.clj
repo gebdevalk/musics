@@ -417,6 +417,7 @@
     (cond
       (d/pitched? part) (resolve-leaf  event channel onset structural-time)
       (d/rest? part) (resolve-rest  event onset structural-time)
+      (d/skeleton? part) (resolve-rest event onset structural-time)   ; only its time: it plays as a rest of its length
       (d/drum? part) (if (:held part)                       ; tied to: not struck
                        (resolve-rest event onset structural-time)
                        (resolve-drum event onset structural-time))
