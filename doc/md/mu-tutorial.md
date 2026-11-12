@@ -10,6 +10,21 @@ mu printed.
 Start mu with `lein mu`; its first line shows the version (`lein mu --version` prints only that). `bye` or Ctrl+D
 leaves; the stack stays for the session.
 
+## Where to start in this tutorial
+
+It is long, and you need not read it in order. Stop when you have what you need:
+
+| You want | Read |
+|---|---|
+| to type, play and store a piece | 0 The stack, 1 Writing music, 2 Listening, 13 Keeping things |
+| to change a piece | 3 Putting music together, 4 Changing pitch, 5 Keys, 6 Changing time, 8 Repeats |
+| dynamics, tempo and instruments | 7 Contexts, 12 Instruments and drums |
+| to ask questions of music | 9 Reading notes, 10 Taking a seq apart, 11 Choosing notes |
+| to compose with algorithms | 14 The color-talea, 15 Algorithms as functions (and `raw-algo-cookbook.md`) |
+| a piece that plays and changes by itself | 16 Live (settings, voices that are functions of the beat), then `mus/hoketus2.mus` |
+| a word's exact stack effect | `"dup" see` in mu, or [mu-words.md](mu-words.md) |
+| why mu is built this way | [mu-repl.md](mu-repl.md) |
+
 ## 0. The stack
 
 The prompt `mu<0>` counts what is on the stack. These words move things

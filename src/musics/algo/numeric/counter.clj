@@ -37,6 +37,19 @@
   [seed i n]
   (long (Math/floor (* (draw seed i) n))))
 
+(defn pick
+  "Draw i of seed picks one of items (a vector or seq), each as likely as another."
+  [seed i items]
+  (let [v (vec items)] (v (draw-int seed i (count v)))))
+
+(defn pick-weighted
+  "Draw i of seed picks one of items, as often as its weight says (weights need not sum to 1)."
+  [seed i items weights]
+  (let [r (* (draw seed i) (reduce + weights))]
+    (loop [[x & xs] (seq items) [w & ws] (seq weights) acc 0.0]
+      (let [acc (+ acc w)]
+        (if (or (< r acc) (nil? xs)) x (recur xs ws acc))))))
+
 (defn draws
   "The draws of seed, lazily: draw 0, draw 1 …"
   {:algo {:in [] :out :number

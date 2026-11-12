@@ -36,3 +36,12 @@
                 (map-indexed vector (partition 4 out))) "each window holds its own elements")
     (is (not= (range 24) out) "and they are reordered"))
   (is (= [0 1 2 3 4 5 6] (sort (c/shuffled-windows 4 1 (range 7)))) "a short last window shuffles alone"))
+
+(deftest pick-and-pick-weighted-are-pure
+  (is (= (c/pick 3 5 [:a :b :c]) (c/pick 3 5 [:a :b :c])))
+  (is (= #{:a :b :c} (set (map #(c/pick 3 % [:a :b :c]) (range 100)))))
+  (let [xs (map #(c/pick-weighted 3 % [:a :b] [9 1]) (range 2000))
+        n  (count (filter #{:a} xs))]
+    (is (< 1700 n 1900) "about nine in ten: a")
+    (is (every? #{:a :b} xs)))
+  (is (= :b (c/pick-weighted 3 0 [:a :b] [0 1])) "a zero weight is never picked"))

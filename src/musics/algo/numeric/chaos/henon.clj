@@ -30,3 +30,15 @@
                  (let [{:keys [a b]} @params]
                    (reset! state (henon-step @state a b))))})))
 
+
+(defn henon-seq
+  "The Hénon map as a lazy seq of its points [x y]: the step after [x0 y0], then the next …
+   No state: the same a, b, x0 and y0 give the same stream.
+     (take 3 (henon-seq 1.4 0.3 0.1 0.1))"
+  {:algo {:in [] :out :point
+          :params {:a  {:type :double :min 0.0 :max 2.0 :default 1.4 :doc "chaotic at 1.4"}
+                   :b  {:type :double :min 0.0 :max 1.0 :default 0.3 :doc "chaotic at 0.3"}
+                   :x0 {:type :double :min -1.0 :max 1.0 :default 0.1 :doc "starting x"}
+                   :y0 {:type :double :min -1.0 :max 1.0 :default 0.1 :doc "starting y"}}}}
+  [a b x0 y0]
+  (rest (iterate #(henon-step % a b) [x0 y0])))

@@ -16,7 +16,7 @@ have what you need.
 | Need an instrument or drum name | [instruments.md](instruments.md) | pick sounds by name |
 | Want to *drive* it | [mu-tutorial.md](mu-tutorial.md), sections 0-2 | use the stack, the words, the play words |
 | Want the signs on one page | [cheat-sheet.md](cheat-sheet.md) | recall `[R]`, `->`, `T!`, `R_` at a glance |
-| Looking for one word | `words`, `"dup" see`, `"chord" help` in mu; [mu-repl.md](mu-repl.md) | find what a word takes and gives |
+| Looking for one word | `words`, `"dup" see`, `"chord" help` in mu; [mu-words.md](mu-words.md) | find what a word takes and gives (the design is in [mu-repl.md](mu-repl.md)) |
 | Want algorithms | [raw-algo-cookbook.md](raw-algo-cookbook.md) | call `3 8 p/euclid` and put it on notes |
 | Want Slonimsky's polations | [polations.md](polations.md) | insert tones between a melody's tones |
 | Want to know how material is read (time, next) | [algo-access.md](algo-access.md) | see which algorithms are lazy, seekable or stateful |

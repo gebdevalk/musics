@@ -28,9 +28,14 @@
 
 (use-fixtures :each fresh)
 
-(defn- load-piece! []
+(defn- load-piece!
+  "Loads the piece, then pins the settings these tests count on (8 pulses a pass, 4 passes an
+   incarnation, soft 80, a lag of 3/8), so the numbers in the piece can be changed freely."
+  []
   (let [r (with-out-str (e/eval-input (slurp (io/file "mus/hoketus2.mus"))))]
-    (is (not (re-find #"can't read|error" r)) r)))
+    (is (not (re-find #"can't read|error" r)) r))
+  (doseq [[k v] {:steps 8 :reps 4 :spiral 24 :soft 80 :loud 90 :width 1.0 :lag 3/8}]
+    (c/tctx! live/tctx k v)))
 
 (defn- at [k beat] (c/ctx-value-chain [live/tctx] k beat))
 
