@@ -1006,3 +1006,8 @@
   (is (= "[p16~ C4/4 r8~]" (top "[p16~ c4 r8~]")))
   (is (= "[C4/16~ D4 r]" (top "[p16~ p16 r16] :pitch '[60 62 64] zip")) "zip onto a seq of skeletons: a pitch makes a note, a rest stays")
   (is (re-find #"^\[x16\\\w+ " (top "[p16~ p16] :drum '[:kick :snare] zip")) "a skeleton given a drum key is a drum"))
+
+(deftest durations-keep-ties
+  (is (= "'[p4~ 1/4 1/4 r8~ 1/8]" (top "[c4~ c4 d4 r8~ e8] durs")) "a tied note a skeleton, a tied rest a tied Rest")
+  (is (= "[C4/4~ C4 D4 r8~ E4]" (top "[c4~ c4 d4 r8~ e8] dup durs swap pits zip")) "taken apart and zipped, tied music is itself again")
+  (is (= "'[1/4 1/4]" (top "[c4 d4] durs")) "untied notes stay plain numbers"))

@@ -117,11 +117,14 @@
 ;; ---------------------------------------------------------------------------
 
 (defn leaves->durations
-  "Each note's duration, a rest as itself: a seq's rhythm, as a seq
-   taken apart gives it."
+  "Each note's duration, a rest as itself, a tied note as a skeleton with its tie: a
+   seq's rhythm, as a seq taken apart gives it."
   {:mu {:names ["lea>dur"]} :algo {:category "bridge" :in [:leaf] :out :duration :works :value}}
   [leaves]
-  (map #(if (d/rest? %) % (:duration %)) leaves))
+  (map #(cond (d/rest? %) %
+              (:tied %)   (d/skeleton nil nil (:duration %) nil true)
+              :else       (:duration %))
+       leaves))
 
 (defn leaves->pitches
   "Each note's pitch -- a chord's lowest, nil for a rest or a drum -- as a

@@ -625,10 +625,17 @@
     (mt/leaf? x)    (one-note "duration" "durations" :duration x)
     (v/material? x) (let [n (length-of x)] (if (integer? n) (long n) n))
     :else           (fail "needs a note or a seq, got" (p/show x))))
+(defn- tied-duration
+  "A note's duration, as a number; a tied note's as a skeleton (a tied rest's as a
+   tied Rest), so the tie goes with it: zip puts it back."
+  [l]
+  (cond (not (:tied l)) (:duration l)
+        (d/rest? l)     (d/rest* nil nil (:duration l) true)
+        :else           (d/skeleton nil nil (:duration l) nil true)))
 (defn durations
-  "Each note's duration, as a stream, a rest's too: x durations x pitches zip is x again"
+  "Each note's duration, as a stream, a rest's too, a tied note's with its tie: x durations x pitches zip is x again"
   {:mu {:names ["durs"]}}
-  [line] (mt/as-part :duration (each-note "durations" :duration true line)))
+  [line] (mt/as-part :duration (each-note "durations" tied-duration true line)))
 (defn- own-volume [x] (get-in x [:overrides :volume]))
 (defn volume
   "Its own volume (c4\\f, c4\\vol:90), else nil; for a seq, volumes"
