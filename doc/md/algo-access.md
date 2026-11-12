@@ -34,7 +34,7 @@ look-behind) or **whole** (all of it, so a finite input).
 | **Samplers that carry state** (9) | `numeric.walk` (5), `numeric.markov/chain`, `chaos.logistic`, `henon`, `lorenz` | a closure over atoms; `pull` calls it n times | a lazy seq from `iterate`: the cursor is the state, and a seed starts it. Not seekable |
 | **Index functions** (12) | `numeric.trig` (`sine-fn` and the other `-fn`), `create-fn`, `polation-fn` | pure; `polation-fn` goes round at its period | already right |
 | **Melodic builders** (about 10) | `melodic.slonimsky`, `pitch`, `serial` | eager vectors; `polation-at` and `-fn` are the index forms | as the grids |
-| **Bridges** (22) | `bridge.clj` | `:value` (12), `:shape` (5, with `pul>tie`), `:whole` (5), as declared; lazy already (`map`) | `pul>tie` and `pulse->skeleton` are the lazy duration producers |
+| **Bridges** (22) | `bridge.clj` | `:value` (12), `:shape` (5, with `pul>tied`), `:whole` (5), as declared; lazy already (`map`) | `pul>tied` and `pulse->skeleton` are the lazy duration producers |
 | **Leaf and seq transforms** | `common.gate`, `reshape`, `split`, `rotate`, `transient-ops`, `zfilter` | finite lists of leaves | `map` over a stream of leaves for per-leaf ones (`transpose`); a window for the order ones |
 | **Search** | `counterpoint.jeppesen`, `imitation` | a bounded search, its own seeded rng atom and a step budget | `:whole`; made once, not per beat |
 
@@ -66,4 +66,4 @@ not:
    several voices can each hold one.
 4. **Skeletons as the duration element** everywhere (a ratio is a skeleton with no tie).
 
-Nothing here is built yet beyond the skeleton and `pul>tie`.
+Nothing here is built yet beyond the skeleton and `pul>tied`.

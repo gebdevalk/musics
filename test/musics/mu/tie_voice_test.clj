@@ -1,5 +1,5 @@
 (ns ^:repl musics.mu.tie-voice-test
-  "A voice that is a function of the beat and makes skeletons: pul>tie for one pulse,
+  "A voice that is a function of the beat and makes skeletons: pul>tied for one pulse,
    zip fills it with a pitch. The word is one pulse at a time; the engine holds a
    note open through the tied rests after it."
   (:require [clojure.test :refer [deftest is use-fixtures]]
@@ -35,7 +35,7 @@
    : one ( $x -- list ) '[1] $x * ;
    : pulse-at ( $beat -- i ) $beat 16 * int ;
    : on ( $i -- n ) :pattern T@ $i :pattern T@ length mod @ ;
-   : tied ( $i -- leaf ) | ( $i on $i 1 + on ) 1/16 b/pul>tie 1 take  :melody T@ $i @ one  zip ;
+   : tied ( $i -- leaf ) | ( $i on $i 1 + on ) 1/16 b/pul>tied 1 take  :melody T@ $i @ one  zip ;
    : tvoice ( $beat -- leaf ) $beat pulse-at tied ;")
 
 (deftest a-beat-voice-makes-a-skeleton-a-pulse-at-a-time

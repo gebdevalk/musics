@@ -169,7 +169,7 @@
    stream is fine. Where pulses->durations lengthens the note before a 0, this
    ties it, which is the same sound one pulse at a time (a voice asked for a single
    pulse asks (pulse->skeleton this next pulse)). zip fills the notes with pitches."
-  {:mu {:names ["pul>tie"]}
+  {:mu {:names ["pul>tied"]}
    :algo {:category "bridge" :works :shape :in [:pulse] :out :duration
           :params {:pulse pulse-spec}}}
   [pulses pulse]
