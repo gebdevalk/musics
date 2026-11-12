@@ -41,6 +41,7 @@
     [cljfx.api :as fx]
     [musics.assist :as assist]
     [musics.gui.components :as ui]
+    [musics.gui.settings :as settings]
     [musics.gui.state :as state]
     [musics.gui.theme :as theme])
   (:import (javafx.application Platform)
@@ -362,6 +363,7 @@
         (ui/button {:text "Browser..." :on-action {:event/type :open-browser}})
         (ui/button {:text "Play Builder..." :on-action {:event/type :open-play-builder} :style (style-for :open-play-builder)})
         (ui/button {:text "Wall..." :on-action {:event/type :open-wall} :style (style-for :open-wall)})
+        (ui/button {:text "Settings..." :on-action {:event/type :open-settings}})
         (ui/button {:text "Conductor..." :on-action {:event/type :open-conductor}})
         (ui/button {:text "Persistence..." :on-action {:event/type :open-persistence}})
         (ui/button {:text "Transform..." :on-action {:event/type :open-transform}})
@@ -1122,6 +1124,7 @@
     :set-play-builder-change-path (state/set-play-builder-change-path! (:fx/event event))
     :play-builder-play-change     (state/play-builder-play-change!)
     :open-wall   (state/open-wall!)
+    :open-settings (settings/open-settings!)
     (:set-tree-param :set-tree-param-text)
     (state/set-tree-param! (:name event) (:key event) (ui/param-input event))
     :close-wall  (state/close-wall!)

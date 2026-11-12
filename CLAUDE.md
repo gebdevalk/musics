@@ -219,7 +219,7 @@ text (a mu input, a .mus file, the GUI editor's text)
 ```
 
 There is no Clojure REPL API: the program is used through **mu**
-(`lein mu`) and the **GUI** (`gui` in mu, `musics.gui.core/launch!`); see
+(`lein mu`) and the **GUI** (`gui` in mu, `musics.gui.core/launch!`; `:tctx gui` or its Settings... button opens `musics.gui.settings`, a control for each setting of the tctx); see
 `doc/md/decisions.md`, 2026-10-23. `musics.registries/session` holds the
 auto-id counters (`{:auto-ids {...}}`) — `musics.repo` is the actual store
 (see below). `musics.mu.store/read!` runs text as mu input on a stack of

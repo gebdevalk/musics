@@ -284,6 +284,10 @@ stored part and the buttons that open the other windows:
 - **Editor...**: text read as mu reads a file.
 - **Browser...**: the stored parts and their structure.
 - **Play Builder...**: what to play, and how, built by hand.
+- **Settings...**: the session's tctx (`8 :steps T!`) as controls: a slider for each number, with `z`
+  and `Z` beside it (a setting has no range, so the first is its own, symmetrical around the value and
+  including zero, and `Z` widens it), a text field for a list, and a computed setting shown, not edited.
+  A change is heard on the next note, and `T!` moves the control. `:tctx gui` opens it from mu.
 - **Conductor...**: actions on the cues a voice passes, at a section, a
   bar or a bar line.
 - **Wall...**: every live voice's settings as controls.
