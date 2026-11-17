@@ -162,7 +162,7 @@
 (defn text-field
   "A single-line text input. on-text-changed fires on every keystroke
    with :fx/event -> the new string; on-action fires on Enter, if given
-   at all -- omitted from the description entirely when the caller
+   at all -- both omitted from the description entirely when the caller
    doesn't pass one (every prior caller here always did, but a bare
    `nil` fails: cljfx's own event-handler coercer errors trying to
    coerce it, confirmed live -- 'Don't know how to coerce {:target
@@ -171,9 +171,9 @@
   [{:keys [text prompt on-text-changed on-action]}]
   (cond-> {:fx/type :text-field
            :text (or text "")
-           :prompt-text (or prompt "")
-           :on-text-changed on-text-changed}
-    on-action (assoc :on-action on-action)))
+           :prompt-text (or prompt "")}
+    on-text-changed (assoc :on-text-changed on-text-changed)
+    on-action       (assoc :on-action on-action)))
 
 (defn label
   [{:keys [text style]}]
