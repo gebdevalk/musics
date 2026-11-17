@@ -263,13 +263,13 @@
 (defrecord Source [f tctx ctx])
 
 (defn source
-  "A form for a voice fed by a function of beat: musics.events asks (f beat get)
-   for one leaf (or rest, or drum) at the beat the voice is at, and plays it; nil
+  "A form for a voice fed by a function of onset: musics.events asks (f onset get)
+   for one leaf (or rest, or drum) at the onset the voice is at, and plays it; nil
    ends the voice. get is a memoized lookup (musics.domain.context/getter) over
-   the chain at that beat: ctx (a voice's own Context, nil for none) first, then
+   the chain at that onset: ctx (a voice's own Context, nil for none) first, then
    the music's contexts and :ROOT's; tctx (a Context with keyword keys, nil for
    none) in front of them for the lookup only, so the leaf's own context values
-   are read by resolve at the same beat."
+   are read by resolve at the same onset."
   ([f] (->Source f nil nil))
   ([f tctx] (->Source f tctx nil))
   ([f tctx ctx] (->Source f tctx ctx)))

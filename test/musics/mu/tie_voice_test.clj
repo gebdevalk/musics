@@ -1,5 +1,5 @@
 (ns ^:repl musics.mu.tie-voice-test
-  "A voice that is a function of the beat and makes skeletons: pul>tied for one pulse,
+  "A voice that is a function of the onset and makes skeletons: pul>tied for one pulse,
    zip fills it with a pitch. The word is one pulse at a time; the engine holds a
    note open through the tied rests after it."
   (:require [clojure.test :refer [deftest is use-fixtures]]
@@ -34,17 +34,17 @@
    '[1 0 0 1 0 0 1 0] :pattern T!
    '[60 62 64 65 67 69 71 72] :melody T!
    : one ( $x -- list ) '[1] $x * ;
-   : pulse-at ( $beat -- i ) $beat 16 * int ;
+   : pulse-at ( $onset -- i ) $onset 16 * int ;
    : on ( $i -- n ) :pattern T@ $i :pattern T@ length mod @ ;
    : pitch-at ( $i -- n ) :melody T@ $i :melody T@ length mod @ ;
    : tied ( $i -- leaf ) | ( $i on $i 1 + on ) 1/16 b/pul>tied 1 take  $i pitch-at one  zip ;
-   : tvoice ( $beat -- leaf ) $beat pulse-at tied ;")
+   : tvoice ( $onset -- leaf ) $onset pulse-at tied ;")
 
 (deftest a-beat-voice-makes-a-skeleton-a-pulse-at-a-time
   (let [r (e/eval-input words)]
     (is (nil? (:error r)) (str (:error r))))
   (inputs/set-inputs! :t {})
-  (let [f      (#'live/beat-source "tvoice" :t ["beat"])
+  (let [f      (#'live/onset-source "tvoice" :t ["onset"])
         leaf   (fn [i] (f (/ i 16) (c/getter [live/tctx] (/ i 16))))
         leaves (map leaf (range 8))]
     (is (= [:PITCHED :REST :REST :PITCHED :REST :REST :PITCHED :REST] (map :type leaves)) "an onset a note, a 0 a rest")

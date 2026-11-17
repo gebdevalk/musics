@@ -71,7 +71,7 @@
     :n              (atom 0)
     :sounding       (atom {})           ; top path -> {[channel pitch] count}
     :open           (atom {})           ; voice path -> box of the note a tie holds open
-    :voices         (atom {})           ; path -> {:path :root-path :algo :t :beat}
+    :voices         (atom {})           ; path -> {:path :root-path :algo :t :onset}
     :active-voices  (atom {})           ; top path -> {id count}
     :algo-prepared  (atom {})           ; path -> name, read when a voice starts
     :channels       (atom channels/empty-pool) ; musics.midi.channels: who holds which channel
@@ -201,7 +201,7 @@
   (if (or (contains? @(:hushed eng) top) (some-> @(:solo eng) (not= top)))
     (do (vreset! box [])
         (when (contains? @(:voices eng) (:path e))
-          (swap! (:voices eng) update (:path e) assoc :t (:t e) :beat (:beat e))))
+          (swap! (:voices eng) update (:path e) assoc :t (:t e) :onset (:onset e))))
     (sound! eng top action)))
 
 (defn- sound!
@@ -224,7 +224,7 @@
                        midi)))]
     (vreset! box midis)
     (when (contains? @(:voices eng) (:path e))
-      (swap! (:voices eng) update (:path e) assoc :t (:t e) :beat (:beat e)))))
+      (swap! (:voices eng) update (:path e) assoc :t (:t e) :onset (:onset e)))))
 
 (defn- note-off! [eng top {:keys [box]}]
   (doseq [{:keys [channel pitches] :as midi} @box]
@@ -246,7 +246,7 @@
       :voice
       (if (= :start (:phase e))
         (swap! (:voices eng) update (:path e) merge
-               {:path (:path e) :root-path top :algo (:algo e) :t (:t e) :beat (:beat e)})
+               {:path (:path e) :root-path top :algo (:algo e) :t (:t e) :onset (:onset e)})
         (do (release-voice-channel! eng (:path e))
             (swap! (:voices eng) dissoc (:path e))
             (when (= (:path e) top)
@@ -394,7 +394,7 @@
            #{})))
 
 (defn voice-at
-  "{:path :root-path :algo :t :beat} of the voice at path (a vector, or
+  "{:path :root-path :algo :t :onset} of the voice at path (a vector, or
    a keyword for a top-level one) -- as of its latest note -- or nil."
   ([path] (voice-at *engine* path))
   ([eng path] (when eng (get @(:voices eng) (->path path)))))
@@ -544,7 +544,7 @@
    finds it as soon as play returns."
   [eng path form algo origin]
   (let [algo (or algo (get @(:algo-prepared eng) path))]
-    (swap! (:voices eng) assoc path {:path path :root-path path :algo algo :t 0.0 :beat 0})
+    (swap! (:voices eng) assoc path {:path path :root-path path :algo algo :t 0.0 :onset 0})
     (swap! (:streams eng) assoc path
            {:origin origin
             :events (ev/voice-events (:repo eng) form :path path :algo algo :cutover cutover)})))

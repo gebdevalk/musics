@@ -10,25 +10,26 @@
 16 :steps T!                      // pulses of a pass
 9 :density T!                     // notes of a pass
 1/8 :lag T!                       // how late voice B is (a pulse is 1/16)
-'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
+// '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
+'[64] 16 times  :melody T!
 '( :density :steps p/euclid ) :euclid T!
 
 // : bit ( $flag -- n ) $flag '( 1 ) '( 0 ) if ;
 
-// the pulse the beat is on, late by lag
-: pulse-at ( $beat $lag -- i ) $beat $lag - 16 * int :steps T@ mod ;
+// the pulse the onset is on, late by lag
+: pulse-at ( $onset $lag -- i ) $onset $lag - 16 * int :steps T@ mod ;
 
 // the leaf of pulse i: the melody's note if the Euclidean pattern has it on, else a rest
 : pulse ( $i $pan -- leaf )
-  | (:euclid T@@ $i @) 1 :steps / b/pul>evnt 0 @
+  | (:euclid T@@ $i @) 1 :steps T@ / b/pul>evnt 0 @
     :melody T@ $i @
     :pan $pan  :instrument 12  :volume 80  leaf ;
 
 // the voice: a rest until its start (late by lag), then pulse after pulse
-: hoke ( $beat $pan $late -- leaf )
-  $late :lag T@ * $beat >
-  '( [] $late :lag T@ * $beat - delay )
-  '( $beat $late :lag T@ * pulse-at  $pan  pulse )
+: hoke ( $onset $pan $late -- leaf )
+  $late :lag T@ * $onset >
+  '( [] $late :lag T@ * $onset - delay )
+  '( $onset $late :lag T@ * pulse-at  $pan  pulse )
   if ;
 
 100 :tempo T!

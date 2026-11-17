@@ -21,7 +21,7 @@ have what you need.
 | Want Slonimsky's polations | [polations.md](polations.md) | insert tones between a melody's tones |
 | Want to know how material is read (time, next) | [algo-access.md](algo-access.md) | see which algorithms are lazy, seekable or stateful |
 | Want one technique | [blending.md](blending.md), [counterpoint.md](counterpoint.md), [row-forms.md](row-forms.md), [grid.md](grid.md) | use it on its own |
-| Want something that changes while it plays | [pull-voice.md](pull-voice.md), [hoketus-dynamic.md](hoketus-dynamic.md), `mus/hoketus2.mus` | write a voice as a function of the beat |
+| Want something that changes while it plays | [pull-voice.md](pull-voice.md), [hoketus-dynamic.md](hoketus-dynamic.md), `mus/hoketus2.mus` | write a voice as a function of the onset |
 | Want to know how it works | [walk-through.md](walk-through.md), [domain.md](domain.md), [grammar-notes.md](grammar-notes.md) | follow one piece from text to sound |
 | Want to change the code | [../../CLAUDE.md](../../CLAUDE.md), [namespace.md](namespace.md), [decisions.md](decisions.md) | know where things live and why |
 

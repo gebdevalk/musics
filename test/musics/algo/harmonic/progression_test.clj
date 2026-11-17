@@ -12,11 +12,11 @@
 (defn- parse! [text] (with-out-str (store/read! text)))
 
 (defn- chords
-  "[pitches beat] of every chord the part id plays."
+  "[pitches onset] of every chord the part id plays."
   [id]
   (->> (ev/events (repo/registry) id)
        (filter #(= :note (:kind %)))
-       (mapv (juxt :pitches :beat))))
+       (mapv (juxt :pitches :onset))))
 
 (deftest every-blues-is-twelve-bars-of-4-4
   (doseq [[k _] hp/blues]

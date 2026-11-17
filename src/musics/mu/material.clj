@@ -615,7 +615,7 @@
                   (keep! (if algo (engine/play form :algo algo) (engine/play form)) x ctx mat))))))
 
 (defn play-source!
-  "Play src (musics.compose/source, a voice fed by a function of beat) as the voice
+  "Play src (musics.compose/source, a voice fed by a function of onset) as the voice
    id, replacing only that voice or adding it, under a context if given; x is what
    the voice shows as. id back."
   [src x id ctx]

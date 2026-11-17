@@ -5,7 +5,7 @@
      (events repo form)              ; same Form as musics.engine/play
      (events repo form :algo name)
 
-   Every event carries :t (seconds from the start), :beat (structural
+   Every event carries :t (seconds from the start), :onset (structural
    time, whole notes, exact) and :path (the voice, as play would name it:
    [:TA], [:TA :TB], ...), plus by :kind
 
@@ -48,13 +48,13 @@
             [musics.common.music-elements :as el]))
 
 ;; A voice's state -- musics.engine's per-voice atoms, as one map:
-;; {:repo :path :algo :t :beat :bar :bar-pos :marks :partial-pending?
+;; {:repo :path :algo :t :onset :bar :bar-pos :marks :partial-pending?
 ;;  :cutover}
 ;; Every walk fn takes it plus a continuation k (state -> seq of what
 ;; comes after) and returns a lazy seq, so a long piece never grows the
 ;; stack and an endless one is never walked past what is read.
 
-(defn- at [st kind] {:kind kind :t (:t st) :beat (:beat st) :path (:path st)})
+(defn- at [st kind] {:kind kind :t (:t st) :onset (:onset st) :path (:path st)})
 
 (defn- boundary
   "st as it continues past boundary [id phase] -- the :cutover hook's
@@ -179,12 +179,12 @@
 (defn- fire
   "One leaf/rest/drum: its event, the voice moved past it, its bars."
   [part chain st k]
-  (if-let [midi (r/resolve-event {:part part :ctx-chain chain} nil (:t st) (:beat st))]
+  (if-let [midi (r/resolve-event {:part part :ctx-chain chain} nil (:t st) (:onset st))]
     (let [dur       (d/part-duration part)
           pos       (cond-> (:bar-pos st)
                       (and (:partial-pending? st) (:partial midi))
                       (+ (- (el/meter-bar-length (:meter midi)) (:partial midi))))
-          [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :beat + dur))
+          [st' bars] (advance-bar (-> st (update :t + (:dur-secs midi)) (update :onset + dur))
                                   dur (:meter midi) (:partial midi))]
       (cons (merge (felt midi pos dur) (at st (cond (d/pitched? part) :note (and (d/drum? part) (not (:held part))) :drum :else :rest)))
             (lazy-seq (concat bars (lazy-seq (k (reduce #(boundary %1 (:n %2) :enter) st' bars)))))))
@@ -210,7 +210,7 @@
                (cond
                  (nil? i)
                  (k (if last-out
-                      (merge st (select-keys last-out [:t :beat :bar :bar-pos :marks :partial-pending?]))
+                      (merge st (select-keys last-out [:t :onset :bar :bar-pos :marks :partial-pending?]))
                       st))
 
                  (= ::end (:kind (first (ss i))))
@@ -246,7 +246,7 @@
            (walk-children (subvec kids a b)
                           (if (zero? a)
                             chain
-                            (compose/build-chain part outer (- (:beat st) (d/written-position (:repo st) kids a))))
+                            (compose/build-chain part outer (- (:onset st) (d/written-position (:repo st) kids a))))
                           st #(step more %))
            (k st)))
        segs st)
@@ -270,7 +270,7 @@
   (let [{n :count :or {n 1}} (:params iter)
         infinite? (= n :infinite)
         ends      (if infinite? [] (d/volta-endings (:repo st) iter))
-        chain     (compose/build-chain iter chain (:beat st))]
+        chain     (compose/build-chain iter chain (:onset st))]
     (letfn [(pass [i st]
               (if (or infinite? (< i n))
                 (walk-node (:source iter) chain st
@@ -286,7 +286,7 @@
   [part chain st k]
   (cond
     (d/pitched? part)
-    (let [part (r/rekey part chain (:beat st))]
+    (let [part (r/rekey part chain (:onset st))]
       (fire-all (mapcat #(orn/expand % chain) (apply-wall st chain [part])) chain st k))
 
     (or (d/rest? part) (d/drum? part) (d/skeleton? part))
@@ -309,7 +309,7 @@
       (cons (section st :enter)
             (lazy-seq (let [st       (boundary st id :enter)
                             outer    chain
-                            chain    (compose/build-chain part chain (:beat st))
+                            chain    (compose/build-chain part chain (:onset st))
                             n        (get-in st [:entered id] 0)
                             st       (cond-> st (or (:rotate part) (:alternate part) (:shuffle part) (:choose part)) (assoc-in [:entered id] (inc n)))
                             children (apply-wall st chain (compose/play-order part (d/children (:repo st) part) n (compose/voice-seed (:path st))))]
@@ -339,16 +339,16 @@
                     k)))
 
 (defn- walk-source
-  "A voice fed by a function of beat (compose/source): the leaf at the beat the
-   walk is at, from (f beat get), is played, and the beat it leaves is asked
+  "A voice fed by a function of onset (compose/source): the leaf at the onset the
+   walk is at, from (f onset get), is played, and the onset it leaves is asked
    next, so the source is asked once for each leaf, lazily, as far as the stream
-   is read. get looks keys up at that same beat over the chain (the source's tctx
+   is read. get looks keys up at that same onset over the chain (the source's tctx
    in front), and fire resolves the leaf at it, so production and resolution
    read one time."
   [{:keys [f tctx ctx] :as src} chain st k]
   (let [chain (cond->> chain ctx (into [ctx]))
-        beat  (:beat st)
-        part  (f beat (c/getter (cond->> chain tctx (into [tctx])) beat))]
+        onset  (:onset st)
+        part  (f onset (c/getter (cond->> chain tctx (into [tctx])) onset))]
     (if (nil? part)
       (k st)
       (walk-node part chain st #(walk-source src chain % k)))))
@@ -398,7 +398,7 @@
   (let [repo  (compose/live-repo repo)
         chain (if-let [root (:context (get repo :ROOT))] [root] [])
         st    {:repo repo :path path :algo algo :cutover cutover
-               :t 0.0 :beat 0 :bar 1 :bar-pos 0 :marks {} :partial-pending? true}]
+               :t 0.0 :onset 0 :bar 1 :bar-pos 0 :marks {} :partial-pending? true}]
     (cons (voice-event st :start)
           (lazy-seq (walk-form form chain st (fn [st'] (list (voice-event st' :end))))))))
 

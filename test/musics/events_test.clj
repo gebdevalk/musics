@@ -23,7 +23,7 @@
 (deftest a-seq-after-a-par-starts-when-the-longest-branch-ends
   (parse! "[t: !tempo:240 { [c4 d4] [e4] } g4 a4 ]")
   (is (= [[0 [60]] [0 [64]] [1/4 [62]] [1/2 [67]] [3/4 [69]]]
-         (map (juxt :beat :pitches) (notes (ev/events (repo/registry) :t)))))
+         (map (juxt :onset :pitches) (notes (ev/events (repo/registry) :t)))))
   (is (= [0.0 0.0 0.25 0.5 0.75]
          (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (ev/events (repo/registry) :t))))))
 
@@ -35,7 +35,7 @@
     (is (= 25 (count ns)) "every note once a pass, then g")
     (is (every? #(= #{60 62 64 65} (set %)) passes) "each pass all four")
     (is (< 1 (count (distinct passes))) "in more than one order")
-    (is (= (range 0 25/4 1/4) (map :beat ns)) "the timing as written"))
+    (is (= (range 0 25/4 1/4) (map :onset ns)) "the timing as written"))
   (testing "a seed repeats it"
     (rc/seed! 3) (let [a (mapv :pitches (notes (ev/events (repo/registry) :s)))]
                    (rc/seed! 3) (is (= a (mapv :pitches (notes (ev/events (repo/registry) :s))))))))
@@ -55,7 +55,7 @@
   (let [ns     (notes (ev/events (repo/registry) :s))
         passes (set (map #(mapv (comp first :pitches) %) (partition 4 (butlast ns))))]
     (is (= #{[60 58 56 53] [67 64 62 60]} passes) "each pass one of the two, both heard")
-    (is (= 6 (:beat (last ns))) "the timing runs straight on")
+    (is (= 6 (:onset (last ns))) "the timing runs straight on")
     (is (= 7 (d/duration @(repo/registry) (repo/current :s))) "its length is its longest alternative's")))
 
 (defn- display-notes-in-order [steps]
@@ -103,13 +103,13 @@
                           :children [(d/pitched :n1 (c/context) 1/8 [60])]}
                          {:count :infinite})})
   (is (= (map #(* 1/8 %) (range 50))
-         (map :beat (take 50 (notes (ev/events (repo/registry) :endless)))))))
+         (map :onset (take 50 (notes (ev/events (repo/registry) :endless)))))))
 
 (deftest bars-and-marks
   (parse! "[b: !tempo:240 !Meter:2/4 c4 d4 | e4 f4 || g2 ]")
   (let [evs (ev/events (repo/registry) :b)]
-    (is (= [[1/2 2] [1 3] [3/2 4]] (map (juxt :beat :n) (filter #(= :bar (:kind %)) evs))))
-    (is (= [[1/2 1 1] [1 2 1]] (map (juxt :beat :count :n) (filter #(= :mark (:kind %)) evs))))))
+    (is (= [[1/2 2] [1 3] [3/2 4]] (map (juxt :onset :n) (filter #(= :bar (:kind %)) evs))))
+    (is (= [[1/2 1 1] [1 2 1]] (map (juxt :onset :count :n) (filter #(= :mark (:kind %)) evs))))))
 
 (deftest algo-tags-transform-their-own-span
   ;; a wall fn sees a container's children, then each leaf again -- it
@@ -173,7 +173,7 @@
   (let [evs (notes (ev/events (repo/registry) :t))]
     (is (= [0.0 0.25 1.25] (map #(/ (Math/round (* 1000 (:t %))) 1000.0) evs))
         "a quarter at 240 is 0.25 s; doubled, d4 and the rest take 0.5 s each")
-    (is (= [0 1/4 3/4] (map :beat evs)) "structural beats are untouched")))
+    (is (= [0 1/4 3/4] (map :onset evs)) "structural beats are untouched")))
 
 (defn- note-times [form]
   (map #(/ (Math/round (* 1000 (:t %))) 1000.0) (notes (ev/events (repo/registry) form))))
@@ -309,7 +309,7 @@
                         (v/read-domain "[repeat ~ [c d] volta [e]]"))))
 
 (defn- drum-hits [form]
-  (map (juxt :beat (comp first :pitches)) (filter #(= :drum (:kind %)) (ev/events (repo/registry) form))))
+  (map (juxt :onset (comp first :pitches)) (filter #(= :drum (:kind %)) (ev/events (repo/registry) form))))
 
 (deftest a-bare-x-is-the-previous-drum
   (parse! "[kit: x8\\36 x x\\snare x x\\ghost]")
@@ -450,44 +450,44 @@
   (let [vs (mapv :velocity (filter #(= :drum (:kind %)) (ev/events (repo/registry) :ad)))]
     (is (> (first vs) (second vs)) "drums too")))
 
-;; ---- a voice fed by a function of beat (compose/source) ----
+;; ---- a voice fed by a function of onset (compose/source) ----
 
 (defn- leaf-at [_beat pitch] (d/pitched nil (c/context) 1/4 [pitch]))
 
 (deftest a-source-is-asked-one-leaf-at-a-time-at-the-beat-the-voice-is-at
   (let [asked (atom [])
-        src   (compose/source (fn [beat _]
-                                (swap! asked conj beat)
-                                (leaf-at beat (+ 60 (int (* 4 beat))))))
+        src   (compose/source (fn [onset _]
+                                (swap! asked conj onset)
+                                (leaf-at onset (+ 60 (int (* 4 onset))))))
         evs   (ev/events (repo/registry) src)]
-    (testing "an endless source plays lazily, one leaf per beat it leaves"
+    (testing "an endless source plays lazily, one leaf per onset it leaves"
       (is (= [[0 [60]] [1/4 [61]] [1/2 [62]] [3/4 [63]]]
-             (map (juxt :beat :pitches) (take 4 (notes evs))))))
+             (map (juxt :onset :pitches) (take 4 (notes evs))))))
     (testing "it was asked at the beats of the leaves it played, and only about as far as they were read"
       (is (= [0 1/4 1/2 3/4] (take 4 @asked)))
       (is (<= (count @asked) 6)))))
 
 (deftest a-source-can-end-its-voice
-  (let [src (compose/source (fn [beat _] (when (< beat 1) (leaf-at beat 60))))]
-    (is (= [0 1/4 1/2 3/4] (map :beat (notes (ev/events (repo/registry) src)))))))
+  (let [src (compose/source (fn [onset _] (when (< onset 1) (leaf-at onset 60))))]
+    (is (= [0 1/4 1/2 3/4] (map :onset (notes (ev/events (repo/registry) src)))))))
 
 (deftest a-source-reads-the-tctx-at-its-own-beat-and-sees-a-change-at-the-next-leaf
   (let [tctx (-> (c/context)
                  (c/tctx! :base 60)
-                 (c/tctx! :climb (fn [beat] (int (* 4 beat))))
+                 (c/tctx! :climb (fn [onset] (int (* 4 onset))))
                  (c/tctx-derive :pitch (fn [_ get] (+ (get :base) (get :climb)))))
         src  (compose/source (fn [_ get] (leaf-at 0 (get :pitch))) tctx)
         evs  (ev/events (repo/registry) src)]
-    (is (= [60 61 62] (map (comp first :pitches) (take 3 (notes evs)))) "a function of the beat, through a derived key")
+    (is (= [60 61 62] (map (comp first :pitches) (take 3 (notes evs)))) "a function of the onset, through a derived key")
     (c/tctx! tctx :base 100)
     (is (= [103 104] (map (comp first :pitches) (take 2 (drop 3 (notes evs)))))
         "the leaves after the change read it; the ones played keep what they were")))
 
 (deftest a-source-leaf-is-resolved-at-the-same-beat-through-the-voices-context
-  (let [ctx (c/ctx-generate (c/context) "volume" (fn [beat] (+ 40 (* 20 beat))))
-        src (compose/source (fn [beat _] (leaf-at beat 60)) nil ctx)
+  (let [ctx (c/ctx-generate (c/context) "volume" (fn [onset] (+ 40 (* 20 onset))))
+        src (compose/source (fn [onset _] (leaf-at onset 60)) nil ctx)
         vs  (map :velocity (take 4 (notes (ev/events (repo/registry) src))))]
-    (is (apply < vs) "the volume generator is read at each leaf's own beat")
+    (is (apply < vs) "the volume generator is read at each leaf's own onset")
     (is (= 4 (count (distinct vs))))))
 
 (deftest a-source-voice-plays-through-the-engine

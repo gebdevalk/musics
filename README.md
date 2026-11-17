@@ -15,7 +15,7 @@ Write music as text, compose it with algorithms, and play it live, in
   Slonimsky's polations and more: plain functions called by name,
   `3 8 p/euclid`, whose results `zip` puts onto notes.
 - **Live.** Real-time MIDI through Gervill or Fluidsynth. A voice can be
-  a function of the beat that looks its settings up as it plays, so a
+  a function of the onset that looks its settings up as it plays, so a
   value changed with `T!`, or a slider in the GUI, is heard on the next
   note.
 - **Edit and ask.** A seq is a list you can address (`[c d e] 1 g !`
@@ -58,7 +58,7 @@ gui                                      the GUI beside mu
 And one that plays by itself and changes while it sounds:
 
 ```
-"mus/hoketus2.mus" load                  a piece written as voices that are functions of the beat
+"mus/hoketus2.mus" load                  a piece written as voices that are functions of the onset
 start                                    hear it
 6 :steps T!                              change a setting: heard at the next note
 stop-hoketus                             stop
@@ -108,7 +108,7 @@ are. Read them roughly in this order, stopping when you have what you need.
    and [row-forms.md](doc/md/row-forms.md) cover single topics.
 5. **Live voices and settings.** [pull-voice.md](doc/md/pull-voice.md) and
    [hoketus-dynamic.md](doc/md/hoketus-dynamic.md) explain a voice that is
-   a function of the beat; `mus/hoketus2.mus` is one, written out.
+   a function of the onset; `mus/hoketus2.mus` is one, written out.
 6. **How it works.** [walk-through.md](doc/md/walk-through.md) follows one
    piece from text to sound, [domain.md](doc/md/domain.md) is the model,
    [CLAUDE.md](CLAUDE.md) the architecture reference and

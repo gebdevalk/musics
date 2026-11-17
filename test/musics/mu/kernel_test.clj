@@ -799,7 +799,7 @@
     (is (re-find #"'x is a namespace already" (:error (e/eval-input "'numeric.rng 'x reqalgo"))))
     (is (re-find #"no namespace musics.algo.nothing.here" (:error (e/eval-input "'nothing.here reqalgo"))))))
 
-;; ---- a voice that is a function of beat ($beat in the word's stack effect) ----
+;; ---- a voice that is a function of onset ($onset in the word's stack effect) ----
 
 (defn- top-of [input] (p/show (peek (:ok (run input)))))
 
@@ -811,12 +811,12 @@
     (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
     (run "'( :steps 2 * ) :twice T!")
     (is (= 16 (c/ctx-value-chain [live/tctx] :twice 0)) "a quotation computes it from another key")
-    (run "'( :beat 4 * int ) :quarters T!")
-    (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :beat is the beat it is asked at")
+    (run "'( :onset 4 * int ) :quarters T!")
+    (is (= [0 2 4] (mapv #(c/ctx-value-chain [live/tctx] :quarters %) [0 1/2 1])) "and :onset is the onset it is asked at")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T!"))))
     (testing "T@ gives a computed key as the quotation, not run; T@@ runs it"
       (is (= "'( :steps 2 * )" (str/trim (top-of ":twice T@"))) "as it was stored")
-      (is (= "16" (str/trim (top-of ":twice T@@"))) "run, at beat 0")
+      (is (= "16" (str/trim (top-of ":twice T@@"))) "run, at onset 0")
       (is (= "8" (str/trim (top-of ":steps T@"))) "a value is itself")
       (is (= "8" (str/trim (top-of ":steps T@@"))))
       (is (re-find #"is not in the tctx" (:error (run ":nothing T@@")))))
@@ -840,31 +840,31 @@
 
 (deftest a-word-with-beat-in-its-stack-effect-is-a-voice-that-is-a-function-of-beat
   (try
-    (run ": tick ( $beat $base -- note ) | '[1/4] '[1] $base $beat 4 * int + * zip ;")
-    (testing "the word gives one leaf for the beat it is asked at, the other inputs as they are now"
-      (let [f (#'live/beat-source "tick" :v ["beat" "base"])
-            at (fn [beat base]
+    (run ": tick ( $onset $base -- note ) | '[1/4] '[1] $base $onset 4 * int + * zip ;")
+    (testing "the word gives one leaf for the onset it is asked at, the other inputs as they are now"
+      (let [f (#'live/onset-source "tick" :v ["onset" "base"])
+            at (fn [onset base]
                  (inputs/set-inputs! :v [["base" base]])
-                 (-> (f beat (c/getter [live/tctx] beat)) :pitches first))]
-        (is (= [60 62 64] [(at 0 60) (at 1/2 60) (at 1 60)]) "a function of the beat")
+                 (-> (f onset (c/getter [live/tctx] onset)) :pitches first))]
+        (is (= [60 62 64] [(at 0 60) (at 1/2 60) (at 1 60)]) "a function of the onset")
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
-    (testing "a keyword argument the tctx holds is its value, at the leaf's beat"
-      (run ": tock ( $beat -- note ) | '[1/4] '[1] :base :bump + * zip ;")
+    (testing "a keyword argument the tctx holds is its value, at the leaf's onset"
+      (run ": tock ( $onset -- note ) | '[1/4] '[1] :base :bump + * zip ;")
       (run "60 :base T!")
-      (run "'( :beat 4 * int ) :bump T!")
+      (run "'( :onset 4 * int ) :bump T!")
       (inputs/set-inputs! :w [])
-      (is (= [60 62] (mapv #(-> ((#'live/beat-source "tock" :w ["beat"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))
-    (testing "it starts as a voice: $beat is the voice's own, the stack gives the rest"
+      (is (= [60 62] (mapv #(-> ((#'live/onset-source "tock" :w ["onset"]) % (c/getter [live/tctx] %)) :pitches first) [0 1/2]))))
+    (testing "it starts as a voice: $onset is the voice's own, the stack gives the rest"
       (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
        (with-redefs [engine/receiver (atom :silent)]
         (let [r (run "60 'tick :v ->")]
           (is (nil? (:error r)) (:error r))
           (is (some? (engine/voice-at :v)))
-          (is (= ["base"] (inputs/names :v)) "beat is not an input a slider moves")
+          (is (= ["base"] (inputs/names :v)) "onset is not an input a slider moves")
           (is (= 60 (inputs/value :v "base")))
           (run ":v stop")))))
     (testing "a start that cannot be heard is refused"
-      (run ": bad ( $beat -- note ) 1 0 / ;")
+      (run ": bad ( $onset -- note ) 1 0 / ;")
       (binding [engine/*engine* (engine/engine nil (repo/registry) :ROOT)]
         (with-redefs [engine/receiver (atom :silent)]
           (is (re-find #"division by zero" (:error (run "'bad :v2 ->"))))

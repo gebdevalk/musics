@@ -544,7 +544,7 @@
    generator, a derived entry, a miss) is looked for and computed once, however
    often it is asked or reached through another key, and a cycle is caught across
    them. Make one for each leaf (its
-   chain and its beat) and bind it where a word runs (eval/with-lookup);
+   chain and its onset) and bind it where a word runs (eval/with-lookup);
    make another for the next leaf, so a change of a tctx is seen then."
   [chain time]
   (let [state {:cache (atom {}) :active (atom [])}]

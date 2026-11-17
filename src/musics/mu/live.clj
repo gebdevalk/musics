@@ -119,7 +119,7 @@
 (def tctx
   "The session's tctx (musics.registries/tctx): a Context whose keys are Clojure
    keywords (:reps, :steps), first in the chain every voice fed by a function of
-   beat reads, filled by mu's T!, and stored in the repo as
+   onset reads, filled by mu's T!, and stored in the repo as
    :tctx so a saved session keeps it."
   reg/tctx)
 
@@ -131,37 +131,37 @@
     (repo/commit-node! :tctx {:type :CONTEXT :id :tctx :context tctx :children []}))
   tctx)
 
-(defn- beat-word?
-  "Does word take the beat as an input -- $beat in its stack effect? Then the
-   voice it plays is a function of beat: the word gives one leaf for the beat the
+(defn- onset-word?
+  "Does word take the onset as an input -- $onset in its stack effect? Then the
+   voice it plays is a function of onset: the word gives one leaf for the onset the
    voice is at, and the stack gives it the other inputs."
   [names]
-  (boolean (some #{"beat"} names)))
+  (boolean (some #{"onset"} names)))
 
-(defn- beat-source
-  "The function of a voice fed by a function of beat (compose/source): (beat lookup)
-   -> the one leaf word gives at beat, the other inputs read as they are now
+(defn- onset-source
+  "The function of a voice fed by a function of onset (compose/source): (onset lookup)
+   -> the one leaf word gives at onset, the other inputs read as they are now
    (:voice/input stores one), and any keyword argument of a word it runs the
-   value lookup gives for it -- also :beat."
+   value lookup gives for it -- also :onset."
   [word voice all-names]
-  (fn [beat lk]
+  (fn [onset lk]
     (let [vals   (inputs/values voice)
-          args   (mapv (fn [n] (if (= n "beat") beat (get vals n))) all-names)
-          lookup (fn [k] (if (= k :beat) beat (lk k)))]
+          args   (mapv (fn [n] (if (= n "onset") onset (get vals n))) all-names)
+          lookup (fn [k] (if (= k :onset) onset (lk k)))]
       (e/with-lookup lookup
         #(let [left (e/run-word args word)]
            (when (empty? left) (e/mu-error word "leaves nothing to play"))
            (or (first (as-leaves (peek left)))
-               (e/mu-error word "gave no leaf for the beat")))))))
+               (e/mu-error word "gave no leaf for the onset")))))))
 
-(defn- play-beat-word!
+(defn- play-onset-word!
   [word voice values ctx staged all-names]
-  (when staged (e/mu-error (str word ":") "a voice that is a function of beat starts now: -> , not -|>"))
-  (let [names (vec (remove #{"beat"} all-names))
+  (when staged (e/mu-error (str word ":") "a voice that is a function of onset starts now: -> , not -|>"))
+  (let [names (vec (remove #{"onset"} all-names))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))]
     (inputs/clear! voice)
     (inputs/set-inputs! voice (map vector names values) specs)
-    (let [f (beat-source word voice all-names)]
+    (let [f (onset-source word voice all-names)]
       ;; ask once now, at the start, so a word that fails is refused here, not heard
       (try (f 0 (c/getter [(tctx-node!)] 0))
            (catch Throwable t (inputs/clear! voice) (throw t)))
@@ -201,8 +201,8 @@
    [count] when it waits for a boundary (->>)."
   [word voice values ctx join? staged]
   (reg/log! :live-word)
-  (if (beat-word? (map first (e/live-inputs word)))
-    (play-beat-word! word voice values ctx staged (mapv first (e/live-inputs word)))
+  (if (onset-word? (map first (e/live-inputs word)))
+    (play-onset-word! word voice values ctx staged (mapv first (e/live-inputs word)))
     (play-plain-word! word voice values ctx join? staged)))
 
 (defn input-voice

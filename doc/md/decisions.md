@@ -3718,3 +3718,17 @@ name's separator, never two in a row. Rejected: `;` (ends `: word … ;`, and is
 variable), `( … )` (a group and the stack effect), `#` (the sharp: `c#`, `F#.dorian`,
 so a comment would need a token boundary and sit confusingly next to notes). The
 importers drop the comments of LilyPond, ABC and GUIDO text, so none is carried over.
+
+## 2026-11-17 -- `beat` is `onset`
+
+The position a voice that is a function of beat is asked at (`$beat`, `:beat` in the
+tctx lookup, the `:beat` of an event and of a voice's state) is `onset`: where the leaf
+being asked for starts, in whole notes from the voice's own start. Why: `beat` reads as
+a quarter note, and this is a whole-note fraction (`1/16` for the second sixteenth);
+`:t` is already seconds, and `now`/`time`/`elapsed` suggest a clock, while the value is
+musical time, a little ahead of what is heard (the lookahead), unmoved by tempo or pause.
+Rejected: `position` (a place in a score, not a time), `at` (`:at` is a signal's due
+time in the conductor, and `@t` in the grammar). `beat` stays where it means a beat of
+the meter (`musics.algo`, walking bass, `swing`, `groove`). Renamed: the `$beat` input
+(`$onset`), `:onset` in events, voices and the lookup, `musics.mu.live/play-onset-word!`
+`onset-source` `onset-word?`.

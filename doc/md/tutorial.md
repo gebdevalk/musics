@@ -235,14 +235,14 @@ its next note.
 :steps T_                            take a key out
 ```
 
-A computed value is a quotation given to `T!`; it runs when it is asked, with `:beat`
+A computed value is a quotation given to `T!`; it runs when it is asked, with `:onset`
 and every key of the tctx as keywords. Inside a voice or a computed key, a keyword where
 a word needs a number is replaced by its value, so `:steps 2 *` means "the steps, doubled"; at the
 prompt that does not happen, so use `T@@` there (`:steps T@@ 2 *`).
 
-A voice can be a **function of the beat**: a word with `$beat` among its
-inputs, asked for one note at the beat the voice has reached. The
-settings are looked up at that beat, so nothing is precomputed:
+A voice can be a **function of the onset**: a word with `$onset` among its
+inputs, asked for one note at the onset the voice has reached. The
+settings are looked up at that onset, so nothing is precomputed:
 
 ```
 "mus/hoketus2.mus" load              the piece, written out as such voices

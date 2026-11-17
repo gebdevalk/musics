@@ -11,7 +11,7 @@ metadata of 146 functions, not by running each; the classes are a guide to the w
 
 | access | what it is | state |
 |---|---|---|
-| **by time** | a function of the beat: a context, a tctx value, an envelope | none |
+| **by time** | a function of the onset: a context, a tctx value, an envelope | none |
 | **by next** | the next item after this one; a lazy seq is the model | a cursor |
 | **by index** | a pure function of the index: `sine-fn`, `polation-fn`, a pattern's `(mod i n)` | none |
 

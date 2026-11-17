@@ -21,7 +21,7 @@ It is long, and you need not read it in order. Stop when you have what you need:
 | dynamics, tempo and instruments | 7 Contexts, 12 Instruments and drums |
 | to ask questions of music | 9 Reading notes, 10 Taking a seq apart, 11 Choosing notes |
 | to compose with algorithms | 14 The color-talea, 15 Algorithms as functions (and `raw-algo-cookbook.md`) |
-| a piece that plays and changes by itself | 16 Live (settings, voices that are functions of the beat), then `mus/hoketus2.mus` |
+| a piece that plays and changes by itself | 16 Live (settings, voices that are functions of the onset), then `mus/hoketus2.mus` |
 | a word's exact stack effect | `"dup" see` in mu, or [mu-words.md](mu-words.md) |
 | why mu is built this way | [mu-repl.md](mu-repl.md) |
 
@@ -1244,21 +1244,21 @@ parameter. Two voices may have inputs of the same name: `:bass/onsets` and
 A local is written with its `$` in the body, `$onsets`, and a word that
 leaves nothing, or fails when it runs, is refused when the voice starts.
 
-### A voice as a function of the beat
+### A voice as a function of the onset
 
-A word with **`$beat`** among its inputs is a different kind of live voice. Instead of
-giving a seq that the voice then plays through, it gives **one leaf for the beat the
-voice has reached**, and the engine asks it again for the beat that leaf leaves behind.
+A word with **`$onset`** among its inputs is a different kind of live voice. Instead of
+giving a seq that the voice then plays through, it gives **one leaf for the onset the
+voice has reached**, and the engine asks it again for the onset that leaf leaves behind.
 Nothing is built ahead: what the voice plays is looked up as it plays.
 
 ```
-: tick ( $beat $base -- note )
-    | '[1/16] '[1] $base $beat 16 * int 8 mod + * zip ;
+: tick ( $onset $base -- note )
+    | '[1/16] '[1] $base $onset 16 * int 8 mod + * zip ;
 60 'tick :v ->
 ```
 
-- `$beat` is the voice's own: the stack gives the other inputs (`60` is `$base`), and
-  no slider is made for it. The beat is a whole-note fraction, `1/16` for the second
+- `$onset` is the voice's own: the stack gives the other inputs (`60` is `$base`), and
+  no slider is made for it. The onset is a whole-note fraction, `1/16` for the second
   sixteenth.
 - The word runs once for each leaf, so `3 :v/base !` is heard at the next leaf, and a
   word that fails, or leaves nothing, is refused when the voice starts.
@@ -1266,17 +1266,17 @@ Nothing is built ahead: what the voice plays is looked up as it plays.
   now (`->`); `-|>` is refused.
 
 The settings such voices read live in the **tctx**, a table of keyword keys. A key can
-be a plain value, or **derived** from the beat and from other keys:
+be a plain value, or **derived** from the onset and from other keys:
 
 ```
 8 :steps T!                              a setting
-'( :beat 16 * :steps / int ) :pass T!   the pass the beat is in
+'( :onset 16 * :steps / int ) :pass T!   the pass the onset is in
 :steps T@                                8
-:pass T@@                                the pass the beat is in, run; :pass T@ is the quotation
+:pass T@@                                the pass the onset is in, run; :pass T@ is the quotation
 3 :steps T!                              changed while it plays: the next leaf sees it
 ```
 
-`:beat` is the beat of the leaf that asks, and `:steps` in the quotation is its value
+`:onset` is the onset of the leaf that asks, and `:steps` in the quotation is its value
 there. A derived key may ask other derived keys; a key that asks for itself, however far
 round, is refused (`a cycle in the tctx: :a -> :b -> :a`).
 

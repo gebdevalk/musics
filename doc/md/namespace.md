@@ -27,7 +27,7 @@ musics.mu.grammar                                36   musics.ebnf + mu.ebnf, sta
 musics.mu.inputs                                147   The inputs of a live voice: the named, changeable values its word was started with (the `$` locals o…
 musics.mu.kernel                                425   stack words: dup swap … quotations, :=, the play words
 musics.mu.library                               115   registers the word namespaces below as mu words
-musics.mu.live                                  239   a play word given a recipe, or a word with $beat, plays live; the session tctx
+musics.mu.live                                  239   a play word given a recipe, or a word with $onset, plays live; the session tctx
 musics.mu.material                             1300   what the words share: elements, seqs, repeats, zip's leaves and bundles, storing, playing
 musics.mu.pcset                                  45   Sets of pitch classes as mu values: $[047] the classes of a chord, a seq, $(037) a prime form, $<001…
 musics.mu.print                                 158   printing, isomorphic to reading

@@ -1,5 +1,5 @@
 (ns musics.gui.settings
-  "A window of the session's tctx -- the settings a voice that is a function of the beat reads
+  "A window of the session's tctx -- the settings a voice that is a function of the onset reads
    (:steps, :lag, :soft …), one row each, without the rest of the GUI:
 
      (open-settings!)        ; mu: :tctx gui

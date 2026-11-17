@@ -82,7 +82,7 @@
     (parse! text))
   (let [evs   (ev/events (repo/registry) #{:blues :bass})
         notes (filter #(= :note (:kind %)) evs)]
-    (is (= 12 (apply max (map :beat notes))) "both reach the closing bar, beat 12")
+    (is (= 12 (apply max (map :onset notes))) "both reach the closing bar, beat 12")
     (is (= 32 (:program (first (filter #(= 1 (count (:pitches %))) notes)))) "an acoustic bass")))
 
 (deftest a-progression-gets-its-bass
@@ -103,7 +103,7 @@
       (parse! text)
       (let [ns    (filter #(= :note (:kind %)) (ev/events (repo/registry) #{:rv :rvbass}))
             bass  (filter #(= 1 (count (:pitches %))) ns)
-            at    (fn [xs b] (some #(when (= b (:beat %)) %) xs))
+            at    (fn [xs b] (some #(when (= b (:onset %)) %) xs))
             ps    (map (comp first :pitches) bass)]
         (is (= 93 (count bass)) "23 bars of quarters and the held end")
         (is (every? #(= (mod (apply min (:pitches (at ns %))) 12) (mod (first (:pitches (at bass %))) 12))

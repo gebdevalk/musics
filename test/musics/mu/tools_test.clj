@@ -723,9 +723,9 @@
   (is (str/includes? (top "3 find-drum") "needs the start of a name")))
 
 (defn- velocities
-  "[beat velocity] of each note music x (mu text) plays."
+  "[onset velocity] of each note music x (mu text) plays."
   [x]
-  (mapv (juxt :beat :velocity) (filter #(= :note (:kind %)) (mt/events (peek (e/run-text [] x))))))
+  (mapv (juxt :onset :velocity) (filter #(= :note (:kind %)) (mt/events (peek (e/run-text [] x))))))
 
 (deftest a-control-becomes-a-context
   (testing "the steps follow each other by the durations"

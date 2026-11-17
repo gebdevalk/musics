@@ -2,8 +2,8 @@
 
 A plan for a piece whose structure is not precompiled: the data is static, the
 derivation and the actualisation are dynamic, and a GUI can change what the
-music does while it plays. **A leaf has one beat, and every lookup made for it,
-producing or resolving, is made at that beat** (the mechanism is in
+music does while it plays. **A leaf has one onset, and every lookup made for it,
+producing or resolving, is made at that onset** (the mechanism is in
 `pull-voice.md`). Solid boxes exist today; **dashed red boxes are planned**.
 
 ## Who calls whom, for one voice and one leaf
@@ -11,7 +11,7 @@ producing or resolving, is made at that beat** (the mechanism is in
 ```mermaid
 flowchart LR
   engine["engine sender thread<br/>reads the voice ~100 ms ahead of the clock"]
-  events["musics.events<br/>the voice's state holds :beat b"]
+  events["musics.events<br/>the voice's state holds :onset b"]
   source["source fn (b)<br/>one leaf"]
   word["mu word hoke-leaf<br/>run-var, lookup bound at b"]
   leaf["leaf: pitch or rest, duration<br/>no volume, no pan"]
@@ -33,13 +33,13 @@ flowchart LR
 
 Read top to bottom; the stack is shown after each step. The voice's own inputs
 (`threshold`, `phase`, `instrument`, `side`) are held by the voice and changed
-by the GUI. The only thing the word is given is the beat `b`; the rest it asks
+by the GUI. The only thing the word is given is the onset `b`; the rest it asks
 the lookup for, at `b`.
 
 ```mermaid
 flowchart LR
   s0["b"]
-  s1["i<br/>the pulse: the beat inside the pass<br/>over the pulse length"]
+  s1["i<br/>the pulse: the onset inside the pass<br/>over the pulse length"]
   s2["i  d<br/>:density at b"]
   s3["on?<br/>pulse i of the euclid pattern<br/>(d, steps)"]
   s4["leaf<br/>a note with melody[i] if on?,<br/>a rest if not, one pulse long"]
@@ -67,7 +67,7 @@ flowchart LR
     tctx["tctx: a context with keyword keys<br/>:density :steps :reps :spiral<br/>values, functions of time, derived entries"] --> voice["voice and music contexts<br/>string keys: instrument, pan, phase,<br/>volume arc and swell as generators"]
     voice --> root["ROOT: a plain context<br/>string keys: volume, pan, Tempo ..."]
   end
-  resolve["resolve, at the leaf's beat b<br/>strings: volume, pan, instrument, tempo"] -. samples .-> chain
+  resolve["resolve, at the leaf's onset b<br/>strings: volume, pan, instrument, tempo"] -. samples .-> chain
   produce["hoke-leaf, at the same b<br/>keywords: :density, :steps"] -. samples .-> tctx
   gui["GUI sliders"] -. edit .-> tctx
   gui -. inputs, generators .-> voice
@@ -101,7 +101,7 @@ itself writes still wins.
 
 A lookup is not one step. A plain entry (a value, an envelope, a generator) is
 answered at once, but a **derived** entry is a function that asks the chain for
-other keys, at the same beat, and those may be derived in turn. The recursion
+other keys, at the same onset, and those may be derived in turn. The recursion
 runs over the whole chain, so a tctx entry can read a context's string key too.
 
 ```mermaid
@@ -125,14 +125,14 @@ flowchart LR
   runf -- "recursion" --> ask
 ```
 
-- **One beat.** The recursion never changes `b`: every `get` is asked at the beat
+- **One onset.** The recursion never changes `b`: every `get` is asked at the onset
   of the lookup that started it.
 - **Cycle guard.** The keys being computed are kept on a list; asking for one of
   them again is an error naming the cycle, not a hang.
 - **Cache.** A pull is memoized: inside it every answer (a value, a generator, a
   derived entry, even a miss) is remembered, so a key is looked for and computed
   once however often it is asked or reached through another key. A lookup made
-  alone starts its own pull. `context/getter` makes one pull for a chain and a beat;
+  alone starts its own pull. `context/getter` makes one pull for a chain and an onset;
   the voice binds one for each leaf, so all the keyword arguments of that leaf share
   it and the leaf sees one consistent value for each key. The next leaf gets a new
   getter, so a change of the tctx is seen there.
@@ -145,9 +145,9 @@ flowchart LR
 |---|---|---|
 | declaration (static data) | the melody, the voice table, the drums | never while playing |
 | inputs of a word voice | threshold, phase, instrument, side | a slider moves; heard at the next leaf |
-| tctx, first in the chain | `:steps`, `:reps`, `:spiral`, `:density` as values, functions of time or derived entries | the GUI edits them; read at each leaf's beat |
-| voice or piece context | volume arc and swell as generators, pan, instrument | the GUI edits the numbers inside them; read by `resolve` at each leaf's beat |
-| the word `hoke-leaf` | which pulse sounds, and its pitch | computed again for every leaf, from the beat |
+| tctx, first in the chain | `:steps`, `:reps`, `:spiral`, `:density` as values, functions of time or derived entries | the GUI edits them; read at each leaf's onset |
+| voice or piece context | volume arc and swell as generators, pan, instrument | the GUI edits the numbers inside them; read by `resolve` at each leaf's onset |
+| the word `hoke-leaf` | which pulse sounds, and its pitch | computed again for every leaf, from the onset |
 | resolve | volume, pan, instrument from the chain | on every leaf |
 
 ## Order of building
@@ -155,8 +155,8 @@ flowchart LR
 1. Built: string keys for contexts and keyword keys for a tctx (`T!`),
    generators, derived entries (`T!` with a quotation), the keyword-argument rule in
    `run-var` (`*lookup*`, `with-lookup`).
-2. A voice as a function of beat in `musics.events` (see `pull-voice.md`): one
-   leaf per call, the lookup bound at the walk's `:beat`.
+2. A voice as a function of onset in `musics.events` (see `pull-voice.md`): one
+   leaf per call, the lookup bound at the walk's `:onset`.
 3. Where the tctx lives, and the chain a voice holds with the tctx in front; a
    start word fills it and places the volume generators in a piece context.
 4. The word `hoke-leaf` and a new hoketus file.

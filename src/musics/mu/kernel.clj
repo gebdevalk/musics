@@ -309,14 +309,14 @@
           (e/mu-error (str word ":") "name the voice that plays" w "-- e.g. 5 8 42 '" (str w " :bass ->")))
         (when-not (every? second ins)
           (e/mu-error (str word ":") w "has inputs without $ -- a live word takes only $ inputs, which stay changeable"))
-        (let [s (pop s) n (count (remove (comp #{"beat"} first) ins))]   ; $beat is the voice's own
+        (let [s (pop s) n (count (remove (comp #{"onset"} first) ins))]   ; $onset is the voice's own
           (when (< (count s) n)
             (e/mu-error (str word ":") w "takes" n (if (= 1 n) "input" "inputs") "under its name, the stack has" (count s)))
           [w (subvec s (- (count s) n)) (subvec s 0 (- (count s) n))])))))
 
-;; -- the tctx of the voices that are a function of beat --------------------------------
+;; -- the tctx of the voices that are a function of onset --------------------------------
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of beat reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the beat of the leaf asking (q runs with :beat and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of onset reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the onset of the leaf asking (q runs with :onset and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
        (fn [s]
          (need s 2 "T!")
          (let [k (peek s) x (peek (pop s))]
@@ -336,11 +336,11 @@
                 (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex))))
            (pop s))))
 
-;; the tctx value of a key: inside a voice that is a function of beat at the beat of its leaf; outside
-;; one at beat 0 (:beat 0). A computed key is run.
+;; the tctx value of a key: inside a voice that is a function of onset at the onset of its leaf; outside
+;; one at onset 0 (:onset 0). A computed key is run.
 (defn- tctx-value [k]
   (let [lookup (or e/*lookup*
-                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :beat) 0 (g x)))))]
+                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x)))))]
     (lookup k)))
 
 ;; what the tctx holds for a key, as it was stored: a quotation not run
@@ -359,7 +359,7 @@
                :else (conj (pop s) (tctx-value k)))))))
 
 ;; the value, a computed key run
-(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the beat of the leaf a voice that is a function of beat is making (outside one, at beat 0, :beat 0); an error when the tctx holds nothing for it"
+(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the onset of the leaf a voice that is a function of onset is making (outside one, at onset 0, :onset 0); an error when the tctx holds nothing for it"
        (fn [s]
          (need s 1 "T@@")
          (let [k (peek s)]

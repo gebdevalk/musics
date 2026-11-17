@@ -1,6 +1,6 @@
 (ns ^:repl musics.mu.hoketus2-test
-  "mus/hoketus2.mus: a hoketus whose voices are functions of the beat -- the arc is derived
-   from the beat as it is asked, and a voice is one leaf at a time."
+  "mus/hoketus2.mus: a hoketus whose voices are functions of the onset -- the arc is derived
+   from the onset as it is asked, and a voice is one leaf at a time."
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [clojure.java.io :as io]
             [musics.domain.context :as c]
@@ -37,12 +37,12 @@
   (doseq [[k v] {:steps 8 :reps 4 :spiral 24 :soft 80 :loud 90 :width 1.0 :lag 3/8}]
     (c/tctx! live/tctx k v)))
 
-(defn- at [k beat] (c/ctx-value-chain [live/tctx] k beat))
+(defn- at [k onset] (c/ctx-value-chain [live/tctx] k onset))
 
 (defn- voice [word id names inputs]
   (inputs/set-inputs! id inputs)
-  (let [f (#'live/beat-source word id names)]
-    (fn [beat] (f beat (c/getter [live/tctx] beat)))))
+  (let [f (#'live/onset-source word id names)]
+    (fn [onset] (f onset (c/getter [live/tctx] onset)))))
 
 (defn- sounds? [leaf] (boolean (seq (:pitches leaf))))
 
@@ -58,12 +58,12 @@
     (is (= [1 1 1 1 1 1 1 1] (at :pulses 14))))
   (testing "a setting changed while it plays is read at the next ask"
     (c/tctx! live/tctx :steps 4)
-    (is (= [1 1 1 1] (at :pulses 3)) "at 4 steps the climax is 4 notes, and it comes at beat 3")
+    (is (= [1 1 1 1] (at :pulses 3)) "at 4 steps the climax is 4 notes, and it comes at onset 3")
     (is (= 4 (count (at :pulses 0))))))
 
 (deftest a-melodic-voice-is-one-leaf-a-sixteenth-at-a-time
   (load-piece!)
-  (let [marimba (voice "hoke" :m ["beat" "phase" "threshold" "instrument" "side" "late"]
+  (let [marimba (voice "hoke" :m ["onset" "phase" "threshold" "instrument" "side" "late"]
                        [["phase" 0.0] ["threshold" 1] ["instrument" 12] ["side" -1] ["late" 0]])
         leaves  (map marimba (map #(/ % 16) (range 0 40)))]
     (testing "density 1: only the first pulse of a pass sounds, then density 2 adds the fifth"
@@ -80,7 +80,7 @@
 
 (deftest the-late-group-starts-with-a-rest-and-then-sounds-late
   (load-piece!)
-  (let [b (voice "hoke" :b ["beat" "phase" "threshold" "instrument" "side" "late"]
+  (let [b (voice "hoke" :b ["onset" "phase" "threshold" "instrument" "side" "late"]
                  [["phase" 0.0] ["threshold" 1] ["instrument" 12] ["side" 1] ["late" 1]])]
     (is (not (sounds? (b 0))))
     (let [lag (at :lag 0)]
@@ -90,16 +90,16 @@
 
 (deftest a-voice-enters-when-the-density-reaches-its-threshold
   (load-piece!)
-  (let [synth (voice "hoke" :s ["beat" "phase" "threshold" "instrument" "side" "late"]
+  (let [synth (voice "hoke" :s ["onset" "phase" "threshold" "instrument" "side" "late"]
                      [["phase" 0.5] ["threshold" 5] ["instrument" 62] ["side" -1] ["late" 0]])]
     (is (not-any? sounds? (map #(synth (/ % 16)) (range 0 128))) "silent while the density is 1 .. 4: the first 8 whole notes")
     (is (some sounds? (map #(synth (+ 8 (/ % 16))) (range 0 32))) "and sounding once it is 5")))
 
 (deftest the-drums-and-the-chord-are-hits-of-the-density
   (load-piece!)
-  (let [kick (voice "thump" :k ["beat" "threshold" "divisor" "rotation" "louder" "drum"]
+  (let [kick (voice "thump" :k ["onset" "threshold" "divisor" "rotation" "louder" "drum"]
                     [["threshold" 2] ["divisor" 2] ["rotation" 0] ["louder" 6] ["drum" [:kick]]])
-        stab (voice "stab" :p ["beat" "threshold" "divisor" "rotation" "louder"]
+        stab (voice "stab" :p ["onset" "threshold" "divisor" "rotation" "louder"]
                     [["threshold" 4] ["divisor" 2] ["rotation" 2] ["louder" -2]])]
     (is (= :DRUM (:type (kick 2))) "a drum hit at the first pulse once the density is 2")
     (is (= 36 (:program (kick 2))))

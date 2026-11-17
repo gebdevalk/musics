@@ -170,15 +170,15 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   with the range of the algo parameter of the same name; `:bass ->` starts
   the voice again with the inputs as they are. See the tutorial, "A word as
   a live voice".
-- **A voice as a function of the beat**: a live word with `$beat` among its inputs
-  is asked for **one leaf at the beat the voice has reached** (`60 'tick :v ->`; the
-  stack gives the other inputs, `$beat` is the voice's own), and every lookup for the
-  leaf, producing it or resolving it, is made at that beat. Its settings are the
+- **A voice as a function of the onset**: a live word with `$onset` among its inputs
+  is asked for **one leaf at the onset the voice has reached** (`60 'tick :v ->`; the
+  stack gives the other inputs, `$onset` is the voice's own), and every lookup for the
+  leaf, producing it or resolving it, is made at that onset. Its settings are the
   **tctx**, a table of keyword keys (`T!`, `T@`, `T@@`, `T_`); a
   context's keys are strings, so `:density` and `"density"` are different keys. Inside
   such a voice a keyword argument of a word that the tctx holds is its value
   (`:onsets 8 pattern/euclid`). See the tutorial, "A voice as a function of the
-  beat", and `doc/md/pull-voice.md`.
+  onset", and `doc/md/pull-voice.md`.
 
 **Namespaces**:
 - a word is qualified as `ns/word` (`music/cycle`, `pattern/euclid`);

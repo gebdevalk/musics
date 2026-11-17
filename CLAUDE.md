@@ -467,7 +467,7 @@ each node, so a fn must pass through what it already produced (mark
 it, as `musics.mu.voice` does). What fills the registry is
 `musics.mu.voice/follow!` (a live voice's id bound to what it follows — see "The
 algorithms" below); `build-algo!` stores a hand-written wall fn directly. `musics.wall/registered` surfaces the full entry.
-A voice that is a function of beat does not use it (see "A voice can be a function of beat").
+A voice that is a function of onset does not use it (see "A voice can be a function of onset").
 
 **Voice paths, not slot numbers**: every voice's own registry key
 (`musics.engine`'s `:voices` atom) is a vector, root-first, one segment
@@ -711,36 +711,36 @@ per input under the algo it belongs to) read them; the Wall window lists every
 voice the same way; `:bass ->` starts it again with the inputs as they are; the
 inputs of a voice that has ended are refused and forgotten (`inputs/alive!`).
 
-**A voice can be a function of beat** (`musics.compose/source`,
-`musics.events/walk-source`, `musics.mu.live/play-beat-word!`). A word with `$beat`
-in its stack effect, `: hoke ( $beat $phase $side -- leaf ) … ;`, started like a
-live word (`0.0 -1 'hoke :a ->`; the stack gives the other inputs, `$beat` is the
+**A voice can be a function of onset** (`musics.compose/source`,
+`musics.events/walk-source`, `musics.mu.live/play-onset-word!`). A word with `$onset`
+in its stack effect, `: hoke ( $onset $phase $side -- leaf ) … ;`, started like a
+live word (`0.0 -1 'hoke :a ->`; the stack gives the other inputs, `$onset` is the
 voice's own and has no slider), is asked by `musics.events` for **one leaf at the
-beat the voice has reached**: the walk plays it, and the beat it leaves is asked
+onset the voice has reached**: the walk plays it, and the onset it leaves is asked
 next, lazily, as far as the stream is read. There is no skeleton, wall fn or
 cursor for such a voice. Every lookup made for a leaf, producing or resolving it,
-is made at that leaf's beat: `walk-source` hands the source a memoized lookup
-(`context/getter`) bound at the walk's `:beat`, `resolve` reads the contexts at the
-same `:beat`, and the other inputs are read as they are at that leaf
+is made at that leaf's onset: `walk-source` hands the source a memoized lookup
+(`context/getter`) bound at the walk's `:onset`, `resolve` reads the contexts at the
+same `:onset`, and the other inputs are read as they are at that leaf
 (`:voice/input` `!` is heard on the next leaf). Under `^{ !tempo:120 }` it plays as
 `[ctx source]`; it starts now (`->`, not `-|>`), and a start that fails is refused
-before any sound. The keyword `:beat` is answered too, so a word reads the beat as
-`:beat`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
+before any sound. The keyword `:onset` is answered too, so a word reads the onset as
+`:onset`. See `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` for the
 call order, and `mus/hoketus2.mus` for a piece written this way.
 
 **The tctx and keyword arguments.** While a voice (or a computed key) runs, a *lookup* is in
 force (`eval/*lookup*`, bound by `eval/with-lookup`; unbound at the prompt, so nothing below happens
 there). Under it, a word that is a Clojure function takes, for each of its arguments that is a keyword
 the lookup holds, that value: `:onsets 8 euclid` is `3 8 euclid` while the tctx holds `:onsets 3`,
-`:pass :reps /` divides two settings, and `:beat` is the beat. The rule is deliberately implicit and
+`:pass :reps /` divides two settings, and `:onset` is the onset. The rule is deliberately implicit and
 has edges: (1) it applies to Clojure-function words only, not to stack words (`dup`, `T!`), `: … ;`
 words' `$` inputs, or quotation bodies' own words once a stack word has taken the keyword; (2) a
 keyword the lookup does not hold goes through (`:hoketus R@`), and so does one the function's own
 keyword tail reads (`3 8 :rotation 2 euclid`) -- but if the tctx *does* hold a key spelled like an id,
 that keyword is replaced, so keep setting names distinct from stored ids; (3) what lies under the
 arguments is untouched. Where the rule does not reach, read a setting with `T@@`. `T!`
-(`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key: it runs at the beat of
-the asker, with `:beat` and every tctx key as keywords), `T@` (`:steps T@`: what is stored, a
+(`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key: it runs at the onset of
+the asker, with `:onset` and every tctx key as keywords), `T@` (`:steps T@`: what is stored, a
 computed key as its quotation, not run), `T@@` (`:twice T@@`: the value, a computed key run) and `T_`
 (`:steps T_`: take a key out) fill, read and erase the session's tctx
 (`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a computed entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
@@ -850,7 +850,7 @@ requires only `musics.domain.*` (and `musics.algo.numeric.random` for `play-orde
 notes) — never the engine — so the dependency runs exactly one way.
 A purely-functional grammar+preview layer has no business in the
 real-time playback engine. `compose/source` (a `Source` record, `{:f :tctx :ctx}`)
-is a Form of its own, a voice fed by a function of beat; `events` walks it
+is a Form of its own, a voice fed by a function of onset; `events` walks it
 (`walk-source`) and `engine/play` accepts it, but `display`/`display-timed` do not
 know it. See `doc/md/decisions.md` for the full
 reasoning behind the split (including why this ISN'T a third tier
@@ -863,7 +863,7 @@ a new architectural layer).
 `musics.events/events` (`(events repo form)`; mu's `musics.mu.material/
 events` for a value) is what `play` would perform, as a lazy, time-ordered seq of maps: `(events
 form)` or `(events form :algo name)`, the same Form `play` takes. Each
-carries `:t` (seconds), `:beat` (structural time, exact) and `:path`
+carries `:t` (seconds), `:onset` (structural time, exact) and `:path`
 (the voice, named as `play` names it), and a `:kind`: `:note`/`:drum`/
 `:rest` (a `resolve-event` MidiEvent; a note's `:channel` is left to
 the consumer), `:section` (`:id :type :phase`), `:bar` (`:n`, at the
@@ -871,7 +871,7 @@ end of the note that crossed), `:mark` (`:count :n`) — the boundaries
 the engine signals to `musics.conductor`, here as data.
 
 The walk threads a voice's position as a plain state map (`:repo` its
-snapshot, `:path`, `:algo`, `:t`, `:beat`, bar/mark counts) with a
+snapshot, `:path`, `:algo`, `:t`, `:onset`, bar/mark counts) with a
 continuation per step, so nothing is walked past what is read: `:count
 :infinite` and live generators are fine with `take`/`take-while`. A
 `:PAR`/`#{}` merges its branches by `:t` and then continues where the
@@ -879,7 +879,7 @@ branch that ends last stopped (`display-timed` follows the same rule).
 Wall fns run at the container's children and then at each leaf, so
 reading events moves a live voice's cursor. A `Source` form (`compose/source`,
 `walk-source`) is the other way a live voice plays: it is asked for one leaf at
-the beat the walk is at, and `fire` resolves that leaf at the same `:beat`. `:voice` events
+the onset the walk is at, and `fire` resolves that leaf at the same `:onset`. `:voice` events
 (`:phase :start`/`:end`, `:algo`) mark each voice, forked ones included,
 beginning and finishing. `voice-events` is one top-level voice's
 stream, optionally with a `:cutover` hook `(st id phase) -> st'` called
@@ -933,7 +933,7 @@ note-on, so a repeated pitch is released before it sounds again.
   `play-change path` drops just that voice. `pause!` holds the queue
   (sounding notes keep sounding); `resume!` moves every pending action
   and stream origin on by the pause.
-- `voice-at` returns `{:path :root-path :algo :t :beat}` (`:t`/`:beat`
+- `voice-at` returns `{:path :root-path :algo :t :onset}` (`:t`/`:onset`
   as of its latest note); a top-level voice is registered as soon as
   `play` returns, forked ones when their `:voice :start` comes due.
   `playing-ids` is the ids some voice is inside (from `:section`

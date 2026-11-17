@@ -194,7 +194,7 @@
   "Call f (no arguments) with get, a function of a keyword that answers its value
    or nil, bound as *lookup*: a keyword argument of a word that get answers is
    that value (run-var). get closes over what it asks, a context chain with a tctx
-   in front and the time: (musics.domain.context/getter chain beat), one for each
+   in front and the time: (musics.domain.context/getter chain onset), one for each
    leaf, so its lookups are one pull."
   [get f]
   (binding [*lookup* get]
@@ -311,10 +311,10 @@
 
 (defn derived-fn
   "The function (f time get) of a tctx entry computed by quotation q: run with
-   :beat and every key the lookup holds as keyword arguments."
+   :onset and every key the lookup holds as keyword arguments."
   [q]
-  (fn [beat get]
-    (with-lookup (fn [x] (if (= x :beat) beat (get x)))
+  (fn [onset get]
+    (with-lookup (fn [x] (if (= x :onset) onset (get x)))
       #(let [left (call [] q)]
          (when (seq left) (peek left))))))
 
