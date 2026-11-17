@@ -183,7 +183,7 @@
     (cond
       (str/starts-with? msg (str name ":")) ex
       (re-find #"^\S+:\s" msg)            (if (:mu/error (ex-data ex)) ex (ex-info msg {:mu/error true}))
-      :else (ex-info (str name ": " msg) {:mu/error true}))))
+      :else (ex-info (str name ": " msg) (assoc (ex-data ex) :mu/error true)))))
 
 (def ^:dynamic *lookup*
   "nil, or a function of a keyword: its value, or nil when there is none. A voice
@@ -405,17 +405,63 @@
       ;; a bare letter reads as a note (about c, about e): its text is the name
       (:mu/index (meta following)) (re-matches #"[A-Za-z]+" (str (:source (meta following)))))))
 
+(def ^:dynamic *origin*
+  "Where the text being read comes from, for the places an error names: the
+   path of a file being loaded, else \"input\"."
+  "input")
+
+(def ^:private max-frames 8)
+
+(defn- frame-text
+  "\"word (origin:line:col)\" for a Word node, where it was written."
+  [node]
+  (let [{:keys [file line col]} (:at (meta node))]
+    (str (node-name node) (when line (str " (" file ":" line ":" col ")")))))
+
+(defn- with-frame
+  "The error e as a mu error that also says where it passed through: node's word
+   and where it was written, added to the words it already ran through, innermost
+   first, in its message and in :mu/frames."
+  [e node]
+  (let [d      (ex-data e)
+        base   (or (:mu/base d)
+                   (if (instance? clojure.lang.ExceptionInfo e)
+                     (ex-message e)
+                     (str (.getSimpleName (class e)) ": " (ex-message e))))
+        frames (conj (vec (:mu/frames d)) (frame-text node))
+        msg    (str base
+                    (apply str (map #(str "\n  in " %) (take max-frames frames)))
+                    (when (> (count frames) max-frames) "\n  ..."))]
+    (ex-info msg (assoc d :mu/error true :mu/base base :mu/frames frames)
+             (if (:mu/frames d) (ex-cause e) e))))
+
+(defn- run-located
+  "run-item, an error from a word told where that word is."
+  [stack node env]
+  (if (= :Word (first node))
+    (try (run-item stack node env)
+         (catch clojure.lang.ExceptionInfo e
+           (if (:mu/bye (ex-data e)) (throw e) (throw (with-frame e node))))
+         (catch Exception e (throw (with-frame e node))))
+    (run-item stack node env)))
+
 (defn run-items [stack nodes env]
   (loop [s stack nodes (seq nodes)]
     (if-let [[node & more] nodes]
       (if-let [asked (name-asked-for s node (first more))]
-        (recur (run-item (conj s (symbol asked)) node env) (next more))
-        (recur (run-item s node env) more))
+        (recur (run-located (conj s (symbol asked)) node env) (next more))
+        (recur (run-located s node env) more))
       s)))
 
 ;; ------------------------------------------------------------------
 ;; One input
 ;; ------------------------------------------------------------------
+
+(defn- re-seq-pos
+  "[[start end] …] of each match of re in text."
+  [re text]
+  (let [m (re-matcher re text)]
+    (take-while some? (repeatedly #(when (.find m) [(.start m) (.end m)])))))
 
 (defn- annotate
   "The parse tree with each node's source text in its metadata (for
@@ -423,8 +469,13 @@
    not descended into -- numbered in reading order (:mu/index). Returns
    [tree literals]: the annotated tree and its literal nodes, in order."
   [tree text]
-  (let [lits (atom [])
-        src  (fn [x] (if-let [[s e] (insta/span x)] (vary-meta x assoc :source (subs text s e)) x))
+  (let [lits   (atom [])
+        origin *origin*
+        starts (int-array (cons 0 (map #(inc (first %)) (re-seq-pos #"\n" text))))
+        at     (fn [pos] (let [i (java.util.Arrays/binarySearch starts (int pos))
+                               l (if (neg? i) (- (- i) 2) i)]
+                           {:file origin :line (inc l) :col (inc (- pos (aget starts l)))}))
+        src  (fn [x] (if-let [[s e] (insta/span x)] (vary-meta x assoc :source (subs text s e) :at (at s)) x))
         walk (fn walk [x]
                (cond
                  (v/literal? x) (let [x' (vary-meta (src x) assoc :mu/index (count @lits))]

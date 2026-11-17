@@ -21,7 +21,9 @@
 
 (use-fixtures :each fresh)
 
-(defn- error [input] (:error (e/eval-input input)))
+(defn- error
+  "The first line of the error: the lines after it say where it was."
+  [input] (some-> (:error (e/eval-input input)) str/split-lines first))
 (defn- out [input] (with-out-str (e/eval-input input)))
 
 (deftest distance-counts-typos

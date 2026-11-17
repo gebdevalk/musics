@@ -127,6 +127,26 @@
              (e/mu-error "zip: needs 2 or more values to put together, has" (count xs)))
            (conj below (mt/zip-parts xs)))))
 
+(defn- one-leaf
+  "zip's parts for one note from xs: a duration, a pitch, then :part value pairs,
+   each value a column of one."
+  [xs]
+  (let [[d p & more] xs]
+    (when (odd? (count more))
+      (e/mu-error "leaf: a :part wants its value --" (p/show (last more))))
+    (when-let [k (first (remove keyword? (take-nth 2 more)))]
+      (e/mu-error "leaf: after the pitch, write :part value pairs (:volume 80) -- got" (p/show k)))
+    (mt/zip-parts (into [:duration [d] :pitch [p]]
+                        (mapcat (fn [[k v]] [k [v]]) (partition 2 more))))))
+
+(word! "music" "leaf" "( duration pitch -- m ) or ( | duration pitch [:part value]... -- m )  one note from single values, zip for one leaf at a time: a duration (a number, or a rest or skeleton from pul>evnt), a pitch (a list for a chord), then any :part value pairs above the | mark -- :volume 80 :pan -1 :instrument 12 :articulation :staccato. A rest for the duration gives a rest, the other values unused: | 1/16 64 :volume 80 :pan -1 leaf, or a pulse's flag: | '[0] 1/16 b/pul>evnt 0 @ 64 leaf. What comes back is what zip gives, a seq of that one note"
+       (fn [s]
+         (let [has-mark (some v/mark? s)
+               [below xs] (if has-mark (e/to-mark s) [(subvec s 0 (max 0 (- (count s) 2))) (vec (take-last 2 s))])]
+           (when (< (count xs) 2)
+             (e/mu-error "leaf: needs a duration and a pitch, has" (count xs)))
+           (conj below (one-leaf xs)))))
+
 (word! "music" ">ctx" "( | :duration d :key v ... -- ctx )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream, and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
          (let [[below xs] (e/to-mark s)]

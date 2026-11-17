@@ -616,7 +616,7 @@
 
 (deftest the-dotted-play-signs-say-what-replaced-them
   (doseq [[old new] [[".>" "->"] [".>+" "->+"] [".>>" "-|>"] [".>>+" "-|>+"] [".<" "<-"] [".<<" "<<-"]]]
-    (is (= (str old ": isn't a word; write " new) (:error (run (str "[c] " old)))) old)))
+    (is (= (str old ": isn't a word; write " new) (first (str/split-lines (:error (run (str "[c] " old)))))) old)))
 
 ;; R! refuses to redefine an id other stored parts use; R!! does it and says which
 (deftest r!-refuses-what-r!!-says
@@ -687,7 +687,7 @@
       (is (re-find #"^c is a" (run-out "about c")) "a bare letter reads as a name, not a note")
       (is (not (re-find #"\d" (run-out "marks tempo"))) "names only"))
     (testing "where it can appear is the grammar's: notes are in [ ] only"
-      (is (re-find #"^Leaf is a rule of the grammar and can appear in \[ \]\." (run-out "about Leaf")))
+      (is (re-find #"(?m)^Leaf is a rule of the grammar and can appear in \[ \]\." (run-out "about Leaf")))
       (is (re-find #"^TempoMark is a rule of the grammar and can appear in \^\{ \}, \{ \} and \[ \]\." (run-out "about TempoMark"))))
     (testing "a string and a quoted name say the same"
       (is (= (run-out "about tempo") (run-out "\"tempo\" about")))

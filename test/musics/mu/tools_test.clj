@@ -1011,3 +1011,13 @@
   (is (= "'[p4~ 1/4 1/4 r8~ 1/8]" (top "[c4~ c4 d4 r8~ e8] durs")) "a tied note a skeleton, a tied rest a tied Rest")
   (is (= "[C4/4~ C4 D4 r8~ E4]" (top "[c4~ c4 d4 r8~ e8] dup durs swap pits zip")) "taken apart and zipped, tied music is itself again")
   (is (= "'[1/4 1/4]" (top "[c4 d4] durs")) "untied notes stay plain numbers"))
+
+(deftest leaf-is-zip-for-one-note
+  (is (= "[E4/16]" (top "1/16 64 leaf")) "a duration and a pitch")
+  (is (= (top "'[1/16] '[64] :volume '[80] :pan '[-1] zip")
+         (top "| 1/16 64 :volume 80 :pan -1 leaf")) "the parts after them are :part value pairs, as zip's")
+  (is (= "[r16]" (top "'bridge 'b reqalgo '[0] 1/16 b/pul>evnt 0 @ 64 leaf")) "a rest for the duration is a rest, the other values unused")
+  (swap! e/state assoc :stack [])
+  (is (re-find #"wants its value" (:error (e/eval-input "| 1/16 64 :volume leaf"))))
+  (swap! e/state assoc :stack [])
+  (is (re-find #"needs a duration and a pitch" (:error (e/eval-input "1/16 leaf")))))

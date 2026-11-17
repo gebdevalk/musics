@@ -314,7 +314,8 @@
   (let [path (name-of file)]
     (when-not (.exists (java.io.File. ^String path)) (fail "no such file:" path))
     ;; resolved, since musics.mu.store loads this ns
-    (if-let [{:keys [ids]} ((requiring-resolve 'musics.mu.store/read!) (file-text path))]
+    (if-let [{:keys [ids]} (with-bindings {(requiring-resolve 'musics.mu.eval/*origin*) path}
+                             ((requiring-resolve 'musics.mu.store/read!) (file-text path)))]
       (println "stored" (str/join " " (map pr-str ids)))
       (fail "the file didn't parse:" path))))
 

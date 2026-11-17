@@ -143,3 +143,22 @@
 
 (deftest a-word-may-start-with-?
   (is (= [3 3] (:ok (run ": ?three 3 ; ?three ?three")))))
+
+(deftest an-error-says-where-it-was
+  (e/define! "kernel" "boom" {:fn (fn [_] (throw (IllegalArgumentException. "no good")))})
+  (testing "the word, and where it was written, innermost first"
+    (let [msg (:error (run ": inner ( -- ) boom ;"
+                           ": outer ( -- )\n  inner ;\nouter"))]
+      (is (re-find #"^IllegalArgumentException: no good" msg))
+      (is (re-find #"\n  in boom \(input:1:\d+\)\n  in inner \(input:2:3\)\n  in outer \(input:3:1\)$" msg))))
+  (testing "a file loaded names the file"
+    (let [msg (binding [e/*origin* "piece.mus"] (:error (run "1 nosuch")))]
+      (is (re-find #"^unknown word: nosuch" msg))
+      (is (re-find #"\n  in nosuch \(piece\.mus:1:3\)$" msg))))
+  (testing "an error through a quotation names the word that ran it"
+    (is (re-find #"in boom \(input:1:\d+\)\n  in execute \(input:1:\d+\)"
+                 (:error (run "1 '( boom ) execute")))))
+  (testing "the stack is as it was"
+    (run "7")
+    (is (:error (e/eval-input "1 nosuch")))
+    (is (= [7] (:stack @e/state)))))
