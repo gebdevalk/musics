@@ -3,6 +3,7 @@
    starts, so it plays what A played, a lag after (the two voices' time 0 are a lag apart)."
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [clojure.java.io :as io]
+            [musics.domain.context :as c]
             [musics.engine :as engine]
             [musics.input.reader.builder :as builder]
             [musics.mu.eval :as e]
@@ -45,4 +46,11 @@
             (is (some? (engine/voice-at :B)))
             (is (< 0.2999 lag 0.3001) "1/8 of a whole note at 100: 0.3 s after A, however long starting A took")
             (is (<= (- (origin :A) t0) 5e7) "and A starts at once")
+            (let [g (c/getter [live/tctx] 0)]
+              (is (= 1 (g :density)) "the first pass sounds one note"))
+            (let [dens (fn [pass] ((c/getter [live/tctx] (/ pass 1)) :density))]
+              (is (= [1 2 3 16 15 2] (mapv dens [0 1 2 15 16 29])) "the density grows a note a pass up to the steps, then back down"))
+            (run "8 :steps T!")
+            (let [dens (fn [pass] ((c/getter [live/tctx] pass) :density))]
+              (is (= [1 2 8 7 2] (mapv dens [0 1 7 8 13])) "and with 8 steps a pass is still a whole note"))
             (run ":A stop :B stop")))))))

@@ -1,39 +1,43 @@
 // hocket -- the first step of hoketus2.mus: a Euclidean rhythm, the melody, the lag.
 //
 // Hear it:    "mus/hocket.mus" load   start
-// Change it:  while it plays, 5 :density T!   or   1/4 :lag T!
+// Change it:  while it plays, 8 :steps T!   or   1/4 :lag T!
 // Stop it:    stop
 
 'rhythmic.pattern 'p reqalgo          // p/euclid
 'bridge 'b reqalgo                    // b/pul>evnt
+'numeric.random 'r reqalgo
 
-16 :steps T!                      // pulses of a pass
-9 :density T!                     // notes of a pass
-1/8 :lag T!                       // how late voice B is (a pulse is 1/16)
-// '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
-'[64] 16 times  :melody T!
+16 :steps T!                      // pulses of a pass, a whole note: a pulse is 1/:steps
+1 :steps T@ / :pulsdur T!         // a pulse is 1/:steps
+1/8 :lag T!                       // how late voice B is (a pulse is 1/:steps)
+'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69] :melody T!
+'( :onset int :steps 2 * 2 - mod ) :arc T!    // a pass is a whole note: 0 .. 2*steps-2, round again after
+'( :steps dup 1 - :arc - abs - ) :density T!             // notes of a pass: 1 up to steps and back down
 '( :density :steps p/euclid ) :euclid T!
 
-// : bit ( $flag -- n ) $flag '( 1 ) '( 0 ) if ;
-
-// the pulse the onset is on, late by lag
-: pulse-at ( $onset $lag -- i ) $onset $lag - 16 * int :steps T@ mod ;
+// the pulse the onset is on, late by lag: the steps, copied once, times the time since the
+// voice's start, as a whole number, mod the steps
+: pulse-at ( $onset $lag -- i )
+  :steps T@ dup $onset $lag - * int swap mod ;
 
 // the leaf of pulse i: the melody's note if the Euclidean pattern has it on, else a rest
 : pulse ( $i $pan -- leaf )
-  | (:euclid T@@ $i @) 1 :steps T@ / b/pul>evnt 0 @
-    :melody T@ $i @
-    :pan $pan  :instrument 12  :volume 80  leaf ;
+  | (:euclid T@@ $i @) :pulsdur T@ b/pul>evnt 0 @
+  // :melody T@ $i @ $i -
+  60 $i + 1 12 r/rand-int -
+  :pan $pan  :instrument 11 14 r/rand-int  :volume 60 1 24 r/rand-int + leaf ;
 
 // the voice: a rest until its start (late by lag), then pulse after pulse
 : hoke ( $onset $pan $late -- leaf )
-  $late :lag T@ * $onset >
-  '( [] $late :lag T@ * $onset - delay )
-  '( $onset $late :lag T@ * pulse-at  $pan  pulse )
+  $late :lag T@ * dup $onset >              // lag, and is there a lag still to wait
+  '( [] swap $onset - delay )
+  '( $onset swap pulse-at  $pan pulse )
   if ;
 
 100 :tempo T!
-: tempo-ctx ( $tempo -- ctx ) | :duration '[1] :Tempo '[1] $tempo * >ctx ;
+: tempo-ctx ( $tempo -- ctx )
+  | :duration 1 :Tempo $tempo >ctx ;
 
 : start-voices ( $ctx -- )
   -1 0 'hoke $ctx :A ->+     1 1 'hoke $ctx :B ->+ ;

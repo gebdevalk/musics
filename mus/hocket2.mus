@@ -9,16 +9,17 @@
 // share one start moment, so the lag is exact.
 //
 // Hear it:    "mus/hocket2.mus" load   start
-// Change it:  while it plays, 5 :density T!   (a new lag is heard at the next start)
+// Change it:  while it plays, 8 :steps T!   (a new lag is heard at the next start)
 // Stop it:    stop
 
 'rhythmic.pattern 'p reqalgo          // p/euclid
 'bridge 'b reqalgo                    // b/pul>evnt
 
-16 :steps T!                      // pulses of a pass
-9 :density T!                     // notes of a pass
-1/8 :lag T!                       // how late voice B starts (a pulse is 1/16)
+16 :steps T!                      // pulses of a pass, a whole note: a pulse is 1/:steps
+1/8 :lag T!                       // how late voice B starts (a pulse is 1/:steps)
 '[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
+'( :onset int :steps 2 * 2 - mod ) :arc T!    // a pass is a whole note: 0 .. 2*steps-2, round again after
+'( :steps :steps 1 - :arc - abs - ) :density T!             // notes of a pass: 1 up to steps and back down
 '( :density :steps p/euclid ) :euclid T!
 
 : pulse ( $i $pan -- leaf )
@@ -27,10 +28,10 @@
     :pan $pan  :instrument 12  :volume 80  leaf ;
 
 // the voice: the pulse the onset is on, the pass round again after :steps pulses
-: hoke ( $onset $pan -- leaf ) $onset 16 * int :steps T@ mod $pan pulse ;
+: hoke ( $onset $pan -- leaf ) :steps T@ dup $onset * int swap mod $pan pulse ;
 
 100 :tempo T!
-: tempo-ctx ( $tempo -- ctx ) | :duration '[1] :Tempo '[1] $tempo * >ctx ;
+: tempo-ctx ( $tempo -- ctx ) | :duration 1 :Tempo $tempo >ctx ;
 
 : start-voices ( $ctx -- )
   -1 'hoke $ctx :A ->+
