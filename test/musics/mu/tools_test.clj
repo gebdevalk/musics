@@ -732,6 +732,8 @@
     (is (= "^{ !volume:50 !volume:70@1 !volume:90@2 }" (top "| :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx")))
     (is (= "^{ !volume:50 !volume:70@1 !volume:90@2 }" (top "| :duration '[1/1] [~] :volume '[50 70 90] >ctx")) "a looping duration: a step a bar")
     (is (= "^{ !Tempo:120 !Tempo:90@1/2 !panning:-1.0 !panning:1.0@1/2 }" (top "| :duration '[1/2] :Tempo '[120 90] :pan '[-1.0 1.0] >ctx")) "several keys")
+    (is (= "^{ !Tempo:120 }" (top "| :duration 1/2 :Tempo 120 >ctx")) "a single value is a column of one")
+    (is (= (top "| :duration '[1/2] :Tempo '[120] :pan '[-1.0] >ctx") (top "| :duration 1/2 :Tempo 120 :pan -1.0 >ctx")))
     (is (= "^{ !K:D.major !K:G.major@1 }" (top "| :duration '[1/1] :key '[\"D.major\" \"G.major\"] >ctx")) "a key"))
   (testing "the longest finite column sets the length, the shorter ones cycle"
     (is (= "^{ !volume:50 !volume:70@1/4 !volume:50@1/2 }" (top "| :duration '[1/4 1/4 1/4] :volume '[50 70] >ctx")))

@@ -1241,7 +1241,8 @@
 
 (defn- ctx-columns
   "[[part x] …] of what >ctx takes: a :name before each stream -- :duration,
-   :curve, or a context key (:volume, :Tempo, :pan, :Key …)."
+   :curve, or a context key (:volume, :Tempo, :pan, :Key …). A single value, a number,
+   a string, a keyword or a key, is a column of one: :Tempo 100 is :Tempo '[100]."
   [xs]
   (loop [xs (seq xs) out []]
     (if-let [[x & more] xs]
@@ -1251,7 +1252,9 @@
         :else (let [part (if (#{:curve :curves} x) :curve (label-part x))]
                 (when (and (part-ranks part) (not= :duration part))
                   (e/mu-error ">ctx: makes a context, the music's ! keys --" (str x) "is a part of a note (zip writes those)"))
-                (recur (next more) (conj out [part (first more)]))))
+                (let [v (first more)
+                      one? (or (number? v) (string? v) (keyword? v) (instance? musics.common.music_elements.Key v))]
+                  (recur (next more) (conj out [part (if one? [v] v)])))))
       out)))
 
 (defn- instruction-text
