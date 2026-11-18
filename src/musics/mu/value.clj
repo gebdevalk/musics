@@ -56,6 +56,8 @@
 (defrecord Mark [count])  ; | … ||||: a gathering mark, and -|>'s boundary
 (def mark (->Mark 1))
 (defn mark? [x] (instance? Mark x))
+(defrecord Later [length])  ; 1/8 later: a start delay in whole notes, taken by a play word like a context or a mark
+(defn later? [x] (instance? Later x))
 
 (defn quotation-record?
   "A quotation '( … ) written in mu, as opposed to a Clojure fn standing in for one."

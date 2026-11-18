@@ -410,6 +410,13 @@
    path of a file being loaded, else \"input\"."
   "input")
 
+(def ^:dynamic *start-moment*
+  "nil, or an atom holding the moment (System/nanoTime) the first voice of the input
+   being run started: the voices an input starts share it, so a voice started later
+   (1/8 later) is exactly that much behind the one before it, however long the starting
+   of each took."
+  nil)
+
 (def ^:private max-frames 8)
 
 (defn- frame-text
@@ -601,11 +608,12 @@
 (defn- run-input
   "Run a parsed input on stack, segment by segment."
   [stack {:keys [items lits]} text]
-  (loop [stack stack values (vec (repeat (count lits) nil)) segs (segments items)]
-    (if-let [seg (first segs)]
-      (let [values (read-segment values seg text)]
-        (recur (run-items stack seg {:locals {} :values values}) values (rest segs)))
-      stack)))
+  (binding [*start-moment* (or *start-moment* (atom nil))]
+    (loop [stack stack values (vec (repeat (count lits) nil)) segs (segments items)]
+      (if-let [seg (first segs)]
+        (let [values (read-segment values seg text)]
+          (recur (run-items stack seg {:locals {} :values values}) values (rest segs)))
+        stack))))
 
 (defn run-text
   "Run mu text on stack, returning the stack it leaves; throws on an

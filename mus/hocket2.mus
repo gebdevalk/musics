@@ -1,0 +1,39 @@
+// hocket2 -- hocket with one voice: the same word plays A and B, and B is
+// STARTED late, so the word knows nothing of the lag.
+//
+// <length> later  is a start delay, in whole notes, that a play word takes beside the
+// context:
+//     'hoke $ctx 1/8 later :B ->+     starts B 1/8 of a whole note after A
+// The voice's onset counts from its own start (pull-voice.md, "Whose zero"), so B
+// asks for onset 0 when it starts, and plays pulse 0 then. The voices one input starts
+// share one start moment, so the lag is exact.
+//
+// Hear it:    "mus/hocket2.mus" load   start
+// Change it:  while it plays, 5 :density T!   (a new lag is heard at the next start)
+// Stop it:    stop
+
+'rhythmic.pattern 'p reqalgo          // p/euclid
+'bridge 'b reqalgo                    // b/pul>evnt
+
+16 :steps T!                      // pulses of a pass
+9 :density T!                     // notes of a pass
+1/8 :lag T!                       // how late voice B starts (a pulse is 1/16)
+'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
+'( :density :steps p/euclid ) :euclid T!
+
+: pulse ( $i $pan -- leaf )
+  | (:euclid T@@ $i @) 1 :steps T@ / b/pul>evnt 0 @
+    :melody T@ $i @
+    :pan $pan  :instrument 12  :volume 80  leaf ;
+
+// the voice: the pulse the onset is on, the pass round again after :steps pulses
+: hoke ( $onset $pan -- leaf ) $onset 16 * int :steps T@ mod $pan pulse ;
+
+100 :tempo T!
+: tempo-ctx ( $tempo -- ctx ) | :duration '[1] :Tempo '[1] $tempo * >ctx ;
+
+: start-voices ( $ctx -- )
+  -1 'hoke $ctx :A ->+
+   1 'hoke $ctx :lag T@ later :B ->+ ;
+
+: start ( -- ) stop :tempo T@ tempo-ctx start-voices ;

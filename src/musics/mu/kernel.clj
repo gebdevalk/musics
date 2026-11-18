@@ -368,16 +368,26 @@
              (when (nil? v) (e/mu-error "T@@:" (pr-str k) "is not in the tctx -- T! it"))
              (conj (pop s) v)))))
 
+(word! "play" "later" "( length -- later )  a start delay, length in whole notes (1/8 later): a play word takes it beside the context and starts the voice that long after now, at the tempo it plays under. So far for a voice that is a function of onset: 'hoke $ctx 1/8 later :B ->+. Its onset counts from its own start"
+       (fn [s]
+         (need s 1 "later")
+         (let [n (peek s)]
+           (when-not (and (number? n) (pos? n))
+             (e/mu-error "later:" "needs a length in whole notes above 0 (as 1/8), got" (p/show n)))
+           (conj (pop s) (v/->Later (rationalize n))))))
+
 (defn- play-now
-  "( material [recipe] [^{ }] [voice] -- ): play! now, or live through a recipe."
+  "( material [recipe] [^{ }] [later] [voice] -- ): play! now, or live through a recipe."
   [word join?]
   (fn [s]
     (let [[target s] (target-of s word)
+          [delay s]  (if (v/later? (peek s)) [(:length (peek s)) (pop s)] [nil s])
           _          (need s 1 word)
           [ctx s]    (if (context? (peek s)) [(peek s) (pop s)] [nil s])]
       (if-let [[w vals s'] (word-voice s word target)]
-        (do (live/play-word! w target vals ctx join? nil) s')
-        (let [[x r s] (music-and-recipe s word)]
+        (do (live/play-word! w target vals ctx join? nil delay) s')
+        (let [[x r s] (music-and-recipe s word)
+              _ (when delay (e/mu-error "later:" "only a word with $onset starts later so far, not music or a recipe"))]
           (if r
             (live/play! x r ctx join? target nil)
             (mt/play! x ctx join? target))
@@ -397,6 +407,7 @@
   [word join?]
   (fn [s]
     (let [[target s] (target-of s word)
+          _ (when (v/later? (peek s)) (e/mu-error (str word ":") "a start delay (later) goes with -> or ->+; this waits for a boundary"))
           [n s] (if (v/mark? (peek s)) [(:count (peek s)) (pop s)] [nil s])]
       (need s 1 word)
       (let [[ctx s] (if (context? (peek s)) [(peek s) (pop s)] [nil s])]

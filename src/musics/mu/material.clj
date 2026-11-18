@@ -617,8 +617,9 @@
 (defn play-source!
   "Play src (musics.compose/source, a voice fed by a function of onset) as the voice
    id, replacing only that voice or adding it, under a context if given; x is what
-   the voice shows as. id back."
-  [src x id ctx]
+   the voice shows as. origin: when its time 0 is (System/nanoTime), later than now
+   for a voice that starts late. id back."
+  [src x id ctx & [origin]]
   (reset! last-played x)
   (engine/ensure-connected!)
   (reg/log! :play)
@@ -626,7 +627,7 @@
         eng  (assoc engine/*engine* :repo (atom snap))]
     (binding [engine/*engine* eng]
       (cancel-staged! id)
-      (engine/play-at! eng [id] (if ctx [(:id ctx) src] src) nil nil)
+      (engine/play-at! eng [id] (if ctx [(:id ctx) src] src) origin nil)
       (swap! voices assoc id {:x x :ctx nil :ends #{}})
       id)))
 

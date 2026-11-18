@@ -871,3 +871,29 @@
           (is (nil? (engine/voice-at :v2)) "and no voice started"))))
     (finally (clear-tctx!) (inputs/clear! :v) (inputs/clear! :w))))
 
+
+(deftest later-starts-a-voice-that-is-a-function-of-onset-later
+  (try
+    (run ": tick ( $onset $base -- note ) | '[1/4] '[1] $base $onset 4 * int + * zip ;")
+    (let [origin-of (fn [eng] (:origin (get @(:streams eng) [:v])))
+          started   (fn [input]
+                      (let [eng (engine/engine nil (repo/registry) :ROOT)]
+                        (binding [engine/*engine* eng]
+                          (with-redefs [engine/receiver (atom :silent)]
+                            (let [t0 (System/nanoTime)
+                                  r  (run input)]
+                              (is (nil? (:error r)) (:error r))
+                              (let [secs (/ (- (origin-of eng) t0) 1e9)]
+                                (run ":v stop")
+                                secs))))))]
+      (testing "its time 0 is the delay from now, in whole notes at the tempo it plays under"
+        (is (< 0.29 (started "60 'tick 1/8 later :v ->") 0.4) "1/8 at the default 100: 0.3 s")
+        (is (< 0.14 (started "60 'tick ^{ !tempo:200 } 1/8 later :v ->") 0.2) "at 200 half of that")
+        (is (< (started "60 'tick :v ->") 0.05) "without it, now"))
+      (testing "the number is a length, and only an onset word can start later"
+        (is (re-find #"needs a length" (:error (run "0 later"))))
+        (is (re-find #"needs a length" (:error (run "\"x\" later"))))
+        (is (re-find #"only a word with \$onset" (:error (run "[c d] 1/8 later :m ->"))))
+        (is (re-find #"goes with -> or ->\+" (:error (run "60 'tick 1/8 later :v -|>"))))
+        (is (= "1/8 later" (top-of "1/8 later")))))
+    (finally (inputs/clear! :v))))

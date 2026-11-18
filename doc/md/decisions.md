@@ -3732,3 +3732,18 @@ time in the conductor, and `@t` in the grammar). `beat` stays where it means a b
 the meter (`musics.algo`, walking bass, `swing`, `groove`). Renamed: the `$beat` input
 (`$onset`), `:onset` in events, voices and the lookup, `musics.mu.live/play-onset-word!`
 `onset-source` `onset-word?`.
+
+## 2026-11-18 -- `later`: one voice word, started late
+
+A hocket's second voice is the first one's word started `:lag` later, not a word with a
+late branch of its own. `<length> later` (whole notes, `Later` in `musics.mu.value`) is taken
+by `->`/`->+` beside the context (`'hoke $ctx 1/8 later :B ->+`) and gives the voice an
+origin that far ahead (`engine/play-at!`'s `origin`, which the conductor's staged starts
+already used); the voice's onset counts from its own start, so B asks for onset 0 then.
+The delay is turned into seconds at the tempo the voice plays under, the context's at its
+start. The voices one input starts share a start moment (`eval/*start-moment*`, the first
+voice's start), so the lag is exactly the delay: measured from "now" at each start it
+included the time starting the voice before took (about 18 ms). So far only for a word with
+`$onset`; music and recipes are refused. Rejected: `-|>`-style staging (a boundary is too
+coarse for 1/8, and onset words refuse staging); a `:delay` context key (a setting read once,
+at the start, among keys that vary over time).

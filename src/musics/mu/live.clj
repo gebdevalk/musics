@@ -154,8 +154,25 @@
            (or (first (as-leaves (peek left)))
                (e/mu-error word "gave no leaf for the onset")))))))
 
+(defn- start-moment
+  "The moment (System/nanoTime) the voices of the input being run start: its first voice's
+   start, so they share it (eval/*start-moment*); now outside an input."
+  []
+  (if-let [a e/*start-moment*]
+    (or @a (reset! a (System/nanoTime)))
+    (System/nanoTime)))
+
+(defn- start-origin
+  "When a voice that starts delay whole notes (none: 0) after the input's voices has its
+   time 0 (System/nanoTime): the delay at the tempo it plays under -- ctx's at its start,
+   else the default's."
+  [ctx delay]
+  (let [tempo (double (c/ctx-value-chain (keep :context [(when ctx (v/node ctx)) (repo/current :ROOT)])
+                                         "Tempo" 0))]
+    (+ (start-moment) (long (* 1e9 4 60 (/ (double (or delay 0)) tempo))))))
+
 (defn- play-onset-word!
-  [word voice values ctx staged all-names]
+  [word voice values ctx staged all-names delay]
   (when staged (e/mu-error (str word ":") "a voice that is a function of onset starts now: -> , not -|>"))
   (let [names (vec (remove #{"onset"} all-names))
         specs (into {} (map-indexed (fn [i [n x]] [(keyword n) (input-spec word i n x)]) (map vector names values)))]
@@ -167,7 +184,8 @@
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f (tctx-node!)) (mt/read-text "repeat ~ [r8]") voice ctx))
+      (mt/play-source! (compose/source f (tctx-node!)) (mt/read-text "repeat ~ [r8]") voice ctx
+                       (start-origin ctx delay)))
     voice))
 
 (defn- play-plain-word!
@@ -199,11 +217,13 @@
    Each note the voice reaches is the next of the seq the word gives with
    the inputs it holds now; :voice/input reads or stores one. staged:
    [count] when it waits for a boundary (->>)."
-  [word voice values ctx join? staged]
+  [word voice values ctx join? staged & [delay]]
   (reg/log! :live-word)
   (if (onset-word? (map first (e/live-inputs word)))
-    (play-onset-word! word voice values ctx staged (mapv first (e/live-inputs word)))
-    (play-plain-word! word voice values ctx join? staged)))
+    (play-onset-word! word voice values ctx staged (mapv first (e/live-inputs word)) delay)
+    (do (when delay
+          (e/mu-error "later:" "only a voice that is a function of onset (a word with $onset) starts later"))
+        (play-plain-word! word voice values ctx join? staged))))
 
 (defn input-voice
   "The id of the live voice that word's voice argument (an id or index)

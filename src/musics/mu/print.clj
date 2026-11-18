@@ -140,6 +140,7 @@
     (fn? x)          "#fn"
     (v/quotation? x) (:source x)
     (v/mark? x)      (apply str (repeat (:count x 1) "|"))
+    (v/later? x)     (str (:length x) " later")
     (symbol? x)      (str "'" x)
     (instance? musics.common.music_elements.Key x) (el/key->str x)
     (instance? musics.common.music_elements.Meter x) (el/meter->str x)
