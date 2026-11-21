@@ -1,0 +1,137 @@
+/*
+Acsent of men
+
+4 phases mineral, plant, animal, human
+1..4 dimentions: pitch, volume, articulation, timbre
+
+Phase one has one dimention phase two 2 etc
+
+13: 0..12 semitones the highest is the target, triangular weighted random with low emphasis.
+
+Initially only the lowest note is played, on hitting the target the ambitus is increased by one.
+
+Random value from that ambities range is played on each attempt
+
+When the range is full the phase is finished.
+
+Duration factor ( fixed duration/highest amplitude value) is taken from the current amplitude range (1..n) mapped to become gradually smaller.
+
+Higher phases have random values from the current ambitus for the extra dimention
+
+In general from long to short
+
+*/
+
+// ---------------------------------------------------------------------------
+// ascent -- what the comment above asks for, as words.
+//
+// Hear it:    "mus/ascent.mus" load   '[2] start         the phases in the list, one after another:
+//             '[1] start (the mineral)  '[1 2 3 4] start (all four, computing them takes some
+//             seconds first)  '[2 4] start (the plant, then the human)
+// Change it:  7 :seed T!   (another run)    '[1 1 1 1] :unit T!  (a list, a value for each phase)   '[...] :ladder T!   then start
+//             '[1 3 1 1] :voices T!   voices per phase: a canon, each voice the same notes
+//             '[2 2 2 2] :delay T!   units between one voice's entry and the next's (:unit each)
+// Stop it:    stop
+//
+// A phase climbs an ambitus of 13 semitones (0..:top, 12). The ambitus starts as the lowest note
+// alone. Each attempt draws a note from it, a triangular draw weighted to the low end, so the
+// highest note, the target, is rare. When it is hit the ambitus grows by one, and the new
+// highest note is the target. When the ambitus is full and its top is hit, the phase is
+// finished. A note lasts the fixed duration (:unit) divided by the number of values of the
+// ambitus there are now (the highest amplitude value): long to short. Phase 1 (mineral) has
+// pitch only; phase 2 (plant) adds volume, 3 (animal) articulation, 4 (human) timbre, each
+// drawn from the ambitus at that moment and mapped on its scale, so it widens as the
+// ambitus does. The dimensions a phase does not have yet are fixed.
+
+'numeric.random 'r reqalgo            // r/int-lo-emph r/int-range
+'numeric.rng 'rng reqalgo             // rng/seed
+
+// ---- the settings ------------------------------------------------------------
+
+// A setting that is a list has a value for each phase, the first for phase 1 (mineral), the
+// last for phase 4 (human), as :fixedtimbres has.
+'[3 2 3 7/2] :unit T!                                // the fixed duration, in whole notes: the first note, a breve
+'[4 4 2 3/2] :delay T!                               // in units: how much later each voice of a canon enters than the one before (4 units of 2 whole notes: 8)
+'[24 36 48 72] :base T!                            // the lowest note, C2: the ambitus an octave above it
+'[12 12 12 12] :top T!                             // the highest semitone above it: 13 notes in all
+'[70 70 70 70] :loudness T!                        // the volume a phase has before its volume is a dimension
+'[ '[32 70 60] '[40] 68] :fixedtimbres T!       // the fixed timbre of phase 1, 2, 3; a list is layered: bassoon and acoustic bass together, then flute, oboe
+// the timbre ladder, the value 0..:top of the human phase: from mineral to human, each rung
+// two or three programs sounding together (multitimbral), chosen for the low register --
+// timpani and marimba, marimba and piano, piano and church organ, organ and acoustic bass,
+// bass and bassoon, bassoon and clarinet, clarinet and baritone sax, baritone sax and trombone,
+// trombone and tuba, tuba and horn, horn and contrabass, contrabass, cello and choir aahs,
+// cello, choir aahs and voice oohs
+'[ '[47 12] '[12 0] '[0 19] '[19 32] '[32 70] '[70 71] '[71 67] '[67 57] '[57 58] '[58 60] '[60 43] '[43 42 52] '[42 52 53] ] :ladder T!
+// the articulation ladder: short to long
+'[:staccatissimo :staccato :staccato :portato :portato :portato :tenuto :tenuto :tenuto :legato :legato :legato :legato] :artics T!
+5 :seed T!                                         // the draws: the same seed, the same run
+120 :tempo T!                                      // quarter notes a minute
+'[1 2 3 4] :voices T!                              // voices of each phase: the same phase as a canon, each voice the same notes
+
+// ---- one level of a phase: the attempts at a target --------------------------
+
+// the draws at the target n: notes of the ambitus 0..n, low ones the likeliest, up to and
+// including the first time the target is hit
+: attempts ( $n -- draws )
+  //'( 0 $n 1 + r/int-lo-emph )  $n 1 + dup * 12 *  pull        // more than it needs, on average ten times
+  '( 0 $n 1 + r/rand-int )  $n 1 + dup * 12 *  pull        // more than it needs, on average ten times
+  '[1] $n *  concat                                            // and the target at the end, should it not be hit
+  dup $n index-of 1 +  take
+  $n 0 >  '( '[1] $n *  swap concat )  '( )  if ;                // the target just allowed is played first
+
+// count values of the ambitus 0..n, each as likely as another: what an extra dimension draws
+: extras ( $n $count -- values ) '( 0 $n 1 + r/int-range ) $count pull ;
+
+// the value of a setting for a phase: the setting is a list, a value for each phase
+: per-phase ( $key $phase -- value ) $key T@@ $phase 1 - @ ;
+
+// the columns of a level (arithmetic on whole lists: a list and a number)
+: durations-of ( $n $p $phase -- list )
+  $p 0 *  :unit $phase per-phase $n 1 + /  +      // the unit over the values there are
+  $n :top $phase per-phase =                      // the last level: its last note, the top hit, is as long as the first
+  '( dup length 1 - take  '[1] :unit $phase per-phase *  concat )  '( )  if ;
+: pitches-of ( $p $phase -- list ) $p :base $phase per-phase + ;
+: volumes-of ( $a $phase -- list ) $a 75.0 * :top $phase per-phase / 25 + ;            // 0..:top on 25..100
+: articulations-of ( $a -- list ) $a '( :artics T@@ swap @ ) map ;
+: timbres-of ( $a -- list ) $a '( :ladder T@@ swap @ ) map ;
+
+// a level of phase p: the notes of its attempts at the target n, the dimensions the phase has
+: level-of ( $n $phase $p -- seq )
+  | $n $p $phase durations-of  $p $phase pitches-of
+    :volume
+      $phase 2 >=  '( $n $p length extras $phase volumes-of )  '( ( :loudness $phase per-phase ) )  if
+    :articulation
+      $phase 3 >=  '( $n $p length extras articulations-of )  '( '[:portato] )  if
+    :instrument
+      $phase 4 >=  '( $n $p length extras timbres-of )
+                   '( ( :fixedtimbres T@@ $phase 1 - @ ) )  if      // one timbre, or one stack of them, for every note
+    zip ;
+
+// ---- a phase, and the ascent -------------------------------------------------
+
+// phase 1 .. 4: the levels of the ambitus 0, 0..1 ... 0..12, one after another
+: phase-seq ( $phase -- seq )
+  ( 0 :top $phase per-phase 1 + range  '( dup $phase swap attempts level-of ) map ** ) flatten ;
+
+// a canon: the seq played by n voices, the second entering :delay units after the first, the
+// third after the second ... Each is the same notes; they sound together.
+: canon ( $seq $n $phase -- par )
+  | 0 $n range
+    '( :delay $phase per-phase  :unit $phase per-phase  * *  dup 0 >  '( $seq swap delay )  '( drop $seq )  if )  map ** par ;
+
+// phase 1 .. 4 as the voices it has (:voices)
+: phase-voices ( $phase -- music ) $phase phase-seq  :voices $phase per-phase  $phase canon ;
+
+// the phases in the list, one after another: '[1 2 3 4] is the ascent; each prints its number
+// while it is computed, which takes a moment
+: phases-seq ( $phases -- seq ) ( $phases '( dup . phase-voices ) map ** ) flatten ;
+
+// ---- start and stop ----------------------------------------------------------
+
+: tempo-ctx ( $tempo -- ctx ) | :duration 1 :Tempo $tempo >ctx ;
+
+// the phases of the list, in order: '[1] the mineral alone, '[1 2 3 4] all four
+: start ( $phases -- ) stop  :seed T@ rng/seed  $phases phases-seq  :tempo T@ tempo-ctx  -> ;
+
+: stop-ascent ( -- ) stop ;

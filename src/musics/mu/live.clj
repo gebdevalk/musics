@@ -142,7 +142,8 @@
   "The function of a voice fed by a function of onset (compose/source): (onset lookup)
    -> the one leaf word gives at onset, the other inputs read as they are now
    (:voice/input stores one), and any keyword argument of a word it runs the
-   value lookup gives for it -- also :onset."
+   value lookup gives for it -- also :onset. A word that leaves [] (a seq with nothing
+   in it) has finished: the voice ends there."
   [word voice all-names]
   (fn [onset lk]
     (let [vals   (inputs/values voice)
@@ -151,8 +152,9 @@
       (e/with-lookup lookup
         #(let [left (e/run-word args word)]
            (when (empty? left) (e/mu-error word "leaves nothing to play"))
-           (or (first (as-leaves (peek left)))
-               (e/mu-error word "gave no leaf for the onset")))))))
+           (let [x (peek left)]
+             (or (first (as-leaves x))
+                 (when-not (music? x) (e/mu-error word "gave no leaf for the onset")))))))))
 
 (defn- start-moment
   "The moment (System/nanoTime) the voices of the input being run start: its first voice's

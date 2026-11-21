@@ -995,13 +995,15 @@
 
 (defn set-instrument
   "Note l with its own instrument i: a program, a General MIDI name or
-   short name. A drum has none."
+   short name -- or a list of them, the note sounding once on each (\\i:40,73 in text).
+   A drum has none."
   [word l i]
   (when (= :DRUM (:type l))
     (e/mu-error (str word ":") "a drum has no instrument, its sound is a key of the kit -- zip a :drum stream onto it"))
-  (assoc-in l [:overrides :instrument]
-            (or (when (number? i) (int i)) (data/program-of i)
-                (e/mu-error (str word ":") (pr-str i) "is not a program or General MIDI name"))))
+  (let [program (fn [x] (or (when (number? x) (int x)) (data/program-of x)
+                            (e/mu-error (str word ":") (pr-str x) "is not a program or General MIDI name")))]
+    (assoc-in l [:overrides :instrument]
+              (if (and (sequential? i) (seq i)) (mapv program i) (program i)))))
 
 (defn volume-value
   "v as a note's own volume: a number 0..100 (resolve maps it to MIDI)."
@@ -1267,7 +1269,7 @@
         (not (keyword? x)) (e/mu-error ">ctx: name each stream -- :duration '[1/1 1/1] :volume '[50 90] -- got" (p/show x))
         (empty? more)      (e/mu-error ">ctx:" (str x) "names no stream -- write it before one")
         :else (let [part (if (#{:curve :curves} x) :curve (label-part x))]
-                (when (and (part-ranks part) (not= :duration part))
+                (when (and (part-ranks part) (not (#{:duration :articulation} part)))
                   (e/mu-error ">ctx: makes a context, the music's ! keys --" (str x) "is a part of a note (zip writes those)"))
                 (let [v (first more)
                       one? (or (number? v) (string? v) (keyword? v) (instance? musics.common.music_elements.Key v))]

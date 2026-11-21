@@ -897,3 +897,13 @@
         (is (re-find #"goes with -> or ->\+" (:error (run "60 'tick 1/8 later :v -|>"))))
         (is (= "1/8 later" (top-of "1/8 later")))))
     (finally (inputs/clear! :v))))
+
+(deftest a-word-that-leaves-an-empty-seq-has-finished
+  (try
+    (run ": brief ( $onset -- leaf ) $onset 1 < '( | '[1/4] '[60] zip ) '( [] ) if ;")
+    (let [f (#'live/onset-source "brief" :v ["onset"])
+          g #(c/getter [live/tctx] %)]
+      (inputs/set-inputs! :v [])
+      (is (some? (f 0 (g 0))) "a leaf while there is something to play")
+      (is (nil? (f 1 (g 1))) "and nothing at the end: the voice finishes there"))
+    (finally (inputs/clear! :v))))

@@ -1,0 +1,33 @@
+// gamelan -- 5 layers of instriuments with note duration 2/1, 1/1, 1/2, 1/4, 1/8, and 1/16 of a whole note. 
+// The layers are played in a round-robin
+//
+
+// Hear it:    "mus/gamelan.mus" load   start
+// Change it:  while it plays, 8 :steps T!   or   1/4 :lag T!
+// Stop it:    stop
+
+'harmonic-series  [C2/8 C3 G3 C4 E4 G4 A#4 C5 D5 E5 F#5 G5 G#5 A#5 B5 C6] := 
+
+
+[!i:12 !ff C5/16 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4 C5 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4
+          C5 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4 C5 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4] 7 + [~] :upper T!
+[!i:12 !mp C5/8 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4 C5 E5 G5 A5 E5 D5 A4 B4 C5 D5 G5 F5 E5 C5 A4] [~] :highest T!
+[!i:12 !mf C4/4 E4 G4 A4 E4 D4 A3 B3 C4 D4 G4 F4 E4 C4 A3] [~] :higher T!
+[!i:12 !f C3/2 G3 E3 A2 C3 G3 E3 A2] [~] :middle T!
+[!i:12 !ff C2/1    G2    E2    A1  ] [~] :lower T!
+[!i:14 !fff C1/\breve      G1      ] [~] :lowest T!
+
+200 :tempo T!
+: tempo-ctx ( $tempo -- ctx )
+  | :duration 1 :Tempo $tempo >ctx ;
+
+: start-voices ( $ctx -- )
+  :lowest T@  $ctx :lowest  ->+    
+  :lower T@ $ctx :lower   ->+    
+  :middle T@ $ctx :middle   ->+ 
+  :higher T@ $ctx :higher   ->+
+  :highest T@ $ctx :highest   ->+
+  :upper T@ $ctx :upper   ->+ 
+  ;
+
+: start ( -- ) stop 80 tempo-ctx start-voices ;

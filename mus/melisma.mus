@@ -1,0 +1,164 @@
+// melisma -- a slow cantus firmus and melismatic counter voices, in a small ambitus.
+//
+// The ambitus is a fifth, a to e, with an occasional g below it. Time is ternary: a group
+// is three pulses (:pulse, an eighth), and a counter voice plays each group as 111 (three
+// short notes), 21 or 12, chosen at random -- the choice a function of the seed, the voice
+// and the group, so the same seed is the same chant. The cantus firmus is one long note for
+// three groups. The cantus enters first, a counter voice after :enters notes of it, the second
+// counter voice later still. A counter voice starts each group on a pitch that sounds well
+// with the cantus note (a unison, a third, a fifth, a sixth) and then moves a step or stays.
+//
+// It ends with a cadence. The cantus firmus is sung :rounds times; its last note, the a it
+// reaches from the g, is held twice as long. Over it the counter voices sing two more groups
+// of melisma, then slow to long notes, the first voice b and the second d, and settle together
+// on the a and the e: an open chord with the trombone's a. Then every voice finishes.
+//
+// Hear it:    "mus/melisma.mus" load   start
+// Change it:  while it plays: 7 :seed T!   (another chant)     '[0 1 3] :enters T!
+//             '[3 4 3 2 1] :line T!  (the cantus firmus, as degrees)   60 :tempo T!   start
+//             4 :rounds T!  (a longer piece: the cantus firmus sung four times)
+// Stop it:    stop
+
+"clojure.math" 'm require             // m/sin
+'numeric.counter 'c reqalgo           // c/draw c/draw-int c/subseed
+'bridge 'b reqalgo                    // b/pul>evnt
+
+// ---- the settings: plain values in the tctx --------------------------------
+
+1/8 :pulse T!                                   // a ternary group is three pulses
+'[55 57 59 60 62 64] :scale T!                  // degree 0 g (the one below), 1 a ... 5 e
+'[1 2 3 4 3 2 3 5 4 3 2 1 2 3 2 1 0 1] :line T! // the cantus firmus, a degree for each note
+'[0 2 6] :enters T!                             // the cantus note each voice enters at
+'[ '[60 61 62] '[57 58] 56 ] :timbres T!        // programs of each voice; a list is two timbres at once: the cantus firmus horn and brass section
+'[-12 +12 +12] :shifts T!                       // semitones added to each voice: the trombone an octave down, the voices up
+'[60 60 60] :levels T!                          // volume of each voice
+'[1.0 0.9 0.9] :articulations T!                // the share of its length each voice's notes sound: the cantus firmus legato
+'[0.0 -1.0 1.0] :pans T!
+'[0.0 1.7 3.1] :phases T!                       // where in its contour each voice starts
+5 :seed T!                                      // the chant: another seed, another choice
+2 :rounds T!                                    // times the cantus firmus is sung, then the cadence
+
+// ---- what changes with the onset: derived settings ---------------------------
+
+'( :onset :pulse / 9 / int ) :note T!            // which note of the cantus firmus: nine pulses each
+'( :onset :pulse / 3 / int ) :group T!           // which group of three pulses
+'( :line T@@ length :rounds T@@ * 1 - ) :last T! // the last note of the cantus firmus: the final one
+// the pitch of the cantus firmus note that sounds
+'( :scale T@@  :line T@@ dup length  :note swap mod  @  @ ) :cantus T!
+
+// ---- pitches ---------------------------------------------------------------
+
+// the pitch of a degree of the ambitus, kept inside it: 0 is the g below, 5 the e
+: scale-pitch ( $i -- p ) :scale T@@ $i 0 max 5 min @ ;
+
+// does degree i sound well with the cantus note: the interval in semitones, mod 12, is a
+// unison, a third, a fifth or a sixth
+: consonant? ( $i -- flag )
+  :scale T@@ $i @  :cantus T@@ -  12 mod
+  '[1 0 0 1 1 0 0 1 1 1 0 0] swap @  1 = ;
+
+// the degree a group of voice v starts on, round a slowly turning contour of the ambitus
+// (the voices turn at their own phase)
+: contour ( $g $v -- degree )
+  $g 43/100 * :phases T@@ $v @ + m/sin 6/5 *
+  $g 17/100 * :phases T@@ $v @ 2 * + m/sin 4/5 *
+  +  3 +  round ;
+
+// of the degree and its neighbours, the first that sounds well with the cantus note, else it
+: consonant-near ( $base -- degree )
+  '[0 1 -1] '( $base + 1 max 5 min ) map  '( consonant? ) filter
+  dup length 0 >  '( 0 @ ) '( drop $base ) if ;
+
+// the degree the group g of voice v starts on: now and then the g below the a
+: group-degree ( $g $v -- degree )
+  $g $v contour consonant-near
+  :seed T@@ $v c/subseed  $g 100000 +  c/draw  1/12 <
+  '( drop 0 ) '( ) if ;
+
+// the degree of note j of the group: the first the group's own, the others a step away or the same
+: note-degree ( $g $v $j -- degree )
+  $g $v group-degree
+  :seed T@@ $v c/subseed  $g 3 * $j +  3 c/draw-int
+  '[0 1 -1] swap @  $j 1 min *  + ;
+
+// ---- the ternary rhythm ----------------------------------------------------
+
+// which of the three ways to fill a group voice v plays in group g: 0 = 111, 1 = 21, 2 = 12
+: pattern ( $g $v -- p ) :seed T@@ $v c/subseed $g 3 c/draw-int ;
+
+// which pulse of its group an onset is: 0, 1 or 2
+: slot ( $onset -- q ) $onset :pulse T@@ 3 * mod  :pulse T@@ /  int ;
+
+// the pulses long the note is that starts at slot q of pattern p, and which note of the group it is
+: note-pulses ( $p $q -- n ) '[1 1 1 2 1 1 1 2 1] $p 3 * $q + @ ;
+: note-index  ( $p $q -- j ) '[0 1 2 0 0 1 0 1 1] $p 3 * $q + @ ;
+
+// ---- a voice ---------------------------------------------------------------
+
+: bit ( $flag -- n ) $flag '( 1 ) '( 0 ) if ;
+
+// the leaf: dur a note's length, a rest's if the voice has not yet entered; loud on top of its volume
+: voice-leaf ( $dur $pitch $flag $v $loud -- leaf )
+  | '[1] $flag * $dur b/pul>evnt 0 @  $pitch :shifts T@@ $v @ +
+    :pan :pans T@@ $v @
+    :instrument :timbres T@@ $v @
+    :volume :levels T@@ $v @ $loud +
+    leaf ;
+
+// has voice v entered, at the note of the cantus firmus it is at
+: entered ( $v -- n ) :note T@@ :enters T@@ $v @ >= bit ;
+
+// the cantus firmus: one note of nine pulses, sustained; the last twice as long
+: cantus-leaf ( $onset -- leaf )
+  :note T@@ :last T@@ =  '( 18 ) '( 9 ) if  :pulse T@@ *
+  :cantus T@@  0 entered  0 0  voice-leaf ;
+
+// a counter voice: a note of the group, in the rhythm the group was given
+: melisma-leaf ( $onset $g $v -- leaf )
+  $g $v pattern  $onset slot                       // p q
+  2dup note-pulses :pulse T@@ *                    // p q dur
+  -rot note-index                                  // dur j
+  $g $v rot note-degree scale-pitch                // dur pitch
+  $v entered  $v                                   // dur pitch flag v
+  $onset slot 0 = bit 6 *                          // the first note of a group a little louder
+  voice-leaf ;
+
+// the cadence, over the last note of the cantus firmus, group gi of its six (2 .. 5): slow
+// notes of a group each -- the first on the group's own degree, then the approach, b for the
+// first voice and d for the second -- and then the final, held two groups: the a and the e
+: cadence-leaf ( $g $v $gi -- leaf )
+  '[3 3 6 6] $gi 2 - @  :pulse T@@ *                               // dur
+  $gi 2 =
+  '( $g $v group-degree )
+  '( $gi 3 =  '( '[0 2 4] $v @ )  '( '[0 1 5] $v @ )  if )
+  if  scale-pitch                                                   // dur pitch
+  $v entered  $v  $gi 4 >= bit 6 *                                  // dur pitch flag v loud
+  voice-leaf ;
+
+// a counter voice at group g: melisma, and over the last cantus note the cadence
+: counter-leaf ( $onset $g $v -- leaf )
+  $g :last T@@ 3 * -  dup 2 <                                       // gi, and is it melisma yet
+  '( drop $onset $g $v melisma-leaf )
+  '( $g $v rot cadence-leaf )
+  if ;
+
+// voice v at an onset: 0 the cantus firmus, the others counter voices; after the last cantus
+// note, finished
+: voice ( $onset $v -- leaf )
+  :note T@@ :last T@@ 2 + >=
+  '( [] )
+  '( $v 0 =  '( $onset cantus-leaf )  '( $onset :group T@@ $v counter-leaf )  if )
+  if ;
+
+// ---- start and stop --------------------------------------------------------
+
+88 :tempo T!                                   // quarter notes a minute
+
+: voice-ctx ( $tempo $art -- ctx ) | :duration 1 :Tempo $tempo :articulation $art >ctx ;
+
+// voice v plays under its own context: the tempo, and its articulation
+: start-voice ( $v $id -- ) $v 'voice  :tempo T@ :articulations T@ $v @ voice-ctx  $id ->+ ;
+
+: start ( -- ) stop  0 :cantus start-voice  1 :voice1 start-voice  2 :voice2 start-voice ;
+
+: stop-melisma ( -- ) stop ;

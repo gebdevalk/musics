@@ -39,13 +39,16 @@
         r (e/with-lookup (fn [k] (if (= k :onset) on (g k))) #(run text))]
     (or (some-> (:ok r) (->> (mapv p/show))) (:error r))))
 
+;; the pitch, instrument and volume of a pulse are drawn at random between two numbers
+(def ^:private note16 #"\[[A-G]#?[0-9]/16\\instrument:1[1-3]\\panning:-1\\volume:\d+\]")
+
 (deftest the-leaves-and-the-pulse-it-is-on
   (let [r (with-out-str (run (slurp (io/file "mus/hocket.mus"))))]
     (is (not (re-find #"can't read|error" r)) r))
-  (is (= ["[E4/16\\instrument:12\\panning:-1\\volume:80]"] (at 0 "0 -1 pulse")) "pulse 0: a note, with its parts")
+  (is (re-matches note16 (first (at 0 "0 -1 pulse"))) "pulse 0: a note of a sixteenth, with its parts")
   (is (= ["[r16]"] (at 0 "1 -1 pulse")) "pulse 1 of the first pass: a rest")
   (is (= ["[r8]"] (at 0 "0 -1 1 hoke")) "the late voice waits the lag: a rest of it")
-  (is (= ["[E4/16\\instrument:12\\panning:-1\\volume:80]"] (at 1/8 "1/8 -1 1 hoke")) "and then plays pulse 0")
+  (is (re-matches note16 (first (at 1/8 "1/8 -1 1 hoke"))) "and then plays pulse 0")
   (is (= [2] (:ok (run "3/16 1/16 pulse-at"))) "pulse-at: the pulse the onset is on, late by the lag")
   (is (= ["^{ !Tempo:90 }"] (mapv p/show (:ok (run "90 tempo-ctx")))) "tempo-ctx: the tempo as a context"))
 

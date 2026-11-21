@@ -1,0 +1,50 @@
+// hoketus04 -- hoketus03 with swing: the second sixteenth of each pair is late.
+//
+// Hear it:    "mus/hoketus04.mus" load   start
+// Change it:  while it plays, 8 :steps T!   or   1/4 :lag T!
+// Stop it:    stop
+
+'rhythmic.pattern 'p reqalgo          // p/euclid
+'bridge 'b reqalgo                    // b/pul>evnt
+
+16 :steps T!                      // pulses of a pass
+'( :onset 16 * :steps / int :steps 2 * 2 - mod ) :arc T!      // 0 .. 2*steps-2, round again after
+'( :steps :steps 1 - :arc - abs - ) :density T!             // notes of a pass: 1 up to steps and back down
+1/8 :lag T!                       // how late voice B is (a pulse is 1/16)
+'[64 67 71 69 74 71 67 66 64 69 71 76 74 71 67 69]  :melody T!
+
+: one ( $x -- list ) '[1] $x * ;
+: bit ( $flag -- n ) $flag '( 1 ) '( 0 ) if ;
+
+// the pulse the onset is on, late by lag
+: pulse-at ( $onset $lag -- i ) $onset $lag - 16 * int :steps T@ mod ;
+
+// the volume of pulse i by its place in the 4/4 bar: the downbeat loudest, then the
+// half bar, the beats, the eighths, the sixteenths
+: accent ( $i -- volume )
+  $i 16 mod 0 =  '( 100 )
+  '( $i 8 mod 0 =  '( 85 )
+     '( $i 4 mod 0 =  '( 72 )
+        '( $i 2 mod 0 =  '( 55 )  '( 40 )  if )  if )  if )  if ;
+
+// the leaf of pulse i: the melody's note if the Euclidean pattern has it on, else a rest
+: pulse ( $i $pan -- leaf )
+  | ( :density T@@ :steps T@ p/euclid $i @ 1 = bit ) 1/16 b/pul>evnt 1 take
+    :melody T@ $i @ one  :pan $pan one  :instrument 12 one  :volume $i accent one  zip ;
+
+// the voice: a rest until its start (late by lag), then pulse after pulse
+: hoke ( $onset $pan $late -- leaf )
+  $late :lag T@ * $onset >
+  '( [] $late :lag T@ * $onset - delay )
+  '( $onset $late :lag T@ * pulse-at  $pan  pulse )
+  if ;
+
+100 :tempo T!
+0.6 :swing T!                      // the long note's share of a pair of sixteenths (0.5 straight, 2/3 triplet feel)
+: tempo-ctx ( $tempo $swing -- ctx )
+  | :duration '[1] :Tempo '[1] $tempo * :swing '[1] $swing * :swingUnit '[1/16] >ctx ;
+
+: start-voices ( $ctx -- )
+  -1 0 'hoke $ctx :A ->+     1 1 'hoke $ctx :B ->+ ;
+
+: start ( -- ) stop :tempo T@ :swing T@ tempo-ctx start-voices ;

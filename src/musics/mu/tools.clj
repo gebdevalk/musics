@@ -147,7 +147,7 @@
              (e/mu-error "leaf: needs a duration and a pitch, has" (count xs)))
            (conj below (one-leaf xs)))))
 
-(word! "music" ">ctx" "( | :duration d :key v ... -- ctx )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream or a single value (:Tempo 100 is :Tempo '[100]), and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
+(word! "music" ">ctx" "( | :duration d :key v ... -- ctx )  a control as a context: above a | mark, :duration and one or more context keys (:volume :Tempo :pan :Key …), each a stream or a single value (:Tempo 100 is :Tempo '[100]; :articulation 1.0, the share of its length a note sounds, is a key here), and an optional :curve (step lin smooth in out). The steps follow each other by the durations, each value holding until the next (step) or gliding to it; the longest finite column sets how many, the shorter ones cycling: | :duration '[1/1 ./. 2/1] :volume '[50 70 90] >ctx gives ^{ !volume:50 !volume:70@1 !volume:90@2 }, laid under music with with"
        (fn [s]
          (let [[below xs] (e/to-mark s)]
            (conj below (mt/control->ctx xs)))))
