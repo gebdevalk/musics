@@ -3747,3 +3747,24 @@ included the time starting the voice before took (about 18 ms). So far only for 
 `$onset`; music and recipes are refused. Rejected: `-|>`-style staging (a boundary is too
 coarse for 1/8, and onset words refuse staging); a `:delay` context key (a setting read once,
 at the start, among keys that vary over time).
+
+## 2026-11-21 -- `( )` inside a seq groups notes, inline and without an id
+
+`[a: c4 ( d e ) f ]`: a seq holds a group as one element. Wanted for fragments (organum) that
+words move as units (`rotate`, `take`, `[R]` count a group as one element) without each fragment
+being a named part. A group has no `Id` and is not stored: it is a `:GROUP` container map held
+inline in its parent's `:children`, as leaves are (the engine, `d/duration`, `d/children`,
+`persist` and `read-literals` already handled a container map as a child). It may hold
+instructions, applying to it alone, a real scope like a seq's; the engine signals nothing for
+it (no id to signal). Rejected: a registered `:GROUP` node with an auto id (spends an id slot
+nobody can use, and shows in `ids`); leaking its instructions to the parent, as a tuplet's
+`replay-context!` does (a tuplet is spliced and gone; a group is an element that stays).
+The rule is `Grouping`: `mu.ebnf`'s `Group` would replace a same-named rule once the two
+files are joined, which made an empty `( )` read inside a seq and hid the new rule. A group
+is not a mu value of its own: standing alone `( … )` is mu's group, so `read-text` reads group
+text as the one element of a seq.
+Order against pitch: words that move elements (`[R]`, `retrograde ( )`, `rotate`, `shuffle`) treat a group
+as one element and leave its inner order, so `[R]` of `[c4 ( d e ) f]` is `[f ( d e ) c4]`; words that
+change pitch (transpose, `[I]`, `[M]`, `+`) reach in, as inversion and mirror need every note of the
+seq. A nested `[ ]` seq is turned round inside by `[R]`; a group is not, which is the difference
+between them. Open: whether the row forms should offer a way to turn a group round too.

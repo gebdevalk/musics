@@ -39,6 +39,7 @@ what is still open, and [mu-words.md](mu-words.md) has every word.
 | `M:3/4` `T:8=200` `K:D.major` `vol:mf` | a setting alone: `name:value`, no space, as `!name:value` writes it in a seq | pushed as the context `^{ !M:3/4 }`: `x M:3/4 with` lays it under x. A leaf wins (`c:m7` is a chord) |
 | `:motif` | a repo name (an id) | pushed as a name |
 | `'( dup 12 transpose )` | a quotation: code held, not run | pushed |
+| `[c4 ( d e ) f]` | a grouping: notes grouped as one element of a seq. Inside `[ ]` only; at the top level `( )` is the group below | stays in the seq, inline, with no id and no name; it may hold instructions that apply to it alone (`( !pp d e )`), and what it does not set comes from the seq around it. `length`, `take`, `rotate` and `[R]` move it as one element, its notes keep their order; `+`, `[I]` and `[M]` change the notes inside |
 | `( [c d] 2 times [e] [f] volta )` | a group: run now | what it leaves, gathered by its first value: music into one seq, numbers, keywords and data lists into a data list `'[ ]` (`( 60 12 + 62 )` is `'[72 62]`); an empty `()` gathers the stack the same way, what lies above the nearest `\|` else all of it |
 | `'motif` | a name, held (for `:=`) | pushed |
 | `\motif` | the value bound to that name | pushed |
@@ -78,7 +79,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   parts of a parallel (`| [c d] [e f] par`), `chord` its notes, and the bare
   `()`; a play word reads its count as a bar line's strength. Inside brackets `|` is a bar line, as in the text. `( c4 d
   e )` is the same seq as `[c4 d e]`: a group runs what is inside it and
-  gathers the result, a seq of music or a list of numbers.
+  gathers the result, a seq of music or a list of numbers. Inside a seq's own
+  brackets `( … )` is something else, a **grouping**: `[c4 ( d e ) f]`, notes
+  grouped as one element, with no name (see the table in section 2).
 - **Words don't run inside a literal**: a literal is musics text, read
   before anything runs. A known word inside one is an error that names
   it and shows the way: `( [a b] [?] [c d] [?] )`.

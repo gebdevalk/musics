@@ -637,6 +637,8 @@
         :Context     (walk-context state children)
         :Sequence    (let [s (flat/push-container state :SEQ)]
                        (->> (walk-children s children) flat/pop-container))
+        :Grouping    (let [s (flat/push-container state :GROUP)]
+                       (->> (walk-children s children) flat/pop-container))
         :Parallel    (let [s (flat/push-container state :PAR)]
                        (->> (walk-children s children) flat/pop-container))
         :Data        (let [s (walk-children (flat/push-container state :DATA) children)]

@@ -305,17 +305,21 @@
     (d/container? part)
     (let [id      (:id part)
           section (fn [st phase] (assoc (at st :section) :id id :type (:type part) :phase phase))
-          k'      (fn [st'] (cons (section st' :exit) (lazy-seq (k (boundary st' id :exit)))))]
-      (cons (section st :enter)
-            (lazy-seq (let [st       (boundary st id :enter)
-                            outer    chain
-                            chain    (compose/build-chain part chain (:onset st))
-                            n        (get-in st [:entered id] 0)
-                            st       (cond-> st (or (:rotate part) (:alternate part) (:shuffle part) (:choose part)) (assoc-in [:entered id] (inc n)))
-                            children (apply-wall st chain (compose/play-order part (d/children (:repo st) part) n (compose/voice-seed (:path st))))]
-                        (if (= :PAR (:type part))
-                          (walk-par children chain st k')
-                          (walk-seq part children outer chain st k'))))))
+          ;; an inline container (a group) has no id: nothing to signal
+          k'      (if id
+                    (fn [st'] (cons (section st' :exit) (lazy-seq (k (boundary st' id :exit)))))
+                    k)
+          enter   (fn [st body] (if id (cons (section st :enter) (lazy-seq (body (boundary st id :enter)))) (body st)))]
+      (enter st
+            (fn [st]
+              (let [outer    chain
+                    chain    (compose/build-chain part chain (:onset st))
+                    n        (get-in st [:entered id] 0)
+                    st       (cond-> st (or (:rotate part) (:alternate part) (:shuffle part) (:choose part)) (assoc-in [:entered id] (inc n)))
+                    children (apply-wall st chain (compose/play-order part (d/children (:repo st) part) n (compose/voice-seed (:path st))))]
+                (if (= :PAR (:type part))
+                  (walk-par children chain st k')
+                  (walk-seq part children outer chain st k'))))))
 
     :else (k st)))
 

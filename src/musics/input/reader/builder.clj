@@ -33,6 +33,11 @@
    container itself not registered in :repo."
   #{:TRANSPOSE :DECORATED :REVERSE :TUPLET})
 
+(def ^:private inline-types
+  "Container types that stay inline: no id, not registered in :repo, the
+   finished container itself is the parent's child. :GROUP ( ... )."
+  #{:GROUP})
+
 (def ^:private definition-types
   "Container types that register in :repo on pop but are NOT appended
    to their parent's :children. They are definition forms, not content.
@@ -238,6 +243,17 @@
             (assoc :stack rest-stack)
             (update-in [:stack (dec (count rest-stack)) :children] into child-ids)))
 
+      ;; ---- Inline: the finished container is the child itself ----
+      ;; Same stamps as a registered container, but no id is spent and
+      ;; nothing lands in :repo.
+      (inline-types (:type container))
+      (let [dur       (d/duration (:repo state) container)
+            container (d/set-container-duration container dur)
+            container (d/set-container-pitch-stats container (d/pitch-stats (:repo state) container))]
+        (-> state
+            (assoc :stack rest-stack)
+            (update-in [:stack (dec (count rest-stack)) :children] conj container)))
+
       ;; ---- Definition: register in repo, no child link to parent ----
       ;; :CONTEXT is a definition form -- it lives in repo so References
       ;; can look it up, but it is not inserted into the parent's musical
@@ -310,7 +326,8 @@
             (let [[st cs'] (reduce (fn [[st acc] c] (let [[st c'] (one st c)] [st (conj acc c')])) [st []] cs)]
               [st (if (= :PAR type) cs' (order-f cs'))]))
           (box [st c]
-            (let [[st cs] (kids st (:type c) (:children c))
+            ;; a group is one unit to the order: its notes change, keep their order
+            (let [[st cs] (kids st (if (= :GROUP (:type c)) :PAR (:type c)) (:children c))
                   c'      (assoc c :children cs)]
               [st (d/set-container-pitch-stats c' (d/pitch-stats (:repo st) c'))]))
           (one [st c]
@@ -332,6 +349,9 @@
                 [st (cond-> (assoc c :source src) alt (assoc-in [:params :alternative] alt))])
 
               (and (map? c) (#{:PITCHED :REST :DRUM :LEAF} (:type c))) [st (leaf-f c)]
+
+              ;; a group: inline, its notes changed where they are, in the order they are
+              (and (map? c) (= :GROUP (:type c))) (box st c)
               :else [st c]))]
     (kids state :SEQ children)))
 
@@ -348,6 +368,7 @@
               (d/iterator? c) (concat (walk (:children (:source c)))
                                       (some-> c :params :alternative :children walk))
               (and (map? c) (= :PITCHED (:type c))) (:pitches c)
+              (and (map? c) (= :GROUP (:type c))) (walk (:children c))
               :else []))]
     (vec (walk children))))
 

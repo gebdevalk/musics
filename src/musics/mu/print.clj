@@ -111,6 +111,7 @@
     (d/container? node)
     (case (:type node)
       :PAR     (str "{" (id-prefix node) (show-children repo node) "}")
+      :GROUP   (str "( " (show-children repo node) " )")
       :CONTEXT (str "^{ " (id-prefix node) (show-children repo node) " }")
       :DATA    (let [t (:data-type node)]
                  (str "'[" (when (typed-data t) (str (name t) " "))

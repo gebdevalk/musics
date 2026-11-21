@@ -66,26 +66,39 @@
        (when keep? (swap! reg/session assoc :auto-ids auto-ids))
        (first values)))))
 
+(declare elements)
+
 (defn read-text
   "The value of one literal written as text, read against the current
-   repo -- not stored."
+   repo -- not stored. A group, ( … ), is read inside a seq, the only place
+   it is written, and is that seq's one element."
   [text]
-  (as-value (read-material text)))
+  (if (str/starts-with? text "(")
+    (first (elements (as-value (read-material (str "[ " text " ]")))))
+    (as-value (read-material text))))
+
+(defn- inline?
+  "A child held inline that is a value of its own: a repeat, or a group
+   (( … ) inside a seq, which has no id)."
+  [k]
+  (or (d/iterator? k) (and (map? k) (= :GROUP (:type k)))))
 
 (defn- node-value
   "A child node as a value of its own: an id read in repo, or a node held
-   inline (a repeat, its body) put into repo under its id."
+   inline (a repeat, its body, a group) put into repo under its id -- a
+   group, having none, under one made for this value only."
   [repo base k]
   (if (keyword? k)
     (assoc (v/->Material k repo) :base base)
-    (assoc (v/->Material (:id k) (assoc repo (:id k) k)) :base base)))
+    (let [id (or (:id k) (keyword (str "group" (System/identityHashCode k))))]
+      (assoc (v/->Material id (assoc repo id (assoc k :id id))) :base base))))
 
 (declare repetition? repeat-parts endings-of repeated)
 
 (defn- child-value
   "A child of material x as the value it stands for."
   [x data? k]
-  (cond (and (not data?) (or (keyword? k) (d/iterator? k))) (node-value (:repo x) (:base x) k)
+  (cond (and (not data?) (or (keyword? k) (inline? k))) (node-value (:repo x) (:base x) k)
         (= :LOOP (:type k)) (repeated (apply list (:items k)) :infinite) ; '[60 62] [~]
         :else k))
 
@@ -126,26 +139,30 @@
    jump marks are not slots, so what is rebuilt from them has none. nil for
    anything else (a leaf, data, a stream, a repeat)."
   [x]
-  (when (and (v/material? x) (not (repetition? x)) (contains? #{:SEQ :PAR} (kind x)))
+  (when (and (v/material? x) (not (repetition? x)) (contains? #{:SEQ :PAR :GROUP} (kind x)))
     (mapv (fn [k] (if (instruction? k) [:ins (:raw k)] [:el (child-value x false k)]))
           (remove marker? (:children (v/node x))))))
 
+(defn- read-form
+  "The value like's form (a seq, a parallel, a group) holding shown, text.
+   A group is read inside a seq, as that is the only place it is written."
+  [like shown]
+  (case (kind like)
+    :PAR   (read-text (str "{" shown "}"))
+    :GROUP (read-text (str "( " shown " )"))
+    (read-text (str "[" shown "]"))))
+
 (defn from-items
-  "A value of like's form (a seq or a parallel) holding slots, as items
+  "A value of like's form (a seq, a parallel or a group) holding slots, as items
    gives them: every instruction stays where it is written."
   [like slots]
-  (let [shown (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))]
-    (read-text (if (= :PAR (kind like)) (str "{" shown "}") (str "[" shown "]")))))
+  (read-form like (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))))
 
 (defn rebuild
-  "A value of the same form as like (a seq, a parallel, data), holding
+  "A value of the same form as like (a seq, a parallel, a group, data), holding
    elements, with like's leading instructions."
   [like elements]
-  (let [shown (str/join " " (concat (leading-instructions like) (map p/show elements)))]
-    (read-text
-     (case (kind like)
-       :PAR  (str "{" shown "}")
-       (str "[" shown "]")))))
+  (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements)))))
 
 (defn line
   "elements as a seq (a :SEQ)."
@@ -695,7 +712,7 @@
    elements), in written order."
   [x]
   (let [{:keys [repo base]} x]
-    (mapv (fn [k] (if (or (keyword? k) (d/iterator? k)) (node-value repo base k) k))
+    (mapv (fn [k] (if (or (keyword? k) (inline? k)) (node-value repo base k) k))
           (:children (v/node x)))))
 
 (defn- show-child [c] (if (instruction? c) (:raw c) (p/show c)))

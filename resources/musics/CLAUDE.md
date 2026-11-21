@@ -102,11 +102,28 @@ stored (`R!`: `->material` builds it, `R@` reads it back as a vector), so
 `:ROOT`'s children, `write` and `load` are unchanged. `:SEQ`, `:PAR` and the
 rest are not vectors: they carry ids, contexts and addresses the engine reads.
 
-`( )` means two things, never ambiguous with each other since they're
+`( )` means four things, never ambiguous with each other since they're
 reachable from totally different positions: a slur mark glued directly
 onto a Note/Chord (`c4( d4 e4)`), LilyPond-style, at a note's own
-trailing suffix position (always glued with no separator onto an
-existing note/chord, never a fresh element of its own); and `Scope`,
+trailing suffix position (always glued with no separator onto an existing
+note/chord, never a fresh element of its own); `Grouping`, notes grouped
+as an element of a seq (`[a: c4 ( d e ) f]`): an **inline `:GROUP`
+container with no id** (`builder/pop-container`'s inline branch appends the
+finished container map to its parent's `:children`; nothing lands in the
+repo), no `Id` allowed, at least one element, and its own instructions
+apply to the group alone (it has its own `:context`; whatever it does not
+set comes from the seq around it, and a `!pp` inside does not reach the
+note after it). It plays exactly as its notes spliced and signals nothing
+(`musics.events` fires no section/`boundary` for a container without an id).
+The rule is named `Grouping`, not `Group`: `mu.ebnf` has its own `Group` (run
+now, at mu's top level), and a second rule of that name would replace the
+first when the two files are joined. Order words
+(`retrograde`, `[R]`, `rotate`, `shuffle`, `take`, `length`) see a group as
+ONE element: it moves, its notes keep their order. Pitch words (`transpose`,
+`inversion`/`mirror` and `[I]`/`[M]`, `+`) reach into it, giving the pitches a flat
+seq gives (`builder/deep`: leaf-f reaches in, order-f does not). `print/show` writes it back as
+`( … )` and `read-text` reads such text as the one element of a seq; and
+`Scope`,
 the transient body of the bare-word structural commands below
 (`transpose c g ( c4 d4 e4 )`) — never a container of its own, always
 spliced/stashed at pop time, same as `[ ]` is for `repeat`/

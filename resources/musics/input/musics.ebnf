@@ -22,6 +22,8 @@
                              Parallel's plain { }
      '[ ]     Data         data container
      [: :]    RepeatBars   a sequence played twice (repeat 2 [ ])
+     ( )      Grouping     notes grouped inside a sequence: inline, no Id,
+                             its own instructions apply to it alone
      ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( );
                              never a container of
                              its own, always spliced/stashed at pop
@@ -85,7 +87,7 @@
    combine (musics.domain/play-segments). *)
 Jump = '$' | 'DS' | 'DC' | 'Fine' | 'Coda' | './.'
 
-<Part> = Composite | Leaf | Reference | VarRef
+<Part> = Composite | Grouping | Leaf | Reference | VarRef
 <Leaf> = Chord | ChordSymbol | Note | Rest | Drum | MultiRest
 
 (* Bar / section markers -- pure structural signals for a future conductor,
@@ -104,6 +106,15 @@ BarLine = #'\|{1,4}'
 (* ── Composites ─────────────────────────────────────────── *)
 
 <Composite> = Context | Sequence | Parallel | Data
+
+(* Grouping: notes grouped inside a sequence, ( c8 d e ). It has no Id, so no
+   name and no entry of its own in the store: it stays inline in its
+   parent's children. It may hold instructions (!mf, c4\f), which apply
+   to the group only; what it does not set itself comes from the sequence
+   around it. It is an element of a Sequence only: the
+   ( after a keyword or a tuplet count is a Scope, and at mu's top level
+   a ( is mu's own group. *)
+Grouping    = <'('> ws? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
 
 Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
             | <'^{'> ws? (Id ws)                                 ws? <'}'>
