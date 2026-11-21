@@ -242,6 +242,34 @@
   (when (zero? (count! n)) (fail "needs a size above 0"))
   (grouped x (partition-all n (mt/finite! "partition" (mt/elements x)))))
 
+(defn- orders
+  "Every order of the positions 0..n-1, as the first position runs through
+   them first: [0 1 2] [0 2 1] [1 0 2] [1 2 0] [2 0 1] [2 1 0]."
+  [n]
+  ((fn step [xs]
+     (if (empty? xs)
+       [[]]
+       (for [i (core/range (core/count xs))
+             more (step (core/concat (core/take i xs) (drop (inc i) xs)))]
+         (cons (core/nth xs i) more))))
+   (vec (core/range n))))
+
+(defn perms
+  "x's elements in every order, up to 6 elements (720 orders): music as a
+   seq of groups, [b c d] perms the six groups ( b c d ) ( b d c ) ( c b d )
+   ( c d b ) ( d b c ) ( d c b ), the written order first; a list as a list
+   of lists"
+  [x]
+  (let [els (vec (mt/finite! "perms" (mt/elements x)))
+        n   (core/count els)]
+    (when (zero? n) (fail "perms: needs an element"))
+    (when (> n 6) (fail "perms:" n "elements make" (reduce * (core/range 1 (inc n))) "orders -- 6 elements at most (720)"))
+    (if (or (v/material? x) (mt/leaf? x))
+      (mt/read-text (str "[" (str/join " " (core/map (fn [o] (str "( " (str/join " " (core/map #(p/show (els %)) o)) " )"))
+                                                      (orders n)))
+                         "]"))
+      (with-meta (mapv (fn [o] (with-meta (mapv els o) (meta x))) (orders n)) {:data-type nil}))))
+
 (defn parts
   "x split into n parts as equal as can be, the longer first:
    [a b c d] 2 [/] gives [[a b] [c d]]"

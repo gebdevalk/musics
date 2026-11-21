@@ -3768,3 +3768,14 @@ as one element and leave its inner order, so `[R]` of `[c4 ( d e ) f]` is `[f ( 
 change pitch (transpose, `[I]`, `[M]`, `+`) reach in, as inversion and mirror need every note of the
 seq. A nested `[ ]` seq is turned round inside by `[R]`; a group is not, which is the difference
 between them. Open: whether the row forms should offer a way to turn a group round too.
+
+## 2026-11-21 -- `perms`: every order of a seq's elements, at most 6
+
+`[b c d] perms` is a seq of the six groups ( b c d ) ( b d c ) ... , the written order first; it is
+built as text and read, so every note is baked in its new place (a note's context chain holds its
+offset in the seq it was written in, wrong once it moves). Capped at 6 elements (720 groups, about
+12 s): the walker recomputes the running length of every enclosing container for each leaf
+(`builder/current-context-chain`, `d/written-duration`), so a long flat seq costs the square of its
+leaves, and 7 elements (5040 groups, 35000 notes) would take minutes. Open: a running length kept on
+the container being built would make that linear, and lift the cap (and speed up any long seq).
+

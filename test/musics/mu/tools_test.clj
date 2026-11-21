@@ -1033,3 +1033,14 @@
   (e/eval-input "[q: c d e f] R!")
   (is (= "shuffle [C4/4 D4 E4 F4]" (top ":q R@ [?]")) "no name of its own: q: is stored already")
   (is (= ":g shuffle [C4/4 ( D4 E4 ) F4]" (top "[g: c ( d e ) f] R! :g R@ [?]")) "a group stays one element"))
+
+(deftest perms-gives-every-order-as-groups
+  (is (= "[( B3/4 C4 ) ( C4 B3 )]" (top "[b c] perms")) "two notes, two groups, the written order first")
+  (is (= "[( B3/4 C4 D4 ) ( B3 D4 C4 ) ( C4 B3 D4 ) ( C4 D4 B3 ) ( D4 B3 C4 ) ( D4 C4 B3 )]" (top "[b c d] perms")))
+  (is (= "6" (top "[c d e] perms length")) "n! groups")
+  (is (= "24" (top "[c d e f] perms length")))
+  (is (= "[( C4/4 D4/8 E4 ) ( C4/4 E4/8 D4 ) ( D4 C4/4 E4/8 ) ( D4 E4 C4/4 ) ( E4/8 C4/4 D4/8 ) ( E4 D4 C4/4 )]"
+         (top "[c4 d8 e] perms")) "each note keeps its own length")
+  (is (= "'['[1 2] '[2 1]]" (top "'[1 2] perms")) "a list gives a list of lists")
+  (is (re-find #"7 elements make 5040 orders -- 6 elements at most" (:error (e/eval-input "[c d e f g a b] perms"))))
+  (is (re-find #"needs an element" (:error (e/eval-input "'[] perms")))))

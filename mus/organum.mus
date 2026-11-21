@@ -7,7 +7,11 @@ Hear it:    "mus/organum.mus" load   :fragments ->
 
 [fragments: !T:60 ( C4/8 b c b )  ( c b c d b ) ]
 
-// all permutations of two notes, and of three
-[bi: ( b c ) ( c b ) ]
+// every order of 2 to 5 notes, a group each (perms): di 2, tri 6, tetra 24, penta 120
+[b c]       perms :di    R!! drop
+[b c d]     perms :tri   R!! drop
+[b c d e]   perms :tetra R!! drop
+[b c d e f] perms :penta R!! drop
 
-[tri: ( b c d ) ( b d c ) ( c b d ) ( c d b ) ( d b c ) ( d c b ) ]
+// hexa, the 720 orders of 6 notes, takes about 12 seconds to build:
+// [b c d e f g] perms :hexa R!! drop
