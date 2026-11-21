@@ -1,5 +1,13 @@
 /*
 organum
+
+Two fragments, each a group ( ) inside one seq.
+Hear it:    "mus/organum.mus" load   :fragments ->
 */
 
-[fragments: !T:60 ( C4/8 b c b ) ( c b c d b ) ]
+[fragments: !T:60 ( C4/8 b c b )  ( c b c d b ) ]
+
+// all permutations of two notes, and of three
+[bi: ( b c ) ( c b ) ]
+
+[tri: ( b c d ) ( b d c ) ( c b d ) ( c d b ) ( d b c ) ( d c b ) ]

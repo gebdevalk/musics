@@ -264,7 +264,9 @@
   {:mu {:names ["[?]"]}}
   [x]
   (if (mt/music? x)
-    (mt/read-text (str "shuffle " (p/show (mt/as-line x))))
+    ;; without its own name: shuffle [name: …] would define a name that may be stored already
+    (let [m (mt/as-line x)]
+      (mt/read-text (str "shuffle " (p/show (assoc-in m [:repo (:id m) :id] nil)))))
     (shuffle x)))
 
 (defn sputter

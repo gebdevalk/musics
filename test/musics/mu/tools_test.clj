@@ -1028,3 +1028,8 @@
 (deftest an-instrument-part-may-be-a-list-of-programs
   (is (= "[C4/4\\instrument:57,60]" (top "| 1/4 60 :instrument '[57 60] leaf")) "two timbres at once, as \\i:57,60")
   (is (= "[C4/4\\instrument:57]" (top "| 1/4 60 :instrument 57 leaf")) "one stays one"))
+
+(deftest shuffling-a-stored-seq-gives-a-new-anonymous-one
+  (e/eval-input "[q: c d e f] R!")
+  (is (= "shuffle [C4/4 D4 E4 F4]" (top ":q R@ [?]")) "no name of its own: q: is stored already")
+  (is (= ":g shuffle [C4/4 ( D4 E4 ) F4]" (top "[g: c ( d e ) f] R! :g R@ [?]")) "a group stays one element"))
