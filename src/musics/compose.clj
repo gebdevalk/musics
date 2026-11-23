@@ -24,7 +24,7 @@
    exactly one way. Moved out of musics.engine on 2026-09-10:
    before this, the engine's own file mixed real-time execution
    (async, voices, MIDI) with this purely-functional grammar+preview
-   layer, which needed none of it -- see doc/md/decisions.md for the
+   layer, which needed none of it -- see doc/md/why/decisions.md for the
    fuller reasoning."
   (:require [clojure.string :as str]
             [musics.algo.numeric.counter :as counter]
@@ -50,7 +50,7 @@
    music (a play arg's leading ^{ }, or one in front of a seq in the
    text), which stays first in the chain -- in front of the music's own
    contexts and of each note's baked ones -- so it wins for the keys it
-   sets (doc/md/decisions.md, 2026-10-15)."
+   sets (doc/md/why/decisions.md, 2026-10-15)."
   [link]
   (boolean (:override? (if (vector? link) (first link) link))))
 

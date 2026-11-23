@@ -15,7 +15,7 @@ on it (a plain synchronous call, `conductor/signal!`, from the sender
 thread, as each `:section`/`:bar`/`:mark` event of a stream comes due);
 `musics.conductor` depends on nothing else at all, not even `musics.repo` —
 a fully generic dispatcher, deliberately one-way (see
-`doc/md/decisions.md`'s Wave 4 entry for why `schedule-tx!` itself lives
+`doc/md/why/decisions.md`'s Wave 4 entry for why `schedule-tx!` itself lives
 in the engine, not here, even though it builds on this file's tables). The
 `event` map `signal!` hands to a triggered action is opaque to every
 function in this file, `:voice` included — conductor never interprets
@@ -57,7 +57,7 @@ it, just passes it through.
   `musics.events` calls at every boundary, checks that table and swaps
   the voice's snapshot. The decision is made as the boundary is
   computed — a lookahead before it sounds — so one armed later than
-  that catches the voice's next crossing (see `doc/md/decisions.md`,
+  that catches the voice's next crossing (see `doc/md/why/decisions.md`,
   2026-09-30).
 
 ### Wall: per-voice playback algorithms
@@ -95,7 +95,7 @@ mechanism: `:algo-prepared`, `path -> name`, consulted ONLY when a
 top-level voice starts (`start-voice!`), and only when that call's
 own `:algo` argument is `nil`. `assign-algo!` never reaches an
 already-live voice — it only affects a mint that hasn't happened yet
-(preparing a track before you start it, the GUI's Wall window). See `doc/md/decisions.md` for why a
+(preparing a track before you start it, the GUI's Wall window). See `doc/md/why/decisions.md` for why a
 voice's own `:algo` is immutable once minted rather than a live,
 externally-reassignable table.
 
@@ -128,12 +128,12 @@ same Form more than once, e.g. `(par :s1 :s1)` — see
 `musics.compose/par`), or `[Form :algo Name]` (exactly one Form,
 optionally tagged with a algos-registered name or `nil`). The
 collection type alone is the tag — vector always `:seq`, set (or
-`par`) always `:par`, no guessing (see `doc/md/decisions.md`'s Wave 6
+`par`) always `:par`, no guessing (see `doc/md/why/decisions.md`'s Wave 6
 entry for why). This is Clojure data, a separate vocabulary from
 `musics.ebnf`'s own text brackets (`[ ]` sequential, `{ }` parallel —
 see "Grammar" below); the two once shared one spelling, and `#{ }`
 was a text-grammar bracket for a while, but the text grammar has since
-moved on while the play args kept `#{}` (see `doc/md/decisions.md`'s Wave
+moved on while the play args kept `#{}` (see `doc/md/why/decisions.md`'s Wave
 6/7 and 2026-09-19 entries).
 `musics.compose/sq`'s own `{:parallel? bool}` seq
 metadata is untouched by this and still wins FIRST in `form-tag+items` —
@@ -150,7 +150,7 @@ ones, so `(play [:loud :verse])` plays `:loud`'s settings over
 `:verse`'s own (`musics.compose/over?`/`override`/`behind-overrides`:
 `build-chain`, a group's fresh context and
 `musics.domain.resolve/chain-links` all insert behind the overrides;
-doc/md/decisions.md, 2026-10-15). mu's play words with a context on
+doc/md/why/decisions.md, 2026-10-15). mu's play words with a context on
 top (`x ^{ !mf } ->`) build the same `[ctx x]` form.
 `tagged-form?`/`split-tag` recognize `[Form :algo Name]` by FIXED SHAPE
 (a vector, exactly 3 elements, `:algo` at index 1) — replacing an
@@ -462,7 +462,7 @@ A purely-functional grammar+preview layer has no business in the
 real-time playback engine. `compose/source` (a `Source` record, `{:f :tctx :ctx}`)
 is a Form of its own, a voice fed by a function of onset; `events` walks it
 (`walk-source`) and `engine/play` accepts it, but `display`/`display-timed` do not
-know it. See `doc/md/decisions.md` for the full
+know it. See `doc/md/why/decisions.md` for the full
 reasoning behind the split (including why this ISN'T a third tier
 alongside Material/Sound/The playground — it's a sub-piece of tier 3,
 the part of the play-arg mini-language that's execution-agnostic, not
@@ -560,7 +560,7 @@ note-on, so a repeated pitch is released before it sounds again.
   event as it sounds, on the sender thread (mu's `echo` word hands it
   to an agent that prints above the prompt).
 
-See `doc/md/decisions.md`, 2026-09-29/30, for why a forward-only stream
+See `doc/md/why/decisions.md`, 2026-09-29/30, for why a forward-only stream
 and one sender rather than a voice per go-block or a separate scheduler
 process.
 
@@ -657,7 +657,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   single note can carry its own factor, `c8*2/3`, inherited by later
   notes that omit their own Duration until an explicit new one appears.
   A note value is a power of two, dotted or not (`c3` is refused). See
-  `doc/md/decisions.md`, 2026-10-11. The bracket says when: a `( … )`
+  `doc/md/why/decisions.md`, 2026-10-11. The bracket says when: a `( … )`
   body is changed now, while parsing; a `[ … ]` body is a part that
   plays that way each time (`repeat`, `shuffle [ ]`, `rotate n [ ]`).
   The row forms are `retrograde`/`R`, `inversion`/`I` (around the first
@@ -708,7 +708,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   **recursive**, a key computed once per pull, a cycle an error naming it
   (`:a -> :b -> :a`). `context/getter chain time` is one memoized pull: every answer,
   a miss too, is remembered, so a leaf sees one value for each key; make one for each
-  leaf. A tctx is shared by atom, so editing it (a GUI slider, `T!`) is seen at
+  leaf. mu writes a whole tctx as `@{ :key value … }` (`v/Settings`, `Settings` in `mu.ebnf`): `:tctx R!` of one is `live/set-tctx!` (every entry replaced in one `reset!`, a quotation a `Derived`), `:tctx R@` is `live/tctx->settings` (keys in order; an entry with no text is left out). A tctx is shared by atom, so editing it (a GUI slider, `T!`) is seen at
   the next lookup by every chain that holds it. A derived entry's time is the one
   its context was asked at: right for a tctx at offset 0 in front of a chain, not
   checked for an extracted context with another offset.
@@ -745,7 +745,7 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   which reconstructs exactly the entry point that ancestor's own
   container would have had — numerically identical to `build-chain`'s
   own per-container shifting for ordinary playback, and correct for a
-  standalone/extracted leaf too. See `doc/md/decisions.md` for why the
+  standalone/extracted leaf too. See `doc/md/why/decisions.md` for why the
   relative-offset subtraction specifically is load-bearing, not a
   simplification skipped for convenience.
   Only the baked ancestors the current walk did NOT pass through go in

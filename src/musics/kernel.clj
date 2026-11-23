@@ -16,6 +16,7 @@
             [musics.midi.file :as midi-file]
             [musics.mu.eval :as e]
             [musics.mu.about :as about]
+            [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
@@ -61,7 +62,14 @@
 ;; -- the repo -------------------------------------------------------------
 
 (defn- store-as [word refuse? value id]
-  (mt/store! value id word refuse?))
+  (cond
+    (v/settings? value)
+    (do (when-not (= id :tctx)
+          (fail word ": an @{ … } is the session's tctx -- store it as :tctx"))
+        (live/set-tctx! value)
+        :tctx)
+    (= id :tctx) (fail word ": :tctx holds the session's tctx -- write it @{ :key value … } and store that")
+    :else (mt/store! value id word refuse?)))
 
 (defn store
   "Store, silently, under the id on top if given; leaves the id it
@@ -83,7 +91,7 @@
   {:mu {:names ["R@"]}}
   [id]
   (when-not (keyword? id) (fail "needs a name, like :motif, got" (p/show id)))
-  (mt/fetch id))
+  (if (= id :tctx) (live/tctx->settings) (mt/fetch id)))
 
 (defn- stored-id
   "The id x names -- a name, or material fetched with R@ -- if something

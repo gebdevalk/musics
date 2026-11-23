@@ -86,7 +86,7 @@ can stand first in the chain without hiding any context value, and `"density"`
 
 A tctx is an ordinary `Context` whose keys are keywords. Its values are bare
 numbers, functions of structural time (`T!`), or entries computed from
-other keys (`T!` with a quotation, `context/tctx-derive`: `(f time get)`, one pull computing a key once and a
+other keys (`T!` with a quotation; in the Clojure layer `context/tctx-derive`, which mu has no word for: `(f time get)`, one pull computing a key once and a
 cycle an error). Whoever builds a chain puts it in front (`[tctx voice … ROOT]`);
 it is shared by atom, so a slider that edits it is seen by every voice holding
 the chain at the next leaf.

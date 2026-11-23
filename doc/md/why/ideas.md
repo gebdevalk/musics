@@ -45,5 +45,5 @@ channel), and a drum several keys (`x8\kick,clap`). Still open:
   or transposition (an octave doubling), or do they all share the
   leaf's?
 - **Algo trees.** With instrument as a half product (see
-  `doc/md/algo-audit.md`, decision 4), a tree could produce a list of
+  `doc/md/why/algo-audit.md`, decision 4), a tree could produce a list of
   instruments per leaf as easily as one.

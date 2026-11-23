@@ -132,6 +132,10 @@
       "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])(?:dup|drop|swap|over|rot|2dup|2drop|-rot|clear|nip|tuck|pick)(?![\\w\\-/'$\\\\:!?>+#&])"
     },
     {
+      "name": "punctuation.definition.settings.mus",
+      "match": "(?<![\\w\\-/.'$\\\\:!?>+#&])[@^]\\{"
+    },
+    {
       "name": "punctuation.section.bracket.mus",
       "match": "[\\[\\]\\{\\}\\(\\)]"
     }

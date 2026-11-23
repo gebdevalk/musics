@@ -1,7 +1,7 @@
 # Row forms
 
 The serial row forms, in mu and in `.mus` text alike. Why they are
-spelled this way: doc/md/decisions.md, "mu and the text, one
+spelled this way: doc/md/why/decisions.md, "mu and the text, one
 vocabulary" (2026-10-17).
 
 ## The forms

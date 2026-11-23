@@ -1,6 +1,6 @@
-# Grammar notes (resources/musics)
+# Grammar reference for coding agents (resources/musics)
 
-Loaded when working under `resources/musics/`: the grammar files `input/musics.ebnf` and `mu.ebnf`, and what the walker does with them. The project overview is in the root CLAUDE.md.
+Loaded when working under `resources/musics/`: the grammar files `input/musics.ebnf` and `mu.ebnf`, and what the walker does with them. The project overview is in the root CLAUDE.md; the reader's version of the notation is `doc/md/parsing.md`.
 
 ### Multi-measure rests, pickups, and LilyPond pitch languages
 
@@ -56,7 +56,7 @@ Not part of the grammar. `!Meter:`/`!tempo:`/`!key:` (`Assignment`/
 `KeyAssignment`) are the only spelling for any of these (the three
 significant keys are capitals: `Tempo` `T`, `Key` `K` -- also `key`,
 `k` -- and `Meter` `M`; the key's context name is `:Key`) — see
-`doc/md/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
+`doc/md/why/decisions.md`'s Wave 6 entry for why LilyPond's own free-standing
 `\time`/`\tempo`/`\key` spelling was dropped rather than kept as an
 alternative. `VarName`'s own reserved-word exclusion list is just the
 17 ornament names — `time`/`tempo`/`key` don't collide with anything a
@@ -115,7 +115,8 @@ apply to the group alone (it has its own `:context`; whatever it does not
 set comes from the seq around it, and a `!pp` inside does not reach the
 note after it). It plays exactly as its notes spliced and signals nothing
 (`musics.events` fires no section/`boundary` for a container without an id).
-The rule is named `Grouping`, not `Group`: `mu.ebnf` has its own `Group` (run
+(mu's own `Settings`, `@{ :key value … }`, is a tctx written out -- pairs run like a `( )`,
+read by `musics.mu.eval`, not by the walker; `:tctx R!` stores it.) The rule is named `Grouping`, not `Group`: `mu.ebnf` has its own `Group` (run
 now, at mu's top level), and a second rule of that name would replace the
 first when the two files are joined. Order words
 (`retrograde`, `[R]`, `rotate`, `shuffle`, `take`, `length`) see a group as
@@ -153,7 +154,7 @@ only to be refused (`LooseInstruction`), and so is a transient command
 `rotate n ( )`), which belongs inside a seq. A bare leaf is a value of
 its own: `walker/walk-each` walks it inside an ordinary auto-id'd
 one-child `:SEQ` (`wrap-bare-leaf`), and stored it is a one-note seq --
-`c4 d4` stores two, `[ ]` groups. See `doc/md/decisions.md`, 2026-10-23.
+`c4 d4` stores two, `[ ]` groups. See `doc/md/why/decisions.md`, 2026-10-23.
 
 `:ROOT` being grammar-guaranteed write-once is also what lets its own
 context values skip the general `Envelope`/`Point`/atom machinery

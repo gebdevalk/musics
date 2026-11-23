@@ -6,7 +6,7 @@ configuration (`language-configuration.json`, `package.json`): comments `//` and
 (`verse:`, `:verse`, `:bass/onsets`), instructions (`!vol:50`), settings (`M:3/4`),
 `\name` references, `$` locals, pitch-class sets, quotations and data lists
 (`'( … )`, `'[ … ]`), the definition `: word ( stack effect ) … ;`, the play signs
-(`->`, `-|>`), `T!` `T@` `T@@` `T_` `R!` `R@` `R_`, and `ns/word`.
+(`->`, `-|>`), `T!` `T@` `T@@` `T_` `R!` `R@` `R_`, the openers of a tctx `@{ }` and a context `^{ }`, and `ns/word`.
 
 ## IntelliJ (also Cursive)
 

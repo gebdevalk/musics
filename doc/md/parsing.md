@@ -6,6 +6,11 @@ defines the literals, `resources/musics/mu.ebnf`, appended to it, the
 top level -- a `.mus` file is mu input, read as the mu prompt reads.
 Every example in this document is checked against it.
 
+This is the reader's reference for what you write. How the comment and
+variable rules were designed is in [grammar-notes.md](grammar-notes.md); the
+same grammar written for a coding agent, with what the walker does with each
+rule, is `resources/musics/CLAUDE.md`.
+
 ```
 text
   │
@@ -39,10 +44,11 @@ parses.
 | `{ }` | `Parallel` | simultaneous parts |
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
 | `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
+| `( )` | `Grouping` | notes grouped as one element of a seq, `[c4 ( d e ) f]`: inline, with no id, and its own instructions (`( !pp d e )`) apply to the group alone. Order words (`[R]`, `rotate`, `shuffle`, `take`) move it whole; pitch words (`+`, `[I]`, `[M]`) reach inside |
 | `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
-(`c4( d e)`), which can never be confused with a `Scope`.
+(`c4( d e)`), which can never be confused with a `Scope` or a `Grouping`.
 
 Sequences, parallels and contexts can carry an **Id**, which registers
 them under that name; a **Reference** `:name` uses a registered part:

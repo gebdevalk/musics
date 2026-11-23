@@ -26,3 +26,7 @@ th { font: 600 8pt "Inter", Arial, sans-serif; color: var(--muted); text-transfo
 nav.docs { font: 9pt "Inter", Arial, sans-serif; color: var(--muted); border-bottom: 1px solid var(--rule);
            padding-bottom: 6pt; margin-bottom: 14pt; }
 @media print { nav.docs { display: none; } }
+p.stamp { color:#666; font-size:.85em; margin:0 0 1em }
+code { white-space: nowrap; }
+code.long { white-space: normal; overflow-wrap: anywhere; }
+@media print { pre code { white-space: pre-wrap; } }

@@ -701,7 +701,7 @@ Reference = <':'> Name
 (* // to end of line, and /* ... */ for a block, the C family's comments.
    Neither can start any other token: a / is a ratio, a duration, a word
    or a name's separator (1/4, C4/8, ns/word, ./.), never two in a row.
-   See doc/md/decisions.md for why the comment is not % (LilyPond's) and
+   See doc/md/why/decisions.md for why the comment is not % (LilyPond's) and
    not ; (which ends a word's definition). *)
 Comment = #'/\*[\s\S]*?\*/'
         | #'//[^\n]*'

@@ -12,7 +12,7 @@ another (ranks, grids, pitch sequences, chaotic streams) on the way into
   "Unreached").
 
 It was surveyed against the real `:require` graph of `musics/algo/`;
-see `doc/md/decisions.md` if it drifts from the code.
+see `doc/md/why/decisions.md` if it drifts from the code.
 
 To print it as an A3-landscape pair, from the repo root:
 

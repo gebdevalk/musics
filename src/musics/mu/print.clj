@@ -142,6 +142,7 @@
     (v/quotation? x) (:source x)
     (v/mark? x)      (apply str (repeat (:count x 1) "|"))
     (v/later? x)     (str (:length x) " later")
+    (v/settings? x)  (str "@{" (apply str (map (fn [[k v]] (str " " (pr-str k) " " (show v))) (:entries x))) " }")
     (symbol? x)      (str "'" x)
     (instance? musics.common.music_elements.Key x) (el/key->str x)
     (instance? musics.common.music_elements.Meter x) (el/meter->str x)

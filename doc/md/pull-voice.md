@@ -1,6 +1,6 @@
 # A voice as a function of onset
 
-Built (`musics.compose/source`, `musics.events/walk-source`, `mus/hoketus2.mus`); the diagrams below were drawn before it was and still mark it as planned. **A leaf has one onset, and every lookup made for it, whether
+Built (`musics.compose/source`, `musics.events/walk-source`); the diagrams below were drawn before it was and still mark it as planned. **A leaf has one onset, and every lookup made for it, whether
 while producing it or while resolving it, is made at that onset.** A live voice
 today plays a skeleton of rests and a wall function swaps each rest for the next
 leaf of a pass the word produced earlier. A voice as a function of onset drops

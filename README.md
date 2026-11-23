@@ -55,14 +55,8 @@ x "x.mid" render                         write a MIDI file
 gui                                      the GUI beside mu
 ```
 
-And one that plays by itself and changes while it sounds:
-
-```
-"mus/hoketus2.mus" load                  a piece written as voices that are functions of the onset
-start                                    hear it
-6 :steps T!                              change a setting: heard at the next note
-stop-hoketus                             stop
-```
+A voice can also change while it sounds: the tutorial's section "Changing
+it while it plays" and its section on settings (`8 :steps T!`) show how.
 
 ### As a single file
 
@@ -102,17 +96,18 @@ are. Read them roughly in this order, stopping when you have what you need.
    [mu-words.md](doc/md/mu-words.md) has every word, [mu-repl.md](doc/md/mu-repl.md) the design. In mu itself: `words`,
    `"dup" see`, and Tab completion.
 4. **Composing with algorithms.**
-   [raw-algo-cookbook.md](doc/md/raw-algo-cookbook.md) has 53 recipes, each
-   run for real, from `3 8 p/euclid` to a word playing live;
+   [algo-cookbook.md](doc/md/algo-cookbook.md) has 58 recipes, each
+   run for real, from `3 8 p/euclid` to a word playing live; the first ten
+   write their numbers in the line, the rest keep them as tctx settings;
    [blending.md](doc/md/blending.md), [counterpoint.md](doc/md/counterpoint.md)
    and [row-forms.md](doc/md/row-forms.md) cover single topics.
 5. **Live voices and settings.** [pull-voice.md](doc/md/pull-voice.md) and
    [hoketus-dynamic.md](doc/md/hoketus-dynamic.md) explain a voice that is
-   a function of the onset; `mus/hoketus2.mus` is one, written out.
+   a function of the onset.
 6. **How it works.** [walk-through.md](doc/md/walk-through.md) follows one
    piece from text to sound, [domain.md](doc/md/domain.md) is the model,
    [CLAUDE.md](CLAUDE.md) the architecture reference and
-   [decisions.md](doc/md/decisions.md) why things are the way they are.
+   [decisions.md](doc/md/why/decisions.md) why things are the way they are.
 
 ## Editor support
 

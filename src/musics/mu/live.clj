@@ -131,6 +131,35 @@
     (repo/commit-node! :tctx {:type :CONTEXT :id :tctx :context tctx :children []}))
   tctx)
 
+(defn set-tctx!
+  "Make settings (a mu Settings, @{ … }) the tctx's entries, all at once: a key it
+   does not write is gone, a quotation is a computed key. Voices holding the tctx
+   read the new entries at their next note."
+  [settings]
+  (let [node (tctx-node!)
+        tmp  (c/context)]
+    (doseq [[k x] (:entries settings)]
+      (if (v/quotation? x)
+        (c/tctx-derive tmp k (e/derived-fn x) (p/show x))
+        (c/tctx! tmp k x)))
+    (reset! (:envelopes-atom node) @(:envelopes-atom tmp))
+    node))
+
+(defn tctx->settings
+  "The tctx as a mu Settings, in key order: a computed key as its quotation. An
+   entry made in Clojure, with no text to give (a function of time, a computed
+   entry from no quotation), is left out."
+  []
+  (v/->Settings
+   (vec (for [[k entry] (sort-by (comp name key) @(:envelopes-atom (tctx-node!)))
+              :let [x (cond
+                        (instance? musics.domain.context.Derived entry)
+                        (when-let [text (:text entry)] (peek (e/run-text [] text)))
+                        (instance? musics.domain.context.Generator entry) nil
+                        :else entry)]
+              :when (some? x)]
+          [k x]))))
+
 (defn- onset-word?
   "Does word take the onset as an input -- $onset in its stack effect? Then the
    voice it plays is a function of onset: the word gives one leaf for the onset the

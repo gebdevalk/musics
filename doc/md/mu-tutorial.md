@@ -20,8 +20,8 @@ It is long, and you need not read it in order. Stop when you have what you need:
 | to change a piece | 3 Putting music together, 4 Changing pitch, 5 Keys, 6 Changing time, 8 Repeats |
 | dynamics, tempo and instruments | 7 Contexts, 12 Instruments and drums |
 | to ask questions of music | 9 Reading notes, 10 Taking a seq apart, 11 Choosing notes |
-| to compose with algorithms | 14 The color-talea, 15 Algorithms as functions (and `raw-algo-cookbook.md`) |
-| a piece that plays and changes by itself | 16 Live (settings, voices that are functions of the onset), then `mus/hoketus2.mus` |
+| to compose with algorithms | 14 The color-talea, 15 Algorithms as functions (and `algo-cookbook.md`) |
+| a piece that plays and changes by itself | 16 Live (settings, voices that are functions of the onset) |
 | a word's exact stack effect | `"dup" see` in mu, or [mu-words.md](mu-words.md) |
 | why mu is built this way | [mu-repl.md](mu-repl.md) |
 
@@ -1146,8 +1146,8 @@ Clojure function wants; and a group of quotations, `( '( … ) '( … ) )`, is a
 ```
 
 draws twelve notes of the scale, none repeated and none more than a whole tone from the
-one before. `doc/md/raw-algo-cookbook.md` has 53 recipes written this way, every one run
-for real: rhythms from number theory, sieves and polyrhythms, melodies from Markov chains,
+one before. `doc/md/algo-cookbook.md` has 58 recipes, every one run for real, the first ten with the numbers in the line and the rest with
+them as tctx settings (section 16): rhythms from number theory, sieves and polyrhythms, melodies from Markov chains,
 walks and chaos, counterpoint, swing and variation, and a word of your own.
 
 ### Chords and a walking bass
@@ -1276,6 +1276,17 @@ be a plain value, or **derived** from the onset and from other keys:
 3 :steps T!                              changed while it plays: the next leaf sees it
 ```
 
+The whole table can be written out instead, as `@{ :key value … }`, and made the session's with
+`:tctx R!` (it replaces what was there); `:tctx R@` writes it back in the same form:
+
+```
+@{ :steps 8 :pass '( :onset 16 * :steps / int ) } :tctx R!
+:tctx R@                                 @{ :pass '( :onset 16 * :steps / int ) :steps 8 }
+```
+
+A context `^{ }` has string keys and `!` instructions, a tctx `@{ }` keyword keys and values, so
+the two are never mixed. A key is written twice, or a pair left without its value, is refused.
+
 `:onset` is the onset of the leaf that asks, and `:steps` in the quotation is its value
 there. A derived key may ask other derived keys; a key that asks for itself, however far
 round, is refused (`a cycle in the tctx: :a -> :b -> :a`).
@@ -1291,8 +1302,7 @@ tctx *does* hold is replaced wherever it stands as an argument, so give settings
 not also ids you store. `:twice T@` shows a computed key as stored, `:twice T@@` runs it. Context keys are strings
 (`"volume"`), tctx keys keywords (`:volume` is a different key).
 
-`mus/hoketus2.mus` is a whole piece written this way: `"mus/hoketus2.mus" load start`, and
-`6 :steps T!` while it plays. `doc/md/pull-voice.md` and
+A piece written this way plays while `6 :steps T!` changes it. `doc/md/pull-voice.md` and
 `doc/md/hoketus-dynamic.md` draw the call order.
 
 ## 17. Rating what you hear

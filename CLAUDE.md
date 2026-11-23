@@ -44,7 +44,7 @@ registry every tier reads from directly (`musics.registries`'s
 access through an abstraction tier 1 could change without touching
 both callers. That's a deliberate simplicity tradeoff for a
 single-user REPL tool, the same one already reasoned through for
-global-vs-instance state generally (`doc/md/audits/review.txt`, point 1) — not an
+global-vs-instance state generally (`doc/md/why/audits/review.txt`, point 1) — not an
 oversight this grouping is meant to paper over. What the grouping
 *does* buy: it names where a given piece of code belongs and which
 direction its dependencies run (tier 3 requires tiers 1/2; neither
@@ -65,7 +65,7 @@ but spell it differently on each side, and always have: tier 1
 context/envelope definition; tier 3 (a `play` call) writes `[]`
 sequential / `#{}` *or* `(par ...)` parallel, `#{}` still the shorter
 everyday spelling there, `par` only for the one case `#{}` structurally
-can't express (see `doc/md/decisions.md`'s Wave 7 entry, and its
+can't express (see `doc/md/why/decisions.md`'s Wave 7 entry, and its
 2026-09-19 entry for why tier 1 moved a second time — `(par ...)`
 briefly WAS tier 1's own Parallel spelling too, see Wave 7, before a
 later GUIDO-flavored pass moved Parallel back onto bare `{ }` and
@@ -84,7 +84,7 @@ New or edited documentation (this file included) should describe the
 *current* system, not narrate how it got there — no "this used to X,
 now it's Y" framing for new writing. The reasoning behind a design
 choice, and any rejected alternative worth remembering, goes in
-`doc/md/decisions.md` instead, as a short, standalone entry — check there
+`doc/md/why/decisions.md` instead, as a short, standalone entry — check there
 before re-proposing something that looks like an obvious improvement.
 This is a going-forward convention, not a retroactive one: the "Repo
 state" section right below, and other historical asides elsewhere in
@@ -117,7 +117,7 @@ from, and no longer unified with, the `play` mini-language's own
 `[]`/`#{}`/`(par ...)` vocabulary on the Clojure-arg side (see "Shape
 of the system" above).
 
-See `doc/md/decisions.md` for the dated history of how each of these
+See `doc/md/why/decisions.md` for the dated history of how each of these
 arrived (search for "Wave" there for the seven stages the grammar/
 play-mini-language convergence went through, its 2026-09-17 entries for
 how `musics.repo` itself went from tx-versioned history down to a flat
@@ -142,7 +142,7 @@ native access for JavaFX, which is pinned to 25.0.4 over cljfx's own
 `cljfx` (the GUI), `overtone/midi-clj` (MIDI I/O), and
 `org.clojure/core.logic` (species counterpoint, `musics.algo.counterpoint.jeppesen`, and `musics.assist`). A Factor-style
 hosted REPL language (musics.lang) lives on the `concat` branch / the
-`frepl-standby` tag, not here — see `doc/md/decisions.md`, 2026-09-28.
+`frepl-standby` tag, not here — see `doc/md/why/decisions.md`, 2026-09-28.
 
 ```bash
 lein mu                 # mu, the musical REPL -- with the GUI (gui), the interface
@@ -166,10 +166,9 @@ lein test musics.input.reader.command-walk-test         # run a single test name
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
                          # HTML in doc/html/ and PDF in doc/pdf/ (both
-                         # git-ignored; the .md stays the source, except
-                         # doc/html/algo-cookbook.html, which is generated
-                         # and kept) -- open doc/html/index.html
-lein run -m clojure.main scripts/raw-algo-cookbook.clj  # the algo cookbook: doc/md/raw-algo-cookbook.md, every recipe run
+                         # git-ignored; the .md stays the source)
+                         # -- open doc/html/index.html
+lein run -m clojure.main scripts/algo-cookbook.clj  # the algo cookbook: doc/md/algo-cookbook.md, every recipe run
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
                          # :engine/:repl/:algo (test-selectors in
                          # project.clj, grouped per this file's own module
@@ -196,7 +195,7 @@ text (a mu input, a .mus file, the GUI editor's text)
   │    are both real grammar constructs, Comment/VarRef, so instaparse
   │    always parses exactly what was written, which is what makes a
   │    parse error's line/column always match the original text --
-  │    see doc/md/decisions.md's Wave 3 entry)
+  │    see doc/md/why/decisions.md's Wave 3 entry)
   ├─ musics.mu.eval: the literals read up to each :=, then that part
   │    runs on the stack
   │    └─ walker/walk-each (musics.mu.value/read-literals) → a value per
@@ -220,7 +219,7 @@ text (a mu input, a .mus file, the GUI editor's text)
 
 There is no Clojure REPL API: the program is used through **mu**
 (`lein mu`) and the **GUI** (`gui` in mu, `musics.gui.core/launch!`; `:tctx gui` or its Settings... button opens `musics.gui.settings`, a control for each setting of the tctx); see
-`doc/md/decisions.md`, 2026-10-23. `musics.registries/session` holds the
+`doc/md/why/decisions.md`, 2026-10-23. `musics.registries/session` holds the
 auto-id counters (`{:auto-ids {...}}`) — `musics.repo` is the actual store
 (see below). `musics.mu.store/read!` runs text as mu input on a stack of
 its own and stores the music it leaves, against whatever is *currently
@@ -290,7 +289,7 @@ different way:
   This is deliberate: it's what lets you prepare an edit mid-performance
   without it glitching whatever's currently sounding — and, since the
   snapshot is per-voice, without one part's cutover glitching a
-  *different*, still-playing part either (see `doc/md/decisions.md`'s Wave
+  *different*, still-playing part either (see `doc/md/why/decisions.md`'s Wave
   4 and 2026-09-17 entries). A container's children are looked up when
   the voice enters it, so a cutover reaches material the voice reads
   after the boundary — typically the next pass of a loop or the next
@@ -314,7 +313,7 @@ as itself -- one holding a word's locals is skipped, named; not the
 stack), which restoring runs after the repo in place of mu's words and
 bindings (a file without `:mu` leaves them). Nothing of what plays is
 kept -- a voice's algo, its position, the conductor's pending cues: a
-performance isn't a document (`doc/md/decisions.md`, 2026-10-30).
+performance isn't a document (`doc/md/why/decisions.md`, 2026-10-30).
 
 ## Where the rest is
 
@@ -329,7 +328,10 @@ Loaded only when it is needed, so a session that never touches it never pays for
   context chains, meter and indispensability, micro-timing, algorithms, harmonic and counterpoint
   algos. Load it before changing the engine, events, compose, conductor, wall, domain or resolve.
 - **`doc/md/`**: `namespace.md` (the namespace map), `mu-words.md`, `mu-repl.md`,
-  `pull-voice.md`, `decisions.md` (why things are as they are; check it before re-proposing).
+  `pull-voice.md`.
+- **`doc/md/why/`**: the technical files about implementation choices: `decisions.md` (why things are
+  as they are; check it before re-proposing), `audits/`, the design notes (`core-logic.md`,
+  `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`).
 
 ## Gotchas by module
 

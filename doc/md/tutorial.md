@@ -8,7 +8,7 @@ sounding, and keep it.
 
 - For every word that works on music, see `doc/md/mu-tutorial.md`.
 - For algorithms, from single words to recipes playing live, see
-  `doc/md/raw-algo-cookbook.md`.
+  `doc/md/algo-cookbook.md`.
 - For the full notation, see `doc/md/parsing.md`; coming from
   LilyPond, see `doc/md/lilypond.md`.
 - For the architecture underneath, see `CLAUDE.md`.
@@ -144,6 +144,7 @@ mu prints every value back in full, as shown after the `→`.
 [melody: c4 d e f]                          [ ] one note after another
 {duet: [sop: C5/4 d e] [alto: E4/4 f g]}    { } parts at the same time
 [c d] [e f] {2}                             → {[C4/4 D4] [E4 F4]}   the top two side by side
+[c ( d e ) f]                               ( ) notes grouped as one element: a seq can be turned round, shuffled or rotated by groups
 ```
 
 ### Key, tempo, meter, and the rest
@@ -157,8 +158,9 @@ mu prints every value back in full, as shown after the `→`.
 [C4/1:7 | F3/2:m7 B&3:7]            chord symbols: a root and a quality
 ```
 
-An instruction always belongs inside a seq or a `^{ }` context; at the
-prompt on its own, `!mf` is refused. Grace notes, tremolo, tempo names,
+An instruction belongs inside a seq or a `^{ }` context, or stands alone: at
+the prompt `!mf` is the context `^{ !mf }`, which `with` writes onto a seq
+(`[c d] !mf with`). Grace notes, tremolo, tempo names,
 repeats and the rest are in `doc/md/parsing.md`.
 
 ### Bar lines and comments
@@ -245,13 +247,12 @@ inputs, asked for one note at the onset the voice has reached. The
 settings are looked up at that onset, so nothing is precomputed:
 
 ```
-"mus/hoketus2.mus" load              the piece, written out as such voices
-start                                hear it
-6 :steps T!                          heard at the next note
-stop-hoketus                         stop
+6 :steps T!                          heard at the next note of a running voice
 ```
 
-`mus/hoketus2.mus` is commented as a walk through the idea;
+The whole table can also be written out, `@{ :steps 8 :twice '( :steps 2 * ) }`, and made the session's with
+`:tctx R!` (it replaces what was there); `:tctx R@` writes it back in that form.
+
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.
 
@@ -313,7 +314,7 @@ prompt stay two views of the same settings.
 
 - `doc/md/start-here.md`: which document fits where you are.
 - `doc/md/mu-tutorial.md`: every music word, section by section.
-- `doc/md/raw-algo-cookbook.md`: algorithms as words, trees and recipes.
+- `doc/md/algo-cookbook.md`: algorithms as words, trees and recipes.
 - `doc/md/parsing.md`: the full notation.
 - `doc/md/lilypond.md`: LilyPond to musics, construct by construct.
 - `doc/md/setup.md`: sound output, and MIDI input from a keyboard.

@@ -25,8 +25,9 @@ as plain functions called by name (`pattern/euclid`): see
 | **live** | a play word with a quotation `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the quotation); `retree` (`'( 7 + ) :up retree`) gives the voice another quotation, which goes on at its position. A word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !` (checked against the range of the algo parameter of the same name), `:bass settings`, `:bass gui` (a window of its inputs, a control each, under the algo it belongs to), `:bass ->` starts it again with the inputs as they are -- `musics.mu.live`, `musics.mu.voice`, `musics.mu.inputs` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
-| **tctx** | `T!` (`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key), `T@` (`:steps T@`; a computed key as its quotation), `T@@` (`:twice T@@`, run), `T_` (`:steps T_` takes a key out): the keyword-keyed settings a voice that is a function of the onset reads |
-| **repo** | `ids` `usages` `ctx` `defaults`; `forget` `rename` |
+| **tctx** | `@{ :key value … }` (a tctx written out; `:tctx R!` makes it the session's, replacing it, `:tctx R@` writes the session's back, keys in order), `T!` (`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key), `T@` (`:steps T@`; a computed key as its quotation), `T@@` (`:twice T@@`, run), `T_` (`:steps T_` takes a key out): the keyword-keyed settings a voice that is a function of the onset reads |
+| **repo** | `ids` `usages` `ctx` `defaults` `defaults-text` (the defaults as a `^{ }` literal); `forget` (`R_`) `rename` |
+| **editing** | `edit` (the top of the stack into the next prompt as text, to change and run again) |
 | **help** | `about` (what a name is and where it can appear: `about tempo` says it is a musical parameter and can appear in `^{ }`, `{ }` and `[ ]`; also a mark, a word, an instrument, a drum, a scale, a grammar rule; `pitch`, `duration`, `articulation` are properties of a note, a duration also the length of a seq), `settings tempo` (a parameter's range, default and how it is written; `:riff settings` is still a live voice's), `marks tempo` (the marks that set it, by value), `help` (mu in a few seqs; `help dup` or `'dup help` is `see`; other text, `"chord" help`, lists the words whose name or description mention it), `words`, `see` (`"dup" see` or `'dup see`: the stack effect, then what the word does -- every built-in word has a description, and a word that gives its first argument back changed or rebuilt shows it primed: `( x n -- x' )` for `take`, `sort`, `times`, `+`; a defined word shows its source), `cls` (the screen; the stack stays); `use` and `in` take a name in quotes or quoted too (`'pitch use`) |
 
 Stack effects:
@@ -66,11 +67,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `perms` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `^{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `perms` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `transpose` `inversion` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary` |
-| **access** | `head` `last` `nth` (`@`) `length`; by time: `duration` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a seq with `zip`; `as-drums` (notes made drums); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
+| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary`; `walking-bass` (a bass walked under a seq of chords, new each time) |
+| **access** | `head` `last` `nth` (`@`) `length`; by time: `duration` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a seq with `zip`; `as-drums` (notes made drums); names: `find-instrument` `find-drum` `find-kit` (list what a name or its start can mean, one a line; `""` lists all); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
   material; value tools read values (numbers, or what a pitch or
@@ -256,6 +257,11 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `indexes` is every place instead of the first, as a list, a quotation or
   a value again: `[C4 E4 C4 E4] C4 indexes` is `'[0 2]`, `'[3 5 1 5] 5
   indexes` `'[1 3]`, none an empty `'[]`; `indexes length` is how many match.
+- **`[n]` `{n}` `^{n}` gather the top n**: `[c d] [e f] [2]` is `[[c d] [e f]]`, `{2}` puts them side by side, `^{ !mf } ^{ !tempo:90 } ^{2}` joins
+  contexts into `^{ !mf !tempo:90 }` (each instruction keeps its own `@time`, an id is dropped). n is 2 or more, written as a digit string.
+- **`perms` gives every order**: `[b c d] perms` is the six groups `( b c d ) ( b d c ) ( c b d ) ( c d b ) ( d b c ) ( d c b )`, the written
+  order first and each note keeping its own length, as a seq; a list gives a list of lists. Two to six elements (720 orders): more are refused.
+  `perms :tri R!! drop` stores them, and `shuffle`, `[?]`, `take` or `[R]` then act on the groups as units.
 - **Delaying**: `delay` puts a rest of d whole notes in front of a seq,
   d any rational (`[c d] 1/4 delay` is `[r4 C4 D4]`, `1/3 delay` a rest
   as a tuplet), its own settings staying first; a note becomes a seq.
@@ -582,7 +588,7 @@ above the prompt. The keys are three neighbours, unshifted to rate
 ### Algos
 
 The algorithms of `musics/algo/` are plain Clojure functions, called by name with
-their arguments on the stack (the tutorial and `doc/md/raw-algo-cookbook.md` work
+their arguments on the stack (the tutorial and `doc/md/algo-cookbook.md` work
 through them). `"rhythmic.pattern" reqalgo` makes the public functions of
 `musics.algo.rhythmic.pattern` words, `pattern/euclid`; a quoted name works too,
 dots and all, and an alias follows it (`'rhythmic.pattern 'p reqalgo`).

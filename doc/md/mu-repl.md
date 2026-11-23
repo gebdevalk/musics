@@ -94,6 +94,9 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   seq, the same spelling as in a seq (`!tempo:4=120`, `!tempo<16:140`,
   `!allegro`, `!tempo:140@4`). Several: `^{ !mf !tempo:89 } with`. mu never
   writes `:ROOT`.
+- **A tctx is written `@{ :onsets 3 :half '( :onsets 2 / ) }`**: pairs of a keyword and a value (a quotation is a
+  computed key), run now like a `( … )`. It is a value of its own (a `^{ }` has string keys), and
+  `:tctx R!` makes it the session's tctx, replacing the entries; `:tctx R@` gives them back in this form, keys in order.
 - **`with` on a voice** changes what plays: `:bass !tempo:140 with`,
   `:bass :Tempo 140 with` or `:bass ^{ !mf !tempo:90 } with` write the settings
   in front of the voice's own music and swap it in at the end of its pass, as
@@ -155,7 +158,7 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   `t` a length in whole notes, `id` a stored name, `flag` true or false,
   numbered when two share one (`n1 n2 -- n3`).
 - **Quotations** are `'( … )`, the quoted counterpart of `'[ … ]` (held
-  data): held code, run by `call`, `if`, `each`, `map` …
+  data): held code, run by `execute`, `if`, `each`, `map` …
 - **`loop`** is Forth's `do … loop` with a quotation for its body:
   `limit start '( … ) loop` runs the body once for each whole number from
   `start` up to, not including, `limit`, with `i` the index, `j` the index of the
@@ -240,9 +243,6 @@ followed by nothing, a duration or `*n`.
   before that part runs, so `'m [c d] := [\m e]` works on one line; a
   literal before the `:=` that binds its name is refused. After a `:=`
   the reading starts afresh (durations, relative pitch).
-- A name bound to another (`'dp 'duration-pulse :=`) is a short
-  name for an algo param: `@^{ dp:1/8 }` is read, kept and shown as
-  `@^{ duration-pulse:1/8 }`.
 - A literal stored with `R!` takes what its bound names bring with it.
 - **Storing in the repo**, by precedence:
   1. `[c4 d e] :motif R!`: an explicit name;

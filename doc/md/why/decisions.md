@@ -582,7 +582,7 @@ inherently lexically scoped (a span within one ongoing walk), which
 plain immutable-value threading already expresses more directly, with
 zero risk of forgetting to restore on an early return/exception.
 
-See `doc/md/audits/algo-stages.txt` for the full current pipeline traced
+See `doc/md/why/audits/algo-stages.txt` for the full current pipeline traced
 stage by stage.
 
 **2026-09-10 — `display`/the play-arg Form grammar moved out of
@@ -799,11 +799,11 @@ Why: a drum part needs ghost notes and accents, and `->`/`-^` already mean accen
 
 **2026-10-04 — Help worked out from action facts with core.logic (`core.assist`), replacing `core.adviser`.**
 Decided against: keeping hand-written suggestion sentences ranked by tier and intent (`uh?`/`advise`/`advise!`); planning from the current state only; a second algo catalog read from docstrings on disk.
-Why: the adviser's sentences had drifted (`:stage`/`:commit` after `parse` began committing at once, `(advise 4)` documented as the wrong phase, nothing about `algo.tree`), and it could only react. One fact per action (needs, gives, call) lets suggestions, plans to a goal and why-not all be derived, so a command is suggested once it has a fact and disappears with it; the same style of relation `algo.logic.tree` uses for algos. History stays: what was done leaves facts no state shows (a tree made, a file rendered), and an action taken proves its needs held. The GUI shows the facts on its buttons rather than asking questions. `show-algos` prints the registry, which knows types and params and is kept complete by its catalog test; helpers that aren't algos are reached through `doc`. See `doc/md/assist-with-logic.md`.
+Why: the adviser's sentences had drifted (`:stage`/`:commit` after `parse` began committing at once, `(advise 4)` documented as the wrong phase, nothing about `algo.tree`), and it could only react. One fact per action (needs, gives, call) lets suggestions, plans to a goal and why-not all be derived, so a command is suggested once it has a fact and disappears with it; the same style of relation `algo.logic.tree` uses for algos. History stays: what was done leaves facts no state shows (a tree made, a file rendered), and an action taken proves its needs held. The GUI shows the facts on its buttons rather than asking questions. `show-algos` prints the registry, which knows types and params and is kept complete by its catalog test; helpers that aren't algos are reached through `doc`. See `doc/md/why/assist-with-logic.md`.
 
 **2026-10-04 — Algo types are named by their element: `:pulse` `:dur` `:pitch` `:weight` `:onset` `:number` `:point` `:stroke` `:pair` `:leaf` `:part`.**
 Decided against: plurals (`:pitches`, `:durations`, ...), `:grid` for a 0/1 pattern, `:notes` for the end product.
-Why: step 1 of the leaf principle (`doc/md/algo-audit.md`): glue is named `from->to` with one element on each side (`pulse->dur`, `weight->volume`), so the types it joins need the same singular names. `:pulse` says what one element is (a pulse on or off); `:leaf` is what every tree finally makes; `:part` is one of several parallel layers. Types appear only in `:algo` metadata, so the rename touched `:in`/`:out` positions and the code and docs that name a type, never the Leaf field `:pitches` or the `notes` algo.
+Why: step 1 of the leaf principle (`doc/md/why/algo-audit.md`): glue is named `from->to` with one element on each side (`pulse->dur`, `weight->volume`), so the types it joins need the same singular names. `:pulse` says what one element is (a pulse on or off); `:leaf` is what every tree finally makes; `:part` is one of several parallel layers. Types appear only in `:algo` metadata, so the rename touched `:in`/`:out` positions and the code and docs that name a type, never the Leaf field `:pitches` or the `notes` algo.
 
 **2026-10-04 — Glue as ordinary algos, leaves blended step by step, volume absolute, rests in the dur stream.**
 Decided against: one leaf algo taking all five materials (unused ones given as constants); several leaf algos per combination; volume as an offset on the context's (the drum accents' `:dynamic`); a negative duration or a nil pitch as the only way to write a rest.
@@ -2609,7 +2609,7 @@ warnings (`musics.mu/quiet-java-logging!`).
 
 `3 5 +` was refused with a hint (`on numbers write add`) and `'[60 62] 12 +`
 succeeded without changing anything (a data list counts as material, and a
-number is no note). The audit (`doc/md/audits/mu-repl-audit.md`, H3/H4) read
+number is no note). The audit (`doc/md/why/audits/mu-repl-audit.md`, H3/H4) read
 both as one fault: the signs knew what was meant and did not do it. Now
 `musics.arith` holds `+ - * /` as one multimethod over the kinds of the two
 values: numbers (the exact result), a list or stream of numbers with a number
@@ -2640,7 +2640,7 @@ etc. are no words any more, and `x 7 up` is `x 7 +`. The tree algos named
 A Forth programmer's first guesses failed in mu: `<` and `>` played, `<>` made
 a chord, `=` and `<=` were "not a word" stubs, comparison went by `lt gt le ge
 eq ne`, `true false and or xor` did not exist (two conditions could not be
-joined) and `0 not` was `false`. The audit (`doc/md/audits/mu-repl-audit.md`,
+joined) and `0 not` was `false`. The audit (`doc/md/why/audits/mu-repl-audit.md`,
 H4 and the Forth list) asked for the Forth set, which needs `< > <>` free.
 
 - **Comparison** is `= <> < > <= >=` (`musics.compare`); `lt gt le ge eq ne`
@@ -3779,3 +3779,51 @@ offset in the seq it was written in, wrong once it moves). Capped at 6 elements 
 leaves, and 7 elements (5040 groups, 35000 notes) would take minutes. Open: a running length kept on
 the container being built would make that linear, and lift the cap (and speed up any long seq).
 
+
+## 2026-11-21 -- `^{n}`: the top n contexts in one
+
+`^{2}` `^{3}` … join the top n contexts into one `^{ }`, beside `[n]` (a seq) and `{n}` (a
+parallel); a grammar rule `Contexts` in `mu.ebnf`, the word `^{n}` in `musics.mu.tools`. It joins by
+text: each context's instructions as written (their own `@time` kept, an id dropped), in the order
+they lay, read back as one context. Joining two points of one setting at the same time is left to
+the context's own rules; nothing is merged or resolved here.
+
+## 2026-11-23 -- `doc/md/why/`: the technical files about choices in one directory
+
+`decisions.md`, the design notes (`core-logic.md`, `assist-with-logic.md`, `algo-audit.md`,
+`other-libs.md`, `ideas.md`) and `audits/` moved into `doc/md/why/`; what a reader uses (tutorials,
+references, the cheat sheet) stays in `doc/md/`. Every path that named them (CLAUDE.md, the skill,
+source comments, the other docs) was rewritten. `scripts/docs.sh` renders the pages of `why/` into
+the same flat `doc/html/` and rebuilds its output whole, so a page whose source is gone goes too.
+The user's pieces in `mus/` are private: no document points at one. A code span in a page stays
+whole (never broken at a hyphen, `nowrap`) unless it is longer than 36 characters.
+
+## 2026-11-23 -- the algo cookbook: the tctx is the default pattern after ten direct recipes
+
+Recipes 1-10 write every number into the line, so a reader sees each word with its arguments. From
+recipe 11 (a group of four introducing it) a recipe keeps its numbers in the tctx and its line as a
+computed key: `3 :onsets T!`, `'( :onsets :pulses pattern/euclid … ) :euclid T!`, run with
+`:euclid T@@`. Reasons: a change is one `T!` and nothing is retyped; the same line serves a live
+voice, which reads the keys at its next note; one place holds the numbers. A key is named for the
+function's argument. Edges the recipes show: a key is letters, digits and underscores (mu reads
+`:name` that way; a hyphen is no key); `zip` reads keywords itself as part names, so a setting right
+before it is fetched with `T@` and no key is named `:pitches` or `:duration`; a quotation given to
+`T!` is a computed key, so a quotation that is an argument (a fitness function, a constraint, a
+`pull` body) is written inside the computed key; a computed key gives one value, so two results
+are gathered with `( … )`. The substitution happens only while a computed key or a voice runs, which
+is why the recipes run at the prompt with `T@@`. Rejected: converting all 58 (the first ten, the
+`see` recipes, the error recipes and the `$`-input recipes teach something the table would hide).
+
+## 2026-11-23 -- `@{ :key value … }`: a tctx written out, stored with `:tctx R!`
+
+A tctx could only be built key by key (`T!`), and `:tctx R@` gave `^{ tctx:  }`, the entries lost.
+`@{ … }` is a mu literal (`Settings` in `mu.ebnf`, like `( )` run now, its stack read as pairs); its
+own brackets because a `^{ }` has string keys and `!` instructions and the two must not be mixed
+(the user's suggestion). A value of its own (`v/Settings`, a vector of `[key value]`), not a Material:
+a tctx is session state, not music. `:tctx R!` replaces all the entries at once (a key left out is
+gone; one `reset!`, so a voice never sees half a table); `:tctx R@` gives the session's back, keys in
+order, a computed key as its quotation text, an entry made in Clojure with no text left out. `R!` of
+anything else onto `:tctx`, or of an `@{ }` onto another name, is refused. Rejected: a `^{ :key value }`
+(the same bracket for two kinds of key), and a special `tctx!` word (`R!` and `R@` already mean store
+and fetch). `@{ }` was once an algo's settings sign (2026-10-28, then `@^{ }`); that was removed with the recipe
+tree, so the sign is free and means this. The editor's TextMate grammar colours its `@{` and `^{`.

@@ -832,6 +832,31 @@
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T_"))))
     (finally (clear-tctx!))))
 
+(deftest an-at-brace-literal-writes-a-tctx-and-tctx-R!-makes-it-the-sessions
+  (try
+    (run "7 :old T!")
+    (is (= ":tctx" (str/trim (top-of "@{ :onsets 3 :pulses 8 :half '( :pulses 2 / int ) :pitches '[60 62] } :tctx R!"))))
+    (is (= 3 (c/ctx-value-chain [live/tctx] :onsets 0)) "a value")
+    (is (= 4 (c/ctx-value-chain [live/tctx] :half 0)) "a quotation is a computed key")
+    (is (nil? (c/ctx-value-chain [live/tctx] :old 0)) "it replaces the tctx, it does not add to it")
+    (testing ":tctx R@ writes it back, in key order, and that reads again"
+      (let [text "@{ :half '( :pulses 2 / int ) :onsets 3 :pitches '[60 62] :pulses 8 }"]
+        (is (= text (str/trim (top-of ":tctx R@"))))
+        (run "@{ } :tctx R!")
+        (is (= "@{ }" (str/trim (top-of ":tctx R@"))) "an empty one empties the tctx")
+        (run (str text " :tctx R!"))
+        (is (= text (str/trim (top-of ":tctx R@"))))))
+    (testing "T! and the literal are one table"
+      (run "9 :steps T!")
+      (is (re-find #":steps 9" (top-of ":tctx R@"))))
+    (testing "what it refuses"
+      (is (re-find #"pairs of :key and a value, got 3" (:error (run "@{ :a 1 :b } :tctx R!"))))
+      (is (re-find #"a key is a keyword" (:error (run "@{ 1 2 } :tctx R!"))))
+      (is (re-find #":a is written twice" (:error (run "@{ :a 1 :a 2 } :tctx R!"))))
+      (is (re-find #"store it as :tctx" (:error (run "@{ :a 1 } R!"))))
+      (is (re-find #"holds the session's tctx" (:error (run "[c d] :tctx R!")))))
+    (finally (clear-tctx!))))
+
 (deftest R_-is-forget
   (run "[gone: c d] R!")
   (run "clear :gone R_")

@@ -97,6 +97,20 @@
 (word! "music" "[n]" "( x... n -- m )  the top n one after another, each an element, written [2] [3] … : [c d] [e f] [2] gives [[c d] [e f]]"
        (top-n "[" "]" #(mt/line (map (partial mt/sounding! "[n]") %))))
 
+;; ^{2} ^{3} …: the instructions of the top n contexts, in order, in one
+(word! "music" "^{n}" "( c... n -- c )  the top n contexts in one, their instructions in the order they lay, written ^{2} ^{3} … : ^{ !mf } ^{ !tempo:90 } ^{2} gives ^{ !mf !tempo:90 }"
+       (fn [s]
+         (let [n (peek s) s (pop s) w (str "^{" n "}")]
+           (when (< n 2) (e/mu-error (str w ":") "takes 2 or more, as ^{2}"))
+           (need s n w)
+           (let [items (subvec s (- (count s) n))]
+             (when-let [bad (first (remove #(= :CONTEXT (mt/kind %)) items))]
+               (e/mu-error (str w ":") "takes contexts ^{ … }, got" (p/show bad)))
+             (conj (subvec s 0 (- (count s) n))
+                   (mt/read-text (str "^{ "
+                                      (str/join " " (map #(-> (p/show %) (str/replace #"^\^\{ (?:[^\s:]+: )?" "") (str/replace #" \}$" "")) items))
+                                      " }")))))))
+
 (word! "music" "{+}" "( m1 m2 -- m3 )  the parts of the two in one { }: {[a] [b]} {[c] [d]} {+} gives {[a] [b] [c] [d]}; a seq is one part"
        (fn [s]
          (need s 2 "{+}")

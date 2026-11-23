@@ -1,4 +1,7 @@
-# Grammar notes
+# Grammar design notes
+
+For someone changing the grammar: why comments and variables are grammar rules
+and not a text step. What you write is in [parsing.md](parsing.md).
 
 Guidance specific to the grammar/parsing layer:
 `resources/musics/input/musics.ebnf` (the literals) and

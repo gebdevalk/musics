@@ -379,11 +379,21 @@
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
                ;; what it makes follows its first value: music a seq, plain values a '[ ]
                (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
+    :Settings (let [xs (run-items [] (vec (rest node)) env)]
+                (when (odd? (count xs))
+                  (mu-error "@{ }: pairs of :key and a value, got" (count xs) "values"))
+                (let [pairs (mapv vec (partition 2 xs))]
+                  (doseq [[k] pairs]
+                    (when-not (keyword? k) (mu-error "@{ }: a key is a keyword, :reps -- got" (p/show k))))
+                  (when-let [d (first (filter #(> (val %) 1) (frequencies (map first pairs))))]
+                    (mu-error "@{ }:" (pr-str (key d)) "is written twice"))
+                  (conj stack (v/->Settings pairs))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")
     :Parallels  (run-word (conj stack (parse-long (second node))) "{n}")
     :Lines      (run-word (conj stack (parse-long (second node))) "[n]")
+    :Contexts   (run-word (conj stack (parse-long (second node))) "^{n}")
     ;; a literal: the value it was read as, with the input
     (if-let [i (:mu/index (meta node))]
       (conj stack (nth (:values env) i))

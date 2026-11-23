@@ -109,7 +109,7 @@ therefore the same `Context`) can be reached through *different*
 enclosing containers if its id is referenced from more than one place,
 so "what's the enclosing scope" is a property of *how you got here on
 this particular visit*, not something that can be baked into the data
-itself (see `doc/md/decisions.md`'s Wave 1 entry for the fuller reasoning).
+itself (see `doc/md/why/decisions.md`'s Wave 1 entry for the fuller reasoning).
 
 So a `Context` only ever holds its own locally-authored envelope data, and
 "enclosing scope" is threaded explicitly as a **ctx-chain** — a plain
@@ -177,7 +177,7 @@ and a keyword asked of a chain reaches only a **tctx**.
 A tctx is an ordinary `Context` whose keys are **keywords** (`:reps`, `:density`).
 It goes in front of a chain (`[tctx child root]`), and since the two kinds of key
 never meet it hides no context value; `"density"` and `:density` are two keys. Its
-values are bare values, functions of time, or entries computed from other keys:
+values are bare values, functions of time, or entries computed from other keys (the Clojure layer; mu writes such an entry as `T!` with a quotation):
 
 ```clojure
 (def tctx (-> (c/context)
@@ -194,7 +194,7 @@ time, so a lookup is **recursive**. A key is computed once per pull, and a key t
 needs itself, however far round, throws naming the cycle (`:a -> :b -> :a`).
 `(c/getter chain time)` is one memoized pull: every answer it gives (a miss too)
 is remembered, so one leaf sees one value for each key. The tctx is shared by
-atom: a change made to it (`T!`) is seen by the next lookup in every chain
+atom: a change made to it (`T!`, or the whole table replaced by `:tctx R!` of an `@{ }`) is seen by the next lookup in every chain
 that holds it.
 
 A function of time is also a value a context's own string key can hold

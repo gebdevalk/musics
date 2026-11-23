@@ -26,14 +26,16 @@ raised leading tone at cadences).
 
 ## Interface
 
-In mu, `parallel/species` takes the cantus from the stack (a seq of
-whole notes), its settings on top, and gives the parts side by side:
+In mu, `jeppesen/species` takes the cantus as a list of MIDI numbers, the
+number of voices, the species of the added voice, which part holds the
+cantus, the mode (`:auto` finds both) and a seed, and gives one seq per
+voice (the cookbook's recipe 25 runs it):
 
 ```
-[D4/1 F E D G F A G F E D] @^{ voices:3 kind:2 } parallel/species >
+'[62 65 64 62 67 65 69 67 65 64 62] 3 2 :auto :auto 1 jeppesen/species
 ```
 
-Its settings are `voices`, `kind`, `cantus-in`, `mode` and `seed`, as
+The settings are `voices`, `kind`, `cantus-in`, `mode` and `seed`, as
 below. In code:
 
 ```clojure

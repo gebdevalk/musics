@@ -1044,3 +1044,11 @@
   (is (= "'['[1 2] '[2 1]]" (top "'[1 2] perms")) "a list gives a list of lists")
   (is (re-find #"7 elements make 5040 orders -- 6 elements at most" (:error (e/eval-input "[c d e f g a b] perms"))))
   (is (re-find #"needs an element" (:error (e/eval-input "'[] perms")))))
+
+(deftest contexts-join-the-top-n
+  (is (= "^{ !mf !tempo:90 }" (top "^{ !mf } ^{ !tempo:90 } ^{2}")) "two contexts, their instructions in order")
+  (is (= "^{ !mf !tempo:90 !volume:70 }" (top "^{ !mf } ^{ !tempo:90 } ^{ !volume:70 } ^{3}")))
+  (is (= "^{ !mf !tempo:90 }" (top "[a: c d] ^{ !mf } ^{ !tempo:90 } ^{2} swap drop")) "only the top n")
+  (is (re-find #"takes contexts" (:error (e/eval-input "[c d] ^{ !mf } ^{2}"))))
+  (is (re-find #"takes 2 or more" (:error (e/eval-input "^{ !mf } ^{1}"))))
+  (is (re-find #"nothing|needs|takes" (:error (e/eval-input "^{ !mf } ^{3}")))))

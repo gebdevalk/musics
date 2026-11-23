@@ -254,7 +254,7 @@
     (let [t (first-wrapped-token "p4")]
       (is (d/skeleton? t))
       (is (= 1/4 (:duration t)))
-      (is (= 1 (:value t)) "fixed default value for now -- see doc/md/decisions.md")))
+      (is (= 1 (:value t)) "fixed default value for now -- see doc/md/why/decisions.md")))
   (testing "duration follows the same rules as any other leaf -- an
             explicit Duration, or falling back to the last one written"
     (let [ts (wrapped-tokens "p4 p8 p")]

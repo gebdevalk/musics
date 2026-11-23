@@ -10,7 +10,7 @@ has them as functions of numbers. Load them in mu:
 
 An inserted tone always comes **after** a principal tone, never before
 it; the last principal tone has nothing after it. A result is a list of
-MIDI numbers (`zip` puts it on notes, `mus/slonimsky.mus` does so).
+MIDI numbers (`zip` puts it on notes).
 
 ## On a melody you give
 
