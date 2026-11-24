@@ -573,7 +573,12 @@
              (str "\nexpected " (str/join " " (map #(str "`" % "`") shown)) (when (> (count literals) 12) " …")
                   ", or more music or a word"))
            (when (re-find #"\[\s*-?\d+(?:[\s,]+-?\d+)*\s*\]" text)
-             "\nnumbers in a list are data: '[1 2 3]")))))
+             "\nnumbers in a list are data: '[1 2 3]")
+           (let [i     (min (count text) (:index failure))
+                 start (inc (or (last (keep-indexed #(when (Character/isWhitespace ^char %2) %1) (subs text 0 i))) -1))
+                 tok   (re-find #"^[^\s\]\)\}]+" (subs text start))]
+             (when (and tok (re-matches #"[A-Za-z]+:\S+" tok))
+               (str "\na setting is written with a bang: !" tok)))))))
 
 (defn- parse-input
   "Parse text: {:items [...] :lits [...]} (each literal numbered by its

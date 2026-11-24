@@ -3839,3 +3839,13 @@ written token (`spelling-token`), after any token the text itself wrote; a tone 
 (the chord was transposed) is spelled as before. A bass note and a tone needing more than two
 accidentals fall back. The sound is unchanged. Rejected: spelling by the quality alone (a table of
 flat qualities misses `.9-`, `.5-` and the added steps).
+
+## 2026-11-24 -- a setting is written with its bang: `M:3/4` alone is no more
+
+mu once read a setting written without the bang, `M:3/4`, `T:8=200`, `vol:mf`, as the context holding
+it (`KeyLit` and `AssignLit` in `mu.ebnf`, rewritten to a `^{ }` in `musics.mu.grammar`), so `x M:3/4 with`
+worked beside `x !M:3/4 with` and `x ^{ !M:3/4 } with`. Three spellings of one thing; the bang-less
+one also needed an ordered choice (a leaf first, so `c:m7` stayed a chord) and sat next to the
+`name:` of an id. Removed: a setting is an instruction, `!M:3/4`, alone it is a context, and the rest
+is as it was. The error for the old spelling says so (`a setting is written with a bang: !M:3/4`).
+Nothing in the docs, the corpus or the `mus/` files used it; three test assertions did.

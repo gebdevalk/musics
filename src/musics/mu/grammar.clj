@@ -19,10 +19,7 @@
    [], is the Sequence with nothing in it."
   [text]
   (let [tree (insta/parse parser text)]
-    (cond->> tree (not (insta/failure? tree)) (insta/transform {:EmptyLine (fn [] [:Sequence])
-                                                                          ;; M:3/4 is ^{ !M:3/4 }
-                                                                          :KeyLit    (fn [& c] [:Context (into [:KeyAssignment] c)])
-                                                                          :AssignLit (fn [& c] [:Context (into [:Assignment] c)])}))))
+    (cond->> tree (not (insta/failure? tree)) (insta/transform {:EmptyLine (fn [] [:Sequence])}))))
 
 (defn failure? [x] (insta/failure? x))
 

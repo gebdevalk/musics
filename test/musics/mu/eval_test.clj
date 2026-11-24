@@ -47,7 +47,7 @@
   (is (= "'[1/4 1/8 3/16]" (p/show (first (:ok (run "( /4 /8 /8. )"))))))
   (is (re-find #"no note value" (:error (run "/3"))))
   (is (= ["^{ !M:3/4 }" "^{ !T:8=200 }" "^{ !K:D.major }" "^{ !vol:mf }"]
-         (map (comp p/show first :ok run) ["M:3/4" "T:8=200" "K:D.major" "vol:mf"])) "a setting alone is a context")
+         (map (comp p/show first :ok run) ["!M:3/4" "!T:8=200" "!K:D.major" "!vol:mf"])) "a setting alone is a context")
   (is (= [10 20 30] (:ok (run "10 20 30 0 roll"))) "0 roll leaves the stack")
   (is (= [10 30 20] (:ok (run "10 20 30 1 roll"))) "1 roll is swap")
   (is (= [20 30 10] (:ok (run "10 20 30 2 roll"))) "2 roll is rot")
@@ -62,6 +62,9 @@
 (deftest errors-point-at-the-way
   (testing "numbers in brackets are data, written with a quote"
     (is (re-find #"'\[1 2 3\]" (:error (run "[1 2 3]")))))
+  (testing "a setting is written with a bang, and the error says so"
+    (is (re-find #"a setting is written with a bang: !M:3/4" (:error (run "[c d] M:3/4 with"))))
+    (is (re-find #"a setting is written with a bang: !T:90" (:error (run "T:90")))))
   (testing "a bound name is a value: \\name puts it on the stack"
     (run "'zz 5 :=")
     (is (re-find #"zz is a value, not a word: \\zz puts it" (:error (run "zz"))))))
