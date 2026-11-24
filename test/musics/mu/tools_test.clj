@@ -57,15 +57,18 @@
   (is (re-find #"the body is a quotation" (top "3 0 5 loop")))
   (is (re-find #"needs whole numbers" (top "2.5 0 '( i ) loop"))))
 
-(deftest value-and-variable-are-forths
-  (is (= "5 7" (top "5 value five five 7 to five five")) "a value pushes itself; to changes it")
+(deftest variable-is-forths-and-binding-is-the-value
   (is (= "5 3" (top "5 variable v v @ 3 v ! v @")) "a variable pushes its place: @ reads, ! stores")
   (is (= "9" (top "5 variable v : w v ; 9 w ! v @"))
       "a second name is a definition: the same place, so there is one value, not two kept equal")
   (is (= "5 6" (top "5 variable left 5 variable right 6 right ! left @ right @")) "two variables are two places")
-  (is (re-find #"c is a note" (top "2 value c")) "a note's name can't be a word")
-  (is (re-find #"write the name after it" (top "2 3 value")))
-  (is (re-find #"v is not a value" (top "5 variable v 7 to v")) "to changes only a value"))
+  (is (re-find #"write the name after it" (top "2 3 variable")))
+  (testing "a value for the session is bound with := and written again to change it"
+    (is (= "5 7" (top "'five 5 := \\five 'five 7 := \\five")))
+    (is (= "15 17" (top "'n 5 := : addn ( x -- y ) \\n + ; 10 addn 'n 7 := 10 addn")) "a word sees the new value"))
+  (testing "value and to are no more"
+    (is (re-find #"unknown word: value -- it is now written 'name x :=" (top "5 value five")))
+    (is (re-find #"unknown word: to -- it is now written 'name x :=" (top "7 to five")))))
 
 (deftest a-tool-in-a-fresh-session
   (with-fresh-registries

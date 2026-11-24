@@ -45,11 +45,11 @@
                            "'dp 'duration-pulse :=" "'motif [C4/8 E4 G4] :=" "'n 3 :="])
            text))))
 
-(deftest values-and-variables-are-written-with-what-they-hold
-  (top "5 value five" "7 to five" "[c d] variable motif1" "3 variable counter" ": alias counter ;")
+(deftest variables-are-written-with-what-they-hold
+  (top "5 variable five" "7 five !" "[c d] variable motif1" "3 variable counter" ": alias counter ;")
   (let [[text skipped] (session/text)]
     (is (empty? skipped))
-    (is (str/includes? text "7 value five") "a value as it is now")
+    (is (str/includes? text "7 variable five") "a variable as it holds now")
     (is (str/includes? text "3 variable counter"))
     (is (str/includes? text "[C4/4 D4] variable motif1")))
   (top "9 alias !")
@@ -57,7 +57,7 @@
     (session/restore! "")
     (is (re-find #"unknown word" (top "five")) "restoring replaces them")
     (session/restore! text)
-    (is (= "7" (top "five")))
+    (is (= "7" (top "five @")))
     (is (= "9" (top "counter @")) "a store through the alias was a store of the variable")
     (is (= "10" (top "10 alias ! counter @")) "the alias is the same place again after restoring")))
 

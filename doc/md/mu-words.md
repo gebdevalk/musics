@@ -104,9 +104,9 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   `3 five !` stores. A second name for the place is a plain definition,
   `: six five ;`, and `: speed :bass/onsets ;` does the same for a voice's
   input: one place under two names, so a store through either is read by
-  both, with no second value to keep equal. `5 value five` is Forth's value:
-  `five` pushes 5, and `7 to five` changes it. `save-session` writes both
-  as `7 value five` and `3 variable v`, with what they hold (one whose value
+  both, with no second value to keep equal. A value for the session is bound with
+  `'five 5 :=` and written again to change it; `\five` is the value. `save-session` writes a
+  variable as `3 variable v` and a binding as `'five 5 :=`, with what they hold (one whose value
   can't be written as text is skipped and named).
   The value stays one element (`[c d] 1 [e f] !` is `[c [e f]]`);
   `splice` spreads. An index may be a path, a data list that goes

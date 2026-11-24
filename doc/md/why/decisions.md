@@ -3849,3 +3849,15 @@ one also needed an ordered choice (a leaf first, so `c:m7` stayed a chord) and s
 `name:` of an id. Removed: a setting is an instruction, `!M:3/4`, alone it is a context, and the rest
 is as it was. The error for the old spelling says so (`a setting is written with a bang: !M:3/4`).
 Nothing in the docs, the corpus or the `mus/` files used it; three test assertions did.
+
+## 2026-11-24 -- `value` and `to` are no more: a name for the session is bound with `:=`
+
+`5 value five` and `7 to five` (Forth's value) kept a number under a bare name and changed it, beside
+`'five 5 :=` and `\five`, which does the same: writing `:=` again rebinds the name, and a word
+defined earlier reads the new value (`: addn ( x -- y ) \n + ;`, 10 addn is 15, then `'n 7 :=`,
+and it is 17). `\name` also works inside a literal, which a `value` word cannot. Two ways to hold one
+thing, with two names that can differ (`'five 9 :=` left the word `five` at 7 and made a separate
+`\five`). Removed; `variable` stays, being a place that a second name can share and what a live
+voice's input is read through. The unknown-word message for the old names says what to write
+(`musics.mu.suggest/renamed`). A saved session writes a variable as `3 variable v` and a binding as
+`'five 7 :=` as before; nothing in the docs, the corpus or `mus/` used `value`, one test did.

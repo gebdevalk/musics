@@ -1012,16 +1012,18 @@ and play it, or rate them (section 17).
 :mel R@ 7 +             → [mel: !K:G.major G4/4 A4 B4]
 ```
 
-Forth's `value` and `variable` keep a number or a thing under a name:
+`'name x :=` keeps a number or a thing under a name for the session, and writing it again
+changes it: `\name` is the value, in music too, and a word defined before sees the new one.
+Forth's `variable` keeps a place:
 
 ```
-5 value five                  five → 5
-7 to five                     five → 7
+'five 5 :=                    \five → 5
+'five 7 :=                    \five → 7
 3 variable v                  v is a place
 4 v !   v @                   store 4, read it → 4
 ```
 
-Both are saved in a session as mu text (`7 value five`, `3 variable v`).
+A variable is saved in a session as mu text (`3 variable v`), a binding as `'five 7 :=`.
 A second name for the same place is a plain definition: `: w v ;`.
 
 ### Counted loops

@@ -17,7 +17,7 @@
 ;; -- stack ------------------------------------------------------------
 
 (defn- named
-  "The name after variable, value or to, which the evaluator left as a symbol."
+  "The name after variable, which the evaluator left as a symbol."
   [s word]
   (need s 2 word)
   (let [n (peek s)]
@@ -31,23 +31,6 @@
            (let [a (atom x) r (v/->Ref n #(deref a) #(reset! a %))]
              (e/define! (:in @e/state) n {:fn (fn [st] (conj st r)) :cell a :kind "variable" :effect (str "( -- " n " )  a place holding a value")})
              (pop (pop s))))))
-
-(word! "kernel" "value" "( x 'name -- )  5 value five: five is a word that pushes 5, and 7 to five changes it, as Forth's value does"
-       (fn [s]
-         (let [n (named s "value") x (peek (pop s))]
-           (e/check-name! n)
-           (let [a (atom x)]
-             (e/define! (:in @e/state) n {:fn (fn [st] (conj st @a)) :cell a :kind "value" :effect (str "( -- " n " )  a value, changed with to")})
-             (pop (pop s))))))
-
-(word! "kernel" "to" "( x 'name -- )  7 to five: change the value five names (made with value)"
-       (fn [s]
-         (let [n (named s "to") x (peek (pop s))
-               entry (e/lookup @e/state n)
-               a (when (= "value" (:kind entry)) (:cell entry))]
-           (when-not a (e/mu-error "to:" n "is not a value -- 5 value" n "makes one"))
-           (reset! a x)
-           (pop (pop s)))))
 
 (word! "kernel" "dup" "( x -- x x )  copy the top"
        (fn [s] (need s 1 "dup") (conj s (peek s))))

@@ -2,7 +2,7 @@
   "mu's own state as mu text, for a session file (musics.persist): the
    namespaces it required, the ones in use, the words defined with
    : … ; and the bindings of := -- an input that, run, defines them
-   again, and the values and variables (5 value five, 5 variable v, written
+   again, and the variables (5 variable v, written
    with what they hold). The stack is left out. A definition's literals are written as
    their values print, so each reads alone as it read in its input; a
    binding is written only when its value reads back as itself."
