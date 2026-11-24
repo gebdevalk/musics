@@ -3827,3 +3827,15 @@ anything else onto `:tctx`, or of an `@{ }` onto another name, is refused. Rejec
 (the same bracket for two kinds of key), and a special `tctx!` word (`R!` and `R@` already mean store
 and fetch). `@{ }` was once an algo's settings sign (2026-10-28, then `@^{ }`); that was removed with the recipe
 tree, so the sign is free and means this. The editor's TextMate grammar colours its `@{` and `^{`.
+
+## 2026-11-24 -- a chord symbol's tones are spelled by their degree
+
+`C4/1:7` printed `<C4 E4 G4 A#4>1` and `C4/1:m7` `<C4 D#4 G4 A#4>1`: the walker kept the MIDI
+numbers only, and the printer wrote flats only for a root written with a flat (`B&3:7`). Each tone
+now carries the letter its degree calls for (`tone-spellings` in the walker, kept as the leaf's
+`:spelling`): the root's letter moved up `step - 1` letters, the accidental whatever reaches the
+pitch, so a C7 has B&, a Cm7 E& and B&, a diminished seventh B&&. The printer uses it as a note's
+written token (`spelling-token`), after any token the text itself wrote; a tone it no longer names
+(the chord was transposed) is spelled as before. A bass note and a tone needing more than two
+accidentals fall back. The sound is unchanged. Rejected: spelling by the quality alone (a table of
+flat qualities misses `.9-`, `.5-` and the added steps).

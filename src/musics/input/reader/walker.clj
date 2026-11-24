@@ -1242,6 +1242,25 @@
                     (find-all-children (rest removal-node) :Step))]
     (apply dissoc step-map steps)))
 
+(defn- tone-spellings
+  "{midi [letter acc]} for the tones of a chord symbol, each spelled by its degree: the
+   root's letter moved up step - 1 letters (the seventh of C is a B, so C7 has B&, not A#).
+   Empty when the symbol doesn't start with a letter, or a tone would need more than two
+   accidentals."
+  [token step-map root-midi]
+  (let [letters data/letter-order
+        root    (some-> (and (string? token) (re-find #"^[A-Ga-g]" token)) str/lower-case first)
+        i0      (when root (.indexOf ^java.util.List (vec letters) root))]
+    (if (or (nil? i0) (neg? i0))
+      {}
+      (into {}
+            (for [[step off] step-map
+                  :let [l   (nth letters (mod (+ i0 (dec step)) 7))
+                        d   (mod (- (+ root-midi off) (data/diatonic-pcs l)) 12)
+                        acc (if (> d 6) (- d 12) d)]
+                  :when (<= -2 acc 2)]
+              [(+ root-midi off) [l acc]])))))
+
 (defn- walk-chord-symbol
   "Walk one chord symbol -- root Pitch + optional Duration + ':'
    quality (LilyPond's own chordmode modifier word or its shorthand -- see
@@ -1290,6 +1309,7 @@
           [root-midi root-last] (resolve-pitch-from-tree (rest root-node) state)
           ks          (written-key state)
           chord-midis (mapv #(+ root-midi %) intervals)
+          spell-of    (tone-spellings token step-map root-midi)
           _           (reset! (:last-pitch state) root-last)
           final-midis
           (if bass-node
@@ -1312,6 +1332,7 @@
                             ;; a chord symbol follows the key by its root:
                             ;; :key-root tells rekey to move every tone by
                             ;; the root's step, keeping the quality
+                            (seq spell-of) (assoc :spelling (mapv #(get spell-of %) final-midis))
                             ks        (assoc :key ks :key-root root-midi)
                             overrides (assoc :overrides overrides))))))
 

@@ -535,7 +535,7 @@
     (is (re-find #"nothing on the stack" (:error (run "()"))))
     (is (= "[!M:3/4 C4/4 D4 E4]" (show "[c d e] M:3/4 with")) "a setting alone lies under a seq with with")
     (is (= "[!T:8=200 C4/4 D4 E4]" (show "[c d e] T:8=200 with")))
-    (is (= "<C4 D#4 G4 A#4>4" (show "c:m7")) "a chord symbol is still a chord")
+    (is (= "<C4 E&4 G4 B&4>4" (show "c:m7")) "a chord symbol is still a chord")
     (is (= "'[1 2]" (show "( 1 2 )")) "numbers gather into a data list")
     (is (= "'[1/4 1/8]" (show "( 1/4 1/8 )")))
     (is (= "'[72 62]" (show "( 60 12 + 62 )")) "computed values")
@@ -932,3 +932,13 @@
       (is (some? (f 0 (g 0))) "a leaf while there is something to play")
       (is (nil? (f 1 (g 1))) "and nothing at the end: the voice finishes there"))
     (finally (inputs/clear! :v))))
+
+(deftest a-chord-symbol-spells-its-tones-by-degree
+  (let [show #(p/show (first (:ok (run %))))]
+  (is (= "<C4 E4 G4 B&4>1" (show "C4/1:7")) "the seventh of C is a B, flat")
+  (is (= "<C4 E&4 G4 B&4>1" (show "C4/1:m7")))
+  (is (= "<B&3 D4 F4 A&4>4" (show "B&3:7")))
+  (is (= "<F#3 A#3 C#4 E4>4" (show "F#3:7")) "sharps where the root's letters call for them")
+  (is (= "<C4 E&4 G&4 B&&4>4" (show "C4:dim7")) "a double flat")
+  (is (= "<C4 E4 G4 B&4 D&5>4" (show "C4:7.9-")) "an added flat ninth")
+  (is (= "<E3 C4 G4 B&4>4" (show "C4:7/E")) "a bass note keeps its place")))

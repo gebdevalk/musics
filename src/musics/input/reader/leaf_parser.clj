@@ -223,6 +223,13 @@
        (str (subs text 0 1) "n" (subs text 1))
        text))))
 
+(defn- spelling-token
+  "The i-th tone's letter and accidental as a note would write them, from the spelling a
+   chord symbol gave it, as a token written-spelling reads; nil without one."
+  [part i]
+  (when-let [[l a] (get (:spelling part) i)]
+    (str l (accidental-text a))))
+
 (defn- flat-written?
   "Was part written with flats and no sharps?"
   [part]
@@ -301,7 +308,7 @@
                        ;; no '/' after a chord pitch's octave: a space or > follows it, never a digit
                        (let [toks (when-let [t (and (string? (:id part)) (re-find #"^<([^>]*)>" (:id part)))]
                                     (str/split (str/trim (second t)) #"\s+"))]
-                         (str "<" (str/join " " (map-indexed #(str/replace (spell-pitch %2 (get toks %1) (:key part) (flat-written? part)) #"/$" "") ps))
+                         (str "<" (str/join " " (map-indexed #(str/replace (spell-pitch %2 (or (get toks %1) (spelling-token part %1)) (:key part) (flat-written? part)) #"/$" "") ps))
                               ">" dur)))
                      (get articulation-spelling [(:articulation part) (or (:dynamic part) 0)])
                      (modifiers->mus (:modifiers part))

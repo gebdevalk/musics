@@ -190,6 +190,9 @@ written: `c8*2/3` is a triplet eighth.
 - A chord symbol keeps the duration and the relative-pitch chain going,
   as a note does. A note without a quality stays a note; `:M` makes it
   a major triad.
+- A chord prints with each tone spelled by its degree: the letter is the
+  root's moved up `step - 1`, so `C4/1:7` is `<C4 E4 G4 B&4>1` (the seventh
+  of C is a B, flat) and `C4/1:m7` is `<C4 E&4 G4 B&4>1`, not with sharps.
 
 ### Rests and drums
 
