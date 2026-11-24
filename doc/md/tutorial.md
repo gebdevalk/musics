@@ -72,28 +72,73 @@ There are two ways to keep music:
   ```
 
 - **In the repo**, the store that the GUI, files and playback share:
-  `R!` stores the value under its own name, or under an id you give.
-  `R@` fetches it again, and `:name` inside music refers to it.
+  `R!` stores a value, `R!!` stores it over a name that other parts use
+  (see "Storing over a name" below), `R@` fetches it again, and `:name`
+  inside music refers to a stored part. Nothing enters the repo without
+  `R!` or `R!!`.
 
   ```
   [verse: !mf c4 d e f] R!          → :verse
   [c d e] :mel R!                   → :mel
   :verse R@                         → [verse: !mf C4/4 D4 E4 F4]
-  [song: :verse :verse g2] R!       a part that uses :verse twice
+  [song: :verse :verse g2] R!       → :song, a part that uses :verse twice
   ```
 
-Storing under a name that is already taken replaces what was there,
-and mu warns you when another part uses it:
-`Redefining :verse also affects [:song]`.
+### What a part is stored under
 
-To look at what's stored:
+A stored part has one name, its **id**, and `R!` takes it from the first
+of these that applies:
+
+| You write | Stored as |
+|---|---|
+| `[c d e] :mel R!` | `:mel`, the name you put on top, which wins |
+| `[verse: c d e] R!` | `:verse`, the id written in the literal |
+| `[c d e] R!` | `:s2`, an id mu makes up (`s` for a seq, then a number) |
+
+`R!` prints nothing and leaves the id it stored under on the stack, so you
+can print it (`.`), fetch it (`R@`), look at it (`usages`, `ctx`) or bind it
+(`'m [c d] R! :=`). Parts written inside a stored one (`[song: [a: c d] e]`)
+are stored with it, under their own ids.
+
+### Storing over a name
+
+Storing under an id that is already taken **replaces what was there**, with
+no message. That is how you work at the prompt: write the part again and
+`R!` it. The first `[mel: c d e] R!` and a later `[mel: e f] R!` leave
+`:mel` holding `[mel: E4/4 F4]`.
+
+Replacing a part that **another part uses** is different, because that
+part would change with it. `R!` refuses, names the parts it would change,
+and stores nothing:
+
+```
+[verse: c4 d] R!
+error: R!: :verse is used by :song -- R!! stores it anyway, changing them too; or give it a new id
+```
+
+**`R!!`** stores anyway and says which parts change with it:
+
+```
+[verse: c4 d] R!!
+R!!: :verse is used by :song, so storing it changes them too
+```
+
+A voice that is already playing keeps the music it started with, so a
+replacement is heard the next time a voice starts, or at the boundary you
+choose (`-|>`, see "Changing it while it plays" below). Reading a file (`load`) or
+the editor's text behaves as `R!!`, so re-reading a file is how a piece is
+edited.
+
+### Looking, forgetting, renaming
 
 | Word | Does |
 |---|---|
 | `ids` | every stored part: `(:mel :song :verse)` |
-| `:verse usages` | who uses `:verse`: `#{:ROOT :song}` |
+| `:verse usages` | the parts that hold `:verse` directly: `#{:ROOT :song}` (`:ROOT` holds every stored part) |
 | `:verse ctx` | its contexts, nearest first: `:verse: !volume:60@0` |
 | `:verse R@` | the part itself, onto the stack |
+| `:mel R_` | forget it (refused while another part still uses it) |
+| `:verse :v2 rename` | give it a new id, and every part that uses it follows |
 
 ## Writing music: a short tour
 
@@ -305,8 +350,9 @@ prompt stay two views of the same settings.
 ## Gotchas
 
 - **Storing replaces.** `R!` under a name that's taken replaces the
-  part for everything that uses it; mu names those parts. Give the new
-  one its own name if that's not what you want.
+  part, with no message, unless another part uses it: then `R!` refuses
+  and names those parts, and `R!!` stores anyway. Give the new one its
+  own name if you don't want the old one gone.
 - **Endless music has no end to write.** `render` and `run` refuse it;
   give `render` the seconds to write, or play it.
 
