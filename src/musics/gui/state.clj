@@ -70,7 +70,6 @@
     [musics.assist :as assist]
     [musics.common.context-keys :as ck]
     [musics.common.music-elements :as el]
-    [musics.gui.components :as ui]
     [musics.gui.data :as data]
     [musics.input.midi-record :as rec]
     [musics.input.midi :as midi-in]
@@ -96,6 +95,16 @@
   "Keys shown as a name dropdown (combo-specs), never a slider."
   #{:instrument :kit :accent :Key :Meter :accidentals})
 
+(def ^:private off-at
+  "Sliders whose one end switches the feature off, read out as \"off\"
+   there: key -> that value."
+  {:swing 0.5})
+
+(def ^:private unused-keys
+  "Keys the GUI leaves out for now: no slider. Take one out of this set
+   to show it again (it lands under Other unless a group names it)."
+  #{:micro})
+
 (def param-specs
   "Context keys this GUI shows as a slider -- canonical key -> slider
    bounds/format, computed directly from musics.common.context-keys/context-keys
@@ -114,8 +123,8 @@
    :label is derived from the key's own name (see humanize-label);
    :fmt is %.0f when the registered range is all-integer bounds, %.2f
    otherwise; :zoom-floor (a GUI-only interaction concern with no
-   registry equivalent -- see zoom!) defaults to an eighth of the
-   registered span, the original JavaFX GUI's own ~8-block convention.
+   registry equivalent -- see zoom!) defaults to a sixteenth of the
+   registered span: four zoom steps.
    Ordered :world keys first (Tempo/Delay/Reverb/Width -- reg!'s own
    :category, exactly the 'toplevel', uppercase-named group CLAUDE.md's
    Grammar section describes), then :leaf keys, alphabetically by name
@@ -127,8 +136,8 @@
         category-of  #(:category (get registry %))
         rank         (fn [k] [(if (= :world (category-of k)) 0 1) (name k)])]
     (into (sorted-map-by #(compare (rank %1) (rank %2)))
-          (for [[key {:keys [range scale]}] registry
-                :when (and range (not (combo-keys key)) (resolve/played-keys key))]
+          (for [[key {:keys [range scale default]}] registry
+                :when (and range (not (combo-keys key)) (not (unused-keys key)) (resolve/played-keys key))]
             (let [[lo hi] range
                   lo (double lo)
                   hi (double hi)
@@ -138,7 +147,9 @@
                     :max hi
                     :fmt (if integral? "%.0f" "%.2f")
                     :scale scale
-                    :zoom-floor (/ (- hi lo) 8.0)}])))))
+                    :default (when (number? default) (double default))
+                    :off (off-at key)
+                    :zoom-floor (/ (- hi lo) 16.0)}])))))
 
 (def ^:private tonics
   "A key's tonic as !K: spells it, chromatically, both spellings of a
@@ -193,20 +204,25 @@
 
 (def control-groups
   "The controls of a context window (and the root panel), by importance,
-   under a heading each: [heading [control-key ...]]. A slider or a
+   under a heading each: [heading [item ...]]. An item is a control key,
+   or a row of controls shown on one line, [\"Row label\"? key ...] (the
+   label, when given, stands before the controls' own). A slider or a
    dropdown a later key gets that no group names lands under Other."
-  (let [groups [["Tempo"   [:Tempo]]
-                ["Key"     [:key-tonic :key-scale :accidentals]]
-                ["Meter"   [:Meter]]
-                ["Sound"   [:volume :instrument :kit]]
-                ["Feel"    [:swing :swingUnit :groove :accent :accentDepth]]
-                ["Playing" [:articulation :durScale :humanization :micro]]
-                ["Pitch"   [:transposition :octave]]
-                ["Space"   [:panning]]]
-        placed (set (mapcat second groups))
+  (let [groups [["General" [:Tempo ["Key" :key-tonic :key-scale] :Meter :volume
+                            :accidentals :panning [:instrument :kit]]]
+                ["Playing" [:articulation :transposition :octave :durScale]]
+                ["Feel"    [:accent :accentDepth :humanization :swing :swingUnit :groove]]]
+        keys-of (fn [items] (mapcat #(if (vector? %) (remove string? %) [%]) items))
+        placed (set (mapcat (comp keys-of second) groups))
         known  (fn [k] (or (contains? param-specs k) (contains? combo-specs k)))
+        keep-known (fn [items]
+                     (vec (keep #(if (vector? %)
+                                   (let [ks (filter known (remove string? %))]
+                                     (when (seq ks) (into (vec (filter string? %)) ks)))
+                                   (when (known %) %))
+                                items)))
         other  (remove placed (concat (keys param-specs) (keys combo-specs)))]
-    (cond-> (vec (for [[h ks] groups :let [ks (filter known ks)] :when (seq ks)] [h (vec ks)]))
+    (cond-> (vec (for [[h items] groups :let [items (keep-known items)] :when (seq items)] [h items]))
       (seq other) (conj ["Other" (vec other)]))))
 
 (def *state
@@ -568,6 +584,14 @@
                 (write-value! ctx (= id :ROOT) (ck/canonical-key key) value))))))))
   nil)
 
+(defn reset-param!
+  "Set key on id back to its registered default (a click on its slider's
+   label), as a drag to that value would."
+  [id key]
+  (when-let [d (:default (get param-specs key))]
+    (set-param! id key d))
+  nil)
+
 (defn toggle-unified!
   "Flip id's membership in the unified? ('U') group -- see set-param!'s
    own docstring for the fanout this drives."
@@ -592,39 +616,44 @@
   nil)
 
 (defn zoom!
-  "Cycle key's visible slider range on id, centered on its current
-   value -- the 'circular zoom' from the original JavaFX GUI: each
-   call halves the smaller of (distance to current max) / (distance
-   to current min) around the current value, UNLESS the resulting
-   span would fall at or below key's own :zoom-floor, in which case
-   it wraps back out to the full param-specs range instead of
-   narrowing further ('in, in, in, out to the beginning'). Purely a
-   display-range concern -- never touches the real Context, only
-   [:watched id :zoom key], which param-rows reads instead of the
-   static spec bounds when it's present."
+  "Narrow key's visible slider range on id, centered on its current
+   value ('z'): each call halves the smaller of (distance to current
+   max) / (distance to current min) around the current value, up to
+   four steps -- a range that would go under key's own :zoom-floor
+   stays as it is, it does not wrap. Each step is remembered, so
+   zoom-out! walks them back. Purely a display-range concern -- never
+   touches the real Context, only [:watched id :zoom key], which
+   param-rows reads instead of the static spec bounds when it's
+   present."
   [id key]
   (let [{:keys [min max zoom-floor] :or {zoom-floor 1.0}} (get param-specs key)
-        {cmin :min cmax :max} (get-in @*state [:watched id :zoom key] {:min min :max max})
+        cur   (get-in @*state [:watched id :zoom key])
+        {cmin :min cmax :max} (or cur {:min min :max max})
         value (get-in @*state [:watched id :params key] min)
         delta (/ (clojure.core/min (- cmax value) (- value cmin)) 2.0)
         new-min (- value delta)
         new-max (+ value delta)]
-    (swap! *state assoc-in [:watched id :zoom key]
-           (if (> (- new-max new-min) zoom-floor)
-             {:min new-min :max new-max}
-             {:min (double min) :max (double max)})))
+    (when (>= (- new-max new-min) zoom-floor)
+      (swap! *state
+             #(-> %
+                  (update-in [:watched id :zoom-steps key] (fnil conj []) cur)
+                  (assoc-in [:watched id :zoom key] {:min new-min :max new-max})))))
   nil)
 
 (defn zoom-out!
-  "The opposite of zoom!: widen key's visible slider range on id around its current value,
-   by doubling the distance from the value to the bounds, never past the parameter's own
-   range (musics.gui.components/zoom-out-bounds). Display range only."
+  "One step back from zoom! ('Z'): the range key had before the last
+   'z', the whole range at the end of the way. Display range only."
   [id key]
-  (let [{:keys [min max]} (get param-specs key)
-        value (get-in @*state [:watched id :params key] min)
-        cur   (get-in @*state [:watched id :zoom key])]
-    (swap! *state assoc-in [:watched id :zoom key]
-           (ui/zoom-out-bounds {:min min :max max} cur value)))
+  (let [steps (get-in @*state [:watched id :zoom-steps key])]
+    (swap! *state
+           (fn [s]
+             (let [before (peek steps)
+                   s (if (seq steps)
+                       (update-in s [:watched id :zoom-steps key] pop)
+                       s)]
+               (if before
+                 (assoc-in s [:watched id :zoom key] before)
+                 (update-in s [:watched id :zoom] dissoc key))))))
   nil)
 
 ;; ============================================================

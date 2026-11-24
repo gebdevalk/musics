@@ -21,8 +21,15 @@
   (str "data:text/css;base64,"
        (.encodeToString (Base64/getEncoder) (.getBytes ^String css "UTF-8"))))
 
+(def ^:private no-focus-frame
+  "No focus frame on any control or panel: Modena draws it in these two
+   colors, set once on the root. A control still takes the keyboard."
+  "-fx-focus-color: transparent;
+     -fx-faint-focus-color: transparent;")
+
 (def ^:private dark-css
-  ".root {
+  (str ".root {
+     " no-focus-frame "
      -fx-base: #2b2b2b;
      -fx-background: #2b2b2b;
      -fx-control-inner-background: #3c3f41;
@@ -31,10 +38,11 @@
      -fx-accent: #3574f0;
    }
    .label { -fx-text-fill: #e0e0e0; }
-   .titled-panel-title { -fx-text-fill: #e0e0e0; }")
+   .titled-panel-title { -fx-text-fill: #e0e0e0; }"))
 
 (def ^:private light-css
-  ".root {
+  (str ".root {
+     " no-focus-frame "
      -fx-base: #ececec;
      -fx-background: #f4f4f4;
      -fx-control-inner-background: #ffffff;
@@ -42,7 +50,7 @@
      -fx-text-base-color: #202020;
      -fx-accent: #2f6fed;
    }
-   .label { -fx-text-fill: #202020; }")
+   .label { -fx-text-fill: #202020; }"))
 
 (def ^:private stylesheets
   {:dark (css->data-uri dark-css)

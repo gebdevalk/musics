@@ -220,21 +220,23 @@
                         :max hi
                         :value value
                         :show-label? show-labels?
-                        :on-change {:event/type :set-param :id id :key key}))}
+                        :on-change {:event/type :set-param :id id :key key}
+                        :on-reset {:event/type :reset-param :id id :key key}))}
         (ui/button {:text "z" :tooltip "zoom in" :on-action {:event/type :zoom :id id :key key}})
         (ui/button {:text "Z" :tooltip "zoom out" :on-action {:event/type :zoom-out :id id :key key}})]})))
 
 (defn- choice-control
-  "A combo-specs control: a switch (a toggle between its two names), or
-   a dropdown, editable where a value can be typed (the meter)."
-  [id key {:keys [label lookup items switch editable?]} value show-labels?]
+  "A combo-specs control: a switch (a toggle between its two names, its
+   text the current one), or a dropdown, editable where a value can be typed (the meter)."
+  [id key {:keys [lookup items switch editable?] :as spec} value show-labels? & [{:keys [label-width pref-width] :as opts}]]
+  (let [label (or (:label opts) (:label spec))]
   (if switch
     (ui/button-row
       {:children
        (cond-> []
-         show-labels? (conj (ui/label {:text label}))
+         show-labels? (conj {:fx/type :label :text label :min-width 90})
          true (conj (ui/toggle-button
-                      {:text (str switch " " (str/lower-case label))
+                      {:text (str (if (= value switch) switch "implicit") " " (str/lower-case label))
                        :selected? (= value switch)
                        :on-action {:event/type :set-combo :id id :key key
                                    :value (if (= value switch) (first items) switch)}})))})
@@ -244,21 +246,49 @@
        :value value
        :editable? editable?
        :show-label? show-labels?
-       :on-change {:event/type :set-combo :id id :key key}})))
+       :label-width label-width
+       :pref-width (or pref-width 150)
+       :on-change {:event/type :set-combo :id id :key key}}))))
+
+(defn- control-row
+  "One control of id: a slider, or a dropdown/switch."
+  [id k {:keys [params combos zoom show-labels?]} & [opts]]
+  (if-let [spec (get state/param-specs k)]
+    (zoomable-slider id k spec (get params k 0.0) (get zoom k) show-labels?)
+    (choice-control id k (get state/combo-specs k) (get combos k) show-labels? opts)))
+
+(defn- controls-line
+  "Several controls on one line, [\"Name\"? key ...]: the first control's
+   label (Name, when given, in place of its own) is 90 wide, as a
+   slider's is, so its dropdown starts where a Meter dropdown does. The
+   other labels are as short as they are, set off by a wider gap, and the
+   dropdowns narrower."
+  [id items entry]
+  (let [[name ks] (if (string? (first items)) [(first items) (rest items)] [nil items])]
+    (ui/button-row
+      {:children
+       (vec (map-indexed (fn [i k]
+                           (cond-> (control-row id k entry
+                                                (cond-> {:label-width (if (zero? i) 90 0)
+                                                         :pref-width 150}
+                                                  (and name (zero? i)) (assoc :label name)))
+                             ;; the gap before a further control
+                             (pos? i) (assoc :padding {:left 18})))
+                         ks))})))
 
 (defn- param-rows
   "Empty when collapsed? (the 'S' show/hide control) -- otherwise id's
    controls by importance (musics.gui.state/control-groups), a heading
    over each group, honoring show-labels? (the 'L' control) throughout."
-  [id {:keys [params combos zoom collapsed? show-labels?]}]
+  [id {:keys [collapsed?] :as entry}]
   (if collapsed?
     []
-    (vec (for [[heading ks] state/control-groups
+    (vec (for [[heading items] state/control-groups
                row (cons (ui/label {:text heading :style "-fx-font-weight: bold; -fx-padding: 6 0 0 0;"})
-                         (for [k ks]
-                           (if-let [spec (get state/param-specs k)]
-                             (zoomable-slider id k spec (get params k 0.0) (get zoom k) show-labels?)
-                             (choice-control id k (get state/combo-specs k) (get combos k) show-labels?))))]
+                         (for [item items]
+                           (if (vector? item)
+                             (controls-line id item entry)
+                             (control-row id item entry))))]
            row))))
 
 (defn- hot-toggle
@@ -271,21 +301,19 @@
      :on-action {:event/type :toggle-hot :id id}}))
 
 (defn- group-controls
-  "The U/S/L row for a container window, ported from the original
+  "The HOT/U/L row for a container window, ported from the original
    JavaFX GUI's per-voice-array controls but reinterpreted for this
    app's :PAR-shaped tree (see musics.gui.state's own docstring): U gangs
    id's slider/combo writes onto every other unified? watched id
-   sharing that key, S collapses id's own body, L hides id's own
-   labels. hot-toggle rides along in the same row since all four are
+   sharing that key, L hides id's own
+   labels. hot-toggle rides along in the same row since all three are
    'how does this container's own window behave' controls."
-  [id {:keys [hot? unified? collapsed? show-labels?]}]
+  [id {:keys [hot? unified? show-labels?]}]
   (ui/button-row
     {:children
      [(hot-toggle id hot?)
       (ui/toggle-button {:text "U" :selected? (boolean unified?)
                          :on-action {:event/type :toggle-unified :id id}})
-      (ui/toggle-button {:text "S" :selected? (boolean collapsed?)
-                         :on-action {:event/type :toggle-collapsed :id id}})
       (ui/toggle-button {:text "L" :selected? (not show-labels?)
                          :on-action {:event/type :toggle-labels :id id}})]}))
 
@@ -548,10 +576,9 @@
        :showing (boolean root-open?)
        :title "Musics — Root (session defaults)"
        :width 780
-       ;; 4 slider-rows (~33px each incl. spacing) shorter than a plain
-       ;; fit-everything height -- the scroll pane (see scrollable-
-       ;; param-rows) makes the rest reachable by scrolling instead.
-       :height 350
+       ;; tall enough for most of the groups at once -- the scroll pane
+       ;; (see scrollable-param-rows) makes the rest reachable.
+       :height 760
        :on-close-request {:event/type :close-root}
        :scene
        {:fx/type :scene
@@ -581,7 +608,7 @@
          :title (str "Musics — " (name id) " (" status ")")
          :width 780
          ;; 4 slider-rows shorter -- see root-view's own comment on this.
-         :height 350
+         :height 760
          :on-close-request {:event/type :unwatch :id id}
          :scene
          {:fx/type :scene
@@ -1063,6 +1090,7 @@
 (defn- handle-event
   [{:keys [event/type] :as event}]
   (case type
+    :reset-param    (state/reset-param! (:id event) (:key event))
     :set-param      (state/set-param! (:id event) (:key event) (ui/slider-value event))
     :set-combo      (state/set-combo! (:id event) (:key event) (or (:value event) (:fx/event event)))
     :zoom           (state/zoom! (:id event) (:key event))

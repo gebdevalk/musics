@@ -43,9 +43,12 @@
       (is (str/includes? shown "Meter=7/8@0")))))
 
 (deftest controls-come-by-importance
-  (is (= ["Tempo" "Key" "Meter" "Sound" "Feel" "Playing" "Pitch" "Space"] (map first gs/control-groups)))
-  (is (= [:key-tonic :key-scale :accidentals] (second (second gs/control-groups))) "the accidentals switch last under Key")
-  (is (= (set (concat (keys gs/param-specs) (keys gs/combo-specs))) (set (mapcat second gs/control-groups)))
+  (is (= ["General" "Playing" "Feel"] (map first gs/control-groups)) "Feel last")
+  (is (= [:Tempo ["Key" :key-tonic :key-scale] :Meter :volume :accidentals :panning [:instrument :kit]]
+         (second (first gs/control-groups)))
+      "tonic and scale share a line, instrument and kit another")
+  (is (= (set (concat (keys gs/param-specs) (keys gs/combo-specs)))
+         (set (mapcat #(if (vector? %) (remove string? %) [%]) (mapcat second gs/control-groups))))
       "every slider and dropdown has its place"))
 
 (deftest key-meter-and-accidentals-from-the-panel
@@ -71,3 +74,33 @@
         (is (= :explicit (resolve/ctx-value :p :accidentals 0)))
         (finally (reset! gs/*state saved))))))
 
+
+(deftest a-click-on-a-slider-label-resets-it-to-its-default
+  (with-fresh-session
+    (let [saved @gs/*state]
+      (try
+        (gs/watch! "ROOT")
+        (gs/set-param! :ROOT :Tempo 180.0)
+        (is (= 180.0 (get-in @gs/*state [:watched :ROOT :params :Tempo])))
+        (gs/reset-param! :ROOT :Tempo)
+        (is (= 100.0 (get-in @gs/*state [:watched :ROOT :params :Tempo])) "music-data's tempo default")
+        (finally (reset! gs/*state saved))))))
+
+(deftest zoom-goes-four-steps-in-stops-and-z-walks-back
+  (with-fresh-session
+    (let [saved @gs/*state
+          zoom #(get-in @gs/*state [:watched :ROOT :zoom :Tempo])
+          span #(let [z (zoom)] (when z (- (:max z) (:min z))))]
+      (try
+        (gs/watch! "ROOT")
+        (gs/set-param! :ROOT :Tempo 165.0)
+        (dotimes [_ 4] (gs/zoom! :ROOT :Tempo))
+        (let [spans (span)]
+          (is (some? spans) "four steps in")
+          (gs/zoom! :ROOT :Tempo)
+          (is (= spans (span)) "a fifth does not wrap, it stays"))
+        (dotimes [_ 4] (gs/zoom-out! :ROOT :Tempo))
+        (is (nil? (zoom)) "four Z are back at the whole range")
+        (gs/zoom-out! :ROOT :Tempo)
+        (is (nil? (zoom)) "and no further")
+        (finally (reset! gs/*state saved))))))

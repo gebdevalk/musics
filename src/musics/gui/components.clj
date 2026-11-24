@@ -69,10 +69,11 @@
    with :fx/event -> the new double value, fired on every drag tick
    (JavaFX :on-value-changed), not just on release. show-label?
    (default true) omits every text label when false, leaving just the
-   bare slider -- the 'L' toggle's own hook. scale :log moves the value
+   bare slider -- the 'L' toggle's own hook. on-reset, an event map, is
+   fired by a click on the label. off, a value, is read out as the word off. scale :log moves the value
    in equal ratios (min must be > 0): the slider runs over log(value),
    its events carry ::log, and slider-value turns them back."
-  [{:keys [label value min max fmt on-change show-label? scale]
+  [{:keys [label value min max fmt on-change on-reset show-label? scale off]
     :or {fmt "%.2f" show-label? true}}]
   (let [log? (= :log scale)
         pos  (if log? #(Math/log (double %)) double)]
@@ -81,8 +82,13 @@
    :alignment :center-left
    :children
    (cond-> []
-     show-label? (conj {:fx/type :label :min-width 90 :text (str label)}
-                        {:fx/type :label :min-width 60 :text (format fmt (double value))}
+     show-label? (conj (cond-> {:fx/type :label :min-width 90 :text (str label)}
+                         on-reset (assoc :on-mouse-clicked on-reset
+                                         :style "-fx-cursor: hand;"
+                                         :tooltip {:fx/type :tooltip :text "click: back to the default"}))
+                        {:fx/type :label :min-width 60
+                         :text (let [shown (format fmt (double value))]
+                                 (if (and off (= shown (format fmt (double off)))) "off" shown))}
                         {:fx/type :label :min-width 50 :text (format fmt (double min))})
      true (conj {:fx/type :slider
                  :min (pos min)
@@ -144,19 +150,20 @@
    show-label? (default true) omits the label when false, same as
    slider's own. editable? lets a value be typed as well as picked
    (on-change gets the typed text when it is committed)."
-  [{:keys [label items value on-change show-label? editable?]
-    :or {show-label? true}}]
+  [{:keys [label items value on-change show-label? editable? label-width pref-width]
+    :or {show-label? true pref-width 200}}]
   {:fx/type :h-box
    :spacing 6
    :alignment :center-left
    :children
    (cond-> []
-     show-label? (conj {:fx/type :label :min-width 90 :text (str label)})
+     show-label? (conj (cond-> {:fx/type :label :text (str label)}
+                         (not= 0 label-width) (assoc :min-width (or label-width 90))))
      true (conj {:fx/type :combo-box
                  :items items
                  :value value
                  :editable (boolean editable?)
-                 :pref-width 200
+                 :pref-width pref-width
                  :on-value-changed on-change}))})
 
 (defn text-field

@@ -32,7 +32,7 @@
    :ratio          {:type :ratio  :min 1/16 :max 16    :default 1   :scale :log :doc "a multiplier; 1 = unchanged"}
    ;; linear
    :pitch          {:type :int    :min 24   :max 119   :default 60  :scale :linear :doc "MIDI pitch, the range musics text writes (octaves 1-8)"}
-   :semitones      {:type :int    :min -60  :max 60    :default 0   :scale :linear :doc "transposition in semitones"}
+   :semitones      {:type :int    :min -36  :max 36    :default 0   :scale :linear :doc "transposition in semitones"}
    :volume         {:type :int :min 0  :max 100 :default 50 :scale :linear :doc "0-100 authoring scale"}
    :panning        {:type :double :min -1.0 :max 1.0   :default 0.0 :scale :linear :doc "left -1 .. right +1"}
    :delay          {:type :double :min 0.0  :max 2.0   :default 0.0 :scale :linear :doc "seconds"}
@@ -47,7 +47,7 @@
    :instrument     {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "MIDI program"}
    :kit            {:type :int    :min 0    :max 127   :default 0   :scale :linear :doc "drum kit: the drum channel's program"}
    :micro          {:type :double :min -0.5 :max 0.5   :default 0.0 :scale :linear :doc "onset offset, seconds"}
-   :octave         {:type :int    :min -4   :max 4     :default 0   :scale :linear :doc "octave shift"}
+   :octave         {:type :int    :min -3   :max 3     :default 0   :scale :linear :doc "octave shift"}
    :quant-strength {:type :double :min 0.0  :max 1.0   :default 1.0 :scale :linear :doc "quantization strength"}
    :swing          {:type :double :min 0.5  :max 0.75  :default 0.5 :scale :linear :doc "the long note's share of a swung pair: 0.5 straight, 0.6 jazz swing, 2/3 a triplet shuffle, 0.75 dotted"}
    :accent-depth   {:type :double :min 0.0  :max 1.0   :default 0.5 :scale :linear :doc "how much !accent: weighs: the weakest note loses, the strongest gains, up to a quarter of its velocity at 1.0"}
