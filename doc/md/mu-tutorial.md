@@ -616,7 +616,7 @@ sits, a ramp followed along the seq:
 [!vol:30< c4 d4 e4 f4 !vol:90] 2 @ :volume setting    → 60
 [!vol:30< c4 d4 e4 f4 !vol:90] 1/2 at :volume setting → 60
 [!T:90 c d] ctx                         → (not stored under :ROOT -- its own context only)
-                                          Tempo=90@0
+                                          !Tempo:90@0
 ```
 
 (`ctx` prints a seq's own settings; a stored name's chain too.) A drum's

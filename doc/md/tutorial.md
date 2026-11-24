@@ -92,7 +92,7 @@ To look at what's stored:
 |---|---|
 | `ids` | every stored part: `(:mel :song :verse)` |
 | `:verse usages` | who uses `:verse`: `#{:ROOT :song}` |
-| `:verse ctx` | its contexts, nearest first: `:verse: volume=60@0` |
+| `:verse ctx` | its contexts, nearest first: `:verse: !volume:60@0` |
 | `:verse R@` | the part itself, onto the stack |
 
 ## Writing music: a short tour

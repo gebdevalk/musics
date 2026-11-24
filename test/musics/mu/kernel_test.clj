@@ -339,7 +339,7 @@
     (is (= (with-out-str (prn (repo/usages :inner))) (out ":inner usages")))
     (is (= (with-out-str (r/ctx :inner)) (out ":inner ctx")))
     (is (= (with-out-str (r/ctx :verse)) (out ":verse R@ ctx")) "fetched material works too"))
-  (is (= ":inner: (empty)\n:verse: Tempo=90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
+  (is (= ":inner: (empty)\n:verse: !Tempo:90@0\n" (out ":inner ctx")) "the enclosing tempo is in the chain")
   (is (re-find #"ctx: needs the name of something stored" (:error (run ":nope ctx"))))
   (is (re-find #"usages: needs the name of something stored" (:error (run "[c d] usages")))))
 
@@ -601,10 +601,10 @@
     (is (re-find #"root" (:error (run ":ROOT forget"))))))
 
 (deftest ctx-takes-a-line-not-stored
-  (is (= "(not stored under :ROOT -- its own context only)\n  Tempo=90@0\n" (out "[!T:90 c d] ctx")) "its own settings, where they begin")
+  (is (= "(not stored under :ROOT -- its own context only)\n  !Tempo:90@0\n" (out "[!T:90 c d] ctx")) "its own settings, where they begin")
   (run "[a: !T:90 c d] R! drop")
-  (is (= ":a: Tempo=90@0\n" (out ":a ctx")) "a stored name, its chain")
-  (is (= ":a: Tempo=90@0\n" (out ":a R@ ctx")) "or the seq fetched with R@")
+  (is (= ":a: !Tempo:90@0\n" (out ":a ctx")) "a stored name, its chain")
+  (is (= ":a: !Tempo:90@0\n" (out ":a R@ ctx")) "or the seq fetched with R@")
   (is (re-find #"something stored" (:error (run "7 ctx"))) "anything else is refused"))
 
 (deftest java-s-first-run-preferences-line-is-quiet

@@ -39,8 +39,8 @@
   (with-fresh-session
     (with-out-str (store/read! "[k: !K:G.major !M:7/8 c4]"))
     (let [shown (with-out-str (resolve/ctx :k))]
-      (is (str/includes? shown "Key=G.major@0"))
-      (is (str/includes? shown "Meter=7/8@0")))))
+      (is (str/includes? shown "!Key:G.major@0"))
+      (is (str/includes? shown "!Meter:7/8@0")))))
 
 (deftest controls-come-by-importance
   (is (= ["General" "Playing" "Feel"] (map first gs/control-groups)) "Feel last")

@@ -599,18 +599,23 @@
         (instance? musics.common.music_elements.Meter v) (el/meter->str v)
         :else                                            (pr-str v)))
 
-(defn- fmt-point [[time [value ip]]]
-  (str (fmt-value value) "@" time (when-not (= ip :fixed) (str "/" (name ip)))))
+(defn- ramp-mark
+  "The mark a point's interpolation is written with: < or > (linear), <s (smooth),
+   <i (ease in), <o (ease out); nothing for a fixed point."
+  [ip]
+  (case ip :lin-up "<" :lin-down ">" :smooth "<s" :ease-in "<i" :ease-out "<o" ""))
 
 (defn- fmt-context
-  "A Context's own envelope points on one line, nil when it has none."
+  "A Context's own points as the instructions that write them, !key:value@time, on one
+   line (a ramp !key:value<@time); nil when it has none."
   [ctx]
   (let [envs @(:envelopes-atom ctx)]
     (when (seq envs)
       (apply str
              (interpose "  "
-               (for [[k env] (sort-by key envs)]
-                 (str k "=" (apply str (interpose ", " (map fmt-point @(:points-atom env)))))))))))
+               (for [[k env] (sort-by key envs)
+                     [time [value ip]] @(:points-atom env)]
+                 (str "!" k ":" (fmt-value value) (ramp-mark ip) "@" time)))))))
 
 (defn ctx
   "Print a stored part's context chain: each ancestor's own authored
