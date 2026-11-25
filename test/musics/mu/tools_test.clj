@@ -84,7 +84,7 @@
 
 (deftest bar-lines-through-the-tools
   (is (= "[C4/4 D4 E4]" (top "( [c d | e] '( ) each )")) "elements are notes: the bar is not one")
-  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the seq whole"))
+  (is (= "repeat 2 [3:1[C4/4 D4] |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the seq whole"))
 
 (deftest times-and-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 times")) "3 times is the text's repeat 3 [a b]")
@@ -113,7 +113,7 @@
   (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 times [c] volta '( retrograde ) vary"))
       "every pass the quotation of the body as written, each followed by its ending")
   (is (= "[[!K:D.major B3/4 C#4] [!K:D.major B3 C#4] [!K:D.major B3 C#4]]" (top "[a b] 3 times '( 2 + ) vary")) "no endings")
-  (is (= "[[3:1(A3/4 B3)] [C4] [3:1(A3 B3)] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
+  (is (= "[[3:1[A3/4 B3]] [C4] [3:1[A3 B3]] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
       "* too: each pass scaled, the endings not")
   (let [shown (top "[a b] 2 times [c] volta '( 1/3 * ) vary")]
     (is (= shown (top shown)) "reads back the same"))

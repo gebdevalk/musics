@@ -138,7 +138,7 @@
   (testing "delay: a rest of any rational length in front"
     (is (= "[r4 C4 D4]" (run "[c d] 1/4 delay")) "a duration is written where it changes")
     (is (= "[r4. C4/4 D4]" (run "[c d] 3/8 delay")) "a dotted value")
-    (is (= "[3:1(r1) C4/4 D4]" (run "[c d] 1/3 delay")) "a length that is no note value, as a tuplet")
+    (is (= "[3:1[r1] C4/4 D4]" (run "[c d] 1/3 delay")) "a length that is no note value, as a tuplet")
     (is (= "[!mf r4 C4 D4]" (run "[!mf c d] 1/4 delay")) "the seq's own settings stay first")
     (is (= "[r4 C4]" (run "c 1/4 delay")) "a note becomes a seq")
     (is (= 3/4 (mu "[c d] 1/4 delay duration")))
@@ -150,7 +150,7 @@
     (is (thrown-with-msg? Exception #"needs a seq" (e/run-text [] "7 1/4 delay"))))
   (testing "delays: the parts of a { }"
     (is (= "{[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}" (run "{[c d] [c d] [c d]} 1/4 delays")) "part k by k times the step")
-    (is (= "{[C4/4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d]} '[0/1 1/3] delays")) "a list: each its own, 0 leaves one alone")
+    (is (= "{[C4/4 D4] [3:1[r1] C4/4 D4]}" (run "{[c d] [c d]} '[0/1 1/3] delays")) "a list: each its own, 0 leaves one alone")
     (is (= "{[C4/4 D4] [C4 D4]}" (run "{[c d] [c d]} 0 delays")) "a step of 0 changes nothing")
     (is (= 1 (mu "{[c d] [c d] [c d]} 1/4 delays duration")) "a parallel ends with its longest part: 1/2 + 2 * 1/4")
     (is (thrown-with-msg? Exception #"one delay for each of the 2 parts, got 3" (e/run-text [] "{[c d] [c d]} '[0/1 1/4 1/2] delays")))
@@ -235,7 +235,7 @@
 (deftest a-whole-number-among-ratios-is-a-list-of-ratios
   (is (= "'[0 1/4 1/3]" (run "'[0 1/4 1/3]")) "read, and printed as it reads")
   (is (= "'[1 0 1/3]" (run "'[1 0 1/3]")))
-  (is (= "{[C4/4 D4] [r C4 D4] [3:1(r1) C4/4 D4]}" (run "{[c d] [c d] [c d]} '[0 1/4 1/3] delays")) "delays takes it as it is")
+  (is (= "{[C4/4 D4] [r C4 D4] [3:1[r1] C4/4 D4]}" (run "{[c d] [c d] [c d]} '[0 1/4 1/3] delays")) "delays takes it as it is")
   (is (= "'[1/3 0 1/4]" (run "'[1/3 0 1/4]")) "whole numbers anywhere in it")
   (is (thrown-with-msg? Exception #"mixes" (e/run-text [] "'[1 0.5]")) "an int and a float are still two kinds"))
 
@@ -313,7 +313,7 @@
     (is (= "'[1 1]" (run "[<c e g>4 d4] pulses")))
     (is (= "'[1 0 1]" (run "[c4~ c4 d4] pulses")) "tied: the second note only holds"))
   (testing "a triplet needs a twelfth"
-    (is (= "'[1 1 1]" (run "3:2( c8 d e ) pulses"))))
+    (is (= "'[1 1 1]" (run "3:2[ c8 d e ] pulses"))))
   (testing "a pulse on top is the grid, rounding to whole pulses"
     (is (= "'[1 0 0 0 1 0]" (run "[c4 d8] 1/16 pulses")))
     (is (= "'[1 0 1 0]" (run "[c4 d4] 1/8 pulses")))

@@ -97,7 +97,7 @@
 
 (deftest a-tuplet-scales-a-group-inside-it
   (with-fresh-session
-    (let [[tree s] (seq-of "[ 3:2( c8 ( d e ) ) ]")]
+    (let [[tree s] (seq-of "[ 3:2[ c8 ( d e ) ] ]")]
       (is (= 1/12 (d/duration tree (first (:children s))))))))
 
 (deftest a-group-prints-and-reads-back

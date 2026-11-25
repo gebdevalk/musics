@@ -63,7 +63,7 @@
 
 (def ^:private seqs
   ["[c4 d e]" "[c4 r d8 e]" "[c4 <e g> d]" "[c4 d | e f || g]" "[c4~ c d]" "[x4\\38 x x\\36 r]"
-   "[c4 d $ e DS f]" "[3:2(c8 d e) f]" "[c4\\vol:90 d-> e8.]" "[c d e f g a b]" "[!mf c4 d]"])
+   "[c4 d $ e DS f]" "[3:2[c8 d e] f]" "[c4\\vol:90 d-> e8.]" "[c d e f g a b]" "[!mf c4 d]"])
 
 (deftest line-of-leaves-is-built-without-text
   (doseq [text seqs]

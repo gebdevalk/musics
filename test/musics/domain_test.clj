@@ -415,5 +415,5 @@
   (is (thrown? clojure.lang.ExceptionInfo (walk "[repeat volta 2 [c4 d]]")) "volta names the endings only"))
 
 (deftest a-tuplet-count-is-written-with-a-colon
-  (is (= [1/12 1/12 1/12] (map :duration (filter :pitches (:children (get (:tree (walk "[t: 3:2( c8 d e )]")) :t))))))
+  (is (= [1/12 1/12 1/12] (map :duration (filter :pitches (:children (get (:tree (walk "[t: 3:2[ c8 d e ]]")) :t))))))
   (is (thrown? clojure.lang.ExceptionInfo (walk "[3/2 ( c8 d e )]")) "a fraction is a factor, never a count"))

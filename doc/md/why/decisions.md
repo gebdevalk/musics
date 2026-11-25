@@ -3920,3 +3920,10 @@ to the group.
 Removed: the one-time `shuffle ( )` and `rotate n ( )` (mu's `shuffle` and `rotate` do it on a value; the
 stored `shuffle [ ]`, `rotate n [ ]` remain) and the letters `R`, `I`, `RI`, `M` (`R [ … ]` is a rest followed by a seq, and one letter
 not allowed made the others odd): write `retrograde`, `inversion`, `retrograde-inversion`, `mirror`.
+
+## 2026-11-25 -- the tuplet is written `3:2[ c8 d e ]`
+
+With `transpose` and the row forms on `[ ]`, the tuplet was the one command left with a `( )` body (`Scope`).
+It takes the same `OpBody` now, so every command that changes a part of a line has a `[ ]` body, `Scope` is
+gone, and `( )` in the notation is the group `[a ( d e ) f]`, the slur glued onto a note, and `!name:( … )`.
+Printing writes it back the same way: `[3:2[C4/8 D4 E4]]`. The LilyPond importer emits `n:m[ … ]`.

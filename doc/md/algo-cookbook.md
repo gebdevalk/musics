@@ -166,7 +166,7 @@ Every generator of `musics/algo/` is a function you can call.
 
 ```
 mu> 16 pattern/fibonacci 1/16 bridge/pulses->durations '[60 62 64 65 67 69 71] zip
-[C4/16 D4 E4 F4/8 G4/8. 16:5(A4/1) B4/8.]
+[C4/16 D4 E4 F4/8 G4/8. 16:5[A4/1] B4/8.]
 ```
 
 #### 9. A Xenakis sieve as the rhythm
@@ -430,7 +430,7 @@ mu> 5 :modulus T! 2 :multiplier T! 15 :span T! 0 :offset T!
 mu> '( :modulus :multiplier :span :offset pattern/modular :pulse bridge/pulses->durations penta zip ) :modular T!
 
 mu> :modular T@@
-[16:5(C4/1 D4 E4)]
+[16:5[C4/1 D4 E4]]
 ```
 
 ### Random sources
@@ -639,7 +639,7 @@ mu> 8 :onsets T! 8 :pulses T! 0.67 :swing_ratio T! 2 :subdivision T! 1/4 :unit T
 mu> '( :onsets :pulses pattern/euclid :swing_ratio :subdivision feel/swing :unit :quantum bridge/onsets->durations penta zip ) :swing T!
 
 mu> :swing T@@
-[32:5(C4/1) D4/16. 32:5(E4/1) G4/16. 32:5(A4/1) C4/16. 32:5(D4/1)]
+[32:5[C4/1] D4/16. 32:5[E4/1] G4/16. 32:5[A4/1] C4/16. 32:5[D4/1]]
 ```
 
 #### 42. A bouncing ball, in seconds
@@ -652,7 +652,7 @@ mu> 1.0 :initial_height T! 0.8 :restitution T! 9.8 :gravity T! 5.0 :duration T! 
 mu> '( :initial_height :restitution :gravity :duration nature/bounce :unit :quantum bridge/onsets->durations '[72 67] zip ) :bounce T!
 
 mu> :bounce T@@
-[C5/16.. G4/16. 64:5(C5/1) G4/16 C5/32. G4/32 C5 G4 C5/64 G4 C5 G4]
+[C5/16.. G4/16. 64:5[C5/1] G4/16 C5/32. G4/32 C5 G4 C5/64 G4 C5 G4]
 ```
 
 #### 43. Tuplet-like durations by repeated splitting
@@ -665,7 +665,7 @@ mu> 1 :duration T! 5 :depth T! 2/3 :ratio T!
 mu> '( :duration :depth :ratio decompose/split penta zip ) :split T!
 
 mu> :split T@@
-[3:2(C4/1) 9:2(D4) 27:2(E4) 81:2(G4) 81:1(A4)]
+[3:2[C4/1] 9:2[D4] 27:2[E4] 81:2[G4] 81:1[A4]]
 ```
 
 #### 44. Text as rhythm

@@ -124,7 +124,7 @@ ONE element: it moves, its notes keep their order. Pitch words (`transpose`,
 seq gives (`builder/deep`: leaf-f reaches in, order-f does not). `print/show` writes it back as
 `( … )` and `read-text` reads such text as the one element of a seq; and
 `Scope`,
-the transient body of a tuplet (`3:2( c8 d e )`), and `OpBody`, the `[ ]` body of `transpose` and the
+the transient body of a tuplet (`3:2[ c8 d e ]`), and `OpBody`, the `[ ]` body of `transpose` and the
 row forms (`transpose c g [ c4 d4 e4 ]`) — never a container of its own, always
 spliced/stashed at pop time. (`StructValue`'s own unrelated `( )`, a
 parenthesized `Value` after `!name:`, is a third, textually-distinct

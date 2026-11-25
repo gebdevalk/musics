@@ -1470,8 +1470,8 @@
 
           (contains? #{"times" "tuplet"} cmd)
           ;; \tuplet N/D { ... } (N in the time of D) is our own group,
-          ;; N:D( ... ); \times N/D (the notes take N/D of their time)
-          ;; is its reciprocal, D:N( ... ). \tuplet also accepts an
+          ;; N:D[ ... ]; \times N/D (the notes take N/D of their time)
+          ;; is its reciprocal, D:N[ ... ]. \tuplet also accepts an
           ;; optional unit-duration arg between the fraction and the body
           ;; (\tuplet 3/2 8 { ... }) -- a bracket-grouping display hint
           ;; in LilyPond with no equivalent of our own, skipped.
@@ -1483,7 +1483,7 @@
                 inner      (emit-stream (second body-tok) vars relative?)]
             (recur (drop consumed more)
                    (if (has-content? inner)
-                     (conj out (str n ":" m "( " inner " )"))
+                     (conj out (str n ":" m "[ " inner " ]"))
                      out)))
 
           (= cmd "repeat")
@@ -1569,9 +1569,8 @@
                               :else nil))]
             (recur remaining (conj out (str cmd " " (as-text g1) " " (as-text g2)))))
 
-          ;; transpose's own body is Scope now, ( ... ), not Sequence's
-          ;; [ ] -- \transpose from to ( ... ), a backslash command, see
-          ;; musics.ebnf's own header comment.
+          ;; transpose's own body is an OpBody, [ ... ] -- \transpose
+          ;; from to [ ... ], see musics.ebnf's own header comment.
           (= cmd "transpose")
           (let [from-tok (transpose-pitch (first more))
                 to-tok   (transpose-pitch (second more))
@@ -1835,7 +1834,7 @@
    ever emits (emit-stream/emit-voice) is already surrounded by spaces
    in the source string, by construction, never glued onto an adjacent
    token -- this converter only ever emits a bare '(' for transpose's
-   own Scope now (repeat/alternative/grace all dropped their own
+   own body now (repeat/alternative/grace all dropped their own
    former ( )-wrapping entirely, see emit-stream's own command
    branches), so a bare ')' token here is unambiguously transpose's,
    nothing else -- same indent-tracking treatment as any other bracket

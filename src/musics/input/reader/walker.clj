@@ -24,7 +24,7 @@
    command's own leading keyword text directly (grace is the one
    exception -- five near-identical shapes share one rule, so ITS own
    keyword text is the only way to tell them apart, see walk-grace) --
-   only find-child lookups by tag (from-pitch/to-pitch/Scope) --
+   only find-child lookups by tag (from-pitch/to-pitch/OpBody) --
    confirmed live, not assumed, when this file was written."
   (:require [musics.domain.context :as c]
             [musics.domain :as d]
@@ -54,7 +54,7 @@
             n    (Integer/parseInt (apply str (remove #{\.} s)))]
         (when-not (= 1 (Integer/bitCount n))
           (throw (ex-info (str "/" n " is no note value: a note value is 1, 2, 4, 8, 16, ... -- "
-                               "a tuplet is written as one, 3:2( c8 d e ) for three in the time of two")
+                               "a tuplet is written as one, 3:2[ c8 d e ] for three in the time of two")
                           {:duration s})))
         (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots))))))))
 
@@ -1431,7 +1431,7 @@
 ;; ============================================================
 ;; transpose/reverse never read a command's own leading keyword text --
 ;; only find-child lookups by tag -- so neither cares whether the
-;; source spelled a Scope's own body with a nested Sequence/Reference/
+;; source spelled an OpBody's own body with a nested Sequence/Reference/
 ;; leaf run.
 
 (defn- walk-shuffle
@@ -1497,13 +1497,13 @@
   (marked-line state children :alternate))
 
 (defn- walk-tuplet
-  "n:m( ... ) -- n notes in the time of m: every note inside, at any
+  "n:m[ ... ] -- n notes in the time of m: every note inside, at any
    depth of tuplets, plays at m/n of its written value (and keeps the
    factor as :ratio, see tag-ratio, so it prints back as a tuplet). The
    body is spliced into the parent like reverse's."
   [state children]
   (let [[n m]  (map #(Long/parseLong %) (str/split (second (find-child children :TupletCount)) #":"))
-        scope  (find-child children :Scope)
+        scope  (find-child children :OpBody)
         outer  @(:tuplet state)]
     (when (or (zero? n) (zero? m)) (throw (ex-info (str n ":" m " is no tuplet") {:tuplet [n m]})))
     (reset! (:tuplet state) (* outer (/ m n)))

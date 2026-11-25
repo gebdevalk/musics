@@ -301,9 +301,9 @@ part its own delay, one for each part:
 ```
 [c d] 1/4 delay                         → [r4 C4 D4]
 [c d] 3/8 delay                         → [r4. C4/4 D4]
-[c d] 1/3 delay                         → [3:1(r1) C4/4 D4]
+[c d] 1/3 delay                         → [3:1[r1] C4/4 D4]
 {[c d] [c d] [c d]} 1/4 delays          → {[C4/4 D4] [r C4 D4] [r2 C4/4 D4]}
-{[c d] [c d]} '[0 1/3] delays           → {[C4/4 D4] [3:1(r1) C4/4 D4]}
+{[c d] [c d]} '[0 1/3] delays           → {[C4/4 D4] [3:1[r1] C4/4 D4]}
 ```
 
 The delay is a rest in the music, so `duration`, `bar` and `at` see it, and
@@ -384,7 +384,7 @@ plays C♯ and `f` F♯ in D major.
 ```
 [c d e] 2 *                       → [C4/2 D4 E4]
 [c d e] 1/2 *                     → [C4/8 D4 E4]
-[c d e] 3 /                       → [3:1(C4/4 D4 E4)]
+[c d e] 3 /                       → [3:1[C4/4 D4 E4]]
 [c2 d2 e2] [||]                   → [C4/2 D4 | E4]
 [!Meter:3/4 c2 d4 e2 f4] [||]      → [!Meter:3/4 C4/2 D4/4 | E4/2 F4/4]
 [!Meter:3/4 c2 d2 e2] [||]         → [!Meter:3/4 C4/2 D4/4~ | D4 E4/2]

@@ -92,15 +92,15 @@
 
 (defn- show-children
   "A container's children as text; consecutive notes whose length is no
-   note value, sharing a tuplet factor, as one tuplet, 3:2(C4/8 D4 E4).
+   note value, sharing a tuplet factor, as one tuplet, 3:2[C4/8 D4 E4].
    Eager, run by run, so durations are written in reading order."
   [repo node]
   (str/join " "
             (into [] (mapcat (fn [run]
                                (if-let [f (tuplet-of (first run))]
-                                 [(str (lp/tuplet-count f) "("
+                                 [(str (lp/tuplet-count f) "["
                                        (str/join " " (mapv #(leaf-text (assoc % :duration (/ (rationalize (:duration %)) f) :ratio nil)) run))
-                                       ")")]
+                                       "]")]
                                  (into [] (keep (fn [k] (if (committed? repo k)
                                                           (str k)
                                                           (show-node repo (if (keyword? k) (get repo k) k)))))
