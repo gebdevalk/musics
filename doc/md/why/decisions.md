@@ -3861,3 +3861,13 @@ thing, with two names that can differ (`'five 9 :=` left the word `five` at 7 an
 voice's input is read through. The unknown-word message for the old names says what to write
 (`musics.mu.suggest/renamed`). A saved session writes a variable as `3 variable v` and a binding as
 `'five 7 :=` as before; nothing in the docs, the corpus or `mus/` used `value`, one test did.
+
+## 2026-11-25 -- `[: … :]` and `[:]` are no more: a repeat is written `repeat 2 [ … ]`
+
+`[: c d :]` was `repeat 2 [c d]` in repeat signs: the same Iterator, marked `:bars` so the printers
+wrote it back that way, and the word `[:]` (`repeats`) made one from a seq. Two spellings of one
+thing, a rule (`RepeatBars`), a walker branch, a mark carried through `repeat-parts`, `repetition`,
+`with-endings` and three printers, and a word whose only job was the mark. Removed; a repeat is
+`repeat 2 [ … ]`, or `2 times` on the stack, and prints as `repeat 2 [ … ]`. A repeat with endings
+is `repeat 2 [ … ] volta [ … ]`, as before. Nothing in the docs' examples, the corpus or `mus/` wrote
+repeat signs; tests converted.

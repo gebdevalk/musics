@@ -240,33 +240,28 @@
 
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
-   or [: … :] when bars), as a value; type is nil or \"tremolo\"."
-  ([type n body alt] (read-repeat type n body alt false))
-  ([type n body alt bars]
-   (let [b (p/show body)]
-     (first (elements (read-text (str "[" (if bars
-                                            (str "[: " (subs b 1 (dec (count b))) " :]")
-                                            (str "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b))
-                                      (when alt (str " volta " (p/show alt))) "]")))))))
+   ), as a value; type is nil or \"tremolo\"."
+  [type n body alt]
+  (let [b (p/show body)]
+    (first (elements (read-text (str "[" "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b
+                                     (when alt (str " volta " (p/show alt))) "]"))))))
 
 (defn repeat-parts
   "A repeat's type, count, body and alternative, the last two as values."
   [rep]
   (let [{:keys [repo base]} rep
         it (v/node rep)
-        {n :count alt :alternative bars :bars} (:params it)]
+        {n :count alt :alternative} (:params it)]
     [(when (= :TREMOLO (:type it)) "tremolo") n
-     (node-value repo base (:source it)) (some->> alt (node-value repo base)) bars]))
+     (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
 
 (defn repetition
   "x played n times, as the text's repeat n [ x ]: one repeat,
    with endings (seqs) as its alternative -- one ending as itself,
    several as volta [[e1] [e2]], LilyPond's grouping."
-  ([x n endings] (repetition x n endings false))
-  ([x n endings bars]
-   (read-repeat nil n (as-line x)
-                (case (count endings) 0 nil 1 (first endings) (line endings))
-                bars)))
+  [x n endings]
+  (read-repeat nil n (as-line x)
+               (case (count endings) 0 nil 1 (first endings) (line endings))))
 
 (defn- endings-of
   "A repeat's endings as values, grouped as d/volta-endings groups them."
@@ -301,11 +296,11 @@
   (= :infinite (second (repeat-of x))))
 
 (defn like-repeat
-  "x repeated as rep is: a repeat of music keeps its kind (tremolo,
-   [: :]) and count, a repeated stream its count."
+  "x repeated as rep is: a repeat of music keeps its kind (tremolo)
+   and count, a repeated stream its count."
   [rep x]
   (if (repetition? rep)
-    (let [[t n _ _ bars] (repeat-parts rep)] (read-repeat t n (as-line x) nil bars))
+    (let [[t n] (repeat-parts rep)] (read-repeat t n (as-line x) nil))
     (repeated x (second (repeat-of rep)))))
 
 (defn played-leaves
@@ -322,11 +317,11 @@
   "rep, a repeat with no endings yet, with endings (seqs) after its
    passes."
   [rep endings]
-  (let [[t n body alt bars] (repeat-parts rep)]
+  (let [[t n body alt] (repeat-parts rep)]
     (when (= t "tremolo") (e/mu-error "volta: a tremolo takes no endings"))
     (when alt (e/mu-error "volta: the repeat has its endings already"))
     (when (= n :infinite) (e/mu-error "volta: an endless repeat has no endings"))
-    (repetition body n endings bars)))
+    (repetition body n endings)))
 
 (defn passes
   "rep written out as a seq of its passes: pass i is (f i body), body

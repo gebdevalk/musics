@@ -76,7 +76,7 @@
 
 (def ^:private leaf-tags #{:Note :Chord :ChordSymbol :Rest :Drum :MultiRest})
 (def ^:private literal-tags
-  (into leaf-tags #{:Sequence :Parallel :Context  :Data :repeat :RepeatBars :tuplet :shuffle :rotate :choose :alternate}))
+  (into leaf-tags #{:Sequence :Parallel :Context  :Data :repeat :tuplet :shuffle :rotate :choose :alternate}))
 
 (defn literal?
   "Is this parse node a musical literal (a leaf or a composite)?"
@@ -132,7 +132,7 @@
                           (leaf-node? node) (first (:children (get tree id)))
                           ;; a repeat is read inside a seq of its own;
                           ;; its value is the repeat, held inline there
-                          (#{:repeat :RepeatBars} (first node))
+                          (#{:repeat} (first node))
                           (let [it (first (:children (get tree id)))]
                             (assoc (->Material (:id it) (assoc tree (:id it) it)) :base repo))
                           :else (assoc (->Material id tree) :base repo)))

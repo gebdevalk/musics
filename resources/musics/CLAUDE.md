@@ -83,7 +83,6 @@ again):
 | `{ }`     | `Parallel`    | simultaneous parts (GUIDO's own bracket for this) — can carry an `Id` exactly like `Sequence` can, so a parallel group is individually addressable the same way |
 | `^{ }`    | `Context`     | named context/envelope definition — a genuine Clojure map-literal echo, a Context being a bag of key/value settings; the leading `^` sets it apart from Parallel's plain `{ }` |
 | `'[ ]`    | `Data`        | data container (`nil` no value, a `'[ ]` inside a list, `'[ ] [~]` a list that loops, `./.` idem -- the value before once more, expanded when read -- a `:keyword` beside any value) |
-| `[: :]`   | `RepeatBars`  | a sequence played twice, `repeat 2 [ ]` |
 
 **Notes in a data list** are of three spellings: lowercase is relative (`'[c d e]`
 is 60 62 64, the pitch before it deciding the octave), a capital with an octave is
@@ -208,9 +207,7 @@ seqs and jumps keep their places (`musics.compose/play-order`, used by
 shared rng's seed, which `N rng/seed` sets, mixed with the voice's path), is the same every time it
 is asked, so a seed repeats a piece, a restart plays it again, and one voice's draws do not move
 another's. `choose [ ]` picks the same way. mu's `[?]` makes one.
-`[: … :]` (`RepeatBars`) is `repeat 2 [ … ]` in repeat signs,
-an Iterator marked `:bars` so the printers write it back that way;
-a `volta [ … ]` (its endings) follows it as it follows `repeat`. `Jump` marks,
+A `volta [ … ]` (its endings) follows a `repeat`. `Jump` marks,
 written inside a sequence, are zero-duration nodes (`d/jump`): `$` the
 segno, `DS`/`DC` the jump back to it or to that sequence's start,
 `Fine` where the return pass stops, `Coda` twice (the return pass
@@ -220,7 +217,7 @@ jump without taking it again. `musics.domain/play-segments` gives a
 sequence's children in the order they play (index ranges), and
 throws, at read time, on marks that can't be played; `d/duration`,
 `musics.events` and `display-timed` follow it, a return pass
-re-entering the sequence's context where it is written. A `[: :]`
+re-entering the sequence's context where it is written. A `repeat`
 inside the part jumped back to repeats again. While reading, positions
 are measured as written (`d/written-duration`).
 

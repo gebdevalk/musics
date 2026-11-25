@@ -503,7 +503,6 @@ groups of three, `232` as six groups of two.
 | Word | Stack | Does |
 |---|---|---|
 | `times` or `[*]` | `( x n -- repeat )` | played n times, as the text's `repeat n [ x ]` and LilyPond's |
-| `[:]` or `repeats` | `( x -- [: x :] )` | in repeat signs: played twice |
 | `[~]` or `cycle` | `( x -- loop )` | endlessly; data or a stream as an endless stream, printed `'[1 2] [~]` |
 | `[?]` or `shuffling` | `( x -- x )` | shuffled as it plays: a new order each time, so each pass of a repeat |
 | `rotating` | `( x n -- x )` | rotated n places further each time it plays |
@@ -533,8 +532,7 @@ The number is how often it plays: `3 times` plays three times, as
 [c d] 3 times                                → repeat 3 [C4/4 D4]
 [a b c d] 2 times [c2 b a] [a4] volta        → repeat 2 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]
 [c d] 3 times '( ) '( 12 + ) '( [R] ) vary   → [[C4/4 D4] [C5 D5] [D4 C4]]
-[c d] [:]                                    → [: C4/4 D4 :]
-[c d] [:] [!]                                → [[C4/4 D4] [C4 D4]]
+[c d] 2 times [!]                            → [[C4/4 D4] [C4 D4]]
 [c d] cycle 5 take                           → [C4/4 D4 C4 D4 C4]
 [c d e f] [?] [~]                            → repeat ~ [shuffle [C4/4 D4 E4 F4]]   a new order every pass
 ```
@@ -1338,7 +1336,6 @@ c4 '[0 40 73] sounds audition
 | `{+}` | `( a b -- parallel )` |
 | `[!]` `unfold` | `( x -- seq )` |
 | `[M]` `mirror`, `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion` | `( x -- x )` |
-| `[:]` `repeats` | `( x -- [: x :] )` |
 | `[\|\|]` `barred`, `[[]]` `measures` | `( x -- seq )` |
 | `[~]` `cycle` | `( x -- loop )` |
 | `[*]` `times` | `( x n -- repeat )` |

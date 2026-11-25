@@ -21,7 +21,6 @@
                              settings; the leading ^ sets it apart from
                              Parallel's plain { }
      '[ ]     Data         data container
-     [: :]    RepeatBars   a sequence played twice (repeat 2 [ ])
      ( )      Grouping     notes grouped inside a sequence: inline, no Id,
                              its own instructions apply to it alone
      ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( );
@@ -273,11 +272,6 @@ count        = Int | '~'   (* ~ endless: repeat ~ [ ... ] *)
    what the walker and the Iterator's :alternative field call them. *)
 alternative  = <'volta'> ws Sequence
 
-(* [: ... :] -- a sequence played twice, repeat 2 [ ... ] in
-   repeat signs; the colons need whitespace inside them, which tells
-   [: from [:name. *)
-RepeatBars   = <'[:'> ws (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws <':]'> (ws alternative)?
-
 (* Grace Notes -- five forms, each taking two bare Elements (no
    wrapping bracket at all), order differing by keyword:
      grace/acciaccatura/appoggiatura/slashedGrace  -- grace-note main-note
@@ -316,7 +310,7 @@ alternate  = <'alternate'> ws Sequence
 rotate     = <'rotate'> ws SignedInt ws Sequence
 rotate-now = <'rotate'> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | RepeatBars | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
+<Command> = transpose | repeat | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* \name: the music bound to name (mu's 'name value :=), spliced in. *)

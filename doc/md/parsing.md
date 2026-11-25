@@ -298,7 +298,7 @@ repeat 2 [c4 d] volta [e2]
 repeat 3 [c4 d] volta [[e2] [f2]]  // several endings
 repeat tremolo 4 [c16 d]                     // measured tremolo
 repeat ~ [c4 d]                              // endlessly
-[: c4 d :] volta [[e2] [f2]]                 // repeat signs: repeat 2 [c4 d]
+repeat 2 [c4 d] volta [[e2] [f2]]            // with endings
 [c4 $ d e DS f]                              // plays c d e d e f
 [c4 d Fine e DC]                             // plays c d e c d
 [c4 Coda d e DC Coda f]                      // plays c d e c f
@@ -317,8 +317,7 @@ repeat ~ [c4 d]                              // endlessly
   ones before, the earliest passes sharing the first. One ending
   follows every pass; several are written one bracket each inside the
   volta's, `volta [[e2] [f2]]`.
-- `repeat ~` repeats endlessly and takes no `volta`. `[: … :]` is
-  `repeat 2 [ … ]` written in repeat signs, and prints back that way.
+- `repeat ~` repeats endlessly and takes no `volta`.
 - Jump marks sit inside a sequence and take no time: `$` the segno,
   `DS` and `DC` the jump back to it or to the sequence's start, `Fine`
   where the return pass stops, `Coda` twice (the return pass leaves at

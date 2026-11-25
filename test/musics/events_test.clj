@@ -260,10 +260,10 @@
   (parse! "[w: repeat 2 [ a4 ] volta [ c4 ] ]")
   (is (= [[57] [60] [57] [60]] (note-pitches :w)) "one ending, after every pass"))
 
-(deftest repeat-signs-play-twice
-  (parse! "[r: [: c4 d4 :] e4 ]")
+(deftest repeat-2-plays-twice
+  (parse! "[r: repeat 2 [ c4 d4 ] e4 ]")
   (is (= [[60] [62] [60] [62] [64]] (note-pitches :r)))
-  (parse! "[s: [: a4 :] volta [ [ c4 ] [ e4 ] ] g4 ]")
+  (parse! "[s: repeat 2 [ a4 ] volta [ [ c4 ] [ e4 ] ] g4 ]")
   (is (= [[57] [60] [57] [64] [67]] (note-pitches :s)) "with endings, as repeat 2"))
 
 (deftest jumps-play-dal-segno-and-da-capo

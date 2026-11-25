@@ -63,7 +63,7 @@ pitches literal — the importers always do.
 | `\f` on its own | `!f` |
 | `c4-.`, `c4\trill`, `c4( d e)` | the same |
 | `\tuplet 3/2 { c8 d e }` | `3:2( c8 d e )` |
-| `\repeat volta 2 { … }` | `repeat 2 [ … ]`, or `[: … :]` |
+| `\repeat volta 2 { … }` | `repeat 2 [ … ]` |
 | `\repeat volta 2 { … } \alternative { { … } { … } }` | `repeat 2 [ … ] volta [[ … ] [ … ]]` |
 | `\repeat tremolo 8 { … }` | `repeat tremolo 8 [ … ]` |
 | `\grace c16 d4` | `grace c16 d4` |

@@ -92,15 +92,13 @@
   (is (= "repeat 2 [C4/4]" (top "c 2 times")) "a note is repeated as a seq")
   (is (re-find #"times: needs 1 or more times" (top "[a b] 0 times")))
   (is (re-find #"unknown word: repeat -- it is now written times" (top "[a b] 3 repeat")) "one word for it, as the sign [*]")
-  (is (= "[: A3/4 B3 :]" (top "[a b] repeats")) "repeats: in repeat signs, played twice")
   (is (= "repeat 3 [A3/4 B3] volta [C4]" (top "[a b] 3 times [c] volta"))
       "volta takes the endings above the repeat")
   (is (= "repeat 3 [A3/4 B3 C4 D4] volta [[C4/2 B3 A3] [A3/4]]"
          (top "[a b c d] 3 times [c2 b a] [a4] volta"))
       "several endings, grouped as LilyPond groups them")
-  (is (= "[: C4/4 D4 :] volta [[E4] [F4]]" (top "[: c d :] [e] [f] volta")) "repeat signs take them too")
   (testing "it reads back as itself"
-    (doseq [t ["[a b] 3 times [c] volta" "[a b c d] 3 times [c2 b a] [a4] volta" "[: c d :] [e] [f] volta"]]
+    (doseq [t ["[a b] 3 times [c] volta" "[a b c d] 3 times [c2 b a] [a4] volta" "[c d] 2 times [e] [f] volta"]]
       (let [shown (top t)] (is (= shown (top shown)) t))))
   (is (= "repeat 3 [!K:D.major B3/4 C#4] volta [[D4] [F#4]]" (top "[a b] 3 times [c] [e] volta 2 +"))
       "+ reaches into its body and endings")
@@ -246,7 +244,7 @@
 (deftest every-sign-has-a-twin
   (doseq [[sign word input] [["[R]" "retrograde" "[c d e g]"] ["[I]" "inversion" "[c d e g]"]
                              ["[RI]" "retrograde-inversion" "[c d e g]"] ["[~]" "cycle" "[c d]"]
-                             ["[:]" "repeats" "[c d]"] ["[!]" "unfold" "[c d] [:]"] ["[||]" "barred" "[c2 d2 e2]"]
+                             ["[!]" "unfold" "[c d] 2 [*]"] ["[||]" "barred" "[c2 d2 e2]"]
                              ["[[]]" "measures" "[c2 d2 e2]"] ["[*]" "times" "[c d] 3"] ["[/]" "parts" "[c d e f] 2"]
                              ["[+]" "concat" "[c] [d]"]
                              ["[%]" "rotating" "[c d e] 1"] ["[M]" "mirror" "[c d e g]"]]]
@@ -376,8 +374,7 @@
   (is (= "{[C4/4 D4] [E4] [F4]}" (top "[c d] {[e] [f]} {+}")) "a seq is one part")
   (is (= "{!ff [C4/4] [D4] [E4] [F4]}" (top "{!ff [c] [d]} {[e] [f]} {+}")) "the first keeps its settings"))
 
-(deftest repeat-signs-written-out-and-barred
-  (is (= "[: C4/4 D4 :]" (top "[c d] [:]")) "[:] puts the whole in repeat signs")
+(deftest repeats-written-out-and-barred
   (is (= "[[C4/4 D4] [E4] [C4 D4] [F4]]" (top "[c4 d] 2 times [e] [f] volta [!]")) "[!] writes the passes out")
   (is (= "[C4/4 D4 E4 D4 E4 F4]" (top "[c4 $ d e DS f] [!]")) "jumps followed")
   (is (= "[C4/4 D4 | C4 D4 | E4]" (top "[c4 d | ./. | e] [!]")) "./. written out")
@@ -825,8 +822,7 @@
   (testing "a word written in Clojure with word! is named too"
     (is (re-find #"^reduce: needs a seq, a list or a stream, got 0" (top "0 '[1 2 3] '( + ) reduce"))))
   (testing "nothing to repeat is said so, not as a failed rebuild"
-    (is (re-find #"^times: an empty seq has nothing to repeat" (top "[] 2 [*]")))
-    (is (re-find #"^\[:\]: an empty seq has nothing to repeat" (top "[] [:]"))))
+    (is (re-find #"^times: an empty seq has nothing to repeat" (top "[] 2 [*]"))))
   (testing "data stays data: a note is refused where a list of numbers is"
     (is (re-find #"^!: a data list holds numbers, names and lists, not music: C4" (top "'[1 2 3] 1 c !")))
     (is (= "'[1 9 3]" (top "'[1 2 3] 1 9 !"))))

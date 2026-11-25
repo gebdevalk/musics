@@ -67,7 +67,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | Action | Words |
 |---|---|
 | **make** | `range` (or `..`: `35 82 ..`, 35 up to 81) `iterate` `scale` |
-| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `^{n}` `{+}` `[:]` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `perms` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
+| **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `^{n}` `{+}` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `perms` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `transpose` `inversion` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
 | **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary`; `walking-bass` (a bass walked under a seq of chords, new each time) |
@@ -397,9 +397,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   the third shuffled -- the endings following, unchanged. It is written
   out as a seq of the passes, not a `repeat volta`; for changes that
   add up pass by pass, use `iterate`.
-- **Repeat signs and jumps are text**: `[: a b :]` is `repeat 2
-  [a b]`, kept as written (`[: c d :] 2 +` gives `[: D4/4 E4 :]`), and
-  `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
+- **Jumps are text**: `$`, `DS`, `DC`, `Fine`, `Coda` are marks inside a literal, `[c $ d
   DS e]` playing `c d d e`; `./.`, alone in its bar (a bar line before
   it, a bar line or the end after), plays the bar before it again
   (`[c d | ./. | ./. | e]`). A tool that reorders a seq can
@@ -475,7 +473,7 @@ note); the same symbol in brackets acts on the whole seq (`[a b] 3
 [*]` plays the seq three times, `[c d e] [R]` reverses it). Every bracketed word
 is a symbol, and has a named twin, a name Clojure could carry too:
 `[R]` `retrograde`, `[I]` `inversion`, `[RI]` `retrograde-inversion`,
-`[~]` `cycle`, `[:]` `repeats`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[\]` `alternating`, `[[]]`
+`[~]` `cycle`, `[!]` `unfold`, `[||]` `barred`, `[|]` `choosing`, `[\]` `alternating`, `[[]]`
 `measures`, `[*]` `times`, `[/]` `parts`, `[+]` `concat`, `!` `put`, `_` `delete`, `[_]` `cut`, `@` `nth`,
 `[H]` `head`, `[T]` `tail`, `[%]` `rotating` (as it plays; `rotate` now), `[M]` `mirror`, `[?]` `shuffling` (as it plays; `shuffle` now), and on each element `+` `-` `*` `/`. Playback, which acts on
 what plays rather than on a seq, is written with `->`: `->` now, `-|>` at
@@ -494,7 +492,6 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
 | `[%]` | the text's `rotate n [ … ]`, one step further each time it plays (`rotating`); data and streams are rotated now. `rotate` rotates music now, wrapping around | `[a b c d] 1 rotate` gives `[B3/4 C4 D4 A3]`, `[c d e] 1 [%] [~]` a new rotation every pass |
 | `[?]` | the whole in a new random order each time it plays, the text's `shuffle [ … ]` (data shuffled now, as `shuffle`) | `[a b c d] [?] [~]` gives `repeat ~ [shuffle [A3/4 B3 C4 D4]]`: every pass shuffled |
 | `[~]` | the whole endlessly, `repeat ~ [ … ]`: a loop, played until `stop` | `[c d] [~] ->`, `[c d] [~] \|\| -\|>+` |
-| `[:]` | the whole in repeat signs, played twice | `[c d] [:]` gives `[: C4/4 D4 :]` |
 | `[!]` | the whole written out as it plays: repeats as their passes, jumps and `./.` followed | `[c4 $ d e DS f] [!]` gives `[C4/4 D4 E4 D4 E4 F4]` |
 | `[[]]` | the whole split by its meter into its measures, each a seq of its own, cut and tied as `[\|\|]` does; a setting carries on as it did, a ramp ends at its measure | `[c2 d2 e2] [[]]` gives `[[C4/2 D4] [E4]]` |
 | `[\|\|]` | the whole barred by its meter (its own `!Meter:`, else the defaults'): a `\|` every bar, a note or drum across one cut and tied | `[c2. d2] [\|\|]` gives `[C4/2. D4/4~ \| D4]` |

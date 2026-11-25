@@ -100,12 +100,10 @@
     (nil? node)        nil
     (d/bar? node)      (apply str (repeat (:count node) "|"))
     (d/jump? node)     (d/jump-text node)
-    (d/iterator? node) (let [{n :count :keys [alternative bars]} (:params node)
+    (d/iterator? node) (let [{n :count :keys [alternative]} (:params node)
                              src (:source node)]
-                         (str (if bars
-                                (str "[: " (id-prefix src) (show-children repo src) " :]")
-                                (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
-                                     (if (= n :infinite) "~" n) " " (show-node repo src)))
+                         (str (str "repeat " (when (= :TREMOLO (:type node)) "tremolo ")
+                                   (if (= n :infinite) "~" n) " " (show-node repo src))
                               (when alternative (str " volta " (show-node repo alternative)))))
     (:raw node)        (:raw node)
     (d/container? node)

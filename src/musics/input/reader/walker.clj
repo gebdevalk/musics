@@ -578,7 +578,7 @@
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
          walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose walk-alternate
-         walk-repeat walk-repeat-bars walk-grace)
+         walk-repeat walk-grace)
 
 (def data-element-types
   "The closed vocabulary a Data container's elements -- and its own
@@ -751,7 +751,6 @@
         ;; below)
         :transpose (walk-transpose state children)
         :repeat    (walk-repeat    state children)
-        :RepeatBars (walk-repeat-bars state children)
         :grace     (walk-grace     state children)
         :row-form  (walk-row-form  state children)
         :tuplet    (walk-tuplet    state children)
@@ -1759,9 +1758,8 @@
   "(repeat N [body] (volta [endings])?), or (repeat tremolo N [body])
    -- one rule, tremolo marked by its word. Field names: `count` (the
    repeat count), `alternative` (the endings, :repeat-type :volta).
-   Both take a real Sequence body. extra goes into a repeat's params."
-  ([state children] (walk-repeat state children nil))
-  ([state children extra]
+   Both take a real Sequence body."
+  [state children]
   (let [repeat-type  (some #{"volta" "tremolo"} children)
         count-node   (find-child children :count)
         count-int    (when count-node (find-child (rest count-node) :Int))
@@ -1799,18 +1797,8 @@
               params (cond-> {:count       count-val
                               :repeat-type :volta}
                              alt (assoc :alternative alt))]
-          (make-iterator s4 :REPEAT seq-composite (merge params extra))))
-      state))))
-
-(defn- walk-repeat-bars
-  "[: ... :] (volta [...])? -- repeat 2 [ ... ], marked
-   :bars so it prints back in repeat signs."
-  [state children]
-  (let [alt (find-child children :alternative)]
-    (walk-repeat state
-                 (cond-> [[:count [:Int "2"]] (into [:Sequence] (remove #(tag? % :alternative) children))]
-                   alt (conj alt))
-                 {:bars true})))
+          (make-iterator s4 :REPEAT seq-composite params)))
+      state)))
 
 ;; ============================================================
 ;; Public API
@@ -1832,7 +1820,7 @@
    play it. Wrapped, it's an ordinary addressable part."
   [node]
   (and (vector? node)
-       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :RepeatBars :tuplet} (first node)))))
+       (or (contains? top-level-leaf-tags (first node)) (#{:repeat :tuplet} (first node)))))
 
 (defn- wrap-bare-leaf
   "A bare top-level Leaf is walked into a freshly pushed, ordinary :SEQ

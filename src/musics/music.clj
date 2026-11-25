@@ -73,10 +73,10 @@
   [x]
   (cond
     (mt/repetition? x)
-    (let [[t n body alt bars] (mt/repeat-parts x)]
+    (let [[t n body alt] (mt/repeat-parts x)]
       (when alt (e/mu-error "[R]: a repeat with volta endings can't be played backwards -- write it out first with [!]"))
       (when t (e/mu-error "[R]: a tremolo can't be played backwards"))
-      (mt/repetition (retrograde body) n [] bars))
+      (mt/repetition (retrograde body) n []))
     (= :SEQ (mt/kind x)) (retrograde x)
     (= :PAR (mt/kind x)) (mt/reshape x #(mapv retrograde %))
     :else x))
@@ -250,13 +250,6 @@
   (if (mt/music? x)
     (mt/repetition x :infinite [])
     (mt/repeated (mt/finite! "[~]" x) :infinite)))
-
-(defn repeats
-  "x in repeat signs, played twice."
-  {:mu {:names ["[:]"]}}
-  [x]
-  (when (empty? (mt/elements x)) (fail "an empty seq has nothing to repeat"))
-  (mt/repetition x 2 [] true))
 
 (defn unfold
   "x written out as it plays: repeats as their passes, jumps and ./. followed."
