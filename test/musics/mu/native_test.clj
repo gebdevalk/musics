@@ -153,6 +153,17 @@
             a (some-> alt value)]
         (is (= (shape (#'mt/read-repeat-by-text type n b a)) (shape (#'mt/repeat-native type n b a))))))))
 
+(deftest a-seq-marked-to-be-ordered-anew-is-built-without-text
+  (doseq [[flags text prefix] [[{:shuffle true} "[c4 d e f]" "shuffle "]
+                               [{:rotate 1} "[c4 d e]" "rotate 1 "]
+                               [{:rotate -2} "[c4 d e f g]" "rotate -2 "]
+                               [{:choose true} "[c4 d e]" "choose "]
+                               [{:choose true :weights [3 1]} "[[c d] [e f]]" "choose 3,1 "]
+                               [{:alternate true} "[c4 d | e f]" "alternate "]
+                               [{:shuffle true} "[c4 [d e] f]" "shuffle "]]]
+    (testing (str prefix text)
+      (is (= (shape (value (str prefix text))) (shape (mt/marked-seq (value text) flags)))))))
+
 (deftest a-repeat-with-an-ending-that-is-not-plain-goes-through-text
   (is (not (#'mt/simple? (value "[!mf e]"))))
   (is (= (p/show (#'mt/read-repeat-by-text nil 2 (value "[c d]") (value "[!mf e]")))

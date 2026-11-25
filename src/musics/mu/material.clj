@@ -383,6 +383,24 @@
         iter   (update iter :context c/set-duration (d/duration repo iter))]
     (assoc (v/->Material iid (assoc repo iid iter)) :base base)))
 
+(def ^:private order-flags [:shuffle :rotate :choose :alternate :weights])
+
+(defn marked-seq
+  "The plain seq m (see simple?) as a seq of its own marked with flags -- {:shuffle true},
+   {:rotate n}, {:choose true} with :weights, {:alternate true} -- a part that is ordered anew
+   each time it plays, built directly; nil when m is not plain, for the caller to write as text."
+  [m flags]
+  (when (and (v/material? m) (simple? m) (= :SEQ (kind m)))
+    (let [base  (e/current-repo)
+          taken (atom (set (keys base)))
+          [node nodes] (inline-seq m taken [])
+          node  (merge (apply dissoc node order-flags) flags)
+          repo  (merge base nodes {(:id node) node})
+          node  (-> node
+                    (d/set-container-duration (d/duration repo node))
+                    (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+      (as-value (assoc (v/->Material (:id node) (assoc repo (:id node) node)) :base base)))))
+
 (declare read-repeat-by-text)
 
 (defn- read-repeat

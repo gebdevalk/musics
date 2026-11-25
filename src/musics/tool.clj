@@ -225,7 +225,9 @@
   {:mu {:names ["[%]"]}}
   [x n]
   (if (mt/music? x)
-    (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x))))
+    (let [k (count! n) m (mt/as-line x)]
+      (or (mt/marked-seq m {:rotate k})
+          (mt/read-text (str "rotate " k " " (p/show m)))))
     (rotate x n)))
 
 (defn- grouped
@@ -294,7 +296,8 @@
   (if (mt/music? x)
     ;; without its own name: shuffle [name: …] would define a name that may be stored already
     (let [m (mt/as-line x)]
-      (mt/read-text (str "shuffle " (p/show (assoc-in m [:repo (:id m) :id] nil)))))
+      (or (mt/marked-seq m {:shuffle true})
+          (mt/read-text (str "shuffle " (p/show (assoc-in m [:repo (:id m) :id] nil))))))
     (shuffle x)))
 
 (defn sputter
