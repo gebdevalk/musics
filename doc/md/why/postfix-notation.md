@@ -172,6 +172,28 @@ it). Each gives what the text form gives. **Until the prefix rules are deleted**
 followed by two notes (`c16 d4 grace e f`) is read as the text's command `grace e f`; written at
 the end of an input, or followed by a word, it is the word. The same holds for `afterGrace`.
 
+## 7c. A problem found while building: a repeat inside a seq
+
+Section 4 says a stored value prints as the postfix text that makes it, `[C4/4 D4] 2 times`, and
+reads back through the evaluator. That holds for a repeat **on its own**. A repeat that is **an
+element of a seq** has no postfix spelling in the notation: `[c4 [d e] 2 times f]` is a word inside
+brackets, which the notation does not read (option D's code brackets would, option C's `[` and `]`
+as words would). The same goes for a shuffled, rotated, chosen or alternating seq inside another
+seq, and for a repeat with endings. The printer has to write such a value somehow:
+
+1. **As code, outside the notation:** `c4 [d e] 2 times f [3]`, a seq built by words. The printed form
+   of any seq that holds one of these is then code, and reading it needs the evaluator, so every place
+   that prints a value and reads it back (the text route, `edit`, a saved session) must evaluate: B
+   becomes C for printing.
+2. **Keep the prefix spelling as the printed form** of a repeat or a shuffled seq inside a seq, and
+   remove only the authoring of it (the words are the way to make one). Reading the printed text still
+   needs the prefix rules; the notation keeps them as a stored form.
+3. **Code brackets** (option D): `[c4 [d e] 2 times f]` read as code.
+
+Until this is settled the printer is **not switched** (step 4 of section 7) and the prefix rules are
+**not deleted** (step 5). Steps 1 and 2 are done: they stand either way (a faster `perms` and the words),
+and the native constructors are what any of the three needs.
+
 ## 8. Open questions
 
 1. **Weights for `choosing`: nothing to add.** The word takes the weights as data on top
