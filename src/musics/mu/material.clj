@@ -972,21 +972,97 @@
     (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
     (first nodes)))
 
-(defn par-of
-  "The parallel of xs. Each part is parsed on its own (parsing one long
-   text takes far more than the sum of its parts) and read into the repo
-   the parts before it made, so their auto ids stay apart; then one small
+(defn- par-by-text
+  "The parallel of xs, named id if one is given, written as text and read back. Each part is
+   parsed on its own (parsing one long text takes far more than the sum of its parts) and read
+   into the repo the parts before it made, so their auto ids stay apart; then one small
    parallel holds them by id."
-  [xs]
+  [xs id]
   (let [read1 (fn [[repo auto-ids ids] text]
                 (let [r (v/read-literals [(literal-of text)] text repo auto-ids)]
                   [(:repo (first (:values r))) (:auto-ids r) (conj ids (first (:ids r)))]))
         texts (map #(p/show (->material (sounding! "par" %))) xs)
         base  (e/current-repo)
         [tree auto-ids ids] (reduce read1 [base (:auto-ids @reg/session) []] texts)
-        text (str "{" (str/join " " ids) "}")]
+        text (str "{" (when id (str id ": ")) (str/join " " ids) "}")]
     ;; :base stays the repo before the parts, so storing it stores them too
     (as-value (assoc (first (:values (v/read-literals [(literal-of text)] text tree auto-ids))) :base base))))
+
+(def ^:private leaf-types #{:PITCHED :REST :DRUM :LEAF})
+
+(defn- simple?
+  "Is m a Material whose own nodes are seqs and parallels holding leaves, bar lines, jump
+   marks and ids of such nodes of its own (no instruction, repeat, group, nor a stored part)?
+   A named node is left to the text route: its name may meet another's."
+  [m]
+  (let [own (v/own-nodes m)]
+    (and (seq own)
+         (every? (fn [[k n]]
+                   (and (#{:SEQ :PAR} (:type n))
+                        (p/auto-id? k)
+                        (every? (fn [c] (if (keyword? c)
+                                          (contains? own c)
+                                          (and (map? c) (or (leaf-types (:type c)) (d/bar? c) (d/jump? c)))))
+                                (:children n))))
+                 own))))
+
+(defn- fresh-id
+  "A new auto id of type (:SEQ :PAR) not in taken."
+  [type taken]
+  (let [counts (:auto-ids @reg/session)
+        prefix (get builder/id-prefixes type)]
+    (loop [n (inc (get counts type 0))]
+      (let [k (keyword (str prefix n))]
+        (if (contains? taken k) (recur (inc n)) k)))))
+
+(defn- adopt
+  "[nodes root] for m (see simple?) as a part of a new container: its own nodes, an id that is
+   taken given another. Its leaves keep their chains: a part is read as a literal of its own,
+   so the parallel's context, empty, is in none of them, in the text route as here."
+  [m taken]
+  (let [own    (v/own-nodes m)
+        rename (reduce (fn [acc k]
+                         (let [k' (if (contains? @taken k) (fresh-id (:type (get own k)) @taken) k)]
+                           (swap! taken conj k')
+                           (assoc acc k k')))
+                       {} (keys own))]
+    [(into {} (for [[k n] own]
+                [(rename k) (-> n
+                                (assoc :id (rename k))
+                                (update :children (fn [cs] (mapv #(if (keyword? %) (rename %) %) cs))))]))
+     (rename (:id m))]))
+
+(defn- par-native
+  "The parallel of parts that are simple (see simple?) or leaves, built from them: their own
+   nodes carried over with ids kept apart, the parallel's node and context, its duration and
+   pitch statistics stamped."
+  [xs id]
+  (let [base  (e/current-repo)
+        ctx   (c/context)
+        taken (atom (set (keys base)))
+        pid   (fresh-id :PAR @taken)
+        _     (swap! taken conj pid)
+        [nodes roots] (reduce (fn [[nodes roots] x]
+                                (let [m (->material (sounding! "par" x))
+                                      [ns r] (adopt m taken)]
+                                  [(merge nodes ns) (conj roots r)]))
+                              [{} []] xs)
+        node  {:type :PAR :id (or id pid) :children roots :context ctx}
+        repo  (merge base nodes {(:id node) node})
+        node  (-> node
+                  (d/set-container-duration (d/duration repo node))
+                  (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+    (as-value (assoc (v/->Material (:id node) (merge base nodes {(:id node) node})) :base base))))
+
+(defn par-of
+  "The parallel of xs, named id if one is given: built from the parts directly when each is a
+   leaf or a plain seq or parallel (leaves, marks, nested seqs and parallels), else written as
+   text and read back."
+  ([xs] (par-of xs nil))
+  ([xs id]
+   (if (every? #(or (leaf? %) (and (v/material? %) (simple? %))) xs)
+     (par-native xs (some-> id keyword))
+     (par-by-text xs id))))
 
 ;; -- what play shares with the prompt ----------------------------------------
 
