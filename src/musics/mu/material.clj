@@ -164,10 +164,48 @@
   [like elements]
   (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements)))))
 
-(defn line
-  "elements as a seq (a :SEQ)."
+(defn- line-by-text
+  "elements as a seq, written as text and read back: any element."
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
+
+(defn- as-read
+  "leaf as reading its text would give it: a length that is no note value carries its factor
+   as :ratio (written c4*9/8), any other has none."
+  [leaf]
+  (let [m (re-find #"\*(\d+)/(\d+)$" (lp/duration-text leaf))]
+    (if m
+      (assoc leaf :ratio (/ (parse-long (nth m 1)) (parse-long (nth m 2))))
+      (dissoc leaf :ratio))))
+
+(defn- line-native
+  "elements -- leaves, bar lines, jump marks -- as a seq built from them, with no text between:
+   the seq's node, its own context, each leaf's chain taken up to the new seq and :ROOT (what
+   the text route gives a leaf read inside it), the duration and the pitch statistics
+   stamped as the walker stamps them when it closes a container."
+  [elements]
+  (let [base  (e/current-repo)
+        id    (builder/next-auto-id {:auto-ids (atom (:auto-ids @reg/session))} :SEQ)
+        ctx   (c/context)
+        root  [(:context (get base :ROOT)) 0]
+        step  (fn [[pos kids] x]
+                [(+ pos (d/duration base x))
+                 (conj kids (if (leaf? x) (assoc (as-read x) :ctx-chain [[ctx pos] root]) x))])
+        [_ kids] (reduce step [0 []] elements)
+        node  {:type :SEQ :id id :children kids :context ctx}
+        repo  (assoc base id node)
+        node  (-> node
+                  (d/set-container-duration (d/duration repo node))
+                  (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+    (as-value (assoc (v/->Material id (assoc base id node)) :base base))))
+
+(defn line
+  "elements as a seq (a :SEQ): built from them directly when they are leaves and marks
+   alone, else written as text and read back."
+  [elements]
+  (if (every? #(or (leaf? %) (marker? %)) elements)
+    (line-native elements)
+    (line-by-text elements)))
 
 (defn data
   "elements as a data list '[ ], read as a literal is, so it is checked as one."
