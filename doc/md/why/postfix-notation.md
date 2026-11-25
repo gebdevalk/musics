@@ -1,8 +1,36 @@
 # Design note: one notation, postfix (option B)
 
-Status: proposal, nothing built. Written 2026-11-25 on branch `postfix`, after the audit of ways to
-do the same thing and the discussion of the prefix/postfix mix. Counts are from the source and the
-test and doc text of that day, by grep: approximate.
+Status: **outcome reached 2026-11-25; option B as written below was not taken to the end.** The
+analysis (sections 1 to 10) is kept as it was written, with what was built and learned in 7a to 7d.
+Counts are from the source and the test and doc text of that day, by grep: approximate.
+
+## 0. Outcome
+
+Building option B showed that its two kinds of command are different things.
+
+- **Stored structure**: `repeat n [ ] volta [ ]`, `shuffle [ ]`, `rotate n [ ]`, `choose`, `alternate`,
+  `grace` and its variants. They are literals for a container, as `[ ]` and `{ }` are. The postfix words
+  (`times`, `[?]`, `tremolo`, `grace` …) build the same containers from values; a literal and a
+  constructor for one container type is not a duplicate. **Kept.**
+- **Operations on a region of a line**: `transpose`, the row forms, the tuplet. The mu word works on a
+  value on the stack; the notation form works on a part of a line still being written, which a word
+  cannot do inside a bracket (7c), and LilyPond's `\transpose`, `\retrograde`, `\inversion` and
+  `\tuplet` come in the middle of a line, so the importer needs them. **Kept, with a `[ ]` body**:
+  `transpose c d [ … ]`, `retrograde [ … ]`, `3:2[ c8 d e ]`; the result is spliced into the line.
+
+Removed as real duplicates: the one-time `shuffle ( )` and `rotate n ( )`, and the letters `R`, `I`,
+`RI`, `M` for the row forms (`R [ … ]` reads as a rest and a seq; the long names remain).
+
+The way out of 7c, the `$( … )` escape (7d), was built as a first slice and **reverted**: a bracket with
+an escape could not hold an instruction, a jump mark or a `( )` group; the internal reader could not read
+what the printer would write (the evaluator would have been needed in every reader); `$` got a fifth
+meaning; and the commonest structure of a score, a repeat with endings, would have read as code. With
+the structure literals kept, nothing needs it.
+
+The principle: **structure is written as a literal, an operation is a word.** What the native
+constructors (7a) gained is kept: building a value no longer goes through print and parse. Option C
+(postfix literals in the notation) is a separate, later question (section 9). See `decisions.md`,
+2026-11-25, "the helicopter view".
 
 ## 1. The problem
 
@@ -194,7 +222,7 @@ Until this is settled the printer is **not switched** (step 4 of section 7) and 
 **not deleted** (step 5). Steps 1 and 2 are done: they stand either way (a faster `perms` and the words),
 and the native constructors are what any of the three needs.
 
-## 7d. The way out chosen: an explicit switch to interpret mode, `$( … )`
+## 7d. The way out chosen, then reverted: an explicit switch to interpret mode, `$( … )`
 
 (The user's proposal, 2026-11-25: a bracket is read whole as text, as Forth's `CREATE` and `:` read
 ahead, and `$( … )` inside it is Forth's `[ … ]`, the switch to interpret mode, whose result is

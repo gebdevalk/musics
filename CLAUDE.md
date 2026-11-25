@@ -332,8 +332,7 @@ Loaded only when it is needed, so a session that never touches it never pays for
 - **`doc/md/why/`**: the technical files about implementation choices: `decisions.md` (why things are
   as they are; check it before re-proposing), `audits/`, the design notes (`core-logic.md`,
   `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`, `scoped-tctx.md` (a proposal for a
-  tctx with a scope for each voice), `postfix-notation.md` (a proposal to write the notation's commands
-  postfix)).
+  tctx with a scope for each voice), `postfix-notation.md` (the prefix/postfix analysis and its outcome: structure is a literal, an operation is a word)).
 
 ## Gotchas by module
 
