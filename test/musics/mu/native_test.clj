@@ -48,7 +48,7 @@
                      :source (norm repo (:source x))
                      :alternative (some->> (get-in x [:params :alternative]) (norm repo))}
     (map? x) {:type (:type x)
-              :name (when-not (p/auto-id? (:id x)) (:id x))
+              :name (when (and (:id x) (not (p/auto-id? (:id x))) (not= :GROUP (:type x))) (:id x))
               :flags (select-keys x [:shuffle :rotate :choose :alternate :weights])
               :stats (select-keys x [:pitch-sum :pitch-n])
               :children (mapv #(norm repo %) (:children x))}
@@ -152,6 +152,22 @@
       (let [b (value body)
             a (some-> alt value)]
         (is (= (shape (#'mt/read-repeat-by-text type n b a)) (shape (#'mt/repeat-native type n b a))))))))
+
+(deftest a-group-is-built-without-text
+  (doseq [text ["( c4 d e )" "( c4 d | e )" "( c4 r <e g> )" "( x4\\38 x )"]]
+    (testing text
+      (let [els (vec (mt/elements (value (str "[" (subs text 2 (- (count text) 2)) "]"))))
+            by-text (mt/read-text text)
+            native  (mt/group-of (let [m (value (str "[" (subs text 2 (- (count text) 2)) "]"))]
+                                   (vec (remove nil? (map #(if (map? %) % nil) (:children (v/node m)))))))]
+        (is (= (shape by-text) (shape native)))
+        (is (seq els))))))
+
+(deftest a-line-of-groups-is-built-without-text
+  (let [g (fn [t] (mt/read-text t))
+        xs [(g "( c4 d )") (g "( e f g )") (g "( a )")]]
+    (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs))))
+    (is (= "[( C4/4 D4 ) ( E4 F4 G4 ) ( A3 )]" (p/show (mt/line xs))))))
 
 (deftest a-seq-marked-to-be-ordered-anew-is-built-without-text
   (doseq [[flags text prefix] [[{:shuffle true} "[c4 d e f]" "shuffle "]

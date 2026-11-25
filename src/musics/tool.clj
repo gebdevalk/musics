@@ -267,9 +267,7 @@
     (when (zero? n) (fail "perms: needs an element"))
     (when (> n 6) (fail "perms:" n "elements make" (reduce * (core/range 1 (inc n))) "orders -- 6 elements at most (720)"))
     (if (or (v/material? x) (mt/leaf? x))
-      (mt/read-text (str "[" (str/join " " (core/map (fn [o] (str "( " (str/join " " (core/map #(p/show (els %)) o)) " )"))
-                                                      (orders n)))
-                         "]"))
+      (mt/line (core/map (fn [o] (mt/group-of (core/map els o))) (orders n)))
       (with-meta (mapv (fn [o] (with-meta (mapv els o) (meta x))) (orders n)) {:data-type nil}))))
 
 (defn parts

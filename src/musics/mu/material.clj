@@ -225,6 +225,44 @@
                  [(rename k) (-> n (assoc :id (rename k)) (update :children #(mapv fix %)))]))
       (rename (:id m))])))
 
+(declare as-read)
+
+(defn- group-node
+  "The inline :GROUP node holding elements -- leaves and marks: its own context, each leaf's
+   chain its group link, then outer ([ctx pos] links of what the group stands in, nearest
+   first), then :ROOT; the duration and the pitch statistics stamped."
+  [elements outer]
+  (let [base (e/current-repo)
+        ctx  (c/context)
+        root [(:context (get base :ROOT)) 0]
+        step (fn [[pos kids] x]
+               (if (leaf? x)
+                 [(+ pos (d/duration base x))
+                  (conj kids (assoc (as-read x) :ctx-chain (vec (concat [[ctx pos]] outer [root]))))]
+                 [pos (conj kids x)]))
+        [_ kids] (reduce step [0 []] elements)
+        node {:type :GROUP :children kids :context ctx}]
+    (-> node
+        (d/set-container-duration (d/duration base node))
+        (d/set-container-pitch-stats (d/pitch-stats base node)))))
+
+(defn- group-material?
+  "Is x a group ( … ) of leaves and marks, as a value?"
+  [x]
+  (and (v/material? x) (= :GROUP (:type (v/node x)))
+       (every? #(or (leaf? %) (marker? %)) (:children (v/node x)))))
+
+(defn group-of
+  "elements as a group ( … ), one element of a seq with no id of its own: built directly when
+   they are leaves and marks, else written as text and read back."
+  [elements]
+  (if (every? #(or (leaf? %) (marker? %)) elements)
+    (let [base (e/current-repo)
+          node (group-node elements [[(c/context) 0]])
+          id   (keyword (str "group" (System/identityHashCode node)))]
+      (as-value (assoc (v/->Material id (assoc base id (assoc node :id id))) :base base)))
+    (read-text (str "( " (str/join " " (map p/show elements)) " )"))))
+
 (defn- as-read
   "leaf as reading its text would give it: a length that is no note value carries its factor
    as :ratio (written c4*9/8), any other has none."
@@ -251,6 +289,8 @@
                 (cond
                   (leaf? x)     [(+ pos (d/duration base x)) (conj kids (assoc (as-read x) :ctx-chain [[ctx pos] root])) nodes]
                   (marker? x)   [pos (conj kids x) nodes]
+                  (group-material? x) (let [g (group-node (:children (v/node x)) [[ctx pos]])]
+                                        [(+ pos (d/duration base g)) (conj kids g) nodes])
                   :else (let [[ns r] (adopt x taken [[ctx pos]])]
                           [(+ pos (d/duration (merge base ns) r)) (conj kids r) (merge nodes ns)])))
         [_ kids nodes] (reduce step [0 [] {}] elements)
@@ -265,7 +305,7 @@
   "elements as a seq (a :SEQ): built from them directly when they are leaves, marks and plain seqs
    and parallels (see simple?), else written as text and read back."
   [elements]
-  (if (every? #(or (leaf? %) (marker? %) (and (v/material? %) (simple? %))) elements)
+  (if (every? #(or (leaf? %) (marker? %) (group-material? %) (and (v/material? %) (simple? %))) elements)
     (line-native elements)
     (line-by-text elements)))
 
