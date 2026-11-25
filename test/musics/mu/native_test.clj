@@ -111,3 +111,25 @@
   (let [xs [(value "[!mf c4 d]") (value "[e f]")]]
     (is (not (#'mt/simple? (first xs))) "an instruction")
     (is (= (p/show (#'mt/par-by-text xs nil)) (p/show (mt/par-of xs))))))
+
+(deftest line-of-leaves-and-plain-seqs-and-parallels
+  (doseq [parts [["[c4 d]" "[e f]"]
+                 ["[c4 d]" "[c4 d]" "[c4 d]"]
+                 ["[c4 [d e]]" "[f [g a]]"]
+                 ["{[c d] [e f]}" "[g a]"]
+                 ["[c4 d | e f]" "[g2 a]"]
+                 ["[c4 d e]"]]]
+    (testing (pr-str parts)
+      (let [xs (mapv value parts)]
+        (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs)))))))
+  (testing "leaves among them"
+    (let [[a b] (mt/elements (value "[c4 d]"))
+          xs    [a (value "[e f]") b (value "{[g a] [b c']}")]]
+      (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs)))))))
+
+(deftest line-keeps-the-ids-of-its-elements-apart
+  (let [xs [(value "[c4 [d e]]") (value "[f [g a]]")]
+        m  (#'mt/line-native xs)
+        ids (keys (v/own-nodes m))]
+    (is (= (count ids) (count (set ids))))
+    (is (= (p/show (#'mt/line-by-text xs)) (p/show m)))))

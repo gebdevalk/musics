@@ -169,6 +169,55 @@
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
 
+(def ^:private leaf-types #{:PITCHED :REST :DRUM :LEAF})
+
+(defn- simple?
+  "Is m a Material whose own nodes are seqs and parallels holding leaves, bar lines, jump
+   marks and ids of such nodes of its own (no instruction, repeat, group, nor a stored part)?
+   A named node is left to the text route: its name may meet another's."
+  [m]
+  (let [own (v/own-nodes m)]
+    (and (seq own)
+         (every? (fn [[k n]]
+                   (and (#{:SEQ :PAR} (:type n))
+                        (p/auto-id? k)
+                        (every? (fn [c] (if (keyword? c)
+                                          (contains? own c)
+                                          (and (map? c) (or (leaf-types (:type c)) (d/bar? c) (d/jump? c)))))
+                                (:children n))))
+                 own))))
+
+(defn- fresh-id
+  "A new auto id of type (:SEQ :PAR) not in taken."
+  [type taken]
+  (let [counts (:auto-ids @reg/session)
+        prefix (get builder/id-prefixes type)]
+    (loop [n (inc (get counts type 0))]
+      (let [k (keyword (str prefix n))]
+        (if (contains? taken k) (recur (inc n)) k)))))
+
+(defn- adopt
+  "[nodes root] for m (see simple?) as an element of a new container: its own nodes, an id
+   that is taken given another. With link, [ctx pos] -- the container's context and where m
+   begins in it -- each leaf's chain gets that link before the :ROOT one, as it has when it is
+   read inside the container; without, the chains stay: a part of a parallel is read as a
+   literal of its own, so the parallel's context, empty, is in none of them."
+  ([m taken] (adopt m taken nil))
+  ([m taken link]
+   (let [own    (v/own-nodes m)
+         rename (reduce (fn [acc k]
+                          (let [k' (if (contains? @taken k) (fresh-id (:type (get own k)) @taken) k)]
+                            (swap! taken conj k')
+                            (assoc acc k k')))
+                        {} (keys own))
+         fix    (fn [c] (cond (keyword? c) (rename c)
+                              (and link (leaf? c)) (let [chain (vec (:ctx-chain c))]
+                                                     (assoc c :ctx-chain (conj (if (seq chain) (pop chain) []) link (peek chain))))
+                              :else c))]
+     [(into {} (for [[k n] own]
+                 [(rename k) (-> n (assoc :id (rename k)) (update :children #(mapv fix %)))]))
+      (rename (:id m))])))
+
 (defn- as-read
   "leaf as reading its text would give it: a length that is no note value carries its factor
    as :ratio (written c4*9/8), any other has none."
@@ -179,31 +228,37 @@
       (dissoc leaf :ratio))))
 
 (defn- line-native
-  "elements -- leaves, bar lines, jump marks -- as a seq built from them, with no text between:
-   the seq's node, its own context, each leaf's chain taken up to the new seq and :ROOT (what
-   the text route gives a leaf read inside it), the duration and the pitch statistics
-   stamped as the walker stamps them when it closes a container."
+  "elements -- leaves, bar lines, jump marks, plain seqs and parallels (see simple?) -- as a seq
+   built from them, with no text between: the seq's node and own context, each leaf's chain
+   taken up to the new seq and :ROOT (what the text route gives a leaf read inside it), the
+   duration and the pitch statistics stamped as the walker stamps them when it closes a
+   container."
   [elements]
   (let [base  (e/current-repo)
-        id    (builder/next-auto-id {:auto-ids (atom (:auto-ids @reg/session))} :SEQ)
+        taken (atom (set (keys base)))
+        id    (fresh-id :SEQ @taken)
+        _     (swap! taken conj id)
         ctx   (c/context)
         root  [(:context (get base :ROOT)) 0]
-        step  (fn [[pos kids] x]
-                [(+ pos (d/duration base x))
-                 (conj kids (if (leaf? x) (assoc (as-read x) :ctx-chain [[ctx pos] root]) x))])
-        [_ kids] (reduce step [0 []] elements)
+        step  (fn [[pos kids nodes] x]
+                (cond
+                  (leaf? x)     [(+ pos (d/duration base x)) (conj kids (assoc (as-read x) :ctx-chain [[ctx pos] root])) nodes]
+                  (marker? x)   [pos (conj kids x) nodes]
+                  :else (let [[ns r] (adopt x taken [ctx pos])]
+                          [(+ pos (d/duration (merge base ns) r)) (conj kids r) (merge nodes ns)])))
+        [_ kids nodes] (reduce step [0 [] {}] elements)
         node  {:type :SEQ :id id :children kids :context ctx}
-        repo  (assoc base id node)
+        repo  (merge base nodes {id node})
         node  (-> node
                   (d/set-container-duration (d/duration repo node))
                   (d/set-container-pitch-stats (d/pitch-stats repo node)))]
-    (as-value (assoc (v/->Material id (assoc base id node)) :base base))))
+    (as-value (assoc (v/->Material id (assoc repo id node)) :base base))))
 
 (defn line
-  "elements as a seq (a :SEQ): built from them directly when they are leaves and marks
-   alone, else written as text and read back."
+  "elements as a seq (a :SEQ): built from them directly when they are leaves, marks and plain seqs
+   and parallels (see simple?), else written as text and read back."
   [elements]
-  (if (every? #(or (leaf? %) (marker? %)) elements)
+  (if (every? #(or (leaf? %) (marker? %) (and (v/material? %) (simple? %))) elements)
     (line-native elements)
     (line-by-text elements)))
 
@@ -987,50 +1042,6 @@
         text (str "{" (when id (str id ": ")) (str/join " " ids) "}")]
     ;; :base stays the repo before the parts, so storing it stores them too
     (as-value (assoc (first (:values (v/read-literals [(literal-of text)] text tree auto-ids))) :base base))))
-
-(def ^:private leaf-types #{:PITCHED :REST :DRUM :LEAF})
-
-(defn- simple?
-  "Is m a Material whose own nodes are seqs and parallels holding leaves, bar lines, jump
-   marks and ids of such nodes of its own (no instruction, repeat, group, nor a stored part)?
-   A named node is left to the text route: its name may meet another's."
-  [m]
-  (let [own (v/own-nodes m)]
-    (and (seq own)
-         (every? (fn [[k n]]
-                   (and (#{:SEQ :PAR} (:type n))
-                        (p/auto-id? k)
-                        (every? (fn [c] (if (keyword? c)
-                                          (contains? own c)
-                                          (and (map? c) (or (leaf-types (:type c)) (d/bar? c) (d/jump? c)))))
-                                (:children n))))
-                 own))))
-
-(defn- fresh-id
-  "A new auto id of type (:SEQ :PAR) not in taken."
-  [type taken]
-  (let [counts (:auto-ids @reg/session)
-        prefix (get builder/id-prefixes type)]
-    (loop [n (inc (get counts type 0))]
-      (let [k (keyword (str prefix n))]
-        (if (contains? taken k) (recur (inc n)) k)))))
-
-(defn- adopt
-  "[nodes root] for m (see simple?) as a part of a new container: its own nodes, an id that is
-   taken given another. Its leaves keep their chains: a part is read as a literal of its own,
-   so the parallel's context, empty, is in none of them, in the text route as here."
-  [m taken]
-  (let [own    (v/own-nodes m)
-        rename (reduce (fn [acc k]
-                         (let [k' (if (contains? @taken k) (fresh-id (:type (get own k)) @taken) k)]
-                           (swap! taken conj k')
-                           (assoc acc k k')))
-                       {} (keys own))]
-    [(into {} (for [[k n] own]
-                [(rename k) (-> n
-                                (assoc :id (rename k))
-                                (update :children (fn [cs] (mapv #(if (keyword? %) (rename %) %) cs))))]))
-     (rename (:id m))]))
 
 (defn- par-native
   "The parallel of parts that are simple (see simple?) or leaves, built from them: their own
