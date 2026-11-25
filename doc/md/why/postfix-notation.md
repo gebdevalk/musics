@@ -194,6 +194,33 @@ Until this is settled the printer is **not switched** (step 4 of section 7) and 
 **not deleted** (step 5). Steps 1 and 2 are done: they stand either way (a faster `perms` and the words),
 and the native constructors are what any of the three needs.
 
+## 7d. The way out chosen: an explicit switch to interpret mode, `$( … )`
+
+(The user's proposal, 2026-11-25: a bracket is read whole as text, as Forth's `CREATE` and `:` read
+ahead, and `$( … )` inside it is Forth's `[ … ]`, the switch to interpret mode, whose result is
+compiled in as `LITERAL` does.)
+
+```
+{ [a b c d]  $([a b c d] 7 + ) }          a second voice a fifth up
+[ c4  $([d e] 2 times)  f ]               a repeat as an element of a seq
+[ c4  $([d e] [?])  f ]                   a seq that shuffles, as an element
+```
+
+- **The brackets keep one reading.** Notation is notation; only what stands inside `$( )` is code.
+  A mistyped note outside an escape is a parse error with its line and column, as now. There is no
+  second parser and no ordered choice between notation and code.
+- **No space is needed:** `$(` and `)` are the delimiters, `$([d e] 2 times)`.
+- **What it leaves.** The escape's items run on a stack of their own; each value left is an element,
+  in order. A seq among them is one nested element, and `**` joins its notes in.
+- **No clash with `$(037)`.** The pitch-class prime form is read at mu's top level; the escape only
+  inside `[ ]` and `{ }`, where a seq holds no pitch-class set.
+- **The printer** writes an element with no notation spelling (a repeat, or a seq that shuffles,
+  rotates, chooses or alternates, inside another seq) as `$( … )`, so the whole of mu is postfix and
+  the prefix rules can go.
+- **First slice (built):** the items of a bracket holding an escape are leaves, nested brackets,
+  bar lines, `\name`, and escapes; an instruction, an id or a jump mark beside an escape is refused
+  for now. A bracket without an escape is read as ever.
+
 ## 8. Open questions
 
 1. **Weights for `choosing`: nothing to add.** The word takes the weights as data on top
