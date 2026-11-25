@@ -38,7 +38,7 @@
    a word that selects, inserts, splits or reorders gives back."
   [x] (or (d/bar? x) (d/jump? x)))
 
-(declare child-value finite!)
+(declare child-value finite! line)
 
 (defn data-vector
   "The data list a :DATA material holds, as a vector of its values; its
@@ -156,13 +156,17 @@
   "A value of like's form (a seq, a parallel or a group) holding slots, as items
    gives them: every instruction stays where it is written."
   [like slots]
-  (read-form like (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))))
+  (if (and (= :SEQ (kind like)) (every? #(= :el (first %)) slots))
+    (line (map second slots))
+    (read-form like (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots)))))
 
 (defn rebuild
   "A value of the same form as like (a seq, a parallel, a group, data), holding
    elements, with like's leading instructions."
   [like elements]
-  (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements)))))
+  (if (and (= :SEQ (kind like)) (empty? (leading-instructions like)))
+    (line elements)
+    (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements))))))
 
 (defn- line-by-text
   "elements as a seq, written as text and read back: any element."
