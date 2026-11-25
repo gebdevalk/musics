@@ -26,8 +26,8 @@
 
 (deftest what-is-not-music-is-refused
   (is (str/includes? (with-out-str (is (nil? (store/read! "[v: c4] 7")))) "leaves only music"))
-  (is (str/includes? (with-out-str (store/read! "transpose c d ( c4 e )"))
-                     "a command needs a line: write [transpose c d ( c4 e )]")))
+  (is (str/includes? (with-out-str (store/read! "transpose c d [ c4 e ]"))
+                     "a command needs a line: write [transpose c d [ c4 e ]]")))
 
 (deftest every-corpus-file-reads
   (doseq [f (.listFiles (io/file "corpus/mus")) :when (str/ends-with? (.getName f) ".mus")]

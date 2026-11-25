@@ -48,7 +48,7 @@
 
 (deftest round-trips
   (doseq [text ["c4" "<a c e>4" "r8" "x8\\36" "[c4 d e]" "[!mf c4 !vol< d e !ff f]" "[motif: c4\\vol:90 d-> e8. f16]"
-                "{[c d] [e f]}" "[c4 | d || e]" "[repeat 2 [c d] e]" "[transpose c d ( c e )]"
+                "{[c d] [e f]}" "[c4 | d || e]" "[repeat 2 [c d] e]" "[transpose c d [ c e ]]"
                 "^{ !ff !tempo:4=90 !key:D.major }" "'[pitch c e g]" "'[/4 /8.]" "[!tempo:90 C5/8 d e]"
                 "repeat 2 [c d]" "[repeat 2 [motif: c | d] volta [[e] [f]] g]" "[c $ d Coda e DS f Coda g]" "[c Fine d DC]" "[c d | ./. | e]"
                 "[x8\\36 x x\\38 x]" "[x4\\38~ x8 x\\36]" "[x2.\\38 x4~ | x]"

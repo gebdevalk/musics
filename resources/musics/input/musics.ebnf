@@ -23,7 +23,7 @@
      '[ ]     Data         data container
      ( )      Grouping     notes grouped inside a sequence: inline, no Id,
                              its own instructions apply to it alone
-     ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( );
+     ( )      Scope        the transient body of a tuplet (3:2( … )); OpBody [ ] that of transpose and the row forms;
                              never a container of
                              its own, always spliced/stashed at pop
                              time — see "Commands" below; also a slur
@@ -165,7 +165,7 @@ Nil                   = <'nil'>
    for grace, where five near-identical shapes share one rule and the
    word is the only way for the walker to tell them apart. *)
 
-(* Scope: the body of transpose, the row forms and shuffle/rotate ( ) below -- never registered as
+(* Scope: the body of a tuplet below -- never registered as
    its own container, always spliced into the parent at pop time (see
    builder/pop-container). The ws before a Scope is optional,
    not mandatory, in every command that takes one directly after its
@@ -174,27 +174,31 @@ Nil                   = <'nil'>
    there's nothing to disambiguate by requiring a separator. *)
 Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
 
-(* The bracket says when: a command's ( … ) body is changed now, while
-   parsing, and the result stored; a [ … ] body is a part that plays that
-   way each time it is played (repeat, shuffle [ ], rotate n [ ]). *)
+(* OpBody: the [ … ] body of transpose and the row forms -- transient like
+   Scope, spliced into the parent, never a container of its own. *)
+OpBody = <'['> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
+
+(* Transpose and the row forms change their [ … ] body now, while
+   parsing, and splice the result (OpBody); repeat, shuffle [ ] and
+   rotate n [ ] keep their [ … ] as a part that plays that way each time
+   it is played. A one-time shuffle or rotation is mu's word on a value. *)
 
 (* transpose c d ( … ) by the interval from one note to the other, or
    transpose 5 ( … ) by semitones (transpose -12 ( … ) an octave down). *)
-transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? Scope
+transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? OpBody
 from-pitch  = Pitch
 to-pitch    = Pitch
 semitones   = SignedInt
 
 (* The row forms, at any depth, as serial music names them, each with
-   its letter: retrograde ( … ) or R ( … ) backwards (ties and what the
+   its letter: retrograde [ … ] backwards (ties and what the
    body's instructions change turn round with the notes; jumps and
    repeats with endings are refused); inversion / I, every interval
    mirrored around the first note; retrograde-inversion / RI; mirror /
-   M, around the mean pitch. A number transposes the result: I 5 ( … )
-   is I5. R alone, R1 or R*4 is still a bar's rest: only a ( … ) after
-   it makes the command. *)
-row-form    = row-name (ws semitones)? ws? Scope
-row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror' | 'RI' | 'R' | 'I' | 'M'
+   M, around the mean pitch. A number transposes the result: I 5 [ … ]
+   is I5. There is no letter for retrograde: R is a bar's rest. *)
+row-form    = row-name (ws semitones)? ws? OpBody
+row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror' | 'RI' | 'I' | 'M'
 
 (* tuplet -- n notes in the time of m, as a score counts them: n:m
    directly before a Scope. A colon ratio is a count, a fraction (c8*2/3,
@@ -287,7 +291,6 @@ grace = 'grace'        ws Element ws Element
    it); instructions, bar lines and jumps keep their places. A real
    container, printed back as written. *)
 shuffle     = <'shuffle'> ws Sequence
-shuffle-now = <'shuffle'> ws? Scope
 
 (* rotate n [ … ] -- a line whose notes, lines and repeats move n places
    further round each time it is entered (as written the first time),
@@ -308,9 +311,8 @@ weights    = weight (<','> weight)*
 alternate  = <'alternate'> ws Sequence
 
 rotate     = <'rotate'> ws SignedInt ws Sequence
-rotate-now = <'rotate'> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
+<Command> = transpose | repeat | grace | row-form | tuplet | shuffle | rotate | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* \name: the music bound to name (mu's 'name value :=), spliced in. *)

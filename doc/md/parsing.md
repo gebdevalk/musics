@@ -45,7 +45,8 @@ parses.
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
 | `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
 | `( )` | `Grouping` | notes grouped as one element of a seq, `[c4 ( d e ) f]`: inline, with no id, and its own instructions (`( !pp d e )`) apply to the group alone. Order words (`[R]`, `rotate`, `shuffle`, `take`) move it whole; pitch words (`+`, `[I]`, `[M]`) reach inside |
-| `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
+| `( )` | `Scope` | the body of a tuplet (`3:2( c8 d e )`): spliced, never a container of its own |
+| `[ ]` after `transpose` or a row form | `OpBody` | the body of `transpose`, `retrograde`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`: changed now, the result spliced, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
 (`c4( d e)`), which can never be confused with a `Scope` or a `Grouping`.
@@ -289,9 +290,9 @@ a ratio (`16/1`); its target a dynamic mark or a number.
 Backslash-prefixed, LilyPond-style.
 
 ```mus
-[transpose c d ( c4 e g )]                   // shift by the interval c -> d
-[retrograde ( c4 d e f )]                    // backwards (also R ( … ))
-[transpose 5 ( c4 d e )]                     // transpose by 5 semitones
+[transpose c d [ c4 e g ]]                   // shift by the interval c -> d
+[retrograde [ c4 d e f ]]                    // backwards (also retrograde [ … ])
+[transpose 5 [ c4 d e ]]                     // transpose by 5 semitones
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]
@@ -306,7 +307,7 @@ repeat 2 [c4 d] volta [[e2] [f2]]            // with endings
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
 ```
 
-- `transpose` and the row forms take a `Scope` `( )` body. It's spliced
+- `transpose` and the row forms take an `OpBody` `[ ]` body. It's spliced
   into the parent, never registered as a part of its own. Neither
   reaches into a part referenced inside that body.
 - `repeat` (`repeat 2 [ ]`, or `repeat tremolo 8 [ ]`) and its endings, `volta`, take a

@@ -94,11 +94,11 @@ PcNums    = #'[0-9TE]+(?: +[0-9TE]+)*'
 (* $a -- a local, inside a word's body. *)
 Local = <'$'> #'[a-zA-Z_][a-zA-Z0-9_\-]*'
 
-(* transpose c d ( … ), R ( … ), grace c16 d4 … outside any brackets:
-   musics text's commands, written inside a line ([transpose c d ( … )]);
+(* transpose c d [ … ], retrograde [ … ], grace c16 d4 … outside any brackets:
+   musics text's commands, written inside a line ([transpose c d [ … ]]);
    parsed so they can be refused with a clear message, never taken for
    the words of those names, which run on what is already on the stack. *)
-TopCommand = transpose / row-form / grace / shuffle-now / rotate-now
+TopCommand = transpose / row-form / grace
 
 (* An instruction outside any brackets: parsed so it can be refused with
    a clear message, never run. *)

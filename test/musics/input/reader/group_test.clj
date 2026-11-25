@@ -81,18 +81,18 @@
 
 (deftest pitch-commands-reach-into-a-group
   (with-fresh-session
-    (is (= [65 67 69 70] (pitches (second (seq-of "[ transpose 5 ( c4 ( d e ) f ) ]")))))
+    (is (= [65 67 69 70] (pitches (second (seq-of "[ transpose 5 [ c4 ( d e ) f ] ]")))))
     (testing "inversion and mirror give the pitches a flat seq gives"
-      (is (= (pitches (second (seq-of "[ inversion ( c4 d e f ) ]")))
-             (pitches (second (seq-of "[ inversion ( c4 ( d e ) f ) ]")))))
-      (is (= (pitches (second (seq-of "[ mirror ( c4 d e f ) ]")))
-             (pitches (second (seq-of "[ mirror ( c4 ( d e ) f ) ]"))))))))
+      (is (= (pitches (second (seq-of "[ inversion [ c4 d e f ] ]")))
+             (pitches (second (seq-of "[ inversion [ c4 ( d e ) f ] ]")))))
+      (is (= (pitches (second (seq-of "[ mirror [ c4 d e f ] ]")))
+             (pitches (second (seq-of "[ mirror [ c4 ( d e ) f ] ]"))))))))
 
 (deftest order-commands-move-a-group-as-one-unit
   (with-fresh-session
-    (is (= [65 62 64 60] (pitches (second (seq-of "[ retrograde ( c4 ( d e ) f ) ]"))))
+    (is (= [65 62 64 60] (pitches (second (seq-of "[ retrograde [ c4 ( d e ) f ] ]"))))
         "the group moves, its notes keep their order")
-    (is (= [55 58 56 60] (pitches (second (seq-of "[ retrograde-inversion ( c4 ( d e ) f ) ]"))))
+    (is (= [55 58 56 60] (pitches (second (seq-of "[ retrograde-inversion [ c4 ( d e ) f ] ]"))))
         "inverted, then moved as units")))
 
 (deftest a-tuplet-scales-a-group-inside-it

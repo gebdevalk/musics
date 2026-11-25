@@ -67,9 +67,9 @@ pitches literal — the importers always do.
 | `\repeat volta 2 { … } \alternative { { … } { … } }` | `repeat 2 [ … ] volta [[ … ] [ … ]]` |
 | `\repeat tremolo 8 { … }` | `repeat tremolo 8 [ … ]` |
 | `\grace c16 d4` | `grace c16 d4` |
-| `\transpose c d { … }` | `transpose c d ( … )` |
-| `\retrograde { … }` | `retrograde ( … )` |
-| `\inversion d' e' { … }` | `inversion n ( … )`: musics turns around the body's first note, so n = around + to − 2 × first (`inversion 6 ( c d e )` for a body starting on c') |
+| `\transpose c d { … }` | `transpose c d [ … ]` |
+| `\retrograde { … }` | `retrograde [ … ]` |
+| `\inversion d' e' { … }` | `inversion n [ … ]`: musics turns around the body's first note, so n = around + to − 2 × first (`inversion 6 [ c d e ]` for a body starting on c') |
 
 ## A small example
 

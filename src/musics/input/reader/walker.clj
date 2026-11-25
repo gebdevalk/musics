@@ -33,7 +33,6 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.leaf-parser :as leaf]
             [musics.input.reader.builder :as flat]
-            [musics.algo.numeric.random :as rnd]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -577,7 +576,7 @@
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose walk-alternate
+         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-rotate walk-choose walk-alternate
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -755,9 +754,7 @@
         :row-form  (walk-row-form  state children)
         :tuplet    (walk-tuplet    state children)
         :shuffle   (walk-shuffle   state children)
-        :shuffle-now (walk-shuffle-now state children)
         :rotate    (walk-rotate    state children)
-        :rotate-now (walk-rotate-now state children)
         :choose    (walk-choose    state children)
         :alternate (walk-alternate state children)
         ;; ---- Fallback: descend ----
@@ -1453,32 +1450,7 @@
 (defn- movable? [c]
   (or (keyword? c) (d/iterator? c) (and (map? c) (#{:PITCHED :REST :DRUM :LEAF} (:type c)))))
 
-(defn- reorder-movable
-  "children with the movable ones (movable?) put in the order f gives them."
-  [children f]
-  (let [cs  (vec children)
-        idx (filterv #(movable? (cs %)) (range (count cs)))]
-    (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx (f (mapv cs idx))))))
-
-(defn- rotated [n xs] (let [v (vec xs) k (if (seq v) (mod n (count v)) 0)] (into (subvec v k) (subvec v 0 k))))
-
 (defn- signed-int [node] (Long/parseLong (str/replace (second node) #"^\+" "")))
-
-(defn- walk-shuffle-now
-  "shuffle ( … ) -- its notes, seqs and repeats in a random order, now
-   (musics.algo.numeric.random, so a seed repeats it)."
-  [state children]
-  (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
-        idx (dec (count (:stack s)))]
-    (-> (update-in s [:stack idx :children] reorder-movable rnd/shuffle) flat/pop-container)))
-
-(defn- walk-rotate-now
-  "rotate n ( … ) -- its notes, seqs and repeats rotated n places, now."
-  [state children]
-  (let [n (signed-int (find-child children :SignedInt))
-        s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
-        idx (dec (count (:stack s)))]
-    (-> (update-in s [:stack idx :children] reorder-movable (partial rotated n)) flat/pop-container)))
 
 (defn- walk-rotate
   "rotate n [ … ] -- a seq of its own, marked :rotate n, so playback
@@ -1664,7 +1636,7 @@
   [state children]
   (let [form      (row-forms (second (find-child children :row-name)))
         n         (if-let [st (find-child children :semitones)] (signed-int (find-child (rest st) :SignedInt)) 0)
-        s2        (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
+        s2        (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :OpBody))))
         body      (peek (:stack s2))
         ps        (flat/deep-pitches s2 (:children body))
         axis      (when (seq ps)
@@ -1681,7 +1653,7 @@
         flat/pop-container)))
 
 (defn- walk-transpose [state children]
-  (let [scope-node (find-child children :Scope)]
+  (let [scope-node (find-child children :OpBody)]
     (if scope-node
       (let [interval   (semitones-of children)
             s1         (flat/push-container state :TRANSPOSE)

@@ -97,7 +97,7 @@
 (deftest transpose-shifts-pitches
   (testing "transpose c d shifts pitches up by 2 semitones"
     (let [base  (wrapped-tokens "c4 d4")
-          trans (wrapped-tokens "transpose c d ( c4 d4 )")]
+          trans (wrapped-tokens "transpose c d [ c4 d4 ]")]
       (is (= 2 (count trans)))
       (is (= (mapv (partial + 2) (:pitches (first base)))
              (:pitches (first trans))))
@@ -106,7 +106,7 @@
 
   (testing "transpose c g shifts pitches up by 7 semitones"
     (let [base  (wrapped-tokens "c4")
-          trans (wrapped-tokens "transpose c g ( c4 )")]
+          trans (wrapped-tokens "transpose c g [ c4 ]")]
       (is (= (mapv (partial + 7) (:pitches (first base)))
              (:pitches (first trans)))))))
 
@@ -116,7 +116,7 @@
   (testing "reverses a flat run of leaves -- order only, pitches/durations
             on each leaf itself are untouched"
     (let [base (wrapped-tokens "c4 d4 e4")
-          rev  (wrapped-tokens "retrograde ( c4 d4 e4 )")]
+          rev  (wrapped-tokens "retrograde [ c4 d4 e4 ]")]
       (is (= (reverse (mapv :pitches base)) (mapv :pitches rev)))
       (is (= (mapv :duration base) (mapv :duration rev))
           "same durations, just in reverse order along with everything else"))))
@@ -125,7 +125,7 @@
 ;; (builder/deep-children!); a part referenced from outside changes as a copy.
 
 (deftest reverse-recurses-into-nested-lines
-  (let [{:keys [tree]} (v/read-domain "[verse: retrograde ( c4 [inner: d4 e4] f4 )]")
+  (let [{:keys [tree]} (v/read-domain "[verse: retrograde [ c4 [inner: d4 e4] f4 ]]")
         verse (get tree :verse)
         inner (get tree :inner)]
     (is (= [65 :inner 60] (mapv (fn [c] (if (keyword? c) c (first (:pitches c)))) (:children verse)))
@@ -133,7 +133,7 @@
     (is (= [[64] [62]] (mapv :pitches (:children inner))) "and the seq inside it too")))
 
 (deftest transpose-recurses-and-copies-a-reference
-  (let [{:keys [tree]} (v/read-domain "[mot: c4 d4] [song: transpose c d ( e4 [inner: f4] :mot repeat 2 [g4] )]")
+  (let [{:keys [tree]} (v/read-domain "[mot: c4 d4] [song: transpose c d [ e4 [inner: f4] :mot repeat 2 [g4] ]]")
         song (get tree :song)
         [_ inner-id copy-id it] (:children song)]
     (is (= [[67]] (mapv :pitches (:children (get tree inner-id)))) "a nested seq moves")
@@ -143,36 +143,35 @@
     (is (= [[69]] (mapv :pitches (:children (:source it)))) "a repeat's body moves")))
 
 (deftest a-name-inside-a-nameless-body-is-refused
-  (doseq [t ["[transpose c d ( x: c4 d4 )]" "[retrograde ( x: c4 d4 )]" "[3:2( x: c8 d e )]"]]
+  (doseq [t ["[transpose c d [ x: c4 d4 ]]" "[retrograde [ x: c4 d4 ]]" "[3:2( x: c8 d e )]"]]
     (is (thrown-with-msg? Exception #"x: a name inside .* would be lost" (v/read-domain t)) t))
   (testing "a seq of its own inside it keeps its name"
-    (is (contains? (:tree (v/read-domain "[transpose c d ( [x: c4 d4] )]")) :x))))
+    (is (contains? (:tree (v/read-domain "[transpose c d [ [x: c4 d4] ]]")) :x))))
 
 (defn- pitches-of [text id] (mapv (comp first :pitches) (:children (get (:tree (v/read-domain text)) id))))
 
 (deftest transpose-by-semitones
-  (is (= [65 67] (pitches-of "[x: transpose 5 ( c4 d4 )]" :x)))
-  (is (= [48 50] (pitches-of "[x: transpose -12 ( c4 d4 )]" :x))))
+  (is (= [65 67] (pitches-of "[x: transpose 5 [ c4 d4 ]]" :x)))
+  (is (= [48 50] (pitches-of "[x: transpose -12 [ c4 d4 ]]" :x))))
 
 (deftest the-row-forms
   (testing "a name and its letter"
-    (doseq [[long short want] [["retrograde" "R" [67 64 62 60]] ["inversion" "I" [60 58 56 53]]
+    (doseq [[long short want] [["retrograde" nil [67 64 62 60]] ["inversion" "I" [60 58 56 53]]
                                ["retrograde-inversion" "RI" [53 56 58 60]] ["mirror" "M" [66 64 62 59]]]]
-      (is (= want (pitches-of (str "[x: " long " ( c4 d4 e4 g4 )]") :x)) long)
-      (is (= want (pitches-of (str "[x: " short " ( c4 d4 e4 g4 )]") :x)) short)))
-  (is (= [65 63 61 58] (pitches-of "[x: I 5 ( c4 d4 e4 g4 )]" :x)) "I5: inverted, then up 5")
+      (is (= want (pitches-of (str "[x: " long " [ c4 d4 e4 g4 ]]") :x)) long)
+      (when short
+        (is (= want (pitches-of (str "[x: " short " [ c4 d4 e4 g4 ]]") :x)) short))))
+  (is (= [65 63 61 58] (pitches-of "[x: I 5 [ c4 d4 e4 g4 ]]" :x)) "I5: inverted, then up 5")
   (testing "R alone is still a bar's rest"
     (is (= [:REST 64 62] (mapv #(if (= :REST (:type %)) :REST (first (:pitches %)))
-                               (:children (get (:tree (v/read-domain "[x: R1 R ( d4 e4 )]")) :x))))))
-  (is (= [true false] (mapv :tied (remove #(= 62 (first (:pitches %))) (:children (get (:tree (v/read-domain "[x: R ( c4~ c8 d4 )]")) :x)))))
+                               (:children (get (:tree (v/read-domain "[x: R1 retrograde [ d4 e4 ]]")) :x))))))
+  (is (= [true false] (mapv :tied (remove #(= 62 (first (:pitches %))) (:children (get (:tree (v/read-domain "[x: retrograde [ c4~ c8 d4 ]]")) :x)))))
       "a tie turns round with its notes")
-  (is (thrown-with-msg? Exception #"jumps" (v/read-domain "[R ( c4 d4 $ e4 DC )]"))))
+  (is (thrown-with-msg? Exception #"jumps" (v/read-domain "[retrograde [ c4 d4 $ e4 DC ]]"))))
 
-(deftest transpose-rotate-and-shuffle-by-their-names
-  (is (= [65 67] (pitches-of "[x: transpose 5 ( c4 d4 )]" :x)))
-  (is (= [62 64] (pitches-of "[x: transpose c d ( c4 d4 )]" :x)))
-  (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))
-  (is (= #{60 62 64} (set (pitches-of "[x: shuffle ( c4 d4 e4 )]" :x)))))
+(deftest transpose-by-its-name
+  (is (= [65 67] (pitches-of "[x: transpose 5 [ c4 d4 ]]" :x)))
+  (is (= [62 64] (pitches-of "[x: transpose c d [ c4 d4 ]]" :x))))
 
 (deftest choose-takes-one-weight-per-element
   (is (= [3 1] (:weights (get (:tree (v/read-domain "[x: choose 3,1 [[c4] [d4]]]"))
@@ -180,15 +179,13 @@
   (is (thrown-with-msg? Exception #"1 weights for 2 elements" (v/read-domain "[choose 3 [[c4] [d4]]]")))
   (is (thrown-with-msg? Exception #"must not all be 0" (v/read-domain "[choose 0,0 [[c4] [d4]]]"))))
 
-(deftest shuffle-and-rotate-now
-  (is (= #{60 62 64 65} (set (pitches-of "[x: shuffle ( c4 d4 e4 f4 )]" :x))))
-  (is (= [62 64 65 60] (pitches-of "[x: rotate 1 ( c4 d4 e4 f4 )]" :x)))
+(deftest rotate-stays-a-part
   (is (= 1 (:rotate (get (:tree (v/read-domain "[x: rotate 1 [c4 d4]]")) (first (:children (get (:tree (v/read-domain "[x: rotate 1 [c4 d4]]")) :x))))))
       "rotate n [ … ] stays a part, rotated as it plays"))
 
 (deftest reverse-refuses-a-repeat-with-endings
   (is (thrown-with-msg? Exception #"volta endings can't be played backwards"
-                        (v/read-domain "[retrograde ( c4 repeat 2 [d4 e4] volta [f4] )]"))))
+                        (v/read-domain "[retrograde [ c4 repeat 2 [d4 e4] volta [f4] ]]"))))
 
 ;; ── Key-implied accidentals ─────────────────────────────────
 ;; A bare (unmarked) pitch letter resolves against the active key's own
@@ -285,7 +282,7 @@
     ;; should spell as f#, not gb (D major's own signature is sharps,
     ;; but more importantly pc 6 really is F# *in this key's scale*,
     ;; not just an arbitrary sharp-vs-flat sign guess).
-    (let [t (first (leaf-tokens "[!key:D.major transpose c d ( e4 )]"))]
+    (let [t (first (leaf-tokens "[!key:D.major transpose c d [ e4 ]]"))]
       (is (= "f#4" (:id t))))))
 
 ;; ── Grace ───────────────────────────────────────────────────
@@ -788,7 +785,7 @@
             (the wrapping [ ] does spend exactly one, for itself --
             transpose can no longer sit bare at Program's own top
             level, see musics.ebnf's own TopElement comment)"
-    (let [{:keys [auto-ids]} (v/read-domain "[transpose c d ( c4 d4 e4 )]")]
+    (let [{:keys [auto-ids]} (v/read-domain "[transpose c d [ c4 d4 e4 ]]")]
       (is (= {:SEQ 1} auto-ids)))))
 
 (deftest repeat-source-still-gets-a-real-id
@@ -816,14 +813,14 @@
 (deftest reverse-standalone-instruction-survives-and-sticks
   (testing "!f inside reverse reaches :v's own context, and is still in
             effect for a later sibling outside the reverse block"
-    (let [seq-c (first-token "[retrograde ( !f c4 d4 e4 ) d4]")
+    (let [seq-c (first-token "[retrograde [ !f c4 d4 e4 ] d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 0.0)))
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0))))))
 
 (deftest transpose-instruction-survives-and-sticks
   (testing "Same as reverse, for transpose"
-    (let [seq-c (first-token "[transpose c d' ( !f c4 d4 ) d4]")
+    (let [seq-c (first-token "[transpose c d' [ !f c4 d4 ] d4]")
           ctx   (:context seq-c)]
       (is (= 70 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0))))))
 
@@ -928,7 +925,7 @@
 
 (deftest a-glued-dynamic-stays-on-its-note-inside-transient-commands
   (testing "reverse"
-    (let [seq-c (first-token "[retrograde ( c4\\f d4 e4 ) d4]")
+    (let [seq-c (first-token "[retrograde [ c4\\f d4 e4 ] d4]")
           ctx   (:context seq-c)]
       (is (= [nil nil {:volume 70} nil] (map :overrides (:children seq-c))) "c4 keeps it, now third")
       (is (= 0.8 (c/ctx-value-chain [ctx root-ctx] "volume" 100.0)) "the context is untouched")))

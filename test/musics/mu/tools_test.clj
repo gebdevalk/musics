@@ -297,19 +297,19 @@
   (is (re-find #"unknown word: ALT|can't read" (top "ALT [[c d] [e f]]")) "ALT is gone"))
 
 (deftest the-texts-words
-  (is (= "[!K:F.major F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
+  (is (= "[!K:F.major F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 [ … ]")
   (is (= "[!K:D.major D4/4 E4]" (top "[c d] c d transpose")) "or by the interval between two notes")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "[c d e] 1 rotating")) "rotating: the text's rotate n [ … ]")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
   (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
-  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal")
+  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde [ c d e f ]]")) "the text's row forms inside a literal")
   (testing "TRP, SFL and ROT are no more: not words, not the text's commands"
     (is (re-find #"unknown word: TRP -- it is now written transpose" (top "[c d] 5 TRP")))
     (is (re-find #"unknown word: ROT -- it is now written rotate" (top "[c d e] 1 ROT")))
     (is (re-find #"unknown word: SFL -- it is now written shuffle" (top "[c d] SFL")))
     (is (re-find #"can't read" (top "[TRP 5 ( c d )]")))
     (is (re-find #"can't read" (top "[SFL [c d]]")))
-    (is (= "[F4/4 G4]" (top "[transpose 5 ( c d )]")) "the long names do it")))
+    (is (= "[F4/4 G4]" (top "[transpose 5 [ c d ]]")) "the long names do it")))
 
 (deftest errors-say-what-is-wrong-and-where
   (testing "a count is 0 or more"

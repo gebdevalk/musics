@@ -382,8 +382,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   and the symbols on material (`+` `-` `*` `/`, `cresc` `dim`) are in
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
-  text and postfix on the stack: `transpose c d ( c e g )` is
-  `[c e g] c d transpose`, `retrograde ( c d e )` is `[c d e] [R]`,
+  text and postfix on the stack: `transpose c d [ c e g ]` is
+  `[c e g] c d transpose`, `retrograde [ c d e ]` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
   `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one
   repeat played n times, counting the plays as the text and LilyPond

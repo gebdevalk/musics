@@ -1580,12 +1580,12 @@
               (let [inner (emit-stream (second body-tok) vars relative?)]
                 (recur (drop 3 more)
                        (if (has-content? inner)
-                         (conj out (str "transpose " from-tok " " to-tok " ( " inner " )"))
+                         (conj out (str "transpose " from-tok " " to-tok " [ " inner " ]"))
                          out)))
               (recur more out)))
 
           ;; \retrograde music, \inversion around to music: musics'
-          ;; retrograde ( ... ) and inversion n ( ... ), the inversion
+          ;; retrograde [ ... ] and inversion n [ ... ], the inversion
           ;; turning around the body's first note, so n moves it onto
           ;; LilyPond's axis and then to `to`: around + to - 2 first.
           ;; The body is a { } or a \relative block; its pitches are
@@ -1603,10 +1603,10 @@
                 to     (some-> (second args) pitch-midi)]
             (cond
               (not (has-content? inner)) (recur (drop n body) out)
-              (not inv?) (recur (drop n body) (conj out (str "retrograde ( " inner " )")))
+              (not inv?) (recur (drop n body) (conj out (str "retrograde [ " inner " ]")))
               (and around to @first-p)
               (let [k (- (+ around to) (* 2 @first-p))]
-                (recur (drop n body) (conj out (str "inversion " (when-not (zero? k) (str k " ")) "( " inner " )"))))
+                (recur (drop n body) (conj out (str "inversion " (when-not (zero? k) (str k " ")) "[ " inner " ]"))))
               :else (recur (drop n body) (conj out inner))))
 
           :else

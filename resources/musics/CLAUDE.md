@@ -124,10 +124,9 @@ ONE element: it moves, its notes keep their order. Pitch words (`transpose`,
 seq gives (`builder/deep`: leaf-f reaches in, order-f does not). `print/show` writes it back as
 `( … )` and `read-text` reads such text as the one element of a seq; and
 `Scope`,
-the transient body of the bare-word structural commands below
-(`transpose c g ( c4 d4 e4 )`) — never a container of its own, always
-spliced/stashed at pop time, same as `[ ]` is for `repeat`/
-`volta`'s own body. (`StructValue`'s own unrelated `( )`, a
+the transient body of a tuplet (`3:2( c8 d e )`), and `OpBody`, the `[ ]` body of `transpose` and the
+row forms (`transpose c g [ c4 d4 e4 ]`) — never a container of its own, always
+spliced/stashed at pop time. (`StructValue`'s own unrelated `( )`, a
 parenthesized `Value` after `!name:`, is a third, textually-distinct
 use reached only from that one position — see `musics.ebnf` directly
 if you need it, not covered further here.)
@@ -156,8 +155,7 @@ endpoint with a guaranteed value for every key
 (`musics.common.context-keys/root-defaults`,
 `musics.domain.context/context-root`): a bare `Instruction` is parsed
 only to be refused (`LooseInstruction`), and so is a transient command
-(`TopCommand`: `transpose`, the row forms, `grace`, `shuffle ( )`,
-`rotate n ( )`), which belongs inside a seq. A bare leaf is a value of
+(`TopCommand`: `transpose`, the row forms, `grace`), which belongs inside a seq. A bare leaf is a value of
 its own: `walker/walk-each` walks it inside an ordinary auto-id'd
 one-child `:SEQ` (`wrap-bare-leaf`), and stored it is a one-note seq --
 `c4 d4` stores two, `[ ]` groups. See `doc/md/why/decisions.md`, 2026-10-23.
@@ -179,8 +177,8 @@ needing to know in advance which one a given key holds.
 persist as a real, retained container (an `Iterator`'s own `:source`/
 `:alternative` to replay on each iteration), so `[ ]` (`Sequence`) has
 always been the correct, unambiguous bracket for them — unlike
-`transpose`'s and the row forms' own (transient, spliced-not-registered) `( )`
-`Scope` body, which is never registered at all.
+`transpose`'s and the row forms' own (transient, spliced-not-registered) `[ ]`
+`OpBody`, which is never registered at all.
 
 `Id` is `name:` (registers in the repo); `Reference` is `:name` (looks it up —
 either a container/iterator to splice in, or a `:CONTEXT`). A context

@@ -3898,3 +3898,25 @@ bracket, where a seq holds no pitch-class set: no clash. Built on the native con
 (`mt/line`, `mt/par-of`), which put the escape's values between the notation's leaves with no text
 round trip. First slice: an instruction, an id other than the bracket's own, a jump mark or a
 `( )` group beside an escape is refused for now.
+
+## 2026-11-25 -- the helicopter view: structure is a literal, an operation is a word; `transpose` and the row forms take `[ ]`
+
+Checked against the aim of one way to do each thing, the `$( )` escape added a way: a bracket with an
+escape cannot hold an instruction, a jump mark or a `( )` group, the internal reader cannot read it
+(`read-text` of `[c4 $([d e] 2 times) f]` fails, so every reader would need the evaluator), `$` gets a
+fifth meaning, and the commonest structure of a score (repeat with volta) would read as code. It is
+parked (commit 3814d91), not used.
+
+The prefix commands are of two kinds. Stored structure (`repeat`/`volta`, `shuffle [ ]`, `rotate n [ ]`,
+`choose`, `alternate`, `grace`, the tuplet) is a literal for a container, as `[ ]` and `{ }` are; the
+postfix words build the same containers from values. An operation that acts on a part of a line
+(`transpose`, the row forms) is not a duplicate of the mu word: the word works on a value on the stack,
+the notation form on a region while the line is still being written, which a word cannot do inside a
+bracket, and LilyPond's `\transpose`, `\retrograde`, `\inversion` come in the middle of a line, so the
+importer needs it. They stay, with the body bracket the other commands already use: `transpose c d [ … ]`,
+`retrograde [ … ]` (the result spliced into the line, as before). `( )` is left to the tuplet's body and
+to the group.
+
+Removed: the one-time `shuffle ( )` and `rotate n ( )` (mu's `shuffle` and `rotate` do it on a value; the
+stored `shuffle [ ]`, `rotate n [ ]` remain) and the letter `R` for retrograde (`R [ … ]` is a rest
+followed by a seq; write `retrograde`; `I`, `RI`, `M` stay).

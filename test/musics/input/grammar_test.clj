@@ -449,7 +449,7 @@
   ;; command of their own anymore -- a note's own *Ratio duration suffix
   ;; replaces both, see note-duration-variants below.
   (testing "Transpose"
-    (is (not (insta/failure? (g/parse "[transpose c d ( c4 d4 e4 )]")))))
+    (is (not (insta/failure? (g/parse "[transpose c d [ c4 d4 e4 ]]")))))
 
   (testing "Repeat volta"
     (is (not (insta/failure? (g/parse "repeat 2 [c4 d4 e4]")))))
@@ -632,12 +632,12 @@
 (deftest commands-are-bare-words
   (testing "a command is written without a backslash, next to notes that share its first letter"
     (doseq [t ["[repeat 2 [c d] e]" "[repeat 2 [c d] volta [e] f]"
-               "[transpose c d ( c e g )]" "[retrograde ( c d e )]"
+               "[transpose c d [ c e g ]]" "[retrograde [ c d e ]]"
                "[grace c8 d4]" "[afterGrace c4 d16]" "[partial 4 c4 | d e f g]"
                "[a r g c p4 repeat 2 [a] r]" "repeat 2 [c d]"]]
       (is (not (insta/failure? (g/parse t))) t)))
   (testing "the backslash is the variable reference's alone now"
-    (doseq [t ["[\\repeat unfold 2 [c d]]" "[\\grace c8 d4]" "[\\transpose c d ( c )]"]]
+    (doseq [t ["[\\repeat unfold 2 [c d]]" "[\\grace c8 d4]" "[\\transpose c d [ c ]]"]]
       (is (insta/failure? (g/parse t)) t))))
 
 (deftest repeat-tremolo-is-a-repeat-type-not-a-separate-rule
@@ -672,9 +672,9 @@
   (let [ids (fn [text]
               (let [{:keys [tree]} (v/read-domain text)]
                 (mapv :id (filter :pitches (:children (some #(when (= :SEQ (:type %)) %) (vals tree)))))))]
-    (is (= ["f4" "g" "a"] (ids "[transpose c f ( c4 d e )]")))
-    (is (= ["b&4" "c" "d"] (ids "[transpose c b& ( c4 d e )]")) "a flat as &")
-    (is (= ["d&4" "e&" "f"] (ids "[transpose c c# ( c4 d e )]")) "D& has fewer flats than C# sharps")))
+    (is (= ["f4" "g" "a"] (ids "[transpose c f [ c4 d e ]]")))
+    (is (= ["b&4" "c" "d"] (ids "[transpose c b& [ c4 d e ]]")) "a flat as &")
+    (is (= ["d&4" "e&" "f"] (ids "[transpose c c# [ c4 d e ]]")) "D& has fewer flats than C# sharps")))
 
 (deftest a-layered-drum
   (let [drums (fn [text]
