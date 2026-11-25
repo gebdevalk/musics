@@ -46,7 +46,7 @@ parses.
 | `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
 | `( )` | `Grouping` | notes grouped as one element of a seq, `[c4 ( d e ) f]`: inline, with no id, and its own instructions (`( !pp d e )`) apply to the group alone. Order words (`[R]`, `rotate`, `shuffle`, `take`) move it whole; pitch words (`+`, `[I]`, `[M]`) reach inside |
 | `( )` | `Scope` | the body of a tuplet (`3:2( c8 d e )`): spliced, never a container of its own |
-| `[ ]` after `transpose` or a row form | `OpBody` | the body of `transpose`, `retrograde`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`: changed now, the result spliced, never a container of its own |
+| `[ ]` after `transpose` or a row form | `OpBody` | the body of `transpose`, `retrograde`, `inversion`, `retrograde-inversion`, `mirror`: changed now, the result spliced, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
 (`c4( d e)`), which can never be confused with a `Scope` or a `Grouping`.

@@ -50,7 +50,7 @@
     (is (= (reverse (vel :a)) (vel :b)))))
 
 (deftest a-choose-part-plays-one-alternative-each-pass
-  (parse! "[s: repeat 6 [ choose [ [I [ C4 d e g ]] [retrograde [ C4 d e g ]] ] ] c1]")
+  (parse! "[s: repeat 6 [ choose [ [inversion [ C4 d e g ]] [retrograde [ C4 d e g ]] ] ] c1]")
   (rc/seed! 4)
   (let [ns     (notes (ev/events (repo/registry) :s))
         passes (set (map #(mapv (comp first :pitches) %) (partition 4 (butlast ns))))]
@@ -62,7 +62,7 @@
   (filter :pitches (mapcat #(if (= :par (:kind %)) (mapcat identity (:voices %)) [%]) steps)))
 
 (deftest an-alternate-part-plays-its-elements-in-turn
-  (parse! "[s: repeat 5 [ alternate [ [I [ C4 d e g ]] [retrograde [ C4 d e g ]] [C5] ] ] c1]")
+  (parse! "[s: repeat 5 [ alternate [ [inversion [ C4 d e g ]] [retrograde [ C4 d e g ]] [C5] ] ] c1]")
   (let [ps [60 58 56 53 67 64 62 60 72 60 58 56 53 67 64 62 60 72]]
     (is (= ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))) "I, R, C5, I, R, then c")
     (is (= ps (map (comp first :pitches) (display-notes-in-order (compose/display-timed (repo/registry) :s))))

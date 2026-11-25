@@ -658,9 +658,9 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   A note value is a power of two, dotted or not (`c3` is refused). See
   `doc/md/why/decisions.md`, 2026-10-11. A transpose or row form changes its body now, while parsing;
   `repeat`, `shuffle [ ]` and `rotate n [ ]` are parts that play that way each time.
-  The row forms are `retrograde`, `inversion`/`I` (around the first
-  note), `retrograde-inversion`/`RI` and `mirror`/`M` (around the mean),
-  with an optional transposition (`I 5 [ … ]` is I5); there is no letter for retrograde, `R` is a bar's rest. The retrograde turns ties round and
+  The row forms are `retrograde`, `inversion` (around the first
+  note), `retrograde-inversion` and `mirror` (around the mean),
+  with an optional transposition (`inversion 5 [ … ]` is I5); the names are written out, no letters. The retrograde turns ties round and
   writes what the body's instructions change into each note as its
   override (the value it has where it's written), so it sounds
   backwards; jumps are refused. `shuffle ( … )` and `rotate n ( … )`

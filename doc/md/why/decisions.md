@@ -3918,5 +3918,5 @@ importer needs it. They stay, with the body bracket the other commands already u
 to the group.
 
 Removed: the one-time `shuffle ( )` and `rotate n ( )` (mu's `shuffle` and `rotate` do it on a value; the
-stored `shuffle [ ]`, `rotate n [ ]` remain) and the letter `R` for retrograde (`R [ … ]` is a rest
-followed by a seq; write `retrograde`; `I`, `RI`, `M` stay).
+stored `shuffle [ ]`, `rotate n [ ]` remain) and the letters `R`, `I`, `RI`, `M` (`R [ … ]` is a rest followed by a seq, and one letter
+not allowed made the others odd): write `retrograde`, `inversion`, `retrograde-inversion`, `mirror`.

@@ -195,10 +195,10 @@ semitones   = SignedInt
    body's instructions change turn round with the notes; jumps and
    repeats with endings are refused); inversion / I, every interval
    mirrored around the first note; retrograde-inversion / RI; mirror /
-   M, around the mean pitch. A number transposes the result: I 5 [ … ]
-   is I5. There is no letter for retrograde: R is a bar's rest. *)
+   M, around the mean pitch. A number transposes the result: inversion 5 [ … ]
+   is I5 in serial music's notation. The names are written out: a letter (R, I, RI, M) would read as a rest or a note name. *)
 row-form    = row-name (ws semitones)? ws? OpBody
-row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror' | 'RI' | 'I' | 'M'
+row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror'
 
 (* tuplet -- n notes in the time of m, as a score counts them: n:m
    directly before a Scope. A colon ratio is a count, a fraction (c8*2/3,

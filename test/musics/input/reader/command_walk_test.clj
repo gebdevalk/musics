@@ -156,12 +156,12 @@
 
 (deftest the-row-forms
   (testing "a name and its letter"
-    (doseq [[long short want] [["retrograde" nil [67 64 62 60]] ["inversion" "I" [60 58 56 53]]
-                               ["retrograde-inversion" "RI" [53 56 58 60]] ["mirror" "M" [66 64 62 59]]]]
+    (doseq [[long short want] [["retrograde" nil [67 64 62 60]] ["inversion" nil [60 58 56 53]]
+                               ["retrograde-inversion" nil [53 56 58 60]] ["mirror" nil [66 64 62 59]]]]
       (is (= want (pitches-of (str "[x: " long " [ c4 d4 e4 g4 ]]") :x)) long)
       (when short
         (is (= want (pitches-of (str "[x: " short " [ c4 d4 e4 g4 ]]") :x)) short))))
-  (is (= [65 63 61 58] (pitches-of "[x: I 5 [ c4 d4 e4 g4 ]]" :x)) "I5: inverted, then up 5")
+  (is (= [65 63 61 58] (pitches-of "[x: inversion 5 [ c4 d4 e4 g4 ]]" :x)) "I5: inverted, then up 5")
   (testing "R alone is still a bar's rest"
     (is (= [:REST 64 62] (mapv #(if (= :REST (:type %)) :REST (first (:pitches %)))
                                (:children (get (:tree (v/read-domain "[x: R1 retrograde [ d4 e4 ]]")) :x))))))

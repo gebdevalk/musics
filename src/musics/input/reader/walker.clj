@@ -1574,7 +1574,7 @@
     (transpose-leaf interval (respell-fn ks))))
 
 (def ^:private row-forms
-  {"retrograde" :R "R" :R "inversion" :I "I" :I "retrograde-inversion" :RI "RI" :RI "mirror" :M "M" :M})
+  {"retrograde" :R "inversion" :I "retrograde-inversion" :RI "mirror" :M})
 
 (defn- mirror-leaf
   "A note mirrored around axis: a pitch p becomes 2·axis - p."
