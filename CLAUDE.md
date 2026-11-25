@@ -331,7 +331,8 @@ Loaded only when it is needed, so a session that never touches it never pays for
   `pull-voice.md`.
 - **`doc/md/why/`**: the technical files about implementation choices: `decisions.md` (why things are
   as they are; check it before re-proposing), `audits/`, the design notes (`core-logic.md`,
-  `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`).
+  `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`, `scoped-tctx.md` (a proposal for a
+  tctx with a scope for each voice)).
 
 ## Gotchas by module
 

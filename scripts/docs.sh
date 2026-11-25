@@ -55,6 +55,7 @@ declare -A pages=(
   [doc/md/why/core-logic.md]=core-logic
   [doc/md/why/ideas.md]=ideas
   [doc/md/why/other-libs.md]=other-libs
+  [doc/md/why/scoped-tctx.md]=scoped-tctx
   [doc/md/why/audits/docs-audit.md]=docs-audit
   [CLAUDE.md]=CLAUDE
 )
