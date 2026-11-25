@@ -35,7 +35,7 @@ mu has to say it postfix.
 | `repeat tremolo n [ … ]` | an Iterator, `:TREMOLO` | `repeat tremolo 8 [ … ]` | none | **convert**, new word |
 | `shuffle [ … ]` | a seq marked `:shuffle` | `shuffle [C4/4 D4 E4]` | `shuffling` (`[?]`) | **convert** |
 | `rotate n [ … ]` | a seq marked `:rotate n` | `rotate 1 [ … ]` | `rotating` (`[%]`) | **convert** |
-| `choose [ … ]`, `choose w,w [ … ]` | a seq marked `:choose`, with `:weights` | `choose 3,1 [ … ]` | `choosing` (`[\|]`), no weights | **convert**, weights to add |
+| `choose [ … ]`, `choose w,w [ … ]` | a seq marked `:choose`, with `:weights` | `choose 3,1 [ … ]` | `choosing` (`[\|]`), weights as data on top: `[[c d] [e f]] '[3 1] [\|]` | **convert** |
 | `alternate [ … ]` | a seq marked `:alternate` | `alternate [ … ]` | `alternating` (`[\]`) | **convert** |
 | `grace g m`, `acciaccatura`, `appoggiatura`, `slashedGrace` (grace first), `afterGrace m g` | a decorated container: the main note's length shortened, the grace note a tag | two plain notes, `[C4/16 D4/8.]` (the kind of grace is not written back) | none | **convert**, new words |
 | `n:m( … )` | notes with a ratio factor (`c8*2/3`), spliced | `3:2(C4/8 D4 E4)` | `*` with a ratio factor, `2/3 times` | **keep, decide later** (section 5) |
@@ -116,7 +116,6 @@ constructors avoid text altogether.
 | `grace` | the grace note on the left, the main note on the right | `c16 d4 grace` |
 | `afterGrace` | the main note on the left, the grace note on the right | `d4 c16 afterGrace` |
 | `acciaccatura`, `appoggiatura`, `slashedGrace` | the other kinds | `c16 d4 acciaccatura` |
-| weights for `choosing` | one weight for each element | `[c d] '[3 1] [\|]` (to settle) |
 
 The kind of a grace note is not written back today (`[grace c16 d4]` prints `[C4/16 D4/8.]`); a
 postfix word could print `c16 d4 grace` if the kind is kept on the note. Settle with the leaf's tag.
@@ -134,9 +133,40 @@ postfix word could print `c16 d4 grace` if the kind is kept on the note. Settle 
 
 Each step is a commit on this branch; none changes what plays.
 
+## 7a. Progress (2026-11-25)
+
+Step 1 is done on branch `postfix`, in seven commits, each with the suite green (`lein verify`), and
+the text route kept beside each native one, `line-by-text`, `par-by-text`, `read-repeat-by-text`,
+so that `test/musics/mu/native_test.clj` can compare them: the printed text, the duration, the
+pitch statistics, each leaf's fields and its context chain.
+
+| Step | Built without text | Falls back to text for |
+|---|---|---|
+| 1 | `line` of leaves and marks | anything else |
+| 2 | `par-of` of leaves and plain seqs and parallels | an instruction, a repeat, a group, a name, a stored part |
+| 3 | `line` of plain seqs and parallels too | the same |
+| 4 | a repeat (`times`, `volta`, `cycle`, tremolo) with a plain body and endings | the same |
+| 5 | `shuffling`, `rotating`, `choosing` (with weights), `alternating` | the same |
+| 6 | `rebuild`, `from-items` of a plain seq | instructions, a parallel, a group |
+| 7 | a group `( … )` of leaves, inside `line`; `perms` | the same |
+
+Two things the text route does that a native build has to copy: it **normalizes a leaf** (a length
+that is no note value comes back with its factor as `:ratio`, which is what `n:m(` prints from), and
+it gives each leaf the **chain of contexts** of the containers it was read inside. A part of a
+parallel is read as a literal of its own, so the parallel's context is in none of its leaves'
+chains; an element of a seq is read inside it, so the seq's is.
+
+Measured: `line` of 256 leaves 216 ms -> 1.9 ms; `par-of` of two 8-leaf seqs 16 ms -> 0.4 ms;
+`[c d e f g] perms` 0.55 s -> 0.05 s, six elements 15.7 s -> 0.11 s (the cap of 6 on `perms` was the
+cost of the text route, not of the orders; not changed).
+
+Not done, still through text: data lists `'[ ]` (`data`), `hairpin`, `with` and any value holding an
+instruction, a stored part, a name, a repeat inside a seq, a parallel rebuilt from its parts.
+
 ## 8. Open questions
 
-1. **Weights for `choosing`.** A list (`'[3 1]`) or a word (`3 1 weights`)?
+1. **Weights for `choosing`: nothing to add.** The word takes the weights as data on top
+   (`'[3 1] [|]`); the first draft of this note missed it.
 2. **Grace words.** Five words, or `grace` with a kind (`c16 d4 :slashed grace`)?
 3. **Tremolo.** `tremolo` as a word, or a count on `times` (`[c16 d] 8 times` is a repeat;
    a tremolo is a repeat in a time)?
