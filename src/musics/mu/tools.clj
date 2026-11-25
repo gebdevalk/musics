@@ -5,7 +5,6 @@
    alternate with their quotations; each with its named twin. The other
    tool and music words are musics.tool and musics.music."
   (:require [clojure.string :as str]
-            [musics.domain :as d]
             [musics.mu.eval :as e :refer [word! need]]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -75,25 +74,6 @@
 
 (defmethod gathered :other [xs]
   (e/mu-error "( … ): gathers music into a seq, plain values into a '[ ] or quotations into a list, and left" (p/show (first xs))))
-
-(defn code-bracket
-  "What the items of a bracket with an escape left, gathered: bracket \"[ ]\" makes a seq, \"{ }\"
-   a parallel, named id when it has one. A value is one element, a seq among them nested (** joins
-   one in); a | is a bar line; only music is gathered."
-  [bracket xs id]
-  (let [seq?  (= "[ ]" bracket)
-        xs    (mapv #(if (v/mark? %) (d/bar (:count % 1)) %) xs)
-        ok?   (if seq? music-or-marker? mt/music?)]
-    (when (empty? xs) (e/mu-error (str bracket ":") "its items left nothing to gather"))
-    (when-let [bad (first (remove ok? xs))]
-      (e/mu-error (str bracket ":") "gathers music (notes, seqs, parallels), got" (p/show bad)
-                  (cond (keyword? bad)      "-- :name R@ fetches a stored part"
-                        (every? number? xs) (str "-- numbers are data, written with a quote: '[" (str/join " " (map p/show xs)) "]")
-                        (plain? bad)        "-- plain values gather into a '[ ], or into a list with ( 1 2 )"
-                        :else               "")))
-    (if seq?
-      (mt/line (map (partial mt/sounding! bracket) xs) id)
-      (mt/par-of xs id))))
 
 (word! "music" "par" "( | m... -- m )  what lies above the | mark, side by side, as { }: | [c d] [e f] par gives {[c d] [e f]}"
        (gather "par" mt/par-of))

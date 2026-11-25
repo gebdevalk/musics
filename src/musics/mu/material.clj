@@ -169,10 +169,9 @@
     (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements))))))
 
 (defn- line-by-text
-  "elements as a seq, written as text and read back: any element; named id if one is given."
-  ([elements] (line-by-text elements nil))
-  ([elements id]
-   (read-text (str "[" (when id (str id ": ")) (str/join " " (map p/show elements)) "]"))))
+  "elements as a seq, written as text and read back: any element."
+  [elements]
+  (read-text (str "[" (str/join " " (map p/show elements)) "]")))
 
 (def ^:private leaf-types #{:PITCHED :REST :DRUM :LEAF})
 
@@ -279,12 +278,11 @@
    taken up to the new seq and :ROOT (what the text route gives a leaf read inside it), the
    duration and the pitch statistics stamped as the walker stamps them when it closes a
    container."
-  [elements id]
+  [elements]
   (let [base  (e/current-repo)
         taken (atom (set (keys base)))
-        pid   (fresh-id :SEQ @taken)
-        _     (swap! taken conj pid)
-        id    (or (some-> id keyword) pid)
+        id    (fresh-id :SEQ @taken)
+        _     (swap! taken conj id)
         ctx   (c/context)
         root  [(:context (get base :ROOT)) 0]
         step  (fn [[pos kids nodes] x]
@@ -304,13 +302,12 @@
     (as-value (assoc (v/->Material id (assoc repo id node)) :base base))))
 
 (defn line
-  "elements as a seq (a :SEQ), named id if one is given: built from them directly when they are
-   leaves, marks and plain seqs and parallels (see simple?), else written as text and read back."
-  ([elements] (line elements nil))
-  ([elements id]
-   (if (every? #(or (leaf? %) (marker? %) (group-material? %) (and (v/material? %) (simple? %))) elements)
-     (line-native elements id)
-     (line-by-text elements id))))
+  "elements as a seq (a :SEQ): built from them directly when they are leaves, marks and plain seqs
+   and parallels (see simple?), else written as text and read back."
+  [elements]
+  (if (every? #(or (leaf? %) (marker? %) (group-material? %) (and (v/material? %) (simple? %))) elements)
+    (line-native elements)
+    (line-by-text elements)))
 
 (defn data
   "elements as a data list '[ ], read as a literal is, so it is checked as one."

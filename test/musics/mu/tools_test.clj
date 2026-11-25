@@ -1060,24 +1060,3 @@
     (is (= (top (str "[" kind " c16 d4]")) (top (str "c16 d4 " kind))) kind))
   (is (= (top "[afterGrace d4 c16]") (top "d4 c16 afterGrace")) "afterGrace: the main note first")
   (is (re-find #"needs two notes" (top "[c d] c4 grace"))))
-
-(deftest an-escape-in-a-bracket-is-interpret-mode
-  (testing "your first wish: a second voice, a fifth up"
-    (is (= (top "[a b c d] dup 7 + {2}") (top "{ [a b c d] $([a b c d] 7 +) }"))))
-  (testing "no space is needed inside the escape, and one is allowed"
-    (is (= (top "[c4 $([d e] 2 times) f]") (top "[c4 $( [d e] 2 times ) f]"))))
-  (testing "a repeat or a shuffled seq as an element of a seq"
-    (is (re-find #"^\[C4/4 repeat 2 \[D4 E4\] F4\]$" (top "[c4 $([d e] 2 times) f]")))
-    (is (re-find #"shuffle" (top "[c4 $([d e] [?]) f]"))))
-  (testing "values left in order, a seq nested unless ** joins it in"
-    (is (= "[C4/4 [D4 E4] F4]" (top "[c4 $([d e]) f]")))
-    (is (= "[C4/4 D4 E4 F4]" (top "[c4 $([d e] **) f]"))))
-  (testing "a bar line, a name, an id"
-    (is (= "[C4/4 D4 | E4 F4]" (top "[c4 d | $(e f **)]")))
-    (is (re-find #"^\[verse: " (top "[verse: c4 $(d e **) f]"))))
-  (testing "a mistyped note outside an escape is still a parse error, nothing runs"
-    (is (re-find #"can't read" (top "[c4 kik $([d e] 2 times)]")))
-    (is (re-find #"gathers music" (top "[c4 $(7)]"))))
-  (testing "a seq without an escape is the notation's own, and $(037) is the prime form"
-    (is (= "[C4/4 D4]" (top "[c d]")))
-    (is (re-find #"^\$\(037\)$|037" (top "$(037)")))))

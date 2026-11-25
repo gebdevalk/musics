@@ -112,7 +112,7 @@
 ;; Running items
 ;; ------------------------------------------------------------------
 
-(declare run-items code-parts)
+(declare run-items)
 
 (defn- number-value [tag text]
   (case tag
@@ -379,13 +379,6 @@
                  (conj below ((requiring-resolve 'musics.mu.tools/gathered) xs)))
                ;; what it makes follows its first value: music a seq, plain values a '[ ]
                (conj stack ((requiring-resolve 'musics.mu.tools/gathered) xs))))
-    ;; a seq or a parallel written with notation that holds a $( ): its items run on a stack of its
-    ;; own, what the escapes leave is each an element, and what is gathered is the seq or parallel
-    :Escape  (into stack (run-items [] (vec (rest node)) env))
-    :EscSeq  (let [[id items] (code-parts node)]
-               (conj stack ((requiring-resolve 'musics.mu.tools/code-bracket) "[ ]" (run-items [] items env) id)))
-    :EscPar  (let [[id items] (code-parts node)]
-               (conj stack ((requiring-resolve 'musics.mu.tools/code-bracket) "{ }" (run-items [] items env) id)))
     :Settings (let [xs (run-items [] (vec (rest node)) env)]
                 (when (odd? (count xs))
                   (mu-error "@{ }: pairs of :key and a value, got" (count xs) "values"))
@@ -557,14 +550,6 @@
     (or (word start)
         (when (and (< start (count text)) (#{\[ \{} (.charAt ^String text start)))
           (word (inc start))))))
-
-(defn- code-parts
-  "[id items] of a bracket with an escape: its own name, if it has one, and its items."
-  [node]
-  (let [[x & more :as all] (rest node)]
-    (if (and (vector? x) (= :Id (first x)))
-      [(second (second x)) (vec more)]
-      [nil (vec all)])))
 
 (defn- parse-error
   "The message for text that can't be read: a word inside a literal gets

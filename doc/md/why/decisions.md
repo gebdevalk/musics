@@ -3882,30 +3882,13 @@ needs. `show` is also how a value is written to be read again (a saved session, 
 Rejected: rounding in `show` itself (a saved `'x 0.123456 :=` would come back changed, and a rebuilt
 data list would drift each time it was rebuilt).
 
-## 2026-11-25 -- `$( … )` in a seq or a parallel: the switch to interpret mode
-
-A repeat, or a seq that shuffles, rotates, chooses or alternates, as an element of another seq had no
-spelling once the prefix commands (`repeat 2 [ ]`, `shuffle [ ]` …) were to go: `[c4 [d e] 2 times f]` is a
-word among notation. Code brackets (a bracket holding a word runs, branch `code-brackets`) were
-rejected for it: one bracket with two readings, a mistyped note reported only at run time with earlier
-lines already run, and a second parser for text that must be plain notation. Instead the notation
-stays whole and Forth's switch is explicit, as `[ … ]` inside a definition: `$( … )` inside a `[ ]` or
-`{ }` is mu code, run on a stack of its own, each value it leaves an element (`EscSeq`, `EscPar`,
-`Escape` in `mu.ebnf`). The brackets around it are notation (leaves, nested brackets, bar lines,
-`\name`), parsed before anything runs, so a typo outside an escape is still a parse error and there is no
-second parser. `$(037)` (the pitch-class prime form) is read at mu's top level, an escape only inside a
-bracket, where a seq holds no pitch-class set: no clash. Built on the native constructors
-(`mt/line`, `mt/par-of`), which put the escape's values between the notation's leaves with no text
-round trip. First slice: an instruction, an id other than the bracket's own, a jump mark or a
-`( )` group beside an escape is refused for now.
-
 ## 2026-11-25 -- the helicopter view: structure is a literal, an operation is a word; `transpose` and the row forms take `[ ]`
 
 Checked against the aim of one way to do each thing, the `$( )` escape added a way: a bracket with an
 escape cannot hold an instruction, a jump mark or a `( )` group, the internal reader cannot read it
 (`read-text` of `[c4 $([d e] 2 times) f]` fails, so every reader would need the evaluator), `$` gets a
-fifth meaning, and the commonest structure of a score (repeat with volta) would read as code. It is
-parked (commit 3814d91), not used.
+fifth meaning, and the commonest structure of a score (repeat with volta) would read as code. It was
+built as a first slice (commit 3814d91) and reverted; `postfix-notation.md`, 7c and 7d keep the reasoning.
 
 The prefix commands are of two kinds. Stored structure (`repeat`/`volta`, `shuffle [ ]`, `rotate n [ ]`,
 `choose`, `alternate`, `grace`, the tuplet) is a literal for a container, as `[ ]` and `{ }` are; the
