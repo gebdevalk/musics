@@ -42,6 +42,11 @@
     (and (map? x) (#{:PITCHED :REST :DRUM :LEAF} (:type x)))
     [(select-keys x [:type :pitches :duration :articulation :dynamic :tied :modifiers :overrides :program :ratio])
      (chain-shape x)]
+    (d/iterator? x) {:type (:type x)
+                     :params (select-keys (:params x) [:count :repeat-type])
+                     :stats (select-keys x [:pitch-sum :pitch-n])
+                     :source (norm repo (:source x))
+                     :alternative (some->> (get-in x [:params :alternative]) (norm repo))}
     (map? x) {:type (:type x)
               :name (when-not (p/auto-id? (:id x)) (:id x))
               :flags (select-keys x [:shuffle :rotate :choose :alternate :weights])
@@ -133,3 +138,22 @@
         ids (keys (v/own-nodes m))]
     (is (= (count ids) (count (set ids))))
     (is (= (p/show (#'mt/line-by-text xs)) (p/show m)))))
+
+(deftest a-repeat-is-built-without-text
+  (doseq [[type n body alt] [[nil 2 "[c4 d]" nil]
+                             [nil 3 "[c4 d e f]" nil]
+                             [nil :infinite "[c4 d]" nil]
+                             [nil 2 "[c4 d]" "[e]"]
+                             [nil 2 "[c4 d]" "[[e] [f]]"]
+                             [nil 2 "[c4 [d e] f]" "[g a]"]
+                             ["tremolo" 8 "[c16 d]" nil]
+                             [nil 2 "[c4 d | e f]" nil]]]
+    (testing (pr-str [type n body alt])
+      (let [b (value body)
+            a (some-> alt value)]
+        (is (= (shape (#'mt/read-repeat-by-text type n b a)) (shape (#'mt/repeat-native type n b a))))))))
+
+(deftest a-repeat-with-an-ending-that-is-not-plain-goes-through-text
+  (is (not (#'mt/simple? (value "[!mf e]"))))
+  (is (= (p/show (#'mt/read-repeat-by-text nil 2 (value "[c d]") (value "[!mf e]")))
+         (p/show (#'mt/read-repeat nil 2 (value "[c d]") (value "[!mf e]"))))))

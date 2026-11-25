@@ -191,19 +191,21 @@
   "A new auto id of type (:SEQ :PAR) not in taken."
   [type taken]
   (let [counts (:auto-ids @reg/session)
-        prefix (get builder/id-prefixes type)]
+        prefix (get builder/id-prefixes type (str/lower-case (name type)))]
     (loop [n (inc (get counts type 0))]
       (let [k (keyword (str prefix n))]
         (if (contains? taken k) (recur (inc n)) k)))))
 
 (defn- adopt
   "[nodes root] for m (see simple?) as an element of a new container: its own nodes, an id
-   that is taken given another. With link, [ctx pos] -- the container's context and where m
-   begins in it -- each leaf's chain gets that link before the :ROOT one, as it has when it is
-   read inside the container; without, the chains stay: a part of a parallel is read as a
+   that is taken given another. With links, [ctx pos] pairs -- the contexts of the containers it
+   stands in, nearest first, and where it begins in each -- each leaf's chain gets them before the
+   :ROOT link, as it has when it is read inside those containers (drop-root-link?: after taking
+   out the link of m's own root, which is replaced); without, the chains stay: a part of a parallel is read as a
    literal of its own, so the parallel's context, empty, is in none of them."
   ([m taken] (adopt m taken nil))
-  ([m taken link]
+  ([m taken links] (adopt m taken links false))
+  ([m taken links drop-root-link?]
    (let [own    (v/own-nodes m)
          rename (reduce (fn [acc k]
                           (let [k' (if (contains? @taken k) (fresh-id (:type (get own k)) @taken) k)]
@@ -211,8 +213,9 @@
                             (assoc acc k k')))
                         {} (keys own))
          fix    (fn [c] (cond (keyword? c) (rename c)
-                              (and link (leaf? c)) (let [chain (vec (:ctx-chain c))]
-                                                     (assoc c :ctx-chain (conj (if (seq chain) (pop chain) []) link (peek chain))))
+                              (and (seq links) (leaf? c)) (let [chain (vec (:ctx-chain c))]
+                                                            (assoc c :ctx-chain (into (let [kept (if (seq chain) (pop chain) [])] (if (and drop-root-link? (seq kept)) (pop kept) kept))
+                                                                      (concat links [(peek chain)]))))
                               :else c))]
      [(into {} (for [[k n] own]
                  [(rename k) (-> n (assoc :id (rename k)) (update :children #(mapv fix %)))]))
@@ -244,7 +247,7 @@
                 (cond
                   (leaf? x)     [(+ pos (d/duration base x)) (conj kids (assoc (as-read x) :ctx-chain [[ctx pos] root])) nodes]
                   (marker? x)   [pos (conj kids x) nodes]
-                  :else (let [[ns r] (adopt x taken [ctx pos])]
+                  :else (let [[ns r] (adopt x taken [[ctx pos]])]
                           [(+ pos (d/duration (merge base ns) r)) (conj kids r) (merge nodes ns)])))
         [_ kids nodes] (reduce step [0 [] {}] elements)
         node  {:type :SEQ :id id :children kids :context ctx}
@@ -331,9 +334,67 @@
   (let [m (->material x)]
     (if (and (= :SEQ (kind m)) (not-any? (v/node m) [:shuffle :rotate :choose :alternate])) m (line [x]))))
 
+(defn- inline-seq
+  "[node nodes]: the plain seq m (see simple?) held inline, as a repeat's body or endings are,
+   with an id and a context of its own; outer, [ctx pos] links of the containers it stands in,
+   nearest first, go before :ROOT in each leaf's chain. nodes are the nested ones it needs."
+  [m taken outer]
+  (let [repo  (:repo m)
+        base  (:base m)
+        root  (v/node m)
+        ctx   (c/context)
+        id    (fresh-id :SEQ @taken)
+        _     (swap! taken conj id)
+        links (fn [pos] (into [[ctx pos]] outer))
+        step  (fn [[pos kids nodes] c]
+                (cond
+                  (keyword? c) (let [[ns r] (adopt (assoc (v/->Material c repo) :base base) taken (links pos) true)]
+                                 [(+ pos (d/duration repo c)) (conj kids r) (merge nodes ns)])
+                  (leaf? c)    (let [chain (vec (:ctx-chain c))]
+                                 [(+ pos (d/duration repo c))
+                                  (conj kids (assoc (as-read c) :ctx-chain (vec (concat (links pos) [(peek chain)]))))
+                                  nodes])
+                  :else        [pos (conj kids c) nodes]))
+        [_ kids nodes] (reduce step [0 [] {}] (:children root))]
+    [(merge (select-keys root [:shuffle :rotate :choose :alternate :weights])
+            {:type :SEQ :id id :children kids :context ctx})
+     nodes]))
+
+(defn- repeat-native
+  "The repeat of body n times (:infinite for ever), with alt for its endings, type nil or
+   \"tremolo\", built from them: the Iterator, its body and endings held inline, the nodes
+   they need, and each leaf's chain as it is when the text route reads the repeat inside a
+   seq of its own."
+  [type n body alt]
+  (let [base   (e/current-repo)
+        taken  (atom (set (keys base)))
+        wrap   [(c/context) 0]
+        itype  (if type :TREMOLO :REPEAT)
+        iid    (fresh-id itype @taken)
+        _      (swap! taken conj iid)
+        [bnode bnodes] (inline-seq body taken [wrap])
+        [anode anodes] (when alt (inline-seq alt taken [wrap]))
+        nodes  (merge bnodes anodes)
+        repo   (merge base nodes)
+        stamp  #(d/set-container-duration % (d/duration repo %))
+        params (cond-> (if type {:count n} {:count n :repeat-type :volta})
+                 anode (assoc :alternative (stamp anode)))
+        iter   (d/iterator itype iid (c/context) (stamp bnode) params)
+        iter   (update iter :context c/set-duration (d/duration repo iter))]
+    (assoc (v/->Material iid (assoc repo iid iter)) :base base)))
+
+(declare read-repeat-by-text)
+
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
    ), as a value; type is nil or \"tremolo\"."
+  [type n body alt]
+  (if (and (v/material? body) (simple? body) (= :SEQ (kind body))
+           (or (nil? alt) (and (v/material? alt) (simple? alt) (= :SEQ (kind alt)))))
+    (repeat-native type n body alt)
+    (read-repeat-by-text type n body alt)))
+
+(defn- read-repeat-by-text
   [type n body alt]
   (let [b (p/show body)]
     (first (elements (read-text (str "[" "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b
