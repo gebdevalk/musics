@@ -61,21 +61,25 @@ reads through that voice's chain.
 
 ### Words
 
-A scope is named by the voice's id (`:bass`), written before the key, which is what `T@` already
-takes after it:
+A scope is named in the key: a **qualified keyword**, `:bass/steps`, the voice's id before the slash,
+which is a keyword like any other (Clojure's own `(keyword "bass" "steps")`), so no new kind of
+value is needed. The words keep their shapes:
 
 | Word | Does |
 |---|---|
 | `:steps T@` | the shared value (as now) |
-| `:bass :steps T@` | the bass's value, else the shared one |
+| `:bass/steps T@` | the bass's value, else the shared one |
 | `3 :steps T!` | set the shared value (as now) |
-| `3 :bass :steps T!` | set it in the bass scope |
-| `:bass :steps T_` | take it out of the scope; the bass reads the shared one again |
-| `'( … ) :bass :density T!` | a computed key in a scope |
-| `:bass @{ :steps 5 :pulses 8 } :tctx R!` or an equivalent | a scope written out; to settle |
+| `3 :bass/steps T!` | set it in the bass scope |
+| `:bass/steps T_` | take it out of the scope; the bass reads the shared one again |
+| `'( … ) :bass/density T!` | a computed key in a scope |
+| `@{ :steps 8 :bass/steps 5 :lead/steps 3 } :tctx R!` | the shared table and the scopes written out in one literal |
 | `:bass settings` | the scope's values, and the shared ones it inherits, marked |
 
-`T@@` runs a computed key under the named voice's chain.
+`T@@` runs a computed key under the named voice's chain (`:bass/density T@@`).
+
+A key inside a voice's scope is still written `:steps` by the words that run in that voice:
+the chain finds the voice's value first.
 
 ### The `$` inputs become scope entries
 
@@ -84,8 +88,9 @@ takes after it:
 ranges still come from the algo parameter of the same name (`live/param-spec`) and are kept beside
 the scope entry. `:bass settings` and `:bass gui` read the scope.
 
-Then these go: `Ref` and the `@`/`!` on references, the `/input` of `IdName`, and the registry in
-`musics.mu.inputs` (147 lines), reduced to watching a scope. `@` and `!` are left to `nth` and `put`.
+Then these go: `Ref` and the `@`/`!` on references, and the registry in `musics.mu.inputs`
+(147 lines), reduced to watching a scope. `@` and `!` are left to `nth` and `put`. The `/name` of
+`IdName` stays, now reading as a qualified keyword, not a reference.
 
 ### Keys
 
@@ -124,7 +129,7 @@ what one does when tuning a voice. A scope is dropped with its last entry (`T_`)
 | `compose/source`, `events/walk-source` | `tctx` becomes a vector of scopes, nearest first |
 | `live/play-onset-word!`, `play-plain-word!` | start the voice with its scope in the chain |
 | `kernel` `T!` `T@` `T@@` `T_` | an optional voice id before the key |
-| `mu.ebnf` | `IdName` loses `/input` |
+| `mu.ebnf`, `musics.mu.eval` | `:voice/name` reads as a qualified keyword, not a `Ref` |
 | `musics.mu.inputs`, `voice`, `live` | inputs become scope entries; watch the scope to re-run a word voice |
 | `musics.mu.material/stage!` or the conductor | a change at a boundary (section 4, way 2), later |
 | `musics.gui.params`, `musics.gui.settings` | one window reads a scope and the shared table |
@@ -136,10 +141,13 @@ to the shared value; two voices started at once with different scopes.
 
 ## 7. Open questions
 
-1. **Syntax.** `:bass :steps T@` (two items) is proposed. `:bass/steps T@` is shorter but keeps a
-   reference literal. The note takes the two items, as the rest of mu is written.
-2. **A scope written out.** `@{ }` is the shared table. A scope literal, or a word that takes a
-   voice and a list of pairs, has to be settled.
+1. **Syntax: settled.** `:bass/steps T@`, a qualified keyword (the user's choice). It is the form
+   `:bass/onsets` already has, it needs no new word, and it is one item. A voice id and a key may
+   use the characters `IdName` allows after the slash (letters, digits, `_`, `-`, `?`); the
+   unqualified shared keys keep letters, digits and `_`.
+2. **A scope written out: settled.** The one `@{ }` literal holds the shared keys and the scoped
+   ones: `@{ :steps 8 :bass/steps 5 }`. `:tctx R!` replaces all of them in one step and `:tctx R@`
+   prints them back, shared keys first, then the scopes by voice.
 3. **Does a scope override the shared table?** Proposed yes, a scope is nearest. The shared table
    stays in front of the music's contexts, so the live override is kept. A voice that must not be
    overridden by a later shared write needs a scope entry of its own.
