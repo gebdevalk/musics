@@ -70,20 +70,20 @@
     (let [els (mt/elements (mt/read-text text))]
       (when (and (seq els) (every? mt/leaf? els))
         (testing text
-          (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els)))))))))
+          (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els nil)))))))))
 
 (deftest line-of-leaves-and-marks
   (let [leaves (mt/elements (mt/read-text "[c4 d e]"))
         bar    (first (filter d/bar? (:children (v/node (mt/read-text "[c4 | d]")))))
         els    [(first leaves) bar (second leaves)]]
-    (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els))))))
+    (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els nil))))))
 
 (deftest line-of-leaves-with-lengths-that-are-no-note-value
   (let [[a b c] (mt/elements (mt/read-text "[c4 d e]"))]
     (doseq [[da db dc] [[9/8 1/3 5/16] [2/3 3/16 1/6] [3 7/8 1/12]]]
       (let [els [(assoc a :duration da) (assoc b :duration db) (assoc c :duration dc)]]
         (testing (str [da db dc])
-          (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els)))))))))
+          (is (= (shape (#'mt/line-by-text els)) (shape (#'mt/line-native els nil)))))))))
 
 (defn- value [text] (mt/read-text text))
 
@@ -126,15 +126,15 @@
                  ["[c4 d e]"]]]
     (testing (pr-str parts)
       (let [xs (mapv value parts)]
-        (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs)))))))
+        (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs nil)))))))
   (testing "leaves among them"
     (let [[a b] (mt/elements (value "[c4 d]"))
           xs    [a (value "[e f]") b (value "{[g a] [b c']}")]]
-      (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs)))))))
+      (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs nil)))))))
 
 (deftest line-keeps-the-ids-of-its-elements-apart
   (let [xs [(value "[c4 [d e]]") (value "[f [g a]]")]
-        m  (#'mt/line-native xs)
+        m  (#'mt/line-native xs nil)
         ids (keys (v/own-nodes m))]
     (is (= (count ids) (count (set ids))))
     (is (= (p/show (#'mt/line-by-text xs)) (p/show m)))))
@@ -166,7 +166,7 @@
 (deftest a-line-of-groups-is-built-without-text
   (let [g (fn [t] (mt/read-text t))
         xs [(g "( c4 d )") (g "( e f g )") (g "( a )")]]
-    (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs))))
+    (is (= (shape (#'mt/line-by-text xs)) (shape (#'mt/line-native xs nil))))
     (is (= "[( C4/4 D4 ) ( E4 F4 G4 ) ( A3 )]" (p/show (mt/line xs))))))
 
 (deftest a-seq-marked-to-be-ordered-anew-is-built-without-text

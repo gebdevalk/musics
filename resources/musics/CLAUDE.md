@@ -139,6 +139,13 @@ mini-language" below for `musics.compose/par`, a genuinely different,
 Clojure-data-side mechanism with its own reasons for existing,
 unrelated to this text grammar's own `{ }` Parallel).
 
+**Escapes.** `mu.ebnf`'s `EscSeq` and `EscPar` read a `[ ]` or `{ }` that holds a `$( … )` (`Escape`): notation
+around it (leaves, nested brackets, bar lines, `\name`, `:name`), mu code inside. `musics.mu.eval` runs the
+items on a stack of their own (`run-items []`) and `musics.mu.tools/code-bracket` gathers what the escapes
+and the notation left, with `mt/line` or `mt/par-of`; a `|` becomes a bar. A bracket without an escape
+is the notation's own `Sequence`/`Parallel`, so there is one reading and no second parser. See
+`doc/md/why/postfix-notation.md`, 7d.
+
 **The top level is mu's.** `musics.ebnf` defines the literals; `mu.ebnf`,
 appended to it (`musics.mu.grammar`), defines `MuInput`, the one start
 rule -- a `.mus` file, the GUI editor's text and the mu prompt are read

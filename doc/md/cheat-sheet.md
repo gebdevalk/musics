@@ -9,6 +9,7 @@
 | `[a: c d e]` | a seq named `a`, notes one after another |
 | `[a: c ( d e ) f]` | a group `( )` in a seq: one element, no id, its own instructions; order words move it whole, pitch words reach inside |
 | `{a: [x: ..] [y: ..]}` | parts at the same time |
+| `$([a b] 7 +)` in `[ ]` or `{ }` | interpret mode: mu code run now, each value left an element: `{ [a b] $([a b] 7 +) }`, `[c $([d e] 2 times) f]`; `**` joins a seq's notes in |
 | `^{ !mf }` | a context: settings |
 | `'[60 62 64]` | a data list (numbers); `'[C D E]` pitch classes |
 | `!mf` `!tempo:120` `!key:D.major` | instructions: inside a seq or a context, or alone, where one is a context holding it (`!mf` is `^{ !mf }`) |

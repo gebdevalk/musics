@@ -10,7 +10,7 @@
 MuInput = <ws>? (MuItem (<ws> MuItem)*)? <ws>?
 
 <MuItem> = Definition / Quotation / TopCommand / Group / Settings / Retrograde / Measures / EmptyLine / Parallels / Lines / Contexts / QuotedName
-         / Composite / repeat / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / BareDuration / StringLit
+         / Composite / EscSeq / EscPar / repeat / tuplet / shuffle / rotate / choose / alternate / KeyValue / Leaf / Mark / MuNumber / BareDuration / StringLit
          / IdName / VarRef / PcSet / Local / LooseInstruction / Word
 
 (* : name ( $a b -- c ) body ;  -- a $name before -- is bound as a local and taken off
@@ -32,6 +32,19 @@ Quotation = <"'("> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
    in brackets; as the text's ( ) holds what a command changes now,
    ( … ) 1 + moves all of it, a repeat's endings too. *)
 Group = <'('> <ws>? (MuItem (<ws> MuItem)*)? <ws>? <')'>
+
+(* $( … ) -- the switch to interpret mode, Forth's [ ] inside a definition: in a seq or a
+   parallel written with notation, what stands in $( ) is mu code, run now on a stack of its own, and
+   each value it leaves is an element, in order: [ c4 $([d e] 2 times) f ], { [a b] $([a b] 7 +) }.
+   A bracket holding one is read as notation around it -- leaves, nested brackets, bar lines,
+   \name, :name -- so a mistyped note is still a parse error; no word stands outside a $( ).
+   A seq or a parallel without one is the notation's own, and $(037) is the pitch-class prime
+   form at mu's top level, where no escape stands. *)
+Escape  = <'$('> <ws>? MuItem (<ws> MuItem)* <ws>? <')'>
+<EscPlain> = EscSeq / EscPar / Composite / Leaf / Mark / VarRef / IdName
+<EscElem>  = Escape / EscPlain
+EscSeq  = <'['> <ws>? (Id <ws>)? (EscPlain <ws>)* Escape (<ws> EscElem)* <ws>? <']'>
+EscPar  = <'{'> <ws>? (Id <ws>)? (EscPlain <ws>)* Escape (<ws> EscElem)* <ws>? <'}'>
 
 (* @{ :onsets 3 :pulses 8 :half '( :pulses 2 / int ) } -- a tctx written out: pairs of
    :key and a value (a number, a list, a string, a quotation for a computed key), run now

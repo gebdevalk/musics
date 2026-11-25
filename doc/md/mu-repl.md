@@ -94,6 +94,15 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
   seq, the same spelling as in a seq (`!tempo:4=120`, `!tempo<16:140`,
   `!allegro`, `!tempo:140@4`). Several: `^{ !mf !tempo:89 } with`. mu never
   writes `:ROOT`.
+- **`$( … )` in a seq or a parallel is interpret mode**, Forth's `[ ]` inside a definition: what stands
+  in it is mu code, run now on a stack of its own, and each value it leaves is an element, in
+  order. `{ [a b c d] $([a b c d] 7 +) }` is `[a b c d] dup 7 + {2}`; `[c4 $([d e] 2 times) f]` has a
+  repeat for its second element, `[c4 $([d e] [?]) f]` a seq that shuffles. A seq among the values
+  is one nested element, and `**` (`spread`) joins its notes in: `[c4 $([d e] **) f]`. The rest of the
+  bracket is notation as ever (leaves, nested brackets, bar lines, `\name`), read whole before
+  anything runs, so a mistyped note outside an escape is a parse error. A name goes first, as in
+  notation: `{verse: [a1 e1] $([a8 b c d] 12 +) }`. Only music is gathered (numbers are `'[ ]`'s). For
+  now an instruction, a jump mark or a `( )` group stands beside no escape.
 - **A tctx is written `@{ :onsets 3 :half '( :onsets 2 / ) }`**: pairs of a keyword and a value (a quotation is a
   computed key), run now like a `( … )`. It is a value of its own (a `^{ }` has string keys), and
   `:tctx R!` makes it the session's tctx, replacing the entries; `:tctx R@` gives them back in this form, keys in order.
