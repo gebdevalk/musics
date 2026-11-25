@@ -36,7 +36,7 @@
   (let [r    (atom nil)
         out  (str/trim (with-out-str (reset! r (e/eval-input input))))
         res  (cond (:error @r) (str/trim (str "error: " (:error @r)))
-                   (:ok @r)    (str/join "  " (map p/show (:ok @r)))
+                   (:ok @r)    (str/join "  " (map p/show-display (:ok @r)))
                    :else       "(unfinished)")]
     (str/join "\n" (remove str/blank? [out res]))))
 
@@ -524,10 +524,11 @@
                 "A function that makes *raw material* (pulses, numbers, weights, onsets, points) gives a plain list; a **bridge** from `musics.algo.bridge` (`pulses->durations`, `numbers->pitches` …) turns it into a duration, a pitch or a volume, with the range or the grid you give it; `zip` puts the parts together into notes. "
                 "A function that makes one number per call is called n times with `pull`: `'( 0.0 1.0 random/normal ) 12 pull`; one that keeps its place (a walk, the logistic map) is `pull`ed as it is.\n\n"
                 "The recipes are written in two styles. The first ten put every number into the line, so that each word and its arguments can be seen at once. From recipe 11 the numbers are **settings** in the tctx, the session's table of named values (`3 :onsets T!`), and the line that makes the music is stored once as a computed key (`'( :onsets :pulses pattern/euclid … ) :name T!`) and run with `:name T@@`. That is the pattern to use for anything you will change, repeat or play live: a change is one `T!`, and a voice that reads the table hears it at its next note.\n\n"
-                "Three things to keep in mind:\n\n"
+                "Four things to keep in mind:\n\n"
                 "- **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right, and give a bridge the range its input really has.\n"
                 "- **`N rng/seed` repeats the random words that follow it**, so the recipes that draw numbers start with `7 rng/seed`.\n"
-                "- **A parameter that is a map** (Markov transitions, L-system rules) cannot be written in mu text yet; those recipes are shown with `see`.\n\n"
+                "- **A parameter that is a map** (Markov transitions, L-system rules) cannot be written in mu text yet; those recipes are shown with `see`.\n"
+                "- **Floating point values are shown with two decimals** (`0.5234` is shown `0.52`, `1.0` is `1.00`). The value keeps every digit; only what `.`, `.s` and the lines below print is rounded.\n\n"
                 "## Setup\n\n"
                 "Type these once. `reqalgo` loads a Clojure namespace of `musics.algo`, named without that start and quoted (`'rhythmic.pattern reqalgo` is `\"musics.algo.rhythmic.pattern\" require`; a second quoted name, `'rhythmic.pattern 'p reqalgo`, is its alias); `penta` is a word of our own, the scale the recipes play over.\n\n"
                 setup-block "\n"

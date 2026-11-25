@@ -48,6 +48,10 @@ Stack effects:
 | `.s` | `( -- )` | show the stack, one item a line, top first, numbered as `pick` counts (`0> …`) |
 | `.` | `( a -- )` | print the top and discard it |
 
+`.` and `.s` print a floating point value with two decimals (`0.5234` shows `0.52`, `1.0` shows
+`1.00`); the value itself keeps every digit, and text that is read again (`edit`, a saved session)
+writes it in full.
+
 **Numbers** are the grammar's three primitives: Int, Float and Ratio
 (`7`, `0.5`, `1/4`), with Clojure's numeric tower: exact by default
 (`1 4 /` gives `1/4`), ratios stay ratios, a float makes the result

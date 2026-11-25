@@ -3871,3 +3871,13 @@ thing, a rule (`RepeatBars`), a walker branch, a mark carried through `repeat-pa
 `repeat 2 [ … ]`, or `2 times` on the stack, and prints as `repeat 2 [ … ]`. A repeat with endings
 is `repeat 2 [ … ] volta [ … ]`, as before. Nothing in the docs' examples, the corpus or `mus/` wrote
 repeat signs; tests converted.
+
+## 2026-11-25 -- a floating point value is printed with two decimals, for reading only
+
+`.`, `.s` and the cookbook's lines showed `65.43337461170353`, where `65.43` says what a person
+needs. `show` is also how a value is written to be read again (a saved session, a rebuilt list, `edit`,
+`par` and the other words that print and re-read), so it keeps every digit; `show-display`
+(`musics.mu.print`, `*decimals*` bound to 2) is the reading version, used by `.`, `.s` and
+`scripts/algo-cookbook.clj`. Only a float is rounded: a ratio, an integer and a pitch are as they were.
+Rejected: rounding in `show` itself (a saved `'x 0.123456 :=` would come back changed, and a rebuilt
+data list would drift each time it was rebuilt).

@@ -942,3 +942,14 @@
   (is (= "<C4 E&4 G&4 B&&4>4" (show "C4:dim7")) "a double flat")
   (is (= "<C4 E4 G4 B&4 D&5>4" (show "C4:7.9-")) "an added flat ninth")
   (is (= "<E3 C4 G4 B&4>4" (show "C4:7/E")) "a bass note keeps its place")))
+
+(deftest floating-point-values-print-with-two-decimals
+  (is (= "0.52\n" (out "0.5234 .")) ". prints a float with two decimals")
+  (is (= "1.00\n" (out "1.0 ."))  "a whole float too")
+  (is (= "1/3\n" (out "1/3 .")) "a ratio is not a float")
+  (is (= "7\n" (out "7 .")) "nor an integer")
+  (is (= "'[0.50 1.25 3.00]\n" (out "'[0.5 1.25 3.0] .")) "inside a list")
+  (is (= "0> 2.50\n1> 0.33\n----\n" (out "0.3333 2.5 .s")) ".s too, top first")
+  (testing "text that is read again keeps every digit"
+    (is (= "0.5234" (p/show 0.5234)))
+    (is (= "'[0.5234]" (p/show (first (:ok (run "'[0.5234]"))))))))

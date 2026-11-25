@@ -206,13 +206,13 @@
 ;; -- printing -------------------------------------------------------------
 
 (word! "kernel" "." "( x -- )  print the top and drop it"
-       (fn [s] (need s 1 ".") (println (p/show (peek s))) (pop s)))
+       (fn [s] (need s 1 ".") (println (p/show-display (peek s))) (pop s)))
 
 (word! "kernel" "clear" "( ... -- )  clear the stack" (fn [_] []))
 
 (word! "kernel" ".s" "( -- )  the stack, one item a line, top first, numbered as pick counts, ---- under the last"
        (fn [s]
-         (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show x))))
+         (doseq [[i x] (map-indexed vector (rseq s))] (println (str i "> " (p/show-display x))))
          (when (seq s) (println "----"))
          s))
 

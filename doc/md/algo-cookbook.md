@@ -8,11 +8,12 @@ An algorithm of `musics/algo/` is an ordinary function with clear argument names
 
 The recipes are written in two styles. The first ten put every number into the line, so that each word and its arguments can be seen at once. From recipe 11 the numbers are **settings** in the tctx, the session's table of named values (`3 :onsets T!`), and the line that makes the music is stored once as a computed key (`'( :onsets :pulses pattern/euclid … ) :name T!`) and run with `:name T@@`. That is the pattern to use for anything you will change, repeat or play live: a change is one `T!`, and a voice that reads the table hears it at its next note.
 
-Three things to keep in mind:
+Four things to keep in mind:
 
 - **Nothing is checked between words.** A bridge takes what is on the stack. Pair the types right, and give a bridge the range its input really has.
 - **`N rng/seed` repeats the random words that follow it**, so the recipes that draw numbers start with `7 rng/seed`.
 - **A parameter that is a map** (Markov transitions, L-system rules) cannot be written in mu text yet; those recipes are shown with `see`.
+- **Floating point values are shown with two decimals** (`0.5234` is shown `0.52`, `1.0` is `1.00`). The value keeps every digit; only what `.`, `.s` and the lines below print is rounded.
 
 ## Setup
 
@@ -134,7 +135,7 @@ mu> '[2 2 3] indispensability/indisp 0.5 bridge/weights->pulses 1/16 bridge/puls
 mu> 7 rng/seed
 
 mu> 60.0 3.0 walk/walk 8 pull dup 52 68 48 72 bridge/numbers->pitches swap 52 68 40 100 bridge/numbers->volumes
-'[58 58 54 52 52 50 48 48]  '[65.43337461170353 65.68982072830894 55.56050037716295 49.13675912693998 49.49558767623864 46.22647507901455 40.0 40.0]
+'[58 58 54 52 52 50 48 48]  '[65.43 65.69 55.56 49.14 49.50 46.23 40.00 40.00]
 ```
 
 ### Rhythm × melody
@@ -474,7 +475,7 @@ mu> :walking T@@
 mu> '( :seed rng/seed 60.0 :step_bound :bias walk/biased-walk :draws pull ) :leaning T!
 
 mu> :leaning T@@
-'[60.51139760518246 60.72589799406144 61.08060410085148 61.7105687245984 61.31026418351342 62.16719126775097 63.037969191567505 63.782461911389255 64.45211971398726 63.52773563529546 63.539843825516265 63.65644189963501 64.30431867584223 64.83607858369037 64 …
+'[60.51 60.73 61.08 61.71 61.31 62.17 63.04 63.78 64.45 63.53 63.54 63.66 64.30 64.84 64.06 64.72]
 ```
 
 #### 31. Chaos: the logistic map, the Lorenz attractor

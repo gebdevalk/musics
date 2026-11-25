@@ -24,6 +24,18 @@
   "false: print music without its names (eq compares it so)."
   true)
 
+(def ^:dynamic *decimals*
+  "nil: a floating point value is written in full, as text that reads back as it was (what
+   a saved session and every rebuilt value need). A number of places: it is written with that
+   many decimals, to be read by a person (show-display)."
+  nil)
+
+(defn- float-text
+  "x, a floating point value, with *decimals* places, or nil when it is to be written in full."
+  [x]
+  (when (and *decimals* (float? x) (Double/isFinite (double x)))
+    (String/format java.util.Locale/ROOT (str "%." *decimals* "f") (object-array [(double x)]))))
+
 (defn- id-prefix [node]
   (when-let [id (and *names* (:id node))]
     (when-not (auto-id? id) (str (name id) ": "))))
@@ -38,7 +50,7 @@
           (= :LOOP (:type x)) (str (data-element nil (:items x)) " [~]")
           (:mu/repeat (meta x)) (str (data-element nil (first (:mu/repeat (meta x)))) " [~]")
           (sequential? x) (str "'[" (str/join " " (map #(data-element nil %) x)) "]")
-          :else           (str x))))
+          :else           (or (float-text x) (str x)))))
 
 (def ^:private typed-data
   "Data types whose elements need their type written to read back."
@@ -156,4 +168,10 @@
           items (str/join " " (map show (take 16 shown)))
           leaves? (and (seq shown) (every? #(and (map? %) (#{:PITCHED :REST :DRUM :LEAF} (:type %))) (take 16 shown)))]
       (str (if leaves? "[" "'[") items (when more " …") "]"))
-    :else (pr-str x)))
+    :else (or (float-text x) (pr-str x))))
+
+(defn show-display
+  "show for a person to read: a floating point value with two decimals (0.5234 is 0.52,
+   1.0 is 1.00), everything else as show writes it. Not for text that is read again."
+  [x]
+  (binding [*decimals* 2] (show x)))
