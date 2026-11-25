@@ -24,7 +24,7 @@
    command's own leading keyword text directly (grace is the one
    exception -- five near-identical shapes share one rule, so ITS own
    keyword text is the only way to tell them apart, see walk-grace) --
-   only find-child lookups by tag (from-pitch/to-pitch/Scope) --
+   only find-child lookups by tag (from-pitch/to-pitch/OpBody) --
    confirmed live, not assumed, when this file was written."
   (:require [musics.domain.context :as c]
             [musics.domain :as d]
@@ -33,7 +33,6 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.leaf-parser :as leaf]
             [musics.input.reader.builder :as flat]
-            [musics.algo.numeric.random :as rnd]
             [clojure.string :as str]))
 
 ;; ============================================================
@@ -55,7 +54,7 @@
             n    (Integer/parseInt (apply str (remove #{\.} s)))]
         (when-not (= 1 (Integer/bitCount n))
           (throw (ex-info (str "/" n " is no note value: a note value is 1, 2, 4, 8, 16, ... -- "
-                               "a tuplet is written as one, 3:2( c8 d e ) for three in the time of two")
+                               "a tuplet is written as one, 3:2[ c8 d e ] for three in the time of two")
                           {:duration s})))
         (* (/ 1 n) (- 2 (/ 1 (bit-shift-left 1 dots))))))))
 
@@ -577,7 +576,7 @@
          walk-partial
          walk-note walk-chord walk-chord-symbol walk-rest walk-multi-rest walk-drum
          walk-bareword walk-primitive walk-container-field
-         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-shuffle-now walk-rotate walk-rotate-now walk-choose walk-alternate
+         walk-transpose walk-row-form walk-tuplet walk-shuffle walk-rotate walk-choose walk-alternate
          walk-repeat walk-grace)
 
 (def data-element-types
@@ -755,9 +754,7 @@
         :row-form  (walk-row-form  state children)
         :tuplet    (walk-tuplet    state children)
         :shuffle   (walk-shuffle   state children)
-        :shuffle-now (walk-shuffle-now state children)
         :rotate    (walk-rotate    state children)
-        :rotate-now (walk-rotate-now state children)
         :choose    (walk-choose    state children)
         :alternate (walk-alternate state children)
         ;; ---- Fallback: descend ----
@@ -1434,7 +1431,7 @@
 ;; ============================================================
 ;; transpose/reverse never read a command's own leading keyword text --
 ;; only find-child lookups by tag -- so neither cares whether the
-;; source spelled a Scope's own body with a nested Sequence/Reference/
+;; source spelled an OpBody's own body with a nested Sequence/Reference/
 ;; leaf run.
 
 (defn- walk-shuffle
@@ -1453,32 +1450,7 @@
 (defn- movable? [c]
   (or (keyword? c) (d/iterator? c) (and (map? c) (#{:PITCHED :REST :DRUM :LEAF} (:type c)))))
 
-(defn- reorder-movable
-  "children with the movable ones (movable?) put in the order f gives them."
-  [children f]
-  (let [cs  (vec children)
-        idx (filterv #(movable? (cs %)) (range (count cs)))]
-    (reduce (fn [v [i x]] (assoc v i x)) cs (map vector idx (f (mapv cs idx))))))
-
-(defn- rotated [n xs] (let [v (vec xs) k (if (seq v) (mod n (count v)) 0)] (into (subvec v k) (subvec v 0 k))))
-
 (defn- signed-int [node] (Long/parseLong (str/replace (second node) #"^\+" "")))
-
-(defn- walk-shuffle-now
-  "shuffle ( … ) -- its notes, seqs and repeats in a random order, now
-   (musics.algo.numeric.random, so a seed repeats it)."
-  [state children]
-  (let [s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
-        idx (dec (count (:stack s)))]
-    (-> (update-in s [:stack idx :children] reorder-movable rnd/shuffle) flat/pop-container)))
-
-(defn- walk-rotate-now
-  "rotate n ( … ) -- its notes, seqs and repeats rotated n places, now."
-  [state children]
-  (let [n (signed-int (find-child children :SignedInt))
-        s (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
-        idx (dec (count (:stack s)))]
-    (-> (update-in s [:stack idx :children] reorder-movable (partial rotated n)) flat/pop-container)))
 
 (defn- walk-rotate
   "rotate n [ … ] -- a seq of its own, marked :rotate n, so playback
@@ -1525,13 +1497,13 @@
   (marked-line state children :alternate))
 
 (defn- walk-tuplet
-  "n:m( ... ) -- n notes in the time of m: every note inside, at any
+  "n:m[ ... ] -- n notes in the time of m: every note inside, at any
    depth of tuplets, plays at m/n of its written value (and keeps the
    factor as :ratio, see tag-ratio, so it prints back as a tuplet). The
    body is spliced into the parent like reverse's."
   [state children]
   (let [[n m]  (map #(Long/parseLong %) (str/split (second (find-child children :TupletCount)) #":"))
-        scope  (find-child children :Scope)
+        scope  (find-child children :OpBody)
         outer  @(:tuplet state)]
     (when (or (zero? n) (zero? m)) (throw (ex-info (str n ":" m " is no tuplet") {:tuplet [n m]})))
     (reset! (:tuplet state) (* outer (/ m n)))
@@ -1602,7 +1574,7 @@
     (transpose-leaf interval (respell-fn ks))))
 
 (def ^:private row-forms
-  {"retrograde" :R "R" :R "inversion" :I "I" :I "retrograde-inversion" :RI "RI" :RI "mirror" :M "M" :M})
+  {"retrograde" :R "inversion" :I "retrograde-inversion" :RI "mirror" :M})
 
 (defn- mirror-leaf
   "A note mirrored around axis: a pitch p becomes 2·axis - p."
@@ -1664,7 +1636,7 @@
   [state children]
   (let [form      (row-forms (second (find-child children :row-name)))
         n         (if-let [st (find-child children :semitones)] (signed-int (find-child (rest st) :SignedInt)) 0)
-        s2        (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :Scope))))
+        s2        (-> state (flat/push-container :REVERSE) (walk-children (rest (find-child children :OpBody))))
         body      (peek (:stack s2))
         ps        (flat/deep-pitches s2 (:children body))
         axis      (when (seq ps)
@@ -1681,7 +1653,7 @@
         flat/pop-container)))
 
 (defn- walk-transpose [state children]
-  (let [scope-node (find-child children :Scope)]
+  (let [scope-node (find-child children :OpBody)]
     (if scope-node
       (let [interval   (semitones-of children)
             s1         (flat/push-container state :TRANSPOSE)

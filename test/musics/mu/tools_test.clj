@@ -84,7 +84,7 @@
 
 (deftest bar-lines-through-the-tools
   (is (= "[C4/4 D4 E4]" (top "( [c d | e] '( ) each )")) "elements are notes: the bar is not one")
-  (is (= "repeat 2 [3:1(C4/4 D4) |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the seq whole"))
+  (is (= "repeat 2 [3:1[C4/4 D4] |]" (top "[c d |] 1/3 * 2 [*]")) "a word that changes each note keeps the seq whole"))
 
 (deftest times-and-repeat
   (is (= "repeat 3 [A3/4 B3]" (top "[a b] 3 times")) "3 times is the text's repeat 3 [a b]")
@@ -113,7 +113,7 @@
   (is (= "[[B3/4 A3] [C4] [B3 A3] [C4]]" (top "[a b] 2 times [c] volta '( retrograde ) vary"))
       "every pass the quotation of the body as written, each followed by its ending")
   (is (= "[[!K:D.major B3/4 C#4] [!K:D.major B3 C#4] [!K:D.major B3 C#4]]" (top "[a b] 3 times '( 2 + ) vary")) "no endings")
-  (is (= "[[3:1(A3/4 B3)] [C4] [3:1(A3 B3)] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
+  (is (= "[[3:1[A3/4 B3]] [C4] [3:1[A3 B3]] [C4]]" (top "[a b] 2 times [c] volta '( 1/3 * ) vary"))
       "* too: each pass scaled, the endings not")
   (let [shown (top "[a b] 2 times [c] volta '( 1/3 * ) vary")]
     (is (= shown (top shown)) "reads back the same"))
@@ -297,19 +297,19 @@
   (is (re-find #"unknown word: ALT|can't read" (top "ALT [[c d] [e f]]")) "ALT is gone"))
 
 (deftest the-texts-words
-  (is (= "[!K:F.major F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 ( … )")
+  (is (= "[!K:F.major F4/4 G4]" (top "[c d] 5 transpose")) "transpose by semitones, as transpose 5 [ … ]")
   (is (= "[!K:D.major D4/4 E4]" (top "[c d] c d transpose")) "or by the interval between two notes")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "[c d e] 1 rotating")) "rotating: the text's rotate n [ … ]")
   (is (= "rotate 1 [C4/4 D4 E4]" (top "rotate 1 [c d e]")) "which reads back")
   (is (= (top "[c d e] [?]") (top "[c d e] shuffling")) "shuffling is [?]")
-  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde ( c d e f )]")) "the text's row forms inside a literal")
+  (is (= "[F4/4 E4 D4 C4]" (top "[retrograde [ c d e f ]]")) "the text's row forms inside a literal")
   (testing "TRP, SFL and ROT are no more: not words, not the text's commands"
     (is (re-find #"unknown word: TRP -- it is now written transpose" (top "[c d] 5 TRP")))
     (is (re-find #"unknown word: ROT -- it is now written rotate" (top "[c d e] 1 ROT")))
     (is (re-find #"unknown word: SFL -- it is now written shuffle" (top "[c d] SFL")))
     (is (re-find #"can't read" (top "[TRP 5 ( c d )]")))
     (is (re-find #"can't read" (top "[SFL [c d]]")))
-    (is (= "[F4/4 G4]" (top "[transpose 5 ( c d )]")) "the long names do it")))
+    (is (= "[F4/4 G4]" (top "[transpose 5 [ c d ]]")) "the long names do it")))
 
 (deftest errors-say-what-is-wrong-and-where
   (testing "a count is 0 or more"
@@ -1051,3 +1051,12 @@
   (is (re-find #"takes contexts" (:error (e/eval-input "[c d] ^{ !mf } ^{2}"))))
   (is (re-find #"takes 2 or more" (:error (e/eval-input "^{ !mf } ^{1}"))))
   (is (re-find #"nothing|needs|takes" (:error (e/eval-input "^{ !mf } ^{3}")))))
+
+(deftest tremolo-and-grace-words-are-the-texts-postfix
+  (is (= (top "repeat tremolo 8 [c16 d]") (top "[c16 d] 8 tremolo")) "tremolo: the text's repeat tremolo n [ x ]")
+  (is (re-find #"repeat tremolo 8 " (top "[c16 d] 8 tremolo")))
+  (is (re-find #"whole number above 0" (top "[c16 d] 0 tremolo")))
+  (doseq [kind ["grace" "acciaccatura" "appoggiatura" "slashedGrace"]]
+    (is (= (top (str "[" kind " c16 d4]")) (top (str "c16 d4 " kind))) kind))
+  (is (= (top "[afterGrace d4 c16]") (top "d4 c16 afterGrace")) "afterGrace: the main note first")
+  (is (re-find #"needs two notes" (top "[c d] c4 grace"))))

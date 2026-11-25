@@ -223,7 +223,9 @@
       (when (empty? alts) (e/mu-error (str word ":") "nothing to choose from"))
       (when (and ws (not= (count ws) (count alts)))
         (e/mu-error (str word ":") (count ws) "weights for" (count alts) "alternatives -- give one weight each"))
-      (conj (pop s) (mt/read-text (str kw (when ws (str " " (str/join "," ws))) " [" (str/join " " (map p/show alts)) "]"))))))
+      (when (and ws (not-any? pos? ws)) (e/mu-error (str word ":") "the weights must not all be 0"))
+      (conj (pop s) (or (mt/marked-seq (mt/line alts) (cond-> {(keyword kw) true} ws (assoc :weights ws)))
+                        (mt/read-text (str kw (when ws (str " " (str/join "," ws))) " [" (str/join " " (map p/show alts)) "]")))))))
 
 (word! "music" "[|]" "( x q... [weights] -- m ) or ( x [weights] -- m )  choose [ … ]: one of the alternatives, picked at random each time it plays -- the quotations on top applied to x ([c d e g] '([I]) '([R]) [|]), or without them x's own elements ([[c d] [e f]] [|]); data of weights on top, one each, weighs them ([[c d] [e f]] '[3 1] [|])"
        (alternatives-word "[|]" "choose"))

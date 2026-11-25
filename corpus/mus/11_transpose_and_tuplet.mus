@@ -10,9 +10,9 @@
 [transpose_demo:
   \motif
   r4
-  transpose c g ( \motif )   // up a fifth
+  transpose c g [ \motif ]   // up a fifth
   r4
-  transpose c f ( \motif )   // up a fourth
+  transpose c f [ \motif ]   // up a fourth
 ]
 
 [times_and_tuplet_demo:

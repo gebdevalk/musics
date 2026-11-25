@@ -74,7 +74,7 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
 | **form** | `cycle` `[*]` `[/]` `[+]` `[%]` `[?]` `[~]` `[n]` `{n}` `^{n}` `{+}` `[!]` `[||]` `[|]` `[\]` `[H]` `[T]` `take` `tail` `take-last` `drop-last` `rotate` `shuffle` `perms` `concat` `flatten` `interleave` `partition` `split-at` `sputter`; `slice` `splice` `within`; `put` `insert` `delete` `cut` |
 | **value** | `+` `-` `*` `/` `cresc` `dim` `map` `transpose` `inversion` |
 | **selection** | `filter` `remove` `take-while` `drop-while` `distinct` `dedupe` `choose-n` `choose-from` `select`; `mute` |
-| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `vary`; `walking-bass` (a bass walked under a seq of chords, new each time) |
+| **assemble** | `par` `chord` `zip` `>ctx` `sounds` `with` `delay` `delays`; `times` `volta` `tremolo` `vary`; `grace` `acciaccatura` `appoggiatura` `slashedGrace` `afterGrace`; `walking-bass` (a bass walked under a seq of chords, new each time) |
 | **access** | `head` `last` `nth` (`@`) `length`; by time: `duration` `at` `bar` `bars`; numbers of a stream: `sum` `mean` `max` `min` `sort` `intervals`; searching: `find` `index-of` `indexes`; pitch classes: `classes` `prime-form` `interval-vector` `profile` `key-of` `chord-name`; rhythm: `pulses`; one note: `pitch` `duration` `volume` `articulation` `instrument` `drum`; every note of a line: `pitches` `durations` (a rest's too) `volumes` `articulations` `instruments` `drums` (a rest's nil), back onto a seq with `zip`; `as-drums` (notes made drums); names: `find-instrument` `find-drum` `find-kit` (list what a name or its start can mean, one a line; `""` lists all); what a note plays with, `:volume setting` `:instrument setting` … (`setting`,); `with` writes one |
 
 - **Form tools act on positions**, never values, so they work on any
@@ -382,8 +382,8 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   and the symbols on material (`+` `-` `*` `/`, `cresc` `dim`) are in
   `music`; playing in `play`; rating in `rate`.
 - **A text command and its word do the same thing**, prefix in the
-  text and postfix on the stack: `transpose c d ( c e g )` is
-  `[c e g] c d transpose`, `retrograde ( c d e )` is `[c d e] [R]`,
+  text and postfix on the stack: `transpose c d [ c e g ]` is
+  `[c e g] c d transpose`, `retrograde [ c d e ]` is `[c d e] [R]`,
   and `repeat 3 [a b] volta [[c] [d]]` is
   `[a b] 3 times [c] [d] volta`. `times` (`[*]`) gives one
   repeat played n times, counting the plays as the text and LilyPond
@@ -531,9 +531,9 @@ the next boundary, a `+` joining instead of replacing (`play`, `play+`,
   (`c4 3/2 *` gives `C4/4.`). Otherwise it is a tuplet: in a seq,
   consecutive notes sharing a factor print as one group, written values
   with the count before them, `[c8 d e] 2/3 *` as
-  `[3:2(C4/8 D4 E4)]`, as the text writes a tuplet; a lone note
+  `[3:2[C4/8 D4 E4]]`, as the text writes a tuplet; a lone note
   as its value with the factor, `C4/8*2/3`. The factor is the one the
-  note carries (`3:2( )`, `c8*2/3`, `*`, `/`), else the standard one
+  note carries (`3:2[ ]`, `c8*2/3`, `*`, `/`), else the standard one
   for its length (2/3, 4/5, 4/7, 8/9), so it prints back as written.
   A note value is a power of two: `c3` is refused, with a hint.
 - A rest moves in time but not in pitch: `r4 2 +` is `r4`, `r4 2 *` is

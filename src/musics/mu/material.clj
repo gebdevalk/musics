@@ -38,7 +38,7 @@
    a word that selects, inserts, splits or reorders gives back."
   [x] (or (d/bar? x) (d/jump? x)))
 
-(declare child-value finite!)
+(declare child-value finite! line)
 
 (defn data-vector
   "The data list a :DATA material holds, as a vector of its values; its
@@ -156,18 +156,158 @@
   "A value of like's form (a seq, a parallel or a group) holding slots, as items
    gives them: every instruction stays where it is written."
   [like slots]
-  (read-form like (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots))))
+  (if (and (= :SEQ (kind like)) (every? #(= :el (first %)) slots))
+    (line (map second slots))
+    (read-form like (str/join " " (map (fn [[tag v]] (if (= tag :ins) v (p/show v))) slots)))))
 
 (defn rebuild
   "A value of the same form as like (a seq, a parallel, a group, data), holding
    elements, with like's leading instructions."
   [like elements]
-  (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements)))))
+  (if (and (= :SEQ (kind like)) (empty? (leading-instructions like)))
+    (line elements)
+    (read-form like (str/join " " (concat (leading-instructions like) (map p/show elements))))))
 
-(defn line
-  "elements as a seq (a :SEQ)."
+(defn- line-by-text
+  "elements as a seq, written as text and read back: any element."
   [elements]
   (read-text (str "[" (str/join " " (map p/show elements)) "]")))
+
+(def ^:private leaf-types #{:PITCHED :REST :DRUM :LEAF})
+
+(defn- simple?
+  "Is m a Material whose own nodes are seqs and parallels holding leaves, bar lines, jump
+   marks and ids of such nodes of its own (no instruction, repeat, group, nor a stored part)?
+   A named node is left to the text route: its name may meet another's."
+  [m]
+  (let [own (v/own-nodes m)]
+    (and (seq own)
+         (every? (fn [[k n]]
+                   (and (#{:SEQ :PAR} (:type n))
+                        (p/auto-id? k)
+                        (every? (fn [c] (if (keyword? c)
+                                          (contains? own c)
+                                          (and (map? c) (or (leaf-types (:type c)) (d/bar? c) (d/jump? c)))))
+                                (:children n))))
+                 own))))
+
+(defn- fresh-id
+  "A new auto id of type (:SEQ :PAR) not in taken."
+  [type taken]
+  (let [counts (:auto-ids @reg/session)
+        prefix (get builder/id-prefixes type (str/lower-case (name type)))]
+    (loop [n (inc (get counts type 0))]
+      (let [k (keyword (str prefix n))]
+        (if (contains? taken k) (recur (inc n)) k)))))
+
+(defn- adopt
+  "[nodes root] for m (see simple?) as an element of a new container: its own nodes, an id
+   that is taken given another. With links, [ctx pos] pairs -- the contexts of the containers it
+   stands in, nearest first, and where it begins in each -- each leaf's chain gets them before the
+   :ROOT link, as it has when it is read inside those containers (drop-root-link?: after taking
+   out the link of m's own root, which is replaced); without, the chains stay: a part of a parallel is read as a
+   literal of its own, so the parallel's context, empty, is in none of them."
+  ([m taken] (adopt m taken nil))
+  ([m taken links] (adopt m taken links false))
+  ([m taken links drop-root-link?]
+   (let [own    (v/own-nodes m)
+         rename (reduce (fn [acc k]
+                          (let [k' (if (contains? @taken k) (fresh-id (:type (get own k)) @taken) k)]
+                            (swap! taken conj k')
+                            (assoc acc k k')))
+                        {} (keys own))
+         fix    (fn [c] (cond (keyword? c) (rename c)
+                              (and (seq links) (leaf? c)) (let [chain (vec (:ctx-chain c))]
+                                                            (assoc c :ctx-chain (into (let [kept (if (seq chain) (pop chain) [])] (if (and drop-root-link? (seq kept)) (pop kept) kept))
+                                                                      (concat links [(peek chain)]))))
+                              :else c))]
+     [(into {} (for [[k n] own]
+                 [(rename k) (-> n (assoc :id (rename k)) (update :children #(mapv fix %)))]))
+      (rename (:id m))])))
+
+(declare as-read)
+
+(defn- group-node
+  "The inline :GROUP node holding elements -- leaves and marks: its own context, each leaf's
+   chain its group link, then outer ([ctx pos] links of what the group stands in, nearest
+   first), then :ROOT; the duration and the pitch statistics stamped."
+  [elements outer]
+  (let [base (e/current-repo)
+        ctx  (c/context)
+        root [(:context (get base :ROOT)) 0]
+        step (fn [[pos kids] x]
+               (if (leaf? x)
+                 [(+ pos (d/duration base x))
+                  (conj kids (assoc (as-read x) :ctx-chain (vec (concat [[ctx pos]] outer [root]))))]
+                 [pos (conj kids x)]))
+        [_ kids] (reduce step [0 []] elements)
+        node {:type :GROUP :children kids :context ctx}]
+    (-> node
+        (d/set-container-duration (d/duration base node))
+        (d/set-container-pitch-stats (d/pitch-stats base node)))))
+
+(defn- group-material?
+  "Is x a group ( … ) of leaves and marks, as a value?"
+  [x]
+  (and (v/material? x) (= :GROUP (:type (v/node x)))
+       (every? #(or (leaf? %) (marker? %)) (:children (v/node x)))))
+
+(defn group-of
+  "elements as a group ( … ), one element of a seq with no id of its own: built directly when
+   they are leaves and marks, else written as text and read back."
+  [elements]
+  (if (every? #(or (leaf? %) (marker? %)) elements)
+    (let [base (e/current-repo)
+          node (group-node elements [[(c/context) 0]])
+          id   (keyword (str "group" (System/identityHashCode node)))]
+      (as-value (assoc (v/->Material id (assoc base id (assoc node :id id))) :base base)))
+    (read-text (str "( " (str/join " " (map p/show elements)) " )"))))
+
+(defn- as-read
+  "leaf as reading its text would give it: a length that is no note value carries its factor
+   as :ratio (written c4*9/8), any other has none."
+  [leaf]
+  (let [m (re-find #"\*(\d+)/(\d+)$" (lp/duration-text leaf))]
+    (if m
+      (assoc leaf :ratio (/ (parse-long (nth m 1)) (parse-long (nth m 2))))
+      (dissoc leaf :ratio))))
+
+(defn- line-native
+  "elements -- leaves, bar lines, jump marks, plain seqs and parallels (see simple?) -- as a seq
+   built from them, with no text between: the seq's node and own context, each leaf's chain
+   taken up to the new seq and :ROOT (what the text route gives a leaf read inside it), the
+   duration and the pitch statistics stamped as the walker stamps them when it closes a
+   container."
+  [elements]
+  (let [base  (e/current-repo)
+        taken (atom (set (keys base)))
+        id    (fresh-id :SEQ @taken)
+        _     (swap! taken conj id)
+        ctx   (c/context)
+        root  [(:context (get base :ROOT)) 0]
+        step  (fn [[pos kids nodes] x]
+                (cond
+                  (leaf? x)     [(+ pos (d/duration base x)) (conj kids (assoc (as-read x) :ctx-chain [[ctx pos] root])) nodes]
+                  (marker? x)   [pos (conj kids x) nodes]
+                  (group-material? x) (let [g (group-node (:children (v/node x)) [[ctx pos]])]
+                                        [(+ pos (d/duration base g)) (conj kids g) nodes])
+                  :else (let [[ns r] (adopt x taken [[ctx pos]])]
+                          [(+ pos (d/duration (merge base ns) r)) (conj kids r) (merge nodes ns)])))
+        [_ kids nodes] (reduce step [0 [] {}] elements)
+        node  {:type :SEQ :id id :children kids :context ctx}
+        repo  (merge base nodes {id node})
+        node  (-> node
+                  (d/set-container-duration (d/duration repo node))
+                  (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+    (as-value (assoc (v/->Material id (assoc repo id node)) :base base))))
+
+(defn line
+  "elements as a seq (a :SEQ): built from them directly when they are leaves, marks and plain seqs
+   and parallels (see simple?), else written as text and read back."
+  [elements]
+  (if (every? #(or (leaf? %) (marker? %) (group-material? %) (and (v/material? %) (simple? %))) elements)
+    (line-native elements)
+    (line-by-text elements)))
 
 (defn data
   "elements as a data list '[ ], read as a literal is, so it is checked as one."
@@ -238,9 +378,85 @@
   (let [m (->material x)]
     (if (and (= :SEQ (kind m)) (not-any? (v/node m) [:shuffle :rotate :choose :alternate])) m (line [x]))))
 
+(defn- inline-seq
+  "[node nodes]: the plain seq m (see simple?) held inline, as a repeat's body or endings are,
+   with an id and a context of its own; outer, [ctx pos] links of the containers it stands in,
+   nearest first, go before :ROOT in each leaf's chain. nodes are the nested ones it needs."
+  [m taken outer]
+  (let [repo  (:repo m)
+        base  (:base m)
+        root  (v/node m)
+        ctx   (c/context)
+        id    (fresh-id :SEQ @taken)
+        _     (swap! taken conj id)
+        links (fn [pos] (into [[ctx pos]] outer))
+        step  (fn [[pos kids nodes] c]
+                (cond
+                  (keyword? c) (let [[ns r] (adopt (assoc (v/->Material c repo) :base base) taken (links pos) true)]
+                                 [(+ pos (d/duration repo c)) (conj kids r) (merge nodes ns)])
+                  (leaf? c)    (let [chain (vec (:ctx-chain c))]
+                                 [(+ pos (d/duration repo c))
+                                  (conj kids (assoc (as-read c) :ctx-chain (vec (concat (links pos) [(peek chain)]))))
+                                  nodes])
+                  :else        [pos (conj kids c) nodes]))
+        [_ kids nodes] (reduce step [0 [] {}] (:children root))]
+    [(merge (select-keys root [:shuffle :rotate :choose :alternate :weights])
+            {:type :SEQ :id id :children kids :context ctx})
+     nodes]))
+
+(defn- repeat-native
+  "The repeat of body n times (:infinite for ever), with alt for its endings, type nil or
+   \"tremolo\", built from them: the Iterator, its body and endings held inline, the nodes
+   they need, and each leaf's chain as it is when the text route reads the repeat inside a
+   seq of its own."
+  [type n body alt]
+  (let [base   (e/current-repo)
+        taken  (atom (set (keys base)))
+        wrap   [(c/context) 0]
+        itype  (if type :TREMOLO :REPEAT)
+        iid    (fresh-id itype @taken)
+        _      (swap! taken conj iid)
+        [bnode bnodes] (inline-seq body taken [wrap])
+        [anode anodes] (when alt (inline-seq alt taken [wrap]))
+        nodes  (merge bnodes anodes)
+        repo   (merge base nodes)
+        stamp  #(d/set-container-duration % (d/duration repo %))
+        params (cond-> (if type {:count n} {:count n :repeat-type :volta})
+                 anode (assoc :alternative (stamp anode)))
+        iter   (d/iterator itype iid (c/context) (stamp bnode) params)
+        iter   (update iter :context c/set-duration (d/duration repo iter))]
+    (assoc (v/->Material iid (assoc repo iid iter)) :base base)))
+
+(def ^:private order-flags [:shuffle :rotate :choose :alternate :weights])
+
+(defn marked-seq
+  "The plain seq m (see simple?) as a seq of its own marked with flags -- {:shuffle true},
+   {:rotate n}, {:choose true} with :weights, {:alternate true} -- a part that is ordered anew
+   each time it plays, built directly; nil when m is not plain, for the caller to write as text."
+  [m flags]
+  (when (and (v/material? m) (simple? m) (= :SEQ (kind m)))
+    (let [base  (e/current-repo)
+          taken (atom (set (keys base)))
+          [node nodes] (inline-seq m taken [])
+          node  (merge (apply dissoc node order-flags) flags)
+          repo  (merge base nodes {(:id node) node})
+          node  (-> node
+                    (d/set-container-duration (d/duration repo node))
+                    (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+      (as-value (assoc (v/->Material (:id node) (assoc repo (:id node) node)) :base base)))))
+
+(declare read-repeat-by-text)
+
 (defn- read-repeat
   "The repeat written as text (repeat 2 [ … ] …, repeat tremolo 2 [ … ],
    ), as a value; type is nil or \"tremolo\"."
+  [type n body alt]
+  (if (and (v/material? body) (simple? body) (= :SEQ (kind body))
+           (or (nil? alt) (and (v/material? alt) (simple? alt) (= :SEQ (kind alt)))))
+    (repeat-native type n body alt)
+    (read-repeat-by-text type n body alt)))
+
+(defn- read-repeat-by-text
   [type n body alt]
   (let [b (p/show body)]
     (first (elements (read-text (str "[" "repeat " (when type (str type " ")) (if (= n :infinite) "~" n) " " b
@@ -254,6 +470,12 @@
         {n :count alt :alternative} (:params it)]
     [(when (= :TREMOLO (:type it)) "tremolo") n
      (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
+
+(defn tremolo
+  "x as a measured tremolo: its notes struck n times in the time of one pass, as the text's
+   repeat tremolo n [ x ]."
+  [x n]
+  (read-repeat "tremolo" n (as-line x) nil))
 
 (defn repetition
   "x played n times, as the text's repeat n [ x ]: one repeat,
@@ -934,21 +1156,53 @@
     (when (not= 1 (count nodes)) (e/mu-error "the result doesn't read back as one value:" text))
     (first nodes)))
 
-(defn par-of
-  "The parallel of xs. Each part is parsed on its own (parsing one long
-   text takes far more than the sum of its parts) and read into the repo
-   the parts before it made, so their auto ids stay apart; then one small
+(defn- par-by-text
+  "The parallel of xs, named id if one is given, written as text and read back. Each part is
+   parsed on its own (parsing one long text takes far more than the sum of its parts) and read
+   into the repo the parts before it made, so their auto ids stay apart; then one small
    parallel holds them by id."
-  [xs]
+  [xs id]
   (let [read1 (fn [[repo auto-ids ids] text]
                 (let [r (v/read-literals [(literal-of text)] text repo auto-ids)]
                   [(:repo (first (:values r))) (:auto-ids r) (conj ids (first (:ids r)))]))
         texts (map #(p/show (->material (sounding! "par" %))) xs)
         base  (e/current-repo)
         [tree auto-ids ids] (reduce read1 [base (:auto-ids @reg/session) []] texts)
-        text (str "{" (str/join " " ids) "}")]
+        text (str "{" (when id (str id ": ")) (str/join " " ids) "}")]
     ;; :base stays the repo before the parts, so storing it stores them too
     (as-value (assoc (first (:values (v/read-literals [(literal-of text)] text tree auto-ids))) :base base))))
+
+(defn- par-native
+  "The parallel of parts that are simple (see simple?) or leaves, built from them: their own
+   nodes carried over with ids kept apart, the parallel's node and context, its duration and
+   pitch statistics stamped."
+  [xs id]
+  (let [base  (e/current-repo)
+        ctx   (c/context)
+        taken (atom (set (keys base)))
+        pid   (fresh-id :PAR @taken)
+        _     (swap! taken conj pid)
+        [nodes roots] (reduce (fn [[nodes roots] x]
+                                (let [m (->material (sounding! "par" x))
+                                      [ns r] (adopt m taken)]
+                                  [(merge nodes ns) (conj roots r)]))
+                              [{} []] xs)
+        node  {:type :PAR :id (or id pid) :children roots :context ctx}
+        repo  (merge base nodes {(:id node) node})
+        node  (-> node
+                  (d/set-container-duration (d/duration repo node))
+                  (d/set-container-pitch-stats (d/pitch-stats repo node)))]
+    (as-value (assoc (v/->Material (:id node) (merge base nodes {(:id node) node})) :base base))))
+
+(defn par-of
+  "The parallel of xs, named id if one is given: built from the parts directly when each is a
+   leaf or a plain seq or parallel (leaves, marks, nested seqs and parallels), else written as
+   text and read back."
+  ([xs] (par-of xs nil))
+  ([xs id]
+   (if (every? #(or (leaf? %) (and (v/material? %) (simple? %))) xs)
+     (par-native xs (some-> id keyword))
+     (par-by-text xs id))))
 
 ;; -- what play shares with the prompt ----------------------------------------
 

@@ -225,7 +225,9 @@
   {:mu {:names ["[%]"]}}
   [x n]
   (if (mt/music? x)
-    (mt/read-text (str "rotate " (count! n) " " (p/show (mt/as-line x))))
+    (let [k (count! n) m (mt/as-line x)]
+      (or (mt/marked-seq m {:rotate k})
+          (mt/read-text (str "rotate " k " " (p/show m)))))
     (rotate x n)))
 
 (defn- grouped
@@ -265,9 +267,7 @@
     (when (zero? n) (fail "perms: needs an element"))
     (when (> n 6) (fail "perms:" n "elements make" (reduce * (core/range 1 (inc n))) "orders -- 6 elements at most (720)"))
     (if (or (v/material? x) (mt/leaf? x))
-      (mt/read-text (str "[" (str/join " " (core/map (fn [o] (str "( " (str/join " " (core/map #(p/show (els %)) o)) " )"))
-                                                      (orders n)))
-                         "]"))
+      (mt/line (core/map (fn [o] (mt/group-of (core/map els o))) (orders n)))
       (with-meta (mapv (fn [o] (with-meta (mapv els o) (meta x))) (orders n)) {:data-type nil}))))
 
 (defn parts
@@ -294,7 +294,8 @@
   (if (mt/music? x)
     ;; without its own name: shuffle [name: …] would define a name that may be stored already
     (let [m (mt/as-line x)]
-      (mt/read-text (str "shuffle " (p/show (assoc-in m [:repo (:id m) :id] nil)))))
+      (or (mt/marked-seq m {:shuffle true})
+          (mt/read-text (str "shuffle " (p/show (assoc-in m [:repo (:id m) :id] nil))))))
     (shuffle x)))
 
 (defn sputter

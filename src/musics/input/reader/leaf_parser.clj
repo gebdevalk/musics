@@ -119,7 +119,7 @@
 
 (defn tuplet-factor
   "The tuplet factor part's length is written with, when that length is
-   no plain or dotted note value: its :ratio (c8*2/3, a 3:2( ) group, or
+   no plain or dotted note value: its :ratio (c8*2/3, a 3:2[ ] group, or
    mu's * ) if the length divided by it is a note value, else the
    standard factor of the length's odd denominator (3 -> 2/3, 5 -> 4/5,
    7 -> 4/7, 9 -> 8/9) if that makes one. nil for a note value or when

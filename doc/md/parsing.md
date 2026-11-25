@@ -45,7 +45,7 @@ parses.
 | `^{ }` | `Context` | a named set of instructions (a context/envelope definition), replayed where it's referenced |
 | `'[ ]` | `Data` | a data container of plain values; `nil` is no value, a `'[ ]` inside is a list (`'[60 nil '[60 64]]`), and a `:keyword` may stand beside any value (`'[40 :Sea 73]`) |
 | `( )` | `Grouping` | notes grouped as one element of a seq, `[c4 ( d e ) f]`: inline, with no id, and its own instructions (`( !pp d e )`) apply to the group alone. Order words (`[R]`, `rotate`, `shuffle`, `take`) move it whole; pitch words (`+`, `[I]`, `[M]`) reach inside |
-| `( )` | `Scope` | the body of `transpose`, the row forms (`retrograde`/`R`, `inversion`/`I`, `retrograde-inversion`/`RI`, `mirror`/`M`), `shuffle ( )` and `rotate n ( )`: changed now, never a container of its own |
+| `[ ]` after `transpose`, a row form or a tuplet count | `OpBody` | the body of `3:2[ c8 d e ]`, `transpose`, `retrograde`, `inversion`, `retrograde-inversion`, `mirror`: changed now, the result spliced, never a container of its own |
 
 `( )` also closes and opens a slur when it's glued onto a note
 (`c4( d e)`), which can never be confused with a `Scope` or a `Grouping`.
@@ -131,15 +131,15 @@ implies nothing, so a piece without `!key:` is unaffected.
 
 A note without a duration takes the previous one. A note value is a
 power of two (`1 2 4 8 16 32 64 128`), dotted or not, or `\breve`/
-`\longa`. A tuplet is a count before a group: `3:2( c8 d e )` is
-three eighths in the time of two, `5:4( c16 d e f g )` five
+`\longa`. A tuplet is a count before a group: `3:2[ c8 d e ]` is
+three eighths in the time of two, `5:4[ c16 d e f g ]` five
 sixteenths in the time of four. A single note can carry a factor of its
 own, `*Ratio`, inherited by the following notes until a new duration is
 written: `c8*2/3` is a triplet eighth.
 
 ```mus
 [c4 d e f]                 // all quarters
-[3:2( c8 d e ) f4]        // an eighth-note triplet, then a quarter
+[3:2[ c8 d e ] f4]        // an eighth-note triplet, then a quarter
 [c8*2/3 d e f4]            // the same, as factors on the notes
 ```
 
@@ -289,9 +289,9 @@ a ratio (`16/1`); its target a dynamic mark or a number.
 Backslash-prefixed, LilyPond-style.
 
 ```mus
-[transpose c d ( c4 e g )]                   // shift by the interval c -> d
-[retrograde ( c4 d e f )]                    // backwards (also R ( … ))
-[transpose 5 ( c4 d e )]                     // transpose by 5 semitones
+[transpose c d [ c4 e g ]]                   // shift by the interval c -> d
+[retrograde [ c4 d e f ]]                    // backwards (also retrograde [ … ])
+[transpose 5 [ c4 d e ]]                     // transpose by 5 semitones
 repeat 2 [c4 d e f]
 repeat 4 [c8 d]
 repeat 2 [c4 d] volta [e2]
@@ -306,7 +306,7 @@ repeat 2 [c4 d] volta [[e2] [f2]]            // with endings
 [grace c16 d4 acciaccatura e16 f4 afterGrace g4 a16]
 ```
 
-- `transpose` and the row forms take a `Scope` `( )` body. It's spliced
+- `transpose` and the row forms take an `OpBody` `[ ]` body. It's spliced
   into the parent, never registered as a part of its own. Neither
   reaches into a part referenced inside that body.
 - `repeat` (`repeat 2 [ ]`, or `repeat tremolo 8 [ ]`) and its endings, `volta`, take a

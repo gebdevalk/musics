@@ -646,24 +646,21 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   invisible: `builder/pop-container` splices their `:children`
   straight into the parent and never registers them under an id at all
   -- no separate container survives in the tree. They are bare-word
-  commands, LilyPond's names without the backslash (`transpose c d (
-  c8 d8 e8 )` or `transpose 5 ( … )` by semitones, `retrograde ( c8 d8
-  e8 )`), taking a `Scope` (`( )`) body
-  -- not `[ ]` `Sequence`, and not a bare Lisp-call spelling either; see
+  commands, LilyPond's names without the backslash (`transpose c d [
+  c8 d8 e8 ]` or `transpose 5 [ … ]` by semitones, `retrograde [ c8 d8
+  e8 ]`), taking an `OpBody` (`[ ]`) body, spliced into the line; see
   the bracket table below. A tuplet is a count before a group, with no
-  word: `3:2( c8 d e )`, three in the time of two (`:TUPLET`, also
+  word: `3:2[ c8 d e ]`, three in the time of two (`:TUPLET`, also
   transient), every note inside at 2/3 of its written value and keeping
   that factor as `:ratio`, so the printers write the group back; a
   single note can carry its own factor, `c8*2/3`, inherited by later
   notes that omit their own Duration until an explicit new one appears.
   A note value is a power of two, dotted or not (`c3` is refused). See
-  `doc/md/why/decisions.md`, 2026-10-11. The bracket says when: a `( … )`
-  body is changed now, while parsing; a `[ … ]` body is a part that
-  plays that way each time (`repeat`, `shuffle [ ]`, `rotate n [ ]`).
-  The row forms are `retrograde`/`R`, `inversion`/`I` (around the first
-  note), `retrograde-inversion`/`RI` and `mirror`/`M` (around the mean),
-  with an optional transposition (`I 5 ( … )` is I5); `R` alone, `R1`
-  or `R*4` stays a bar's rest. The retrograde turns ties round and
+  `doc/md/why/decisions.md`, 2026-10-11. A transpose or row form changes its body now, while parsing;
+  `repeat`, `shuffle [ ]` and `rotate n [ ]` are parts that play that way each time.
+  The row forms are `retrograde`, `inversion` (around the first
+  note), `retrograde-inversion` and `mirror` (around the mean),
+  with an optional transposition (`inversion 5 [ … ]` is I5); the names are written out, no letters. The retrograde turns ties round and
   writes what the body's instructions change into each note as its
   override (the value it has where it's written), so it sounds
   backwards; jumps are refused. `shuffle ( … )` and `rotate n ( … )`

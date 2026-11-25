@@ -3881,3 +3881,32 @@ needs. `show` is also how a value is written to be read again (a saved session, 
 `scripts/algo-cookbook.clj`. Only a float is rounded: a ratio, an integer and a pitch are as they were.
 Rejected: rounding in `show` itself (a saved `'x 0.123456 :=` would come back changed, and a rebuilt
 data list would drift each time it was rebuilt).
+
+## 2026-11-25 -- the helicopter view: structure is a literal, an operation is a word; `transpose` and the row forms take `[ ]`
+
+Checked against the aim of one way to do each thing, the `$( )` escape added a way: a bracket with an
+escape cannot hold an instruction, a jump mark or a `( )` group, the internal reader cannot read it
+(`read-text` of `[c4 $([d e] 2 times) f]` fails, so every reader would need the evaluator), `$` gets a
+fifth meaning, and the commonest structure of a score (repeat with volta) would read as code. It was
+built as a first slice (commit 3814d91) and reverted; `postfix-notation.md`, 7c and 7d keep the reasoning.
+
+The prefix commands are of two kinds. Stored structure (`repeat`/`volta`, `shuffle [ ]`, `rotate n [ ]`,
+`choose`, `alternate`, `grace`, the tuplet) is a literal for a container, as `[ ]` and `{ }` are; the
+postfix words build the same containers from values. An operation that acts on a part of a line
+(`transpose`, the row forms) is not a duplicate of the mu word: the word works on a value on the stack,
+the notation form on a region while the line is still being written, which a word cannot do inside a
+bracket, and LilyPond's `\transpose`, `\retrograde`, `\inversion` come in the middle of a line, so the
+importer needs it. They stay, with the body bracket the other commands already use: `transpose c d [ … ]`,
+`retrograde [ … ]` (the result spliced into the line, as before). `( )` is left to the tuplet's body and
+to the group.
+
+Removed: the one-time `shuffle ( )` and `rotate n ( )` (mu's `shuffle` and `rotate` do it on a value; the
+stored `shuffle [ ]`, `rotate n [ ]` remain) and the letters `R`, `I`, `RI`, `M` (`R [ … ]` is a rest followed by a seq, and one letter
+not allowed made the others odd): write `retrograde`, `inversion`, `retrograde-inversion`, `mirror`.
+
+## 2026-11-25 -- the tuplet is written `3:2[ c8 d e ]`
+
+With `transpose` and the row forms on `[ ]`, the tuplet was the one command left with a `( )` body (`Scope`).
+It takes the same `OpBody` now, so every command that changes a part of a line has a `[ ]` body, `Scope` is
+gone, and `( )` in the notation is the group `[a ( d e ) f]`, the slur glued onto a note, and `!name:( … )`.
+Printing writes it back the same way: `[3:2[C4/8 D4 E4]]`. The LilyPond importer emits `n:m[ … ]`.

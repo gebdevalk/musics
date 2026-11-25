@@ -23,12 +23,12 @@
      '[ ]     Data         data container
      ( )      Grouping     notes grouped inside a sequence: inline, no Id,
                              its own instructions apply to it alone
-     ( )      Scope        the transient body of transpose, the row forms, shuffle/rotate ( );
-                             never a container of
+     OpBody   [ ]          the transient body of transpose, the row forms
+                             and a tuplet (3:2[ … ]); never a container of
                              its own, always spliced/stashed at pop
                              time — see "Commands" below; also a slur
                              mark glued directly onto a Note/Chord (c4(
-                             d4 e4)), never ambiguous with Scope, since
+                             d4 e4)), never ambiguous with Grouping, since
                              a slur's ( is always glued with no
                              separator onto an existing note/chord,
                              never a fresh element of its own; nor with
@@ -47,11 +47,11 @@
    (repeat's own :source/:alternative is a genuine container with its
    own context, an Iterator replays on each pass — see "Commands"
    below); transpose and the row forms are purely transient, spliced into the
-   parent at pop time, and take a Scope body instead. grace's five forms
+   parent at pop time, and take an OpBody body instead. grace's five forms
    take two bare Elements with no wrapping bracket at all. A chord
    symbol is a leaf of its own (ChordSymbol: F3/1:7, c:m7).
 
-   A tuplet is a count before a group, n:m( ... ) — 3:2( c8 d e ),
+   A tuplet is a count before a group, n:m[ ... ] — 3:2[ c8 d e ],
    three in the time of two — and a single note can carry a factor of
    its own, a *Ratio suffix (c8*2/3, dotted or not: c4.*2/3), inherited
    by every later note that omits its own Duration, until an explicit
@@ -111,8 +111,7 @@ BarLine = #'\|{1,4}'
    parent's children. It may hold instructions (!mf, c4\f), which apply
    to the group only; what it does not set itself comes from the sequence
    around it. It is an element of a Sequence only: the
-   ( after a keyword or a tuplet count is a Scope, and at mu's top level
-   a ( is mu's own group. *)
+   ( at mu's top level is mu's own group. *)
 Grouping    = <'('> ws? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
 
 Context     = <'^{'> ws? (Id ws)?  Instruction (ws Instruction)* ws? <'}'>
@@ -155,7 +154,7 @@ Nil                   = <'nil'>
    repeat, ...) can't be misread, since a note letter is never followed
    by more letters --
    at mu's top level they are words (mu.ebnf). An Id written
-   directly inside a transient one's own body (Scope, or grace's bare
+   directly inside a transient one's own body (OpBody, or grace's bare
    Elements), or as a variable's own, is refused: that body is never
    stored under a name, so the name would be lost (walker/walk-bareword);
    a line of its own inside it keeps one. The keyword itself is hidden
@@ -165,43 +164,41 @@ Nil                   = <'nil'>
    for grace, where five near-identical shapes share one rule and the
    word is the only way for the walker to tell them apart. *)
 
-(* Scope: the body of transpose, the row forms and shuffle/rotate ( ) below -- never registered as
-   its own container, always spliced into the parent at pop time (see
-   builder/pop-container). The ws before a Scope is optional,
-   not mandatory, in every command that takes one directly after its
-   own keyword or last argument -- nothing that can precede a Scope
-   (a Pitch, a Ratio) can itself consume Scope's own leading '(', so
-   there's nothing to disambiguate by requiring a separator. *)
-Scope = <'('> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <')'>
+(* OpBody: the [ … ] body of transpose, the row forms and a tuplet --
+   never registered as its own container, always spliced into the parent
+   at pop time (see builder/pop-container). The ws before it is optional:
+   nothing that can precede it (a Pitch, a Ratio) can itself consume its
+   leading '[', so there is nothing to disambiguate by requiring a separator. *)
+OpBody = <'['> ws? (Id ws)? EdgeBar? Element (Sep Element)* EdgeBar? ws? <']'>
 
-(* The bracket says when: a command's ( … ) body is changed now, while
-   parsing, and the result stored; a [ … ] body is a part that plays that
-   way each time it is played (repeat, shuffle [ ], rotate n [ ]). *)
+(* Transpose and the row forms change their [ … ] body now, while
+   parsing, and splice the result (OpBody); repeat, shuffle [ ] and
+   rotate n [ ] keep their [ … ] as a part that plays that way each time
+   it is played. A one-time shuffle or rotation is mu's word on a value. *)
 
 (* transpose c d ( … ) by the interval from one note to the other, or
    transpose 5 ( … ) by semitones (transpose -12 ( … ) an octave down). *)
-transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? Scope
+transpose   = <'transpose'> ws (from-pitch ws to-pitch | semitones) ws? OpBody
 from-pitch  = Pitch
 to-pitch    = Pitch
 semitones   = SignedInt
 
 (* The row forms, at any depth, as serial music names them, each with
-   its letter: retrograde ( … ) or R ( … ) backwards (ties and what the
+   its letter: retrograde [ … ] backwards (ties and what the
    body's instructions change turn round with the notes; jumps and
    repeats with endings are refused); inversion / I, every interval
    mirrored around the first note; retrograde-inversion / RI; mirror /
-   M, around the mean pitch. A number transposes the result: I 5 ( … )
-   is I5. R alone, R1 or R*4 is still a bar's rest: only a ( … ) after
-   it makes the command. *)
-row-form    = row-name (ws semitones)? ws? Scope
-row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror' | 'RI' | 'R' | 'I' | 'M'
+   M, around the mean pitch. A number transposes the result: inversion 5 [ … ]
+   is I5 in serial music's notation. The names are written out: a letter (R, I, RI, M) would read as a rest or a note name. *)
+row-form    = row-name (ws semitones)? ws? OpBody
+row-name    = 'retrograde-inversion' | 'retrograde' | 'inversion' | 'mirror'
 
 (* tuplet -- n notes in the time of m, as a score counts them: n:m
-   directly before a Scope. A colon ratio is a count, a fraction (c8*2/3,
-   or 2/3 times in mu) a factor, so the two never read alike. 3:2( c8 d e ) plays
+   directly before an OpBody. A colon ratio is a count, a fraction (c8*2/3,
+   or 2/3 times in mu) a factor, so the two never read alike. 3:2[ c8 d e ] plays
    each note at 2/3 of its written value, as c8*2/3 would; the body is
    spliced into the parent like the row forms'. *)
-tuplet      = TupletCount ws? Scope
+tuplet      = TupletCount ws? OpBody
 TupletCount = #'[0-9]+:[0-9]+'
 
 
@@ -260,7 +257,7 @@ Step          = #'1[13]|[2-9]'
 ChordBass = <'/'> '+'? Pitch
 
 (* repeat/volta keep a real, retained Sequence body (unlike
-   Scope-bodied transpose and row forms above) -- repeat's own :source/
+   OpBody-bodied transpose and row forms above) -- repeat's own :source/
    :alternative is a genuine container with its own context, an
    Iterator replays it on each pass. repeat/tremolo are one rule:
    repeat 2 [ ... ] repeats, repeat tremolo 8 [ ... ] is a measured
@@ -287,7 +284,6 @@ grace = 'grace'        ws Element ws Element
    it); instructions, bar lines and jumps keep their places. A real
    container, printed back as written. *)
 shuffle     = <'shuffle'> ws Sequence
-shuffle-now = <'shuffle'> ws? Scope
 
 (* rotate n [ … ] -- a line whose notes, lines and repeats move n places
    further round each time it is entered (as written the first time),
@@ -308,9 +304,8 @@ weights    = weight (<','> weight)*
 alternate  = <'alternate'> ws Sequence
 
 rotate     = <'rotate'> ws SignedInt ws Sequence
-rotate-now = <'rotate'> ws SignedInt ws? Scope
 
-<Command> = transpose | repeat | grace | row-form | tuplet | shuffle | shuffle-now | rotate | rotate-now | choose | alternate
+<Command> = transpose | repeat | grace | row-form | tuplet | shuffle | rotate | choose | alternate
 
 (* ── Variables ──────────────────────────────────────────── *)
 (* \name: the music bound to name (mu's 'name value :=), spliced in. *)
@@ -452,7 +447,7 @@ DynamicMark  = 'pppp' | 'ppp' | 'pp' | 'p' | 'mp' | 'mf'
 
 (* StructValue keeps its own ( ) -- see the header comment's
    bracket-system note on why this never collides with a slur or a
-   Scope, despite all three sharing the same bracket. *)
+   OpBody, despite all three sharing the same bracket. *)
 StructValue   = <'('> ws? (ExtendedDataElement (ws ExtendedDataElement)*)? ws? <')'>
 QualifiedName = Name (<'.'> Name)*
 KeySpec       = #'[A-Ga-g][#&]?(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*'

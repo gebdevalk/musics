@@ -56,7 +56,7 @@
   (is (= "[!K:G.major G4/4 B4 D5]" (top "[c e g] 7 +")) "up, the key with it")
   (is (= "[!K:F.major F3/4 A3 C4]" (top "[c e g] 7 -")) "down")
   (is (= "[C4/2 D4]" (top "[c d] 2 *")) "stretched")
-  (is (= "[3:1(C4/4 D4 E4)]" (top "[c d e] 3 /")) "shrunk: a triplet")
+  (is (= "[3:1[C4/4 D4 E4]]" (top "[c d e] 3 /")) "shrunk: a triplet")
   (is (= "C4/4" (top "c 0 +")) "a note too")
   (is (re-find #"^\+: transposes by a whole number" (top "[c d] 1/2 +")))
   (is (re-find #"^/: needs a positive factor, got 0" (top "[c d] 0 /")) "a number first, music second is refused below")

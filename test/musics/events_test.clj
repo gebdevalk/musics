@@ -45,12 +45,12 @@
   (is (= [60 62 64 62 64 60 64 60 62] (map (comp first :pitches) (notes (ev/events (repo/registry) :r))))))
 
 (deftest a-retrograde-keeps-each-notes-dynamics
-  (parse! "[a: c4 !f d e] [b: R ( c4 !f d e )]")
+  (parse! "[a: c4 !f d e] [b: retrograde [ c4 !f d e ]]")
   (let [vel (fn [id] (map :velocity (notes (ev/events (repo/registry) id))))]
     (is (= (reverse (vel :a)) (vel :b)))))
 
 (deftest a-choose-part-plays-one-alternative-each-pass
-  (parse! "[s: repeat 6 [ choose [ [I ( C4 d e g )] [R ( C4 d e g )] ] ] c1]")
+  (parse! "[s: repeat 6 [ choose [ [inversion [ C4 d e g ]] [retrograde [ C4 d e g ]] ] ] c1]")
   (rc/seed! 4)
   (let [ns     (notes (ev/events (repo/registry) :s))
         passes (set (map #(mapv (comp first :pitches) %) (partition 4 (butlast ns))))]
@@ -62,7 +62,7 @@
   (filter :pitches (mapcat #(if (= :par (:kind %)) (mapcat identity (:voices %)) [%]) steps)))
 
 (deftest an-alternate-part-plays-its-elements-in-turn
-  (parse! "[s: repeat 5 [ alternate [ [I ( C4 d e g )] [R ( C4 d e g )] [C5] ] ] c1]")
+  (parse! "[s: repeat 5 [ alternate [ [inversion [ C4 d e g ]] [retrograde [ C4 d e g ]] [C5] ] ] c1]")
   (let [ps [60 58 56 53 67 64 62 60 72 60 58 56 53 67 64 62 60 72]]
     (is (= ps (map (comp first :pitches) (notes (ev/events (repo/registry) :s)))) "I, R, C5, I, R, then c")
     (is (= ps (map (comp first :pitches) (display-notes-in-order (compose/display-timed (repo/registry) :s))))
@@ -228,7 +228,7 @@
   (is (= [[65]] (note-pitches :g))))
 
 (deftest transposed-notes-follow-the-playing-key-transposed
-  (parse! "[tr: transpose c d ( c f b )]")
+  (parse! "[tr: transpose c d [ c f b ]]")
   (parse! "[trG: !key:G.major :tr]")
   (is (= [[62] [67] [73]] (note-pitches :tr)))
   (is (= [[62] [68] [73]] (note-pitches :trG)) "c f# b in G, up a tone"))

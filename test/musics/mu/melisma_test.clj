@@ -54,7 +54,7 @@
 (defn- pitch-of
   "The MIDI pitch of a printed note ([D4/8\\...]), nil for a rest."
   [s]
-  (when-let [[_ n acc o] (re-find #"^\[(?:\d+:\d+\()?([A-G])([#&]?)(\d)" s)]
+  (when-let [[_ n acc o] (re-find #"^\[(?:\d+:\d+\[)?([A-G])([#&]?)(\d)" s)]
     (+ (* 12 (inc (Integer/parseInt o))) ({"C" 0 "D" 2 "E" 4 "F" 5 "G" 7 "A" 9 "B" 11} n) ({"#" 1 "&" -1 "" 0} acc))))
 
 (defn- groups
@@ -71,8 +71,8 @@
 (deftest the-cantus-firmus-is-one-long-note-for-three-groups
   (load!)
   (is (= [57 59 60 62 60 59] (mapv #(Integer/parseInt (first (at (* % 9/8) ":cantus T@@"))) (range 6))) "the line, a degree each note")
-  (is (re-find #"^\[8:9\(A2/1\\instrument:57\\panning:0.0\\volume:68\)\]" (leaf 0 0)) "nine eighths, the trombone an octave down")
-  (is (re-find #"^\[8:9\(B2/1\\instrument:57" (leaf 9/8 0)) "and then the next"))
+  (is (re-find #"^\[8:9\[A2/1\\instrument:57\\panning:0.0\\volume:68\]\]" (leaf 0 0)) "nine eighths, the trombone an octave down")
+  (is (re-find #"^\[8:9\[B2/1\\instrument:57" (leaf 9/8 0)) "and then the next"))
 
 (deftest the-voices-enter-one-after-another
   (load!)

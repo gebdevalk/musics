@@ -23,7 +23,7 @@
 (def ^:private wrappers
   "Rules a search does not enter: another container, a data list, a command and its
    body hold their contents one level down."
-  #{:Context :Parallel :Sequence :Data :Command :Scope})
+  #{:Context :Parallel :Sequence :Data :Command :OpBody})
 
 (defn- rules-in
   "The rules a combinator mentions."

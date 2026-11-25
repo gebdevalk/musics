@@ -152,7 +152,7 @@ mu prints every value back in full, as shown after the `→`.
 ```
 [!key:D.major f4 c]                 → [!key:D.major F#4/4 C#4]   a bare letter takes the key's accidental
 [!tempo:120 !Meter:7/8 c8 d e f g a b]
-[3:2( c8 d e ) f4]                  a triplet: three eighths in the time of two
+[3:2[ c8 d e ] f4]                  a triplet: three eighths in the time of two
 [c d] 2 times                       → repeat 2 [C4/4 D4]
 [c4\trill d\mordent e( f g)]        ornaments, a slur
 [C4/1:7 | F3/2:m7 B&3:7]            chord symbols: a root and a quality

@@ -40,17 +40,17 @@ Transposed with `+`: `x [I] 5 +` is I5. `[R]` exactly is the word;
 
 ## In text
 
-Commands with a `( )` body, changed while parsing; an optional number
+Commands with a `[ ]` body, changed while parsing; an optional number
 transposes the result:
 
 ```
-retrograde ( c d e f )          R ( … )
-inversion ( c d e f )           I ( … )      I 5 ( … ) is I5
-retrograde-inversion ( … )      RI ( … )
-mirror ( … )                    M ( … )
+retrograde [ c d e f ]
+inversion [ c d e f ]           inversion 5 [ … ] is I5
+retrograde-inversion [ … ]
+mirror [ … ]
 ```
 
-`R` alone stays a bar's rest. The forms reach into nested seqs,
+The names are written out; a letter would read as a rest or a note. The forms reach into nested seqs,
 parallels (keeping their parts' order), referenced parts (changed as a
 copy) and repeats' bodies. The retrograde turns ties and dynamics round
 with the notes, writing what the body's instructions change into each
