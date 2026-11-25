@@ -29,7 +29,7 @@
     "shuffle" "dedupe" "distinct" "flatten" "barred" "unfold" "transpose"
     "retrograde" "inversion" "retrograde-inversion" "mirror" "delay"
     "delays" "with" "cresc" "dim" "+" "-" "*" "/" "take" "take-last" "drop-last" "take-while" "drop-while" "tail"
-    "sort" "sputter" "rotating" "shuffling" "interleave" "partition" "times" "cycle"})
+    "sort" "sputter" "rotating" "shuffling" "interleave" "partition" "times" "tremolo" "cycle"})
 
 
 ;; A stack effect is read as in Forth: a result named like an input is that input

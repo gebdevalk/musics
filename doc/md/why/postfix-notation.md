@@ -163,6 +163,15 @@ cost of the text route, not of the orders; not changed).
 Not done, still through text: data lists `'[ ]` (`data`), `hairpin`, `with` and any value holding an
 instruction, a stored part, a name, a repeat inside a seq, a parallel rebuilt from its parts.
 
+## 7b. The words added (step 2)
+
+`tremolo` (`[c16 d] 8 tremolo`, the text's `repeat tremolo 8 [c16 d]`) and the grace words, the
+grace note on the left and the main note on the right: `c16 d4 grace`, `acciaccatura`,
+`appoggiatura`, `slashedGrace`, and `d4 c16 afterGrace` (the main note first, as the text writes
+it). Each gives what the text form gives. **Until the prefix rules are deleted** a `grace` word
+followed by two notes (`c16 d4 grace e f`) is read as the text's command `grace e f`; written at
+the end of an input, or followed by a word, it is the word. The same holds for `afterGrace`.
+
 ## 8. Open questions
 
 1. **Weights for `choosing`: nothing to add.** The word takes the weights as data on top

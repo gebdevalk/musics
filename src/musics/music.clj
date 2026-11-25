@@ -546,6 +546,49 @@
   [x]
   (mt/barred x))
 
+(defn tremolo
+  "x as a measured tremolo: its notes struck n times in the time of one pass, as the text's
+   repeat tremolo n [ x ]: [c16 d] 8 tremolo"
+  {:mu {:ns "tool"}}
+  [x n]
+  (when-not (and (integer? n) (pos? n)) (fail "needs a whole number above 0 on top, got" (p/show n)))
+  (when (empty? (mt/elements x)) (fail "an empty seq has nothing to repeat"))
+  (mt/tremolo x n))
+
+(defn- grace-of
+  "The seq of the grace note g and the main note m, as the text's kind g m (or afterGrace m g)."
+  [kind g m]
+  (doseq [x [g m]]
+    (when-not (mt/leaf? x) (fail "needs two notes, got" (p/show x))))
+  (mt/read-text (str "[" kind " " (p/show g) " " (p/show m) "]")))
+
+(defn grace
+  "The grace note on the left before the main note on the right, in the main note's time:
+   c16 d4 grace, as the text's grace c16 d4"
+  [g m]
+  (grace-of "grace" g m))
+
+(defn acciaccatura
+  "As grace, an acciaccatura: c16 d4 acciaccatura"
+  [g m]
+  (grace-of "acciaccatura" g m))
+
+(defn appoggiatura
+  "As grace, an appoggiatura: c16 d4 appoggiatura"
+  [g m]
+  (grace-of "appoggiatura" g m))
+
+(defn slashedGrace
+  "As grace, a slashed grace: c16 d4 slashedGrace"
+  [g m]
+  (grace-of "slashedGrace" g m))
+
+(defn afterGrace
+  "The main note on the left, then the grace note on the right, taking the main note's time:
+   d4 c16 afterGrace, as the text's afterGrace d4 c16"
+  [m g]
+  (grace-of "afterGrace" m g))
+
 (defn times
   "x played n times, as the text's repeat n [ x ]; data and streams
    written out n times."

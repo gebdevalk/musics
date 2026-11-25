@@ -471,6 +471,12 @@
     [(when (= :TREMOLO (:type it)) "tremolo") n
      (node-value repo base (:source it)) (some->> alt (node-value repo base))]))
 
+(defn tremolo
+  "x as a measured tremolo: its notes struck n times in the time of one pass, as the text's
+   repeat tremolo n [ x ]."
+  [x n]
+  (read-repeat "tremolo" n (as-line x) nil))
+
 (defn repetition
   "x played n times, as the text's repeat n [ x ]: one repeat,
    with endings (seqs) as its alternative -- one ending as itself,

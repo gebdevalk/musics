@@ -1051,3 +1051,12 @@
   (is (re-find #"takes contexts" (:error (e/eval-input "[c d] ^{ !mf } ^{2}"))))
   (is (re-find #"takes 2 or more" (:error (e/eval-input "^{ !mf } ^{1}"))))
   (is (re-find #"nothing|needs|takes" (:error (e/eval-input "^{ !mf } ^{3}")))))
+
+(deftest tremolo-and-grace-words-are-the-texts-postfix
+  (is (= (top "repeat tremolo 8 [c16 d]") (top "[c16 d] 8 tremolo")) "tremolo: the text's repeat tremolo n [ x ]")
+  (is (re-find #"repeat tremolo 8 " (top "[c16 d] 8 tremolo")))
+  (is (re-find #"whole number above 0" (top "[c16 d] 0 tremolo")))
+  (doseq [kind ["grace" "acciaccatura" "appoggiatura" "slashedGrace"]]
+    (is (= (top (str "[" kind " c16 d4]")) (top (str "c16 d4 " kind))) kind))
+  (is (= (top "[afterGrace d4 c16]") (top "d4 c16 afterGrace")) "afterGrace: the main note first")
+  (is (re-find #"needs two notes" (top "[c d] c4 grace"))))
