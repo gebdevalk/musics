@@ -184,6 +184,18 @@ to the shared value; two voices started at once with different scopes.
 - **Compatibility.** `:bass/onsets @` and `!` stop working. They are in the docs and recipe 56;
   a pass over `mus/` and the tests finds the rest.
 
+## 9. Rejected
+
+- **A voice's context for the values** (`:bass !steps:8 with`): string keys, which a keyword does
+  not find; and `with` on a voice restages its material from the end of the pass.
+- **A prefixed key per voice** (`:bass_steps`) written by hand in each word: every shared word
+  would have to know the voice's name.
+- **Keeping both mechanisms** (the `$` inputs and the tctx): two tables, two sets of words, two
+  windows, for one job. The `$` input is the per-voice layer the tctx lacked, and a scope is that
+  layer inside the tctx.
+- **Putting the shared table behind the music's contexts**: the live override is what the table is
+  for.
+
 ## 10. Seeding random keys
 
 A computed key that draws (`'( 0 100 rand-int ) :density T!`) must be able to repeat, and the user
@@ -232,15 +244,3 @@ Open: `N rng/seed` at the prompt, does it become `:seed` at the shared level or 
 stream's seed (two ways to do one thing)? `:bass/density/seed` has two slashes, which `IdName` does
 not take yet. The draw must know whether its key was written at the shared level or in a scope; the
 lookup should know which context answered, not checked.
-
-## 9. Rejected
-
-- **A voice's context for the values** (`:bass !steps:8 with`): string keys, which a keyword does
-  not find; and `with` on a voice restages its material from the end of the pass.
-- **A prefixed key per voice** (`:bass_steps`) written by hand in each word: every shared word
-  would have to know the voice's name.
-- **Keeping both mechanisms** (the `$` inputs and the tctx): two tables, two sets of words, two
-  windows, for one job. The `$` input is the per-voice layer the tctx lacked, and a scope is that
-  layer inside the tctx.
-- **Putting the shared table behind the music's contexts**: the live override is what the table is
-  for.
