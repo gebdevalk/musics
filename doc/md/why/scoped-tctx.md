@@ -207,13 +207,12 @@ chooses how. The choice is written with ordinary scoped keys, not a mode.
 | The same every time, from a seed I choose | `7 :seed T!` |
 | Different every time | `:none :seed T!` |
 | Re-roll just the bass | `8 :bass/seed T!` |
-| Re-roll one key of the bass | `9 :bass/density/seed T!` |
 | The bass unseeded, the rest seeded | `:none :bass/seed T!` |
 | Voices that agree on a random choice | write the random key at the shared level |
 
 **The seed is a scoped key.** The part before the last slash says who it is for, voice first, as in
-`:bass/steps`. For a key written in the bass scope the lookup is `:bass/density/seed`, then
-`:bass/seed`, then `:seed`, then the session's seed: nearest and most specific wins. The value is a
+`:bass/steps`. For a key written in the bass scope the lookup is `:bass/seed`, then `:seed`, then the
+session's seed: nearest wins. The value is a
 number, or `:none` to draw from the clock, ignoring any seed that is further out.
 
 **The default is one seed per session**, drawn from the clock when mu starts (the shared rng's seed,
@@ -247,10 +246,11 @@ voices, which the place it is written already says.
 **Words stay as they are.** The random words run inside a key are already bound to a lookup
 (`eval/with-lookup`); they read the seed from it and take the key and voice from the engine.
 
-**First slice**: `:seed`, `:bass/seed`, `:bass/density/seed`, `:none`. Left out: the key-only seed
-`:density/seed` (its first word reads like a voice; it needs a form that does not clash with voice
-names), pass-number indexing for loops.
+**First slice**: `:seed`, `:bass/seed`, `:none`. Left out, for later: a seed for one key of one voice,
+`:bass/density/seed` (the grammar reads `:name` and at most one `/name`, so it needs `IdName` to take a
+second slash, voice then key then setting; or a seed written inside the key, `9 seeded`; `:bass/seed`
+already re-rolls the whole voice); the key-only seed `:density/seed` (its first word reads like a
+voice; it needs a form that does not clash with voice names); pass-number indexing for loops.
 
-Settled: `N rng/seed` at the prompt is `:seed` at the shared level. Open: `:bass/density/seed` has two slashes, which `IdName` does
-not take yet. The draw must know whether its key was written at the shared level or in a scope; the
+Settled: `N rng/seed` at the prompt is `:seed` at the shared level. Open: the draw must know whether its key was written at the shared level or in a scope; the
 lookup should know which context answered, not checked.
