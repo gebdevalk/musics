@@ -113,9 +113,10 @@
 (defn gui!
   "Open musics' GUI beside mu: transport, the parts and their contexts as
    sliders, the Wall, Record MIDI; closing it leaves mu running and gui
-   opens it again. With a live voice on top (:riff gui), a window of its
-   inputs, a control each; with :tctx on top, a window of the session's
-   settings (T!), a control each"
+   opens it again. With :tctx on top, a window of the session's settings (T!),
+   a control each, the shared ones first and a section for each voice; with a
+   live voice on top (:riff gui), the same window scrolled to that voice's
+   section, where its inputs are"
   {:mu {:optional {:x (some-fn keyword? integer?)}}}
   ([]
    ((requiring-resolve 'musics.gui.core/launch!) :dark)
@@ -124,7 +125,7 @@
    (if (= :tctx x)
      ((requiring-resolve 'musics.gui.settings/open-settings!))
      (if-let [nm (live/input-voice "gui" x)]
-       ((requiring-resolve 'musics.gui.params/open-inputs!) nm)
+       ((requiring-resolve 'musics.gui.settings/open-settings!) nm)
        (fail "gui:" (pr-str x) "plays nothing live, so it has no inputs to show -- 5 8 'riff :bass ->")))
    (keep-javafx!)))
 

@@ -352,7 +352,10 @@ stored part and the buttons that open the other windows:
 - **Settings...**: the session's tctx (`8 :steps T!`) as controls: a slider for each number, with `z`
   and `Z` beside it (a setting has no range, so the first is its own, symmetrical around the value and
   including zero, and `Z` widens it), a text field for a list, and a computed setting shown, not edited.
-  A change is heard on the next note, and `T!` moves the control. `:tctx gui` opens it from mu.
+  A change is heard on the next note, and `T!` moves the control. `:tctx gui` opens it from mu. It has a section for each voice that has keys of its
+  own (`5 :bass/steps T!`, and the inputs of a word voice): the voice's keys without its name, an input in
+  its range, and a `reset` button to take a key out of the scope, so the voice reads the shared one
+  again. `:bass gui` opens the same window at the bass's section.
 - **Conductor...**: actions on the cues a voice passes, at a section, a
   bar or a bar line.
 - **Wall...**: every live voice's settings as controls.

@@ -1226,7 +1226,7 @@ voice's scope in the tctx: `T@` reads it and `T!` stores into it.
 3 :bass/onsets T!         three beats, heard from the voice's next note
 :bass/onsets T@ :bass/pulses T@     3 8
 :bass settings            each input: value, range, default, what it is
-:bass gui                 a window with a slider per input
+:bass gui                 the settings window at the bass's section: a slider per input
 :bass ->                  start it again with the inputs as they are now
 stop
 :bass/onsets T@           3, the values of a voice stay in its scope after it stops

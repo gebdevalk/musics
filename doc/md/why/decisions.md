@@ -3937,3 +3937,14 @@ values, `ref-of` and the `Ref` it made are gone, and `:bass/onsets` always reads
 stops, by name, so `:bass ->` starts it as it was tuned and a value can be written before the voice
 starts; a saved session keeps them with the rest of the tctx. Lost: the error that named the inputs a voice
 has when one was mistyped (`:bass/pulse` is a key of the scope now).
+
+## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
+
+`:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one
+window: the shared keys first, then a section for each voice that has keys of its own (its inputs in
+the order of the word, then the rest by name), a key shown without the voice's name. An input is a slider
+in the range of its spec (a store is checked, a refusal shown); another key a free slider with the zoom
+buttons; a `reset` button on a key that is not an input takes it out of the scope (`T_`), so the voice
+reads the shared one again (an input has none: the word needs a value). `:bass gui` opens the window
+scrolled to that voice's section. `musics.gui.params` and its algo grouping are gone; the algo is no
+longer named in the window.

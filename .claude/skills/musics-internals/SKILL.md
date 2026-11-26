@@ -317,10 +317,12 @@ a short result starts over, a run that fails keeps the last good material and sa
 why. A spec is that of the algo parameter of the same name among the loaded
 `musics.algo.*` namespaces (`live/param-spec`: the widest range when several algos
 read the name, owned by the algo only when one does; no match: a spec from the
-input's value). `settings` and `gui` (`musics.gui.params/open-inputs!`, a control
-per input under the algo it belongs to) read them; the Wall window lists every
-voice the same way; `:bass ->` starts it again with the inputs as they are; the
-inputs of a voice that has ended are refused and forgotten (`inputs/alive!`).
+input's value). `settings` reads them, and so does `gui` (`musics.gui.settings/open-settings!`: one
+window for the whole tctx, the shared keys first and a section for each voice that has keys
+of its own, its inputs in the range of their spec, another key a free slider with a button
+to take it out of the scope (`T_`); `:bass gui` is that window scrolled to the bass's
+section); the Wall window lists every voice the same way; `:bass ->` starts it again with
+the inputs as they are, the values being the scope's, which stay when the voice ends.
 
 **A voice can be a function of onset** (`musics.compose/source`,
 `musics.events/walk-source`, `musics.mu.live/play-onset-word!`). A word with `$onset`

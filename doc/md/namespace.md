@@ -14,7 +14,6 @@ musics.feedback                                  92   the ratings file
 musics.gui.components                           327   reusable controls: sliders, combos, param-control
 musics.gui.core                                1240   cljfx entry: the windows
 musics.gui.data                                  74   read-only reference tables for the controls
-musics.gui.params                               101   one tctx's settings window (mu's x gui)
 musics.gui.state                               1739   the model: the render-state atom and every action
 musics.gui.theme                                 56   dark/light theming
 musics.kernel                                   348   kernel words: numbers, the repo, namespaces, require, help, files, load, render
