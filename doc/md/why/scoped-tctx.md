@@ -203,8 +203,9 @@ chooses how. The choice is written with ordinary scoped keys, not a mode.
 
 | I want | I write |
 |---|---|
-| Different every time | nothing; `:seed T_` takes a seed away |
-| The same every time | `7 :seed T!` |
+| The session's own seed (the default) | nothing; `:seed T_` goes back to it |
+| The same every time, from a seed I choose | `7 :seed T!` |
+| Different every time | `:none :seed T!` |
 | Re-roll just the bass | `8 :bass/seed T!` |
 | Re-roll one key of the bass | `9 :bass/density/seed T!` |
 | The bass unseeded, the rest seeded | `:none :bass/seed T!` |
@@ -212,16 +213,26 @@ chooses how. The choice is written with ordinary scoped keys, not a mode.
 
 **The seed is a scoped key.** The part before the last slash says who it is for, voice first, as in
 `:bass/steps`. For a key written in the bass scope the lookup is `:bass/density/seed`, then
-`:bass/seed`, then `:seed`, then nothing (the clock): nearest and most specific wins. The value is a
-number, or `:none` to say "unseeded here" over a seed that is further out.
+`:bass/seed`, then `:seed`, then the session's seed: nearest and most specific wins. The value is a
+number, or `:none` to draw from the clock, ignoring any seed that is further out.
+
+**The default is one seed per session**, drawn from the clock when mu starts (the shared rng's seed,
+`musics.algo.numeric.rng/default-rng`, which the notation's shuffle, choose and alternate already mix
+with the voice's path). So within a session a piece with random keys sounds the same each time it is
+replayed, and across sessions it differs, which is what the notation's shuffle already does. `:seed`
+at the shared level overrides it; `N rng/seed` at the prompt *is* that, the same setting, so there is
+one seed, not two. The session seed is shown (the banner, or `:seed T@`), so a take that was liked can
+be written back with `7 :seed T!`. `:none` is the way to get a different draw every time: it is the
+clock, per draw, and is not repeatable. Rejected as the default: truly random draws with nothing kept
+(a take that was liked is lost), and a fresh seed at each voice start, remembered (an extra "last
+seed" value, and it clashes with a stopped voice keeping its scope).
 
 **A draw is a function of the seed, the key, the voice and the beat**, so it does not depend on
 which voice is read first (the counter of `musics.algo.numeric.counter`, as `compose/play-order`
 does for the notation's shuffle): the key is always mixed in, so pitch and density never draw
 alike; the voice is mixed in only for a key written in a voice's scope; the beat is the onset. A
 key written at the shared level is therefore the same draw for every voice at a beat, which is how
-two interlocking voices follow one random decision. With no seed anywhere in the chain, or at the
-prompt, the random words draw from the global stream, as today.
+two interlocking voices follow one random decision. With no seed set anywhere, the session seed is used; only `:none` draws from the clock.
 
 **Where a key is written decides who shares it**: that is the scope's own meaning (the shared
 table is what all voices see, a scope what one voice sees), so no separate sharing setting is
@@ -240,7 +251,6 @@ voices, which the place it is written already says.
 `:density/seed` (its first word reads like a voice; it needs a form that does not clash with voice
 names), pass-number indexing for loops.
 
-Open: `N rng/seed` at the prompt, does it become `:seed` at the shared level or stay the global
-stream's seed (two ways to do one thing)? `:bass/density/seed` has two slashes, which `IdName` does
+Settled: `N rng/seed` at the prompt is `:seed` at the shared level. Open: `:bass/density/seed` has two slashes, which `IdName` does
 not take yet. The draw must know whether its key was written at the shared level or in a scope; the
 lookup should know which context answered, not checked.
