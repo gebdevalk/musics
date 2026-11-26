@@ -268,7 +268,8 @@
    ends the voice. get is a memoized lookup (musics.domain.context/getter) over
    the chain at that onset: ctx (a voice's own Context, nil for none) first, then
    the music's contexts and :ROOT's; tctx (a Context with keyword keys, nil for
-   none) in front of them for the lookup only, so the leaf's own context values
+   none, or a vector of them, nearest first: a voice's scope in front of the session's)
+   in front of them for the lookup only, so the leaf's own context values
    are read by resolve at the same onset."
   ([f] (->Source f nil nil))
   ([f tctx] (->Source f tctx nil))

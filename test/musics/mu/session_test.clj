@@ -113,7 +113,7 @@
             at   (fn [k] (@(requiring-resolve 'musics.domain.context/ctx-value-chain) [@tctx] k 0))]
         (reset! (:envelopes-atom @tctx) {})
         (top ": twice ( $x -- y ) $x 2 * ;" "8 :steps T!" "1/32 :lag T!" "'[64 67] :melody T!"
-             "'( :steps twice ) :double T!")
+             "'( :steps twice ) :double T!" "5 :bass/steps T!" "'( :steps 3 + ) :bass/more T!")
         (is (= :CONTEXT (:type (repo/current :tctx))) "it is a node of the repo")
         (is (identical? @tctx (:context (repo/current :tctx))))
         (with-out-str (top (str "\"" f "\" save-session")))
@@ -126,6 +126,10 @@
           (is (= [64 67] (vec (at :melody)))))
         (testing "a computed entry, from its quotation, with the words restored after the repo"
           (is (= 16 (at :double))))
+        (testing "a voice's scope, a value and a computed key"
+          (is (= 5 (at :bass/steps)))
+          (is (= 8 (@(requiring-resolve 'musics.domain.context/ctx-value-chain)
+                    [((requiring-resolve 'musics.domain.context/tctx-scope) @tctx :bass) @tctx] :more 0))))
         (testing "the one object the voices hold"
           (is (identical? @tctx (:context (repo/current :tctx)))))
         (reset! (:envelopes-atom @tctx) {})))))

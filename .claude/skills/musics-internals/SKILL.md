@@ -355,6 +355,18 @@ computed key as its quotation, not run), `T@@` (`:twice T@@`: the value, a compu
 (`:steps T_`: take a key out) fill, read and erase the session's tctx
 (`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a computed entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
 
+**A voice's scope in the tctx.** A key written with the voice before the slash (`5 :bass/steps T!`)
+is a qualified keyword in the same table (`musics.registries/tctx`), so a saved session and the
+GUI's Settings window hold it with no change. `context/tctx-scope tctx voice` is a *view*: a
+Context whose keys are the entries of that voice, under their own name (`:steps`), read from the
+table when asked. A voice that is a function of onset starts with `[scope tctx]` as its `Source`'s
+`:tctx` (`live/tctx-scope`, `events/walk-source` takes one Context or a vector), so a lookup finds
+the voice's value first, then the shared one, and a computed key written once for all (`:twice`)
+reads what it asks (`(get :steps)`) through the asking voice's chain. `T@` gives the voice's entry,
+else the shared one; `T@@` runs through `[scope tctx]`; `T_` takes out the voice's own. In mu,
+`:voice/name` is the `Ref` of an input when the voice has one by that name, else the qualified
+keyword. Design and open points: `doc/md/why/scoped-tctx.md`.
+
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
 `musics.algo.harmonic.progression` writes roman-
@@ -695,7 +707,8 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
   and a keyword asked of a chain reaches only the contexts that hold keywords. A
   **tctx** is an ordinary `Context` whose keys are keywords (`T!`):
-  whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
+  whoever builds a chain puts it in front (`[tctx voice … ROOT]`, or `[scope tctx voice … ROOT]`
+  for a voice with a scope, below;
   `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
   hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
   keys. Its values are bare values, `Generator`s (a function of the context's local

@@ -242,3 +242,16 @@
         (is (= 1 (get :x)))
         (is (= [3 2] [((c/getter [tctx] 0) :y) ((c/getter [tctx] 0) :x)]) "the next leaf sees the change")))))
 
+
+(deftest a-tctx-scope-is-a-view-of-the-keys-written-with-its-voice
+  (let [tctx  (-> (c/context) (c/tctx! :steps 8) (c/tctx! :bass/steps 5) (c/tctx! :lead/steps 3))
+        bass  (c/tctx-scope tctx :bass)]
+    (is (= 5 (c/ctx-value-chain [bass tctx] :steps 0)) "the voice's own value is nearest")
+    (is (= 8 (c/ctx-value-chain [(c/tctx-scope tctx :other) tctx] :steps 0)) "a voice with none reads the shared one")
+    (is (= 5 (c/ctx-value-chain [bass] :steps 0)))
+    (is (nil? (c/ctx-value-chain [bass] :bass/steps 0)) "it is read under its own name")
+    (c/tctx! tctx :bass/steps 6)
+    (is (= 6 (c/ctx-value-chain [bass tctx] :steps 0)) "a view: what is written later is seen")
+    (c/tctx-forget tctx :bass/steps)
+    (is (= 8 (c/ctx-value-chain [bass tctx] :steps 0)) "taken out, the shared one answers again")
+    (is (= bass (assoc bass :duration nil)) "a plain Context map")))

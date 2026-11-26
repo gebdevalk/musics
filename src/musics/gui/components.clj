@@ -314,7 +314,7 @@
    changed one."
   ([ev k v spec] (param-control ev k v spec nil))
   ([ev k v {:keys [type min max choices doc scale]} zoom]
-  (let [lbl   (str (name k) (when (inputs/nan? v) "  (required)"))
+  (let [lbl   (str (if (and (keyword? k) (namespace k)) (subs (str k) 1) (name k)) (when (inputs/nan? v) "  (required)"))
         text  (fn [t] (button-row
                         {:children [(label {:text lbl})
                                     (text-field {:text t :prompt (or doc "EDN value")

@@ -131,6 +131,12 @@
     (repo/commit-node! :tctx {:type :CONTEXT :id :tctx :context tctx :children []}))
   tctx)
 
+(defn tctx-scope
+  "The scope of voice (a keyword or string) in the tctx, a Context to put in front of it:
+   the entries written :voice/key, read as :key (musics.domain.context/tctx-scope)."
+  [voice]
+  (c/tctx-scope (tctx-node!) voice))
+
 (defn set-tctx!
   "Make settings (a mu Settings, @{ … }) the tctx's entries, all at once: a key it
    does not write is gone, a quotation is a computed key. Voices holding the tctx
@@ -146,12 +152,12 @@
     node))
 
 (defn tctx->settings
-  "The tctx as a mu Settings, in key order: a computed key as its quotation. An
+  "The tctx as a mu Settings, the shared keys first, in key order, then the scopes by voice: a computed key as its quotation. An
    entry made in Clojure, with no text to give (a function of time, a computed
    entry from no quotation), is left out."
   []
   (v/->Settings
-   (vec (for [[k entry] (sort-by (comp name key) @(:envelopes-atom (tctx-node!)))
+   (vec (for [[k entry] (sort-by (fn [[k _]] [(some? (namespace k)) (or (namespace k) "") (name k)]) @(:envelopes-atom (tctx-node!)))
               :let [x (cond
                         (instance? musics.domain.context.Derived entry)
                         (when-let [text (:text entry)] (peek (e/run-text [] text)))
@@ -211,11 +217,11 @@
     (inputs/set-inputs! voice (map vector names values) specs)
     (let [f (onset-source word voice all-names)]
       ;; ask once now, at the start, so a word that fails is refused here, not heard
-      (try (f 0 (c/getter [(tctx-node!)] 0))
+      (try (f 0 (c/getter [(tctx-scope voice) (tctx-node!)] 0))
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f (tctx-node!)) (mt/read-text "repeat ~ [r8]") voice ctx
+      (mt/play-source! (compose/source f [(tctx-scope voice) (tctx-node!)]) (mt/read-text "repeat ~ [r8]") voice ctx
                        (start-origin ctx delay)))
     voice))
 

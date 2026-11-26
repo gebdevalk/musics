@@ -347,12 +347,12 @@
    walk is at, from (f onset get), is played, and the onset it leaves is asked
    next, so the source is asked once for each leaf, lazily, as far as the stream
    is read. get looks keys up at that same onset over the chain (the source's tctx
-   in front), and fire resolves the leaf at it, so production and resolution
+   in front, a vector of them when the voice has a scope: [scope tctx]), and fire resolves the leaf at it, so production and resolution
    read one time."
   [{:keys [f tctx ctx] :as src} chain st k]
   (let [chain (cond->> chain ctx (into [ctx]))
         onset  (:onset st)
-        part  (f onset (c/getter (cond->> chain tctx (into [tctx])) onset))]
+        part  (f onset (c/getter (cond->> chain tctx (into (if (vector? tctx) tctx [tctx]))) onset))]
     (if (nil? part)
       (k st)
       (walk-node part chain st #(walk-source src chain % k)))))

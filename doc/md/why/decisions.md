@@ -3910,3 +3910,17 @@ With `transpose` and the row forms on `[ ]`, the tuplet was the one command left
 It takes the same `OpBody` now, so every command that changes a part of a line has a `[ ]` body, `Scope` is
 gone, and `( )` in the notation is the group `[a ( d e ) f]`, the slur glued onto a note, and `!name:( … )`.
 Printing writes it back the same way: `[3:2[C4/8 D4 E4]]`. The LilyPond importer emits `n:m[ … ]`.
+
+## 2026-11-26 -- a voice's scope in the tctx: `:bass/steps`
+
+A voice fed by a function of onset can have settings of its own: a key written with the voice before the
+slash, `5 :bass/steps T!`, a qualified keyword in the one table of the session's tctx. The voice reads
+`[scope tctx]` (`context/tctx-scope`, a view over the entries of that voice under their own name), so its
+value comes before the shared one and a computed key written once for everyone is worked out from each
+asking voice's own values. Chosen over a Context per voice (a second table to save, to show in the GUI and
+to keep in step) and over a prefixed key written by hand into each word. Checked first on two voices read in
+step: scopes do not leak, a change of the shared table reaches the voice with none of its own, and the
+memoized lookup is per leaf and per voice (`doc/md/why/scoped-tctx.md`, sections 2 and 8). `:voice/name`
+reads as the `Ref` of an input when the voice has one by that name, else as the qualified keyword; the
+inputs and their `@` and `!` go in the next step. Seeding of random keys (section 10 of the note) is not
+built.

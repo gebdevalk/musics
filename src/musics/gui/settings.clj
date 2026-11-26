@@ -39,10 +39,10 @@
     :else                                             :edn))
 
 (defn entries
-  "[[key entry kind] …] of the tctx, by name."
+  "[[key entry kind] …] of the tctx, the shared keys first, then the scopes by voice."
   []
   (->> @(:envelopes-atom reg/tctx)
-       (sort-by (comp name key))
+       (sort-by (fn [[k _]] [(some? (namespace k)) (or (namespace k) "") (name k)]))
        (mapv (fn [[k e]] [k e (kind-of e)]))))
 
 (defn- contains-value? [{:keys [min max]} v] (<= min v max))
@@ -104,9 +104,9 @@
                          :event {:event/type ::zoom :type kind}
                          :out-event {:event/type ::zoom-out :type kind}}))
     :computed
-    (ui/label {:text (str (name k) " = " (or (:text e) "computed") "   (computed: read, not edited)")})
+    (ui/label {:text (str (subs (str k) 1) " = " (or (:text e) "computed") "   (computed: read, not edited)")})
     :function
-    (ui/label {:text (str (name k) "   (a function of time: read, not edited)")})
+    (ui/label {:text (str (subs (str k) 1) "   (a function of time: read, not edited)")})
     (ui/param-control {:setting k} k e {:type :edn})))
 
 (defn view [{:keys [entries message showing theme] :as st}]

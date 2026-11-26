@@ -733,10 +733,9 @@
         (is (= ":bass/onsets" (p/show (first (:stack (run ":bass/onsets")))))))
       (testing "a plain :bass is still the id"
         (is (= [:bass] (:stack (run ":bass")))))
-      (testing "an input that is not there says which are"
-        (is (re-find #"^:bass/pulse: :bass has no input pulse -- onsets, pulses, seed" (:error (run ":bass/pulse @")))))
-      (testing "a voice without inputs says so"
-        (is (re-find #"^:drums/onsets: no voice :drums has inputs -- voices with inputs: :bass" (:error (run ":drums/onsets @")))))
+      (testing "a :voice/name that is none of the voice's inputs is a key of its scope in the tctx"
+        (is (= [:bass/pulse] (:stack (run ":bass/pulse"))))
+        (is (= [:drums/onsets] (:stack (run ":drums/onsets"))) "also for a voice with no inputs"))
       (testing "without the colon, an unknown word points at it"
         (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
     (finally (inputs/clear! :bass) (inputs/alive! was)))))
@@ -830,6 +829,40 @@
     (is (re-find #"is not in the tctx" (:error (run ":steps T@"))))
     (is (re-find #"is not in the tctx" (:error (run ":steps T_"))) "erasing what is not there says so")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T_"))))
+    (finally (clear-tctx!))))
+
+(deftest a-key-written-with-a-voice-before-the-slash-is-in-that-voices-scope
+  (try
+    (run "8 :steps T!")
+    (run "5 :bass/steps T!")
+    (testing "it is stored under the qualified keyword, beside the shared one"
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0))))
+    (testing "T@ gives the voice's value, else the shared one"
+      (is (= "5" (str/trim (top-of ":bass/steps T@"))))
+      (is (= "8" (str/trim (top-of ":lead/steps T@"))) "a voice with none of its own reads the shared one"))
+    (testing "T@@ reads through the voice's scope, and a computed key asks the voice's chain"
+      (run "'( :steps 2 * ) :twice T!")
+      (is (= "5" (str/trim (top-of ":bass/steps T@@"))))
+      (is (= "10" (str/trim (top-of ":bass/twice T@@"))) "the shared :twice, from the bass's :steps")
+      (is (= "16" (str/trim (top-of ":lead/twice T@@"))))
+      (is (= "16" (str/trim (top-of ":twice T@@"))) "the shared reading is unchanged"))
+    (testing "a computed key can be written in a scope"
+      (run "'( :steps 3 + ) :bass/more T!")
+      (is (= "8" (str/trim (top-of ":bass/more T@@"))))
+      (is (re-find #"is not in the tctx" (:error (run ":lead/more T@")))))
+    (testing "T_ takes it out of the scope, and the voice reads the shared one again"
+      (run ":bass/steps T_")
+      (is (= "8" (str/trim (top-of ":bass/steps T@@"))))
+      (is (re-find #"is not in the tctx" (:error (run ":bass/steps T_")))))
+    (finally (clear-tctx!))))
+
+(deftest a-scope-is-written-out-in-the-tctx-literal-and-reads-back
+  (try
+    (let [text "@{ :steps 8 :bass/steps 5 :lead/density 2 }"]
+      (run (str text " :tctx R!"))
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0)))
+      (is (= text (str/trim (top-of ":tctx R@")))))
     (finally (clear-tctx!))))
 
 (deftest an-at-brace-literal-writes-a-tctx-and-tctx-R!-makes-it-the-sessions

@@ -298,6 +298,25 @@ settings are looked up at that onset, so nothing is precomputed:
 The whole table can also be written out, `@{ :steps 8 :twice '( :steps 2 * ) }`, and made the session's with
 `:tctx R!` (it replaces what was there); `:tctx R@` writes it back in that form.
 
+### A voice's own settings
+
+A key written with a voice's name before the slash is that voice's own, and the voice reads it
+instead of the shared one:
+
+```
+8 :steps T!                          the shared :steps
+5 :bass/steps T!                     the bass's own :steps
+:bass/steps T@                       → 5
+:lead/steps T@                       → 8, a voice with none of its own reads the shared one
+:bass/twice T@@                      → 10, :twice is computed from the bass's :steps
+:bass/steps T_                       the bass reads the shared :steps again
+```
+
+A voice that reads `:steps` finds its own first. A computed key such as `:twice`, written once for
+everyone, is worked out from each voice's own values. `:bass/steps` is written like any other key in
+`@{ :steps 8 :bass/steps 5 }`, and a saved session keeps it. The values of a voice are kept by its
+name, so they can be written before the voice starts and are there when it is started again.
+
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.
 

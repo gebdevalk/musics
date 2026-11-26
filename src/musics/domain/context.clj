@@ -376,6 +376,34 @@
   (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
   tctx)
 
+(defn tctx-scope
+  "A voice's scope of tctx, a Context to put in front of tctx in a chain: its keys are
+   the ones of tctx written with the voice before the slash (:bass/steps), under their
+   own name (:steps), so a lookup of :steps in the chain [scope tctx …] finds the
+   voice's value before the shared one, and a computed key of tctx that asks (get :steps)
+   gets the voice's, whoever is asking through that chain. voice is a keyword or a string.
+   A view, not a copy: it reads tctx when asked, so what is written later is seen, and
+   what is stored (a saved session, the GUI) is the one table of tctx. Write through tctx,
+   with the qualified key (tctx!, tctx-derive, tctx-forget)."
+  [tctx voice]
+  (let [ns-name (name voice)
+        cache   (volatile! nil)]
+    {:envelopes-atom
+     (reify clojure.lang.IDeref
+       (deref [_]
+         (let [m @(:envelopes-atom tctx) c @cache]
+           (if (and c (identical? m (first c)))
+             (second c)
+             (let [view (persistent!
+                          (reduce-kv (fn [acc k v]
+                                       (if (and (keyword? k) (= ns-name (namespace k)))
+                                         (assoc! acc (keyword (name k)) v)
+                                         acc))
+                                     (transient {}) m))]
+               (vreset! cache [m view])
+               view)))))
+     :duration nil}))
+
 (defn tctx-forget
   "Take key (a keyword) out of tctx: nobody finds it any more. Throws when tctx
    holds nothing under it. Returns tctx."

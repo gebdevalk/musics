@@ -320,19 +320,31 @@
            (pop s))))
 
 ;; the tctx value of a key: inside a voice that is a function of onset at the onset of its leaf; outside
-;; one at onset 0 (:onset 0). A computed key is run.
+;; one at onset 0 (:onset 0). A computed key is run. :voice/key is read through the voice's scope
+;; (its own entry, else the shared one), at the onset the voice being read has now, else 0.
 (defn- tctx-value [k]
-  (let [lookup (or e/*lookup*
-                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x)))))]
+  (let [voice  (namespace k)
+        lookup (if voice
+                 (let [on (if e/*lookup* (e/*lookup* :onset) 0)
+                       g  (c/getter [(live/tctx-scope voice) (live/tctx-node!)] on)]
+                   (fn [x] (if (= x :onset) on (g (if (= x k) (keyword (name k)) x)))))
+                 (or e/*lookup*
+                     (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x))))))]
     (lookup k)))
 
+;; what the tctx stores for a key: for :voice/key the voice's own entry, else the shared one
+(defn- tctx-entry [k]
+  (let [m @(:envelopes-atom (live/tctx-node!))]
+    (cond (contains? m k) (get m k)
+          (namespace k)   (get m (keyword (name k))))))
+
 ;; what the tctx holds for a key, as it was stored: a quotation not run
-(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. An error when it holds nothing for it"
+(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. :bass/key is the bass's own, else the shared one. An error when it holds nothing for it"
        (fn [s]
          (need s 1 "T@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [entry (get @(:envelopes-atom (live/tctx-node!)) k)]
+           (let [entry (tctx-entry k)]
              (cond
                (nil? entry) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! it")
                (instance? musics.domain.context.Derived entry)
@@ -342,7 +354,7 @@
                :else (conj (pop s) (tctx-value k)))))))
 
 ;; the value, a computed key run
-(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the onset of the leaf a voice that is a function of onset is making (outside one, at onset 0, :onset 0); an error when the tctx holds nothing for it"
+(word! "play" "T@@" "( :key -- x )  the tctx's value for :key (:bass/key through the bass's scope), a computed key run, at the onset of the leaf a voice that is a function of onset is making (outside one, at onset 0, :onset 0); an error when the tctx holds nothing for it"
        (fn [s]
          (need s 1 "T@@")
          (let [k (peek s)]
