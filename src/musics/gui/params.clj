@@ -6,7 +6,7 @@
 
    The voice's inputs are the model, both ways: a control stores into them
    (checked against the parameter's spec; a refused value is shown, not
-   applied), and a change made elsewhere (:bass/onsets !) moves the control.
+   applied), and a change made elsewhere (3 :bass/onsets T!) moves the control.
    A change is heard on the voice's next note. One window per voice."
   (:require [cljfx.api :as fx]
             [clojure.edn :as edn]

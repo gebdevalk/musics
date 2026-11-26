@@ -97,8 +97,9 @@ the chain finds the voice's value first.
 ranges still come from the algo parameter of the same name (`live/param-spec`) and are kept beside
 the scope entry. `:bass settings` and `:bass gui` read the scope.
 
-Then these go: `Ref` and the `@`/`!` on references, and the registry in `musics.mu.inputs`
-(147 lines), reduced to watching a scope. `@` and `!` are left to `nth` and `put`. The `/name` of
+Then these go: the references to inputs (`Ref` itself stays, Forth's `variable` is one) and the
+registry of values in `musics.mu.inputs`, reduced to the names, the specs and a watch on the scope
+(built 2026-11-26). `@` and `!` are left to `nth`, `put` and `variable`. The `/name` of
 `IdName` stays, now reading as a qualified keyword, not a reference.
 
 ### Keys

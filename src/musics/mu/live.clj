@@ -114,8 +114,6 @@
                   :default value :doc ""})]
     (merge {:algo (keyword word)} base {:own input :param (keyword input) :at [input] :order order})))
 
-(inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
-
 (def tctx
   "The session's tctx (musics.registries/tctx): a Context whose keys are Clojure
    keywords (:reps, :steps), first in the chain every voice fed by a function of
@@ -175,14 +173,14 @@
 
 (defn- onset-source
   "The function of a voice fed by a function of onset (compose/source): (onset lookup)
-   -> the one leaf word gives at onset, the other inputs read as they are now
-   (:voice/input stores one), and any keyword argument of a word it runs the
-   value lookup gives for it -- also :onset. A word that leaves [] (a seq with nothing
-   in it) has finished: the voice ends there."
-  [word voice all-names]
+   -> the one leaf word gives at onset, the other inputs as the lookup gives them at that
+   onset (its scope in the tctx, :bass/onsets, else the shared tctx, so an input can be a
+   function of time too), and any keyword argument of a word it runs the value lookup gives
+   for it -- also :onset. A word that leaves [] (a seq with nothing in it) has finished: the
+   voice ends there."
+  [word _voice all-names]
   (fn [onset lk]
-    (let [vals   (inputs/values voice)
-          args   (mapv (fn [n] (if (= n "onset") onset (get vals n))) all-names)
+    (let [args   (mapv (fn [n] (if (= n "onset") onset (lk (keyword n)))) all-names)
           lookup (fn [k] (if (= k :onset) onset (lk k)))]
       (e/with-lookup lookup
         #(let [left (e/run-word args word)]

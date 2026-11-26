@@ -3924,3 +3924,16 @@ memoized lookup is per leaf and per voice (`doc/md/why/scoped-tctx.md`, sections
 reads as the `Ref` of an input when the voice has one by that name, else as the qualified keyword; the
 inputs and their `@` and `!` go in the next step. Seeding of random keys (section 10 of the note) is not
 built.
+
+## 2026-11-26 -- the `$` inputs of a live word are entries of the voice's scope
+
+`5 8 'riff :bass ->` writes `:bass/onsets` 5 and `:bass/pulses` 8 into the tctx; the word reads
+`$onsets` through the voice's chain, so a voice with no entry of its own reads the shared one and an
+input can be a function of time or a computed key. `T@` and `T!` are the words to read and store one (a
+store is checked against the input's spec as before). `musics.mu.inputs` keeps the order of the names and
+the specs, and watches the tctx to run a plain word voice again when an input changes; its own atom of
+values, `ref-of` and the `Ref` it made are gone, and `:bass/onsets` always reads as the qualified keyword.
+`Ref` and `@`/`!` on it stay for Forth's `variable`, a different thing. The values now stay when the voice
+stops, by name, so `:bass ->` starts it as it was tuned and a value can be written before the voice
+starts; a saved session keeps them with the rest of the tctx. Lost: the error that named the inputs a voice
+has when one was mistyped (`:bass/pulse` is a key of the scope now).

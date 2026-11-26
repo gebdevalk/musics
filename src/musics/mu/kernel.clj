@@ -9,6 +9,7 @@
             [musics.domain.context :as c]
             [musics.compare :as cmp]
             [musics.mu.eval :as e :refer [word! need]]
+            [musics.mu.inputs :as inputs]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
@@ -238,7 +239,7 @@
 
 ;; -- places ---------------------------------------------------------------
 
-(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (7 bass/onsets !)"
+(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (a place made by variable: 3 five !)"
        (fn [s]
          (need s 2 "!")
          (if (v/ref? (peek s))
@@ -304,9 +305,13 @@
          (need s 2 "T!")
          (let [k (peek s) x (peek (pop s))]
            (when-not (keyword? k) (e/mu-error "T!:" "the key is a keyword, :reps -- got" (p/show k)))
-           (if (v/quotation? x)
+           (cond
+             (v/quotation? x)
              (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
-             (c/tctx! (live/tctx-node!) k x))
+             ;; an input of a voice that has it: checked against its range, as the word is
+             (and (namespace k) (get (inputs/specs (keyword (namespace k))) (keyword (name k))))
+             (inputs/put! (keyword (namespace k)) (name k) x)
+             :else (c/tctx! (live/tctx-node!) k x))
            (pop (pop s)))))
 
 ;; take a key out of the tctx

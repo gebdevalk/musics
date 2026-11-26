@@ -22,7 +22,7 @@ as plain functions called by name (`pattern/euclid`): see
 | **memory** | `'name` `:=` `\name` `R!` `R!!` `R@` (`store` `overwrite` `fetch`) |
 | **defining, namespaces** | `:` `;` `use` `in` `require` |
 | **playback** | `->` or `play` (stops what plays first), `->+` or `play+` (joins it now), `-\|>` or `play-next` (in its place, from the next boundary), `-\|>+` or `play-next+` (joins it, from the next boundary), `stop` (or `:bass stop`, one voice), `pause` (pause, or resume if paused), `resume`, `later` (`1/8 later` before a play word's voice: a start delay in whole notes, for a voice that is a function of onset); voices: `voices` or `<<-`, `playing` or `<-`, `hush`, `solo` |
-| **live** | a play word with a quotation `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the quotation); `retree` (`'( 7 + ) :up retree`) gives the voice another quotation, which goes on at its position. A word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets @`, `3 :bass/onsets !` (checked against the range of the algo parameter of the same name), `:bass settings`, `:bass gui` (a window of its inputs, a control each, under the algo it belongs to), `:bass ->` starts it again with the inputs as they are -- `musics.mu.live`, `musics.mu.voice`, `musics.mu.inputs` |
+| **live** | a play word with a quotation `'( … )` under its voice and context plays live: `x '( 5 + ) :up ->`, `\| '( … ) :riff ->` from nothing (a mark, or nothing, under the quotation); `retree` (`'( 7 + ) :up retree`) gives the voice another quotation, which goes on at its position. A word written with `$` inputs plays live too, its inputs the voice's changeable values: `5 8 'riff :bass ->`, `:bass/onsets T@`, `3 :bass/onsets T!` (an entry of the voice's scope in the tctx, checked against the range of the algo parameter of the same name; it stays when the voice ends), `:bass settings`, `:bass gui` (a window of its inputs, a control each, under the algo it belongs to), `:bass ->` starts it again with the inputs as they are -- `musics.mu.live`, `musics.mu.voice`, `musics.mu.inputs` |
 | **synthesizer** | `fluidsynth`, `gervill` (Java's own), `echo` (print each note as it sounds -- `x\38 Acoustic Snare`, `\i:40 violin  C4` -- or stop) |
 | **soundfonts** | the `soundfont` namespace: `soundfonts` (the `.sf2` files, numbered), `list-soundfonts` (number and name, aligned), `soundfont` (a file in quotes, or a number from `soundfonts`), `list-groups` (General MIDI's groups of eight), `try-soundfonts` ( [x] [n] [pick] -- ): x, or a phrase of its own, through every instrument of every soundfont, as an audition -- n one soundfont, a pick `'[56 63]` programs, `"brass"` a group, `"horn"` the instruments named so |
 | **tctx** | `@{ :key value … }` (a tctx written out; `:tctx R!` makes it the session's, replacing it, `:tctx R@` writes the session's back, keys in order), `T!` (`8 :steps T!`; a quotation, `'( :steps 2 * ) :twice T!`, is a computed key), `T@` (`:steps T@`; a computed key as its quotation), `T@@` (`:twice T@@`, run), `T_` (`:steps T_` takes a key out), each also with a voice before the slash (`5 :bass/steps T!`: the bass's own, read before the shared one, which `:lead/steps T@` falls back to): the keyword-keyed settings a voice that is a function of the onset reads |
@@ -101,8 +101,6 @@ By algo space's tool actions (`doc/md/algo-space.md`, section 0):
   drops it, and `cut` (`[_]`) drops a range like `slice`'s:
   `[c d e] 1 g !` gives `[c g e]`, `[c d e] 1 g insert` `[c g d e]`,
   `[c d e] 1 _` `[c e]`, `[c d e f g] 1 3 [_]` `[c f g]`; `@` is `nth`.
-  With a **reference** (`:bass/onsets`, a live voice's input) on top, `@`
-  alone reads it and `!` stores the value under it: `7 :bass/onsets !`.
   `5 variable five` is Forth's variable, starting with a value (the name is
   read as `see` reads it): `five` pushes the place, `five @` reads it and
   `3 five !` stores. A second name for the place is a plain definition,
@@ -635,7 +633,7 @@ argument names: `( onsets pulses -- euclid )`.
   (`"numeric.rng" reqalgo` first).
 - **Live**: a quotation under a play word, or a word written with `$` inputs,
   plays live (see Live in the table above); an input is read and stored as
-  `:bass/onsets @`, `7 :bass/onsets !`, checked against the range of the algo
+  `:bass/onsets T@`, `7 :bass/onsets T!`, checked against the range of the algo
   parameter of the same name, and `:bass settings` and `:bass gui` show them.
 - **Instruments and drums** are two worlds: an instrument is a program,
   its notes pitches; a drum is a key of the kit (`!kit:brush`). Zipped

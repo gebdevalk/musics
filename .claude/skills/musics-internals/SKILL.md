@@ -302,11 +302,15 @@ play word (`x '( 5 + ) :up ->`, `| '( [c d e] ) :riff ->`; `retree` gives the vo
 another and it goes on at its position), and a word written with `$` inputs,
 `: riff ( $onsets $pulses -- notes ) … ;`, started by `5 8 'riff :bass ->` (the quoted
 name is held, not run; the voice needs a name; every input a `$`). A word voice's
-inputs are `:bass/onsets`, `musics.mu.value/Ref`s (`IdName` in `mu.ebnf` takes
-`/input`): `@` reads one, `7 :bass/onsets !` stores it, heard from the voice's next
-note and checked against the input's spec (`inputs/put!`: type, range, choices). Each
-voice's inputs live in `musics.mu.inputs` (an atom of `{"name" value}` and a spec
-per input); `musics.mu.voice/follow!` registers a wall fn in `musics.wall` under
+inputs are `:bass/onsets`, entries of the voice's scope in the tctx (`IdName` in `mu.ebnf` takes
+`/input`; it reads as a qualified keyword): `T@` reads one, `7 :bass/onsets T!` stores it, heard
+from the voice's next note and checked against the input's spec when the voice has one
+(`inputs/put!`: type, range, choices). `musics.mu.inputs` keeps what is not in the tctx, the order
+of the stack effect's names and a spec per input, and watches the tctx for a change of one of
+them; the values are the scope's, which stay when the voice ends, and a voice that has no entry of
+its own for an input reads the shared tctx's. An onset voice reads its inputs through the lookup
+it is given at each leaf (`[scope tctx]`, so an input may be a function of time or a computed key);
+`musics.mu.voice/follow!` registers a wall fn in `musics.wall` under
 the voice's id that plays the next leaf of what the run gives, per-voice cursors
 kept, re-registering when an input changes (the engine notices on the next note) --
 a short result starts over, a run that fails keeps the last good material and says
@@ -364,8 +368,8 @@ table when asked. A voice that is a function of onset starts with `[scope tctx]`
 the voice's value first, then the shared one, and a computed key written once for all (`:twice`)
 reads what it asks (`(get :steps)`) through the asking voice's chain. `T@` gives the voice's entry,
 else the shared one; `T@@` runs through `[scope tctx]`; `T_` takes out the voice's own. In mu,
-`:voice/name` is the `Ref` of an input when the voice has one by that name, else the qualified
-keyword. Design and open points: `doc/md/why/scoped-tctx.md`.
+`:voice/name` is the qualified keyword, always (an input of a word voice is such an entry too, see
+"Live voices"). Design and open points: `doc/md/why/scoped-tctx.md`.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 

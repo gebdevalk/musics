@@ -80,16 +80,16 @@
   (testing "start it with its inputs under its name: 3 'pat :w ->"
     (run "3 'pat :w ->")
     (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :w))) "each note the next of what the word gives, a short seq again")
-    (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count @") @e/state)))
+    (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count T@") @e/state)))
         "the input is :w/count"))
   (testing "a store is heard: the word runs again with the new value"
-    (run "2 :w/count !")
+    (run "2 :w/count T!")
     (is (= [60 62 60 62] (take 4 (pitches "[c c c c c c]" :w)))))
   (testing "the inputs are named in the order of the stack effect"
     (run ": two ( $a $b -- l ) [c d e f g a b] $a take $b + ;")
     (run "5 2 'two :t ->")
-    (is (= [5 2] [(first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/a @") @e/state)))
-                  (first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/b @") @e/state)))]))
+    (is (= [5 2] [(first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/a T@") @e/state)))
+                  (first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/b T@") @e/state)))]))
     (is (= [62 64 66 67 69] (take 5 (pitches "[c c c c c c]" :t))))))
 
 (deftest a-live-word-needs-a-voice-name-and-only-dollar-inputs
@@ -113,23 +113,25 @@
       (is (re-find #":onsets +3 +0\.\.32" o) o)
       (is (re-find #":label +\"x\" +string" o) "an input no algo reads has the type of its value")))
   (testing "set takes a value as before, and a value the spec refuses is an error that changes nothing"
-    (run "2 :w/onsets !")
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 99 should be at most 32" (run "99 :w/onsets !")))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 2.5 should be an integer" (run "2.5 :w/onsets !")))
+    (run "2 :w/onsets T!")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 99 should be at most 32" (run "99 :w/onsets T!")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 2.5 should be an integer" (run "2.5 :w/onsets T!")))
     (is (= 2 (inputs/value :w "onsets")) "still 2")
     (is (= 2 (inputs/value :w "onsets"))))
   (testing ":w -> starts it again with the inputs as they are now"
-    (run "5 :w/onsets !")
+    (run "5 :w/onsets T!")
     (run ":w ->")
-    (is (= 5 (peek (run ":w/onsets @"))))
+    (is (= 5 (peek (run ":w/onsets T@"))))
     (is (= [60 62 64 65 67 60] (take 6 (pitches "[c c c c c c c c]" :w))))))
 
-(deftest inputs-of-a-voice-that-is-gone-are-not-reachable
+(deftest the-inputs-of-a-voice-that-is-gone-stay-in-its-scope
   (run ": pat ( $onsets -- l ) [c d e f g a b] $onsets take ;")
   (run "3 'pat :w ->")
-  (is (= 3 (peek (run ":w/onsets @"))))
+  (is (= 3 (peek (run ":w/onsets T@"))))
   (engine/stop!)
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"the voice :w is not playing" (run ":w/onsets @"))))
+  (is (= 3 (peek (run ":w/onsets T@"))) "kept by name, so a voice started again is as it was tuned")
+  (run "4 :w/onsets T!")
+  (is (= 4 (peek (run ":w/onsets T@"))) "and it can be tuned before it starts"))
 
 (deftest a-word-voice-input-belongs-to-the-algo-that-owns-the-param
   (require 'musics.algo.rhythmic.pattern 'musics.algo.rhythmic.feel 'musics.algo.rhythmic.sieve)

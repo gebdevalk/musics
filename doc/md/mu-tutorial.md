@@ -1218,28 +1218,33 @@ the definition, and play the word as a voice.
   input would need music passed in, which a quotation on music under it does
   (`x '( … ) :up ->`). `-|>` waits for a boundary as it does for music.
 
-An input is addressed by its voice and its name, `:bass/onsets`. It is a
-**reference**: `@` reads it and `!` stores into it, as in Forth.
+An input is addressed by its voice and its name, `:bass/onsets`. It is an entry of the
+voice's scope in the tctx: `T@` reads it and `T!` stores into it.
 
 ```
-:bass/onsets @            5
-3 :bass/onsets !          three beats, heard from the voice's next note
-:bass/onsets @ :bass/pulses @       3 8
+:bass/onsets T@           5
+3 :bass/onsets T!         three beats, heard from the voice's next note
+:bass/onsets T@ :bass/pulses T@     3 8
 :bass settings            each input: value, range, default, what it is
 :bass gui                 a window with a slider per input
 :bass ->                  start it again with the inputs as they are now
 stop
-:bass/onsets @            the voice :bass is not playing
+:bass/onsets T@           3, the values of a voice stay in its scope after it stops
 ```
 
 `settings` and the sliders take an input's range from the algo parameter of
 the same name: `onsets` is `0..32`, `pulses` `1..32`, once the namespace that
-reads them is loaded. A value outside it is refused (`99 :bass/onsets !`:
+reads them is loaded. A value outside it is refused (`99 :bass/onsets T!`:
 `onsets: 99 should be at most 32`). Where several algos read a name with different
 ranges the widest is used. An input no algo reads (`$label`) has no range, so it is
 a text field. The window files each control under the algo that owns the
 parameter. Two voices may have inputs of the same name: `:bass/onsets` and
 `:lead/onsets` are different places.
+
+The inputs are entries of the voice's scope (see "Settings: values a voice looks up"), so they
+behave as the other keys of the tctx do: they stay when the voice stops, so `:bass ->` starts it
+as it was tuned, and a value can be written before the voice starts. A voice that has no entry of
+its own for an input reads the shared one, `8 :onsets T!`.
 
 A local is written with its `$` in the body, `$onsets`, and a word that
 leaves nothing, or fails when it runs, is refused when the voice starts.
@@ -1260,7 +1265,7 @@ Nothing is built ahead: what the voice plays is looked up as it plays.
 - `$onset` is the voice's own: the stack gives the other inputs (`60` is `$base`), and
   no slider is made for it. The onset is a whole-note fraction, `1/16` for the second
   sixteenth.
-- The word runs once for each leaf, so `3 :v/base !` is heard at the next leaf, and a
+- The word runs once for each leaf, so `3 :v/base T!` is heard at the next leaf, and a
   word that fails, or leaves nothing, is refused when the voice starts.
 - Under a context it plays as music does: `60 'tick ^{ !tempo:120 } :v ->`. It starts
   now (`->`); `-|>` is refused.

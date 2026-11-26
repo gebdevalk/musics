@@ -58,7 +58,7 @@
 | `pause` `resume` | pause (again: resume), Alt+. and Alt+, |
 | `1/8 later` | before a play word: start delay of a voice that is a function of onset |
 | `x '( 5 + ) :up ->` `'( … ) :up retree` | a live voice follows a quotation; `retree` gives it another |
-| `5 8 'riff :bass ->` | a word with `$` inputs plays live; `:bass/onsets @`, `3 :bass/onsets !`, `:bass settings`, `:bass gui` |
+| `5 8 'riff :bass ->` | a word with `$` inputs plays live; `:bass/onsets T@`, `3 :bass/onsets T!`, `:bass settings`, `:bass gui` |
 | `voices` (`<<-`) `playing` (`<-`) `hush` `solo` | which voices play, fetch what a voice plays, quiet one, only one |
 | `gervill` `fluidsynth` `gui` `echo` | sound, window, print each note as it sounds |
 | `soundfonts` `soundfont` `try-soundfonts` | list, choose, audition `.sf2` instruments |

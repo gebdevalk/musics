@@ -171,8 +171,8 @@ is a name, `name:` an id. `!` is only ever an instruction (`!mf`).
 - **A live word**: a word whose inputs are all `$` plays as a voice, its
   inputs the voice's changeable values: `5 8 'riff :bass ->` (the quoted
   name keeps it from running now; the voice needs a name). `:bass/onsets`
-  is a **reference** to one input (`@` reads it, `!` stores into it, heard
-  from the voice's next note); `:bass settings` and `:bass gui` list them
+  is one input, an entry of the voice's scope in the tctx (`T@` reads it, `T!`
+  stores into it, heard from the voice's next note); `:bass settings` and `:bass gui` list them
   with the range of the algo parameter of the same name; `:bass ->` starts
   the voice again with the inputs as they are. See the tutorial, "A word as
   a live voice".

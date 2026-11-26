@@ -719,15 +719,14 @@
     (testing "! with nothing to store into says what it needs"
       (is (re-find #"needs" (:error (run [] "!")))))))
 
-(deftest a-voice-input-is-the-reference-colon-voice-slash-input
+(deftest a-voice-input-is-an-entry-of-its-scope-colon-voice-slash-input
   (inputs/set-inputs! :bass [["onsets" 5] ["pulses" 8] ["seed" 42]])
-  (let [was (inputs/alive! (constantly true))]   ; no engine here: the voice is taken as playing
-   (try
+  (try
     (let [run (fn [in] (swap! e/state assoc :stack []) (let [res (e/eval-input in)] (assoc res :stack (:stack @e/state))))]
-      (testing "read it, store into it"
-        (is (= [5] (:stack (run ":bass/onsets @"))))
-        (is (nil? (:error (run "7 :bass/onsets !"))))
-        (is (= [7] (:stack (run ":bass/onsets @"))))
+      (testing "read it, store into it, as any key of the tctx"
+        (is (= [5] (:stack (run ":bass/onsets T@"))))
+        (is (nil? (:error (run "7 :bass/onsets T!"))))
+        (is (= [7] (:stack (run ":bass/onsets T@"))))
         (is (= 8 (inputs/value :bass "pulses")) "the others are as they were"))
       (testing "it prints as written"
         (is (= ":bass/onsets" (p/show (first (:stack (run ":bass/onsets")))))))
@@ -738,7 +737,7 @@
         (is (= [:drums/onsets] (:stack (run ":drums/onsets"))) "also for a voice with no inputs"))
       (testing "without the colon, an unknown word points at it"
         (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
-    (finally (inputs/clear! :bass) (inputs/alive! was)))))
+    (finally (inputs/clear! :bass) (reset! (:envelopes-atom live/tctx) {}))))
 
 (deftest a-precondition-of-a-function-is-a-refusal-not-a-crash
   (swap! e/state assoc :stack [])
@@ -903,7 +902,7 @@
       (let [f (#'live/onset-source "tick" :v ["onset" "base"])
             at (fn [onset base]
                  (inputs/set-inputs! :v [["base" base]])
-                 (-> (f onset (c/getter [live/tctx] onset)) :pitches first))]
+                 (-> (f onset (c/getter [(live/tctx-scope :v) live/tctx] onset)) :pitches first))]
         (is (= [60 62 64] [(at 0 60) (at 1/2 60) (at 1 60)]) "a function of the onset")
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
     (testing "a keyword argument the tctx holds is its value, at the leaf's onset"
@@ -955,6 +954,22 @@
         (is (re-find #"goes with -> or ->\+" (:error (run "60 'tick 1/8 later :v -|>"))))
         (is (= "1/8 later" (top-of "1/8 later")))))
     (finally (inputs/clear! :v))))
+
+(deftest an-input-of-an-onset-voice-is-read-through-its-scope-and-may-be-a-function-of-time
+  (try
+    (run ": tick ( $onset $base -- note ) | '[1/4] '[1] $base * zip ;")
+    (inputs/set-inputs! :v [["base" 60]])
+    (let [f  (#'live/onset-source "tick" :v ["onset" "base"])
+          at (fn [onset] (-> (f onset (c/getter [(live/tctx-scope :v) live/tctx] onset)) :pitches first))]
+      (is (= [60 60] [(at 0) (at 1)]) "the entry the start wrote")
+      (testing "an input can be computed from the onset, as any key of the tctx"
+        (run "'( :onset 4 * int 60 + ) :v/base T!")
+        (is (= [60 62 64] [(at 0) (at 1/2) (at 1)])))
+      (testing "without an entry of its own the voice reads the shared tctx"
+        (c/tctx-forget live/tctx :v/base)
+        (run "70 :base T!")
+        (is (= 70 (at 0)))))
+    (finally (inputs/clear! :v) (reset! (:envelopes-atom live/tctx) {}))))
 
 (deftest a-word-that-leaves-an-empty-seq-has-finished
   (try

@@ -12,7 +12,6 @@
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
-            [musics.mu.inputs :as inputs]
             [musics.mu.print :as p]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
@@ -341,13 +340,9 @@
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
-    ;; :voice/key is a reference to an input of a voice that has one by that name, else
-    ;; the qualified keyword of a voice's scope in the tctx (:bass/steps T! )
+    ;; :voice/key is the qualified keyword of a voice's scope in the tctx (:bass/steps T! )
     :IdName    (let [[_ id input] node]
-                 (conj stack (cond
-                               (and input (some #{input} (inputs/names (keyword id)))) (inputs/ref-of (keyword id) input)
-                               input (keyword id input)
-                               :else (keyword id))))
+                 (conj stack (if input (keyword id input) (keyword id))))
     :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)

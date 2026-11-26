@@ -127,7 +127,7 @@
   (doseq [[v id] [[0 :cantus] [1 :voice1] [2 :voice2]]]
     (inputs/set-inputs! id [["v" v]])
     (let [f      (#'live/onset-source "voice" id ["onset" "v"])
-          src    (compose/source f (live/tctx-node!))
+          src    (compose/source f [(live/tctx-scope id) (live/tctx-node!)])
           events (vec (take 2000 (ev/events (repo/registry) src)))
           notes  (filter #(= :note (:kind %)) events)]
       (is (< (count events) 2000) (str id " ends"))
@@ -144,7 +144,7 @@
                        ctx (:context (v/node (peek (:ok r))))
                        _   (inputs/set-inputs! :cantus [["v" 0]])
                        f   (#'live/onset-source "voice" :cantus ["onset" "v"])
-                       evs (take 4 (ev/events (repo/registry) (compose/source f (live/tctx-node!) ctx)))
+                       evs (take 4 (ev/events (repo/registry) (compose/source f [(live/tctx-scope :cantus) (live/tctx-node!)] ctx)))
                        n   (first (filter #(= :note (:kind %)) evs))]
                    (/ (:dur-played n) (:dur-secs n))))]
     (is (< 0.99 (played 1.0) 1.01) "articulation 1.0: the note sounds its whole length")
@@ -158,7 +158,7 @@
   (is (re-find #"instrument:57\\" (leaf 315/8 1)) "the others as before, a single program")
   (inputs/set-inputs! :cantus [["v" 0]])
   (let [f    (#'live/onset-source "voice" :cantus ["onset" "v"])
-        note (first (filter #(= :note (:kind %)) (take 4 (ev/events (repo/registry) (compose/source f (live/tctx-node!))))))]
+        note (first (filter #(= :note (:kind %)) (take 4 (ev/events (repo/registry) (compose/source f [(live/tctx-scope :cantus) (live/tctx-node!)])))))]
     (is (= [60 61] (:program note)) "and the engine sounds the note on both programs")))
 
 (deftest it-starts-three-voices
