@@ -2,7 +2,8 @@
 
 Status: proposal, nothing built. Written 2026-11-25 after the audit of ways to do the same thing
 (`decisions.md`, 2026-11-24/25) and a question the tctx had not met: how it holds up with more
-than one voice.
+than one voice. 2026-11-26: the two risks of section 8 checked, and a way to seed random keys
+chosen (section 10).
 
 ## 1. The problem
 
@@ -41,8 +42,16 @@ Read in the source and tried on the context code itself (not through the engine)
   and a keyword `:steps` does not find it.
 - The sender thread reads every voice, so reads are in sequence; `@{ } :tctx R!` is one `reset!`.
 
-Not checked: the engine with several sources side by side, `T!` against the engine's lookahead,
-the random words under a shared key.
+Checked 2026-11-26, at the level of `musics.events` with two `compose/source` voices read in step
+(the scope in the source's `tctx` slot, the shared table in its `ctx` slot, which gives the order
+`[scope shared …]`): the scopes do not leak, a change of the shared table reaches the voice that
+has no value of its own and not the one that has, a computed key defined at the shared level is
+computed from each asker's own chain (`:twice` 10 for the bass with `:steps 5`, 16 for the lead
+with 8), and `getter` is made per leaf and per voice, so there is no shared cache. The random words
+under a shared key do share state: see section 8 and section 10.
+
+Not checked: the sender thread and its lookahead in a playing engine, `T!` landing at a musical
+boundary (section 4, way 2).
 
 ## 3. The proposal
 
@@ -153,21 +162,76 @@ to the shared value; two voices started at once with different scopes.
    overridden by a later shared write needs a scope entry of its own.
 4. **Declared inputs and free keys.** A declared `$` input has a range; a free scope key has none,
    a text field in the GUI. Writing an undeclared key: create it, or refuse unless asked.
-5. **The voice's name as a key** (`:voice`).
+5. **The voice's name as a key** (`:voice`). Section 10 can do without it: the voice is mixed
+   into a draw by the engine, not read by a word.
 6. **Where a change at a boundary is written** (section 4, way 2).
 7. **What a scope holds after the voice is replaced** (`:bass retree`).
 
 ## 8. Risks and what to check first
 
-- **Several sources in the engine.** Each voice gets its own chain; check with two voices that
-  one's scope never leaks into the other, and that the memoized `getter` is per leaf and per chain.
-- **Random state.** A computed key that draws is one state for all voices. The notation's shuffle
-  and choose have per-voice counters (`compose/voice-seed`); the random words may not. Check, and
-  if they share state, the scope or the voice's seed has to be part of what they read.
+- **Several sources in the engine.** Checked (section 2): no leak, and the memoized `getter` is
+  per leaf and per voice. Not checked: a playing engine with its sender thread.
+- **Random state.** Checked, and a real problem. The words of `musics.algo.numeric.random`
+  (`rand-int`, `choose`, `shuffle` …) draw from one global stream, `default-rng`. With seed 42 a
+  voice reading a random key alone gets 17 71 45 46; read in step with a second voice that reads
+  the same key, the two take alternate draws from the one stream (17 71 45 46 71 95 77 2). A voice's
+  values then depend on how many draws the other made and on the order the sender thread reads them,
+  so a seed does not repeat a piece with two voices. The notation's shuffle, choose and alternate do
+  not have this: they are counter-based and per voice (`compose/voice-seed`, the pass number).
+  Section 10 is the way out.
 - **Re-running a word voice.** Today an input watch re-runs it; with a scope the watch is on a
   context's atom, which changes for any key. Re-run only when a key the word declares changed.
 - **Compatibility.** `:bass/onsets @` and `!` stop working. They are in the docs and recipe 56;
   a pass over `mus/` and the tests finds the rest.
+
+## 10. Seeding random keys
+
+A computed key that draws (`'( 0 100 rand-int ) :density T!`) must be able to repeat, and the user
+chooses how. The choice is written with ordinary scoped keys, not a mode.
+
+| I want | I write |
+|---|---|
+| Different every time | nothing; `:seed T_` takes a seed away |
+| The same every time | `7 :seed T!` |
+| Re-roll just the bass | `8 :bass/seed T!` |
+| Re-roll one key of the bass | `9 :bass/density/seed T!` |
+| The bass unseeded, the rest seeded | `:none :bass/seed T!` |
+| Voices that agree on a random choice | write the random key at the shared level |
+
+**The seed is a scoped key.** The part before the last slash says who it is for, voice first, as in
+`:bass/steps`. For a key written in the bass scope the lookup is `:bass/density/seed`, then
+`:bass/seed`, then `:seed`, then nothing (the clock): nearest and most specific wins. The value is a
+number, or `:none` to say "unseeded here" over a seed that is further out.
+
+**A draw is a function of the seed, the key, the voice and the beat**, so it does not depend on
+which voice is read first (the counter of `musics.algo.numeric.counter`, as `compose/play-order`
+does for the notation's shuffle): the key is always mixed in, so pitch and density never draw
+alike; the voice is mixed in only for a key written in a voice's scope; the beat is the onset. A
+key written at the shared level is therefore the same draw for every voice at a beat, which is how
+two interlocking voices follow one random decision. With no seed anywhere in the chain, or at the
+prompt, the random words draw from the global stream, as today.
+
+**Where a key is written decides who shares it**: that is the scope's own meaning (the shared
+table is what all voices see, a scope what one voice sees), so no separate sharing setting is
+needed. A key written at the shared level takes the shared seed; a key written in a scope takes the
+scope's seed, else the shared one.
+
+**Why not modes** (`:piece`, `:voice`, `:key`, `:voice-key`, considered first): once a draw is a
+function of the beat there is no stream left to share, a piece-wide mode makes pitch and density
+draw the same number at a beat, and what remains of the choice is whether a key is shared by the
+voices, which the place it is written already says.
+
+**Words stay as they are.** The random words run inside a key are already bound to a lookup
+(`eval/with-lookup`); they read the seed from it and take the key and voice from the engine.
+
+**First slice**: `:seed`, `:bass/seed`, `:bass/density/seed`, `:none`. Left out: the key-only seed
+`:density/seed` (its first word reads like a voice; it needs a form that does not clash with voice
+names), pass-number indexing for loops.
+
+Open: `N rng/seed` at the prompt, does it become `:seed` at the shared level or stay the global
+stream's seed (two ways to do one thing)? `:bass/density/seed` has two slashes, which `IdName` does
+not take yet. The draw must know whether its key was written at the shared level or in a scope; the
+lookup should know which context answered, not checked.
 
 ## 9. Rejected
 
