@@ -797,6 +797,31 @@
     (is (re-find #"'x is a namespace already" (:error (e/eval-input "'numeric.rng 'x reqalgo"))))
     (is (re-find #"no namespace musics.algo.nothing.here" (:error (e/eval-input "'nothing.here reqalgo"))))))
 
+(deftest a-namespace-may-have-an-alias-of-several-parts
+  (let [ev (fn [in] (swap! e/state assoc :stack []) (e/eval-input in))]
+  (swap! e/state assoc :stack [])
+  (testing "an alias of dotted parts, 'rhythmic.pattern 'r.p reqalgo, names its words r.p/euclid"
+    (is (re-find #"musics\.algo\.rhythmic\.pattern as r\.p/" (with-out-str (ev "'rhythmic.pattern 'r.p reqalgo"))))
+    (is (= "'[1 0 0 1 0 0 1 0]" (p/show (first (:ok (ev "3 8 r.p/euclid"))))))
+    (is (re-find #"unknown word: pattern/euclid" (:error (ev "3 8 pattern/euclid"))) "the alias replaces the last name"))
+  (testing "the words are in the list under that alias, and a word of it can be defined on"
+    (is (re-find #"r\.p/ \(\d+\)" (with-out-str (ev "words"))))
+    (ev ": riff ( $n -- l ) $n 8 r.p/euclid ;")
+    (is (= "'[1 0 0 0 0 0 0 0]" (p/show (first (:ok (ev "1 riff")))))))
+  (testing "a longer alias, and one a namespace has already, is refused as a plain one is"
+    (is (re-find #"musics\.algo\.rhythmic\.sieve as r\.s\.x/" (with-out-str (ev "'rhythmic.sieve 'r.s.x reqalgo"))))
+    (is (re-find #"'r\.p is a namespace already" (:error (ev "'rhythmic.sieve 'r.p reqalgo")))))
+  (testing "an alias is parts of letters, digits, - and _ joined by single dots"
+    (doseq [bad ["'r..p" "'.p" "'p." "'1p" "'r.1p"]]
+      (is (:error (ev (str "'rhythmic.pattern " bad " reqalgo"))) bad)))
+  (testing "a quoted name of several parts alone is the namespace, unless a name is below it (then it is its alias)"
+    (swap! e/state assoc :stack [5])
+    (is (nil? (:error (e/eval-input "'numeric.rng reqalgo"))) "not taken for an alias of the 5 below it")
+    (is (= [5] (:stack @e/state))))
+  (testing "it reloads under the same alias, and require takes one too"
+    (is (re-find #"as r\.p/" (with-out-str (ev "'rhythmic.pattern 'r.p reqalgo"))))
+    (is (re-find #"as n\.r/" (with-out-str (ev "'musics.algo.numeric.rng 'n.r require")))))))
+
 ;; ---- a voice that is a function of onset ($onset in the word's stack effect) ----
 
 (defn- top-of [input] (p/show (peek (:ok (run input)))))

@@ -173,8 +173,23 @@
       (second form)
       (fail "not a Clojure namespace (no ns form first):" path))))
 
-(defn- short-name? [x]
-  (and (or (string? x) (symbol? x)) (re-matches #"[a-zA-Z][a-zA-Z0-9_\-]*" (str x))))
+(defn- short-name?
+  "A name for a namespace's words: letters, digits, _ and -, in one or several parts joined by
+   dots: p, pattern, r.p."
+  [x]
+  (and (or (string? x) (symbol? x))
+       (re-matches #"[a-zA-Z][a-zA-Z0-9_\-]*(?:\.[a-zA-Z][a-zA-Z0-9_\-]*)*" (str x))))
+
+(defn- alias-arity
+  "How many arguments require and reqalgo take from stack: 2 when the top is an alias after a name
+   (\"numeric.rng\" 'r, or 'numeric.rng 'r.n), else 1. A name of several parts alone is the namespace
+   (the stack below it is not a name), not an alias."
+  [stack]
+  (if (and (>= (count stack) 2)
+           (short-name? (peek stack))
+           (or (not (str/includes? (str (peek stack)) "."))
+               (let [below (peek (pop stack))] (or (string? below) (symbol? below)))))
+    2 1))
 
 (defn- alias-conflict
   "Why alias cannot name the words of namespace sym -- it names mu's own or
@@ -191,7 +206,7 @@
    random/uniform, \"musics.algo.numeric.random\" 'r require r/uniform; a .clj
    file too (\"my/words.clj\" require). Requiring again reloads it, a
    file afresh. A name may be quoted instead of in a string: 'numeric.rng."
-  {:mu {:optional {:alias short-name?}}}
+  {:mu {:optional {:alias short-name?} :arity alias-arity}}
   ([ns] (require! ns nil))
   ([ns alias]
    (let [n      (name-of ns)
@@ -211,7 +226,7 @@
   "Load a namespace of musics.algo, named without that start:
    \"numeric.rng\" reqalgo is \"musics.algo.numeric.rng\" require, and
    'numeric.rng 'r reqalgo gives it the alias r"
-  {:mu {:optional {:alias short-name?}}}
+  {:mu {:optional {:alias short-name?} :arity alias-arity}}
   ([ns] (reqalgo! ns nil))
   ([ns alias] (require! (str "musics.algo." (name-of ns)) alias)))
 

@@ -133,3 +133,12 @@
         (testing "the one object the voices hold"
           (is (identical? @tctx (:context (repo/current :tctx)))))
         (reset! (:envelopes-atom @tctx) {})))))
+
+(deftest a-dotted-alias-is-saved-and-restored
+  (top "'rhythmic.pattern 'r.p reqalgo")
+  (let [[text _] (session/text)]
+    (is (str/includes? text "'r.p require") "written as the alias is spelled")
+    (swap! e/state #(-> % (update :ns dissoc "r.p") (update :required dissoc "r.p")))
+    (is (re-find #"unknown word" (top "3 8 r.p/euclid")) "the alias gone")
+    (session/restore! text)
+    (is (= "'[1 0 0 1 0 0 1 0]" (top "3 8 r.p/euclid")) "and back, as it was written")))

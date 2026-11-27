@@ -3963,6 +3963,18 @@ window's slider follows the other input. Chosen over a central registry keyed by
 names is real, 24 of 63 shared names differ in range, and which meaning a name has depends on what reads
 it), and over namespaces for quantity domains (`pitch/lo`: the slash already means a voice or a library).
 
+## 2026-11-27 -- the alias of a namespace may have dots: `'rhythmic.pattern 'r.p reqalgo`
+
+An alias is a plain name, so a short alias had to be invented for each library and `pattern/` could clash.
+Now it may be several parts joined by dots, `r.p/euclid`, with the one slash a Clojure symbol allows (a
+dotted namespace and a single slash read and print back as written). The check in `require`/`reqalgo`
+(`short-name?`), the lookup of `ns/word` (`eval/lookup`) and `WordName` in `mu.ebnf` take dotted parts; the
+words are registered under the alias as before, and a saved session writes it as it is spelled. A quoted
+name of several parts alone, `'numeric.rng reqalgo`, used to be known as the namespace because a dot was
+not a short name; with dots allowed the choice between one and two arguments is made by `alias-arity`
+(an alias with dots only when a name is below it). An alias is just a string: nothing makes `r` exist for
+`r.p`. Aliasing a whole branch, `'rhythmic 'r reqalgo` for `r.pattern/euclid`, is left for later.
+
 ## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
 
 `:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one

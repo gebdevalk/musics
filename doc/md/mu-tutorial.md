@@ -1100,8 +1100,9 @@ The algorithms are plain Clojure functions, and mu calls them by name with their
 parameters on the stack. `'rhythmic.pattern reqalgo` (that is
 `"musics.algo.rhythmic.pattern" require`, short for the namespaces of `musics.algo`)
 makes the public functions of that namespace words, `pattern/euclid`, and `see` shows
-what one takes, read from its own argument names. There is no settings object and no
-default: you say every parameter.
+what one takes, read from its own argument names. An alias after the name gives the words
+another one, and it may be dotted: `'rhythmic.pattern 'r.p reqalgo` makes them `r.p/euclid`.
+There is no settings object and no default: you say every parameter.
 
 ```
 'rhythmic.pattern reqalgo

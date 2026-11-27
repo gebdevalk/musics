@@ -590,7 +590,9 @@ The algorithms of `musics/algo/` are plain Clojure functions, called by name wit
 their arguments on the stack (the tutorial and `doc/md/algo-cookbook.md` work
 through them). `"rhythmic.pattern" reqalgo` makes the public functions of
 `musics.algo.rhythmic.pattern` words, `pattern/euclid`; a quoted name works too,
-dots and all, and an alias follows it (`'rhythmic.pattern 'p reqalgo`).
+dots and all, and an alias follows it (`'rhythmic.pattern 'p reqalgo`). The alias may have
+several parts joined by dots, `'rhythmic.pattern 'r.p reqalgo`, and then the words are `r.p/euclid`;
+it replaces the default name, so `pattern/euclid` is not there too.
 `see pattern/euclid` shows the stack effect, read from the function's own
 argument names: `( onsets pulses -- euclid )`.
 

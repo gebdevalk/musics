@@ -111,3 +111,12 @@
   (doseq [t ["[c d ]]" "c4 ) d" "dup ;"]]
     (is (and (g/failure? (g/parse t)) (not (g/incomplete? t))) (str "wrong: " (pr-str t))))
   (is (not (g/incomplete? "[c d e]")) "complete"))
+
+(deftest a-word-may-be-written-with-a-dotted-namespace
+  (is (= [[:Word [:WordName "r.p/euclid"]]] (items "r.p/euclid")))
+  (is (= [[:Word [:WordName "a.b.c/f"]]] (items "a.b.c/f")))
+  (testing "a dot that is not followed by a name and a slash is what it was"
+    (is (= :KeyValue (ffirst (items "D.major"))))
+    (is (= [:SignedFloat "0.5"] (first (items "0.5"))))
+    (is (= :Note (ffirst (items "c4."))) "a dotted note")
+    (is (= :Note (ffirst (items "C4/8"))) "an absolute note with a duration")))
