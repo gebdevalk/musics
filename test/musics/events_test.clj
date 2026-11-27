@@ -483,6 +483,24 @@
     (is (= [103 104] (map (comp first :pitches) (take 2 (drop 3 (notes evs)))))
         "the leaves after the change read it; the ones played keep what they were")))
 
+(deftest two-sources-with-a-scope-each-in-front-of-the-shared-tctx-do-not-leak-into-each-other
+  (let [shared (-> (c/context) (c/tctx! :steps 8)
+                   (c/tctx-derive :twice (fn [_ get] (* 2 (get :steps)))))
+        bass   (c/tctx-scope (c/tctx! shared :bass/steps 5) :bass)
+        lead   (c/tctx-scope shared :lead)
+        f      (fn [_ get] (leaf-at 0 (+ (get :steps) (* 100 (get :twice)))))
+        eb     (notes (ev/events (repo/registry) (compose/source f [bass shared])))
+        el     (notes (ev/events (repo/registry) (compose/source f [lead shared])))
+        at     (fn [evs i] (first (:pitches (nth evs i))))]
+    (testing "read in step, each voice has its own :steps, and the shared :twice follows the asker"
+      (is (= [1005 1608 1005 1608] [(at eb 0) (at el 0) (at eb 1) (at el 1)])))
+    (testing "a change of the shared table reaches the voice with none of its own, not the other"
+      (c/tctx! shared :steps 9)
+      (is (= [1005 1809] [(at eb 2) (at el 2)])))
+    (testing "a write into the voice's scope is seen at its next leaf"
+      (c/tctx! shared :bass/steps 7)
+      (is (= [1407 1809] [(at eb 3) (at el 3)])))))
+
 (deftest a-source-leaf-is-resolved-at-the-same-beat-through-the-voices-context
   (let [ctx (c/ctx-generate (c/context) "volume" (fn [onset] (+ 40 (* 20 onset))))
         src (compose/source (fn [onset _] (leaf-at onset 60)) nil ctx)

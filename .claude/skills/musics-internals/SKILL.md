@@ -293,7 +293,8 @@ quotation is a Clojure function (`Quotation` implements `IFn`), so it can be a
 fitness function; a `( … )` group of quotations is a list of them (the
 constraints of `melody/constrained`); a list in a list is `'[ '[0 1] '[2] ]`.
 `N rng/seed` makes the random words after it repeat. Each function's
-`:algo {:params …}` metadata (type, range, default, choices, doc) is what the
+`:algo {:params …}` metadata (type, range, default, choices, doc; `:max-key`/`:min-key` name another
+param it may not pass or fall below, `euclid`'s onsets/pulses) is what the
 GUI reads for a control (below); `:in`/`:out` types and `:arity` ride along.
 
 **Live voices follow a function of their inputs** (`musics.mu.voice`,
@@ -302,21 +303,27 @@ play word (`x '( 5 + ) :up ->`, `| '( [c d e] ) :riff ->`; `retree` gives the vo
 another and it goes on at its position), and a word written with `$` inputs,
 `: riff ( $onsets $pulses -- notes ) … ;`, started by `5 8 'riff :bass ->` (the quoted
 name is held, not run; the voice needs a name; every input a `$`). A word voice's
-inputs are `:bass/onsets`, `musics.mu.value/Ref`s (`IdName` in `mu.ebnf` takes
-`/input`): `@` reads one, `7 :bass/onsets !` stores it, heard from the voice's next
-note and checked against the input's spec (`inputs/put!`: type, range, choices). Each
-voice's inputs live in `musics.mu.inputs` (an atom of `{"name" value}` and a spec
-per input); `musics.mu.voice/follow!` registers a wall fn in `musics.wall` under
+inputs are `:bass/onsets`, entries of the voice's scope in the tctx (`IdName` in `mu.ebnf` takes
+`/input`; it reads as a qualified keyword): `T@` reads one, `7 :bass/onsets T!` stores it, heard
+from the voice's next note and checked against the input's spec when the voice has one
+(`inputs/put!`: type, range, choices). `musics.mu.inputs` keeps what is not in the tctx, the order
+of the stack effect's names and a spec per input, and watches the tctx for a change of one of
+them; the values are the scope's, which stay when the voice ends, and a voice that has no entry of
+its own for an input reads the shared tctx's. An onset voice reads its inputs through the lookup
+it is given at each leaf (`[scope tctx]`, so an input may be a function of time or a computed key);
+`musics.mu.voice/follow!` registers a wall fn in `musics.wall` under
 the voice's id that plays the next leaf of what the run gives, per-voice cursors
 kept, re-registering when an input changes (the engine notices on the next note) --
 a short result starts over, a run that fails keeps the last good material and says
 why. A spec is that of the algo parameter of the same name among the loaded
 `musics.algo.*` namespaces (`live/param-spec`: the widest range when several algos
 read the name, owned by the algo only when one does; no match: a spec from the
-input's value). `settings` and `gui` (`musics.gui.params/open-inputs!`, a control
-per input under the algo it belongs to) read them; the Wall window lists every
-voice the same way; `:bass ->` starts it again with the inputs as they are; the
-inputs of a voice that has ended are refused and forgotten (`inputs/alive!`).
+input's value). `settings` reads them, and so does `gui` (`musics.gui.settings/open-settings!`: one
+window for the whole tctx, the shared keys first and a section for each voice that has keys
+of its own, its inputs in the range of their spec, another key a free slider with a button
+to take it out of the scope (`T_`); `:bass gui` is that window scrolled to the bass's
+section); the Wall window lists every voice the same way; `:bass ->` starts it again with
+the inputs as they are, the values being the scope's, which stay when the voice ends.
 
 **A voice can be a function of onset** (`musics.compose/source`,
 `musics.events/walk-source`, `musics.mu.live/play-onset-word!`). A word with `$onset`
@@ -354,6 +361,36 @@ the asker, with `:onset` and every tctx key as keywords), `T@` (`:steps T@`: wha
 computed key as its quotation, not run), `T@@` (`:twice T@@`: the value, a computed key run) and `T_`
 (`:steps T_`: take a key out) fill, read and erase the session's tctx
 (`musics.registries/tctx`, one `Context` for the session, also the repo's `:CONTEXT` node `:tctx`: `musics.mu.live/tctx-node!` puts it there). A saved session keeps it (`musics.persist`): plain values as they are, a computed entry as its quotation's printed text, read again when first asked, so the words it uses may be restored after the repo; a function of time is not saved. Loading fills the same object, never replaces it, so a voice already playing sees the loaded values.
+
+**A voice's scope in the tctx.** A key written with the voice before the slash (`5 :bass/steps T!`)
+is a qualified keyword in the same table (`musics.registries/tctx`), so a saved session and the
+GUI's Settings window hold it with no change. `context/tctx-scope tctx voice` is a *view*: a
+Context whose keys are the entries of that voice, under their own name (`:steps`), read from the
+table when asked. A voice that is a function of onset starts with `[scope tctx]` as its `Source`'s
+`:tctx` (`live/tctx-scope`, `events/walk-source` takes one Context or a vector), so a lookup finds
+the voice's value first, then the shared one, and a computed key written once for all (`:twice`)
+reads what it asks (`(get :steps)`) through the asking voice's chain. `T@` gives the voice's entry,
+else the shared one; `T@@` runs through `[scope tctx]`; `T_` takes out the voice's own. A voice's keys
+are also written as a block, `@{ … } :bass T!` (every entry checked first, none written when one is
+refused), read `:bass T@` and taken out `:bass T_` (`live/scope->settings`, `forget-scope!`); a `@{ }`
+nests a voice (`:bass @{ :steps 5 }`, `value/flatten-settings` makes the keys on reading,
+`live/nest-pairs` groups them on printing, a dotted namespace for a group). A voice's name may have
+dots (`:drums.kick`, `IdName` in `mu.ebnf`): `context/voice-paths` gives it and its groups, nearest
+first, `tctx-scopes` the scope of each, and `live/tctx-chain` the chain a voice reads, `[own group …
+tctx]`; `T@`, `inputs/value` and the input watch fall back through the groups.
+
+**Seeded random keys.** The random words (`musics.algo.numeric.random`) draw from
+`rng/current-rng`: `rng/*rng*` when bound, else the shared `default-rng`. `context/derived-value`
+binds `context/*derived-key*` to the key a computed entry is stored under (a scope's view marks its
+Derived entries with `:stored-key` metadata, so `:bass/r`, not `:r`), and `eval/derived-fn` binds
+`rng/*rng*` to `musics.mu.seeding/rng-for`: a fresh RNG seeded from the seed in force for that key
+(`:voice/seed`, its groups', `:seed`, else the session's, `default-rng`'s seed, which `N rng/seed` sets;
+`:none` the clock), the key and the beat. So a draw is the same at a beat, for a key written at the
+shared level the same for every voice, and does not depend on read order. T! refuses a `seed` that is
+not an integer or `:none`; `:seed T@` of an unset seed is the one in force. The notation's shuffle,
+choose and alternate (`compose/voice-seed`) use the session seed, not `:seed`. In mu,
+`:voice/name` is the qualified keyword, always (an input of a word voice is such an entry too, see
+"Live voices"). Design and open points: `doc/md/why/scoped-tctx.md`.
 
 ### Chord progressions and walking bass: `musics.algo.harmonic`
 
@@ -695,7 +732,8 @@ original's. Call either directly; in mu the same isorhythm is `zip` over two loo
   normalization: `ctx-append`, `ctx-invalidate` and `ctx-generate` refuse a keyword,
   and a keyword asked of a chain reaches only the contexts that hold keywords. A
   **tctx** is an ordinary `Context` whose keys are keywords (`T!`):
-  whoever builds a chain puts it in front (`[tctx voice … ROOT]`;
+  whoever builds a chain puts it in front (`[tctx voice … ROOT]`, or `[scope tctx voice … ROOT]`
+  for a voice with a scope, below;
   `:ROOT` and the rest are as they were), and the two kinds of key never meet, so it
   hides no context value and `"density"` (ROOT's) and `:density` (a tctx's) are two
   keys. Its values are bare values, `Generator`s (a function of the context's local

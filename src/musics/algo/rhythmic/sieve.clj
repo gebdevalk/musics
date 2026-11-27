@@ -168,8 +168,8 @@
   "The index-th rotation class of pulses pulses with onsets onsets
    (all-binary-necklaces), wrapping."
   {:algo {:in [] :out :pulse
-          :params {:pulses {:type :int :min 1 :max 16 :default 8 :doc "the grid"}
-                   :onsets {:type :int :min 0 :max 16 :default 3 :doc "beats to place"}
+          :params {:pulses {:type :int :min 1 :max 16 :min-key :onsets :default 8 :doc "the grid"}
+                   :onsets {:type :int :min 0 :max 16 :max-key :pulses :default 3 :doc "beats to place"}
                    :index  {:type :int :min 0 :max 1023 :default 0 :doc "which class"}}}}
   [pulses onsets index]
   (nth-wrapping (all-binary-necklaces pulses onsets) index))

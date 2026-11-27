@@ -73,32 +73,67 @@
       (mt/stage! form ctx (first staged) join? name name)
       (mt/play! form ctx join? name name))))
 
+(defn- algo-params
+  "[algo-name param-name spec] of each parameter in the :algo metadata of the functions of vars."
+  [vars]
+  (for [var vars
+        :let [params (get-in (meta var) [:algo :params])]
+        :when (map? params)
+        [pname spec] params]
+    [(keyword (name (:name (meta var)))) (name pname) spec]))
+
 (defn- param-owner-algos
   "Every parameter of the algorithms loaded now, [algo-name param-name spec]: each
    public function of a musics.algo namespace whose :algo metadata lists :params."
   []
-  (for [ns (all-ns)
-        :when (re-find #"^musics\.algo\." (str (ns-name ns)))
-        [sym var] (ns-publics ns)
-        :let [params (get-in (meta var) [:algo :params])]
-        :when (map? params)
-        [pname spec] params]
-    [(keyword (name sym)) (name pname) spec]))
+  (algo-params (for [ns (all-ns)
+                     :when (re-find #"^musics\.algo\." (str (ns-name ns)))
+                     [_ var] (ns-publics ns)]
+                 var)))
+
+(defn- word-names
+  "The names of the words a body (parse nodes) runs, at any depth: a quotation's too."
+  [body]
+  (->> body
+       (mapcat #(tree-seq (fn [n] (and (vector? n) (keyword? (first n)))) rest %))
+       (filter #(and (vector? %) (= :Word (first %))))
+       (map (fn [node] (let [x (second node)] (if (vector? x) (second x) x))))
+       distinct))
+
+(defn called-algos
+  "The functions of musics.algo the word called name runs, following the words it defines: the
+   vars of those with :algo :params. The algos a word is made of, so an input of it is read as
+   they read it."
+  ([name] (called-algos name #{}))
+  ([name seen]
+   (if (seen name)
+     []
+     (let [entry (try (e/lookup @e/state name) (catch Exception _ nil))]
+       (cond
+         (:var entry)  (let [v (:var entry)]
+                         (if (and (re-find #"^musics\.algo\." (str (ns-name (:ns (meta v)))))
+                                  (map? (get-in (meta v) [:algo :params])))
+                           [v] []))
+         (:body entry) (vec (distinct (mapcat #(called-algos % (conj seen name)) (word-names (:body entry)))))
+         :else         [])))))
 
 (defn- param-spec
   "One spec for the algo params called input: when several algos read a param
    by that name, the most common type, its range the widest of them (so no
    value any of them takes is refused), the rest from the first by name. The
-   spec names its owner, :algo, only when one algo reads that name."
-  [input]
-  (let [found (filter #(= input (second %)) (param-owner-algos))]
+   spec names its owner, :algo, only when one algo reads that name. The algos are
+   those word calls (see called-algos) when any of them reads the name, else all
+   that are loaded."
+  [input word]
+  (let [mine  (filter #(= input (second %)) (algo-params (called-algos word)))
+        found (if (seq mine) mine (filter #(= input (second %)) (param-owner-algos)))]
     (when (seq found)
       (let [type   (key (apply max-key val (frequencies (map (comp :type #(nth % 2)) found))))
             same   (map #(nth % 2) (filter #(= type (:type (nth % 2))) found))
             lo     (keep :min same)
             hi     (keep :max same)
             owners (distinct (map first found))]
-        (cond-> (select-keys (first same) [:type :default :doc :choices])
+        (cond-> (select-keys (first same) [:type :default :doc :choices :min-key :max-key])
           (seq lo) (assoc :min (apply min lo))
           (seq hi) (assoc :max (apply max hi))
           (= 1 (count owners)) (assoc :algo (first owners)))))))
@@ -108,13 +143,11 @@
    range, default and doc), else one made from the value it starts with. It
    belongs to the algo that owns the param, else to the word."
   [word order input value]
-  (let [base (or (param-spec input)
+  (let [base (or (param-spec input word)
                  {:type (cond (integer? value) :int (float? value) :double (string? value) :string
                               (keyword? value) :keyword (boolean? value) :bool :else :any)
                   :default value :doc ""})]
     (merge {:algo (keyword word)} base {:own input :param (keyword input) :at [input] :order order})))
-
-(inputs/alive! (fn [voice] (boolean (engine/voice-at voice))))
 
 (def tctx
   "The session's tctx (musics.registries/tctx): a Context whose keys are Clojure
@@ -131,6 +164,18 @@
     (repo/commit-node! :tctx {:type :CONTEXT :id :tctx :context tctx :children []}))
   tctx)
 
+(defn tctx-scope
+  "The scope of voice (a keyword or string) in the tctx, a Context to put in front of it:
+   the entries written :voice/key, read as :key (musics.domain.context/tctx-scope)."
+  [voice]
+  (c/tctx-scope (tctx-node!) voice))
+
+(defn tctx-chain
+  "The chain a voice reads the tctx through: the scope of the voice, those of the groups it is in
+   (:drums for :drums.kick), then the tctx."
+  [voice]
+  (conj (c/tctx-scopes (tctx-node!) voice) (tctx-node!)))
+
 (defn set-tctx!
   "Make settings (a mu Settings, @{ … }) the tctx's entries, all at once: a key it
    does not write is gone, a quotation is a computed key. Voices holding the tctx
@@ -145,20 +190,73 @@
     (reset! (:envelopes-atom node) @(:envelopes-atom tmp))
     node))
 
+(defn- settings-value
+  "What a tctx entry is in a @{ }: a quotation for a computed key, the value itself, nil when
+   there is no text to give (a function of time, a computed entry from no quotation)."
+  [entry]
+  (cond
+    (instance? musics.domain.context.Derived entry)
+    (when-let [text (:text entry)] (peek (e/run-text [] text)))
+    (instance? musics.domain.context.Generator entry) nil
+    :else entry))
+
+(defn- nest-pairs
+  "pairs [[k x] …] with a key written for a voice (:bass/steps) gathered under the voice,
+   :bass @{ :steps 5 }, a dotted voice (:drums.kick/steps) nested, :drums @{ :kick @{ :steps 8 } };
+   the keys of the tctx itself first, by name, then the voices in order."
+  [pairs]
+  (let [plain  (remove (comp namespace first) pairs)
+        scoped (filter (comp namespace first) pairs)
+        groups (group-by (fn [[k _]] (first (clojure.string/split (namespace k) #"\."))) scoped)]
+    (into (vec (sort-by (comp name first) plain))
+          (for [seg (sort (keys groups))]
+            [(keyword seg)
+             (v/->Settings
+              (nest-pairs (for [[k x] (groups seg)
+                                :let [more (rest (clojure.string/split (namespace k) #"\."))]]
+                            [(if (seq more) (keyword (clojure.string/join "." more) (name k)) (keyword (name k))) x])))]))))
+
+(defn- own-keys
+  "The entries of the tctx written for voice, that voice's own and those of the voices nested
+   in it (:drums.kick for :drums)."
+  [voice]
+  (let [n (name voice)]
+    (filter (fn [[k _]] (when-let [ns (namespace k)] (or (= ns n) (clojure.string/starts-with? ns (str n "."))))) 
+            @(:envelopes-atom (tctx-node!)))))
+
 (defn tctx->settings
-  "The tctx as a mu Settings, in key order: a computed key as its quotation. An
-   entry made in Clojure, with no text to give (a function of time, a computed
-   entry from no quotation), is left out."
+  "The tctx as a mu Settings, the shared keys first, in key order, then the voices, each
+   as :bass @{ … }: a computed key as its quotation. An entry made in Clojure, with no text
+   to give (a function of time, a computed entry from no quotation), is left out."
   []
   (v/->Settings
-   (vec (for [[k entry] (sort-by (comp name key) @(:envelopes-atom (tctx-node!)))
-              :let [x (cond
-                        (instance? musics.domain.context.Derived entry)
-                        (when-let [text (:text entry)] (peek (e/run-text [] text)))
-                        (instance? musics.domain.context.Generator entry) nil
-                        :else entry)]
-              :when (some? x)]
-          [k x]))))
+   (nest-pairs (for [[k entry] @(:envelopes-atom (tctx-node!))
+                     :let [x (settings-value entry)] :when (some? x)]
+                 [k x]))))
+
+(defn scope->settings
+  "What the tctx holds for voice as a mu Settings, its keys without its name, or nil when
+   it holds nothing for it."
+  [voice]
+  (let [n (name voice)
+        pairs (for [[k entry] (own-keys voice)
+                    :let [x (settings-value entry)] :when (some? x)
+                    :let [ns (namespace k)
+                          rest-ns (when (not= ns n) (subs ns (inc (count n))))]]
+                [(if rest-ns (keyword rest-ns (name k)) (keyword (name k))) x])]
+    (when (seq pairs) (v/->Settings (nest-pairs pairs)))))
+
+(defn own-keys-of
+  "The keys the tctx holds for voice (a keyword), as a seq; empty for none."
+  [voice]
+  (map first (own-keys voice)))
+
+(defn forget-scope!
+  "Take everything the tctx holds for voice out of it. The number of entries taken out."
+  [voice]
+  (let [ks (map first (own-keys voice))]
+    (swap! (:envelopes-atom (tctx-node!)) #(apply dissoc % ks))
+    (count ks)))
 
 (defn- onset-word?
   "Does word take the onset as an input -- $onset in its stack effect? Then the
@@ -169,14 +267,14 @@
 
 (defn- onset-source
   "The function of a voice fed by a function of onset (compose/source): (onset lookup)
-   -> the one leaf word gives at onset, the other inputs read as they are now
-   (:voice/input stores one), and any keyword argument of a word it runs the
-   value lookup gives for it -- also :onset. A word that leaves [] (a seq with nothing
-   in it) has finished: the voice ends there."
-  [word voice all-names]
+   -> the one leaf word gives at onset, the other inputs as the lookup gives them at that
+   onset (its scope in the tctx, :bass/onsets, else the shared tctx, so an input can be a
+   function of time too), and any keyword argument of a word it runs the value lookup gives
+   for it -- also :onset. A word that leaves [] (a seq with nothing in it) has finished: the
+   voice ends there."
+  [word _voice all-names]
   (fn [onset lk]
-    (let [vals   (inputs/values voice)
-          args   (mapv (fn [n] (if (= n "onset") onset (get vals n))) all-names)
+    (let [args   (mapv (fn [n] (if (= n "onset") onset (lk (keyword n)))) all-names)
           lookup (fn [k] (if (= k :onset) onset (lk k)))]
       (e/with-lookup lookup
         #(let [left (e/run-word args word)]
@@ -211,11 +309,11 @@
     (inputs/set-inputs! voice (map vector names values) specs)
     (let [f (onset-source word voice all-names)]
       ;; ask once now, at the start, so a word that fails is refused here, not heard
-      (try (f 0 (c/getter [(tctx-node!)] 0))
+      (try (f 0 (c/getter (tctx-chain voice) 0))
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f (tctx-node!)) (mt/read-text "repeat ~ [r8]") voice ctx
+      (mt/play-source! (compose/source f (tctx-chain voice)) (mt/read-text "repeat ~ [r8]") voice ctx
                        (start-origin ctx delay)))
     voice))
 

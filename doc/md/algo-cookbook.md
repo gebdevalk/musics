@@ -853,13 +853,13 @@ mu> stop
 
 #### 56. A live word, changed while it plays
 
-A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, read with `@` and stored with `!`. Shown, not run: nothing sounds when this page is made.
+A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, an entry of the voice's scope in the tctx, read with `T@` and stored with `T!`. Shown, not run: nothing sounds when this page is made.
 
 ```
 mu> 5 8 'riff :bass ->
 mu> :bass settings
-mu> 3 :bass/onsets !
-mu> :bass/onsets @
+mu> 3 :bass/onsets T!
+mu> :bass/onsets T@
 mu> stop
 ```
 

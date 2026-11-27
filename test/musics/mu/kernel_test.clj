@@ -719,27 +719,25 @@
     (testing "! with nothing to store into says what it needs"
       (is (re-find #"needs" (:error (run [] "!")))))))
 
-(deftest a-voice-input-is-the-reference-colon-voice-slash-input
+(deftest a-voice-input-is-an-entry-of-its-scope-colon-voice-slash-input
   (inputs/set-inputs! :bass [["onsets" 5] ["pulses" 8] ["seed" 42]])
-  (let [was (inputs/alive! (constantly true))]   ; no engine here: the voice is taken as playing
-   (try
+  (try
     (let [run (fn [in] (swap! e/state assoc :stack []) (let [res (e/eval-input in)] (assoc res :stack (:stack @e/state))))]
-      (testing "read it, store into it"
-        (is (= [5] (:stack (run ":bass/onsets @"))))
-        (is (nil? (:error (run "7 :bass/onsets !"))))
-        (is (= [7] (:stack (run ":bass/onsets @"))))
+      (testing "read it, store into it, as any key of the tctx"
+        (is (= [5] (:stack (run ":bass/onsets T@"))))
+        (is (nil? (:error (run "7 :bass/onsets T!"))))
+        (is (= [7] (:stack (run ":bass/onsets T@"))))
         (is (= 8 (inputs/value :bass "pulses")) "the others are as they were"))
       (testing "it prints as written"
         (is (= ":bass/onsets" (p/show (first (:stack (run ":bass/onsets")))))))
       (testing "a plain :bass is still the id"
         (is (= [:bass] (:stack (run ":bass")))))
-      (testing "an input that is not there says which are"
-        (is (re-find #"^:bass/pulse: :bass has no input pulse -- onsets, pulses, seed" (:error (run ":bass/pulse @")))))
-      (testing "a voice without inputs says so"
-        (is (re-find #"^:drums/onsets: no voice :drums has inputs -- voices with inputs: :bass" (:error (run ":drums/onsets @")))))
+      (testing "a :voice/name that is none of the voice's inputs is a key of its scope in the tctx"
+        (is (= [:bass/pulse] (:stack (run ":bass/pulse"))))
+        (is (= [:drums/onsets] (:stack (run ":drums/onsets"))) "also for a voice with no inputs"))
       (testing "without the colon, an unknown word points at it"
         (is (re-find #"did you mean :bass/onsets\?" (:error (run "bass/onsets @"))))))
-    (finally (inputs/clear! :bass) (inputs/alive! was)))))
+    (finally (inputs/clear! :bass) (reset! (:envelopes-atom live/tctx) {}))))
 
 (deftest a-precondition-of-a-function-is-a-refusal-not-a-crash
   (swap! e/state assoc :stack [])
@@ -799,6 +797,31 @@
     (is (re-find #"'x is a namespace already" (:error (e/eval-input "'numeric.rng 'x reqalgo"))))
     (is (re-find #"no namespace musics.algo.nothing.here" (:error (e/eval-input "'nothing.here reqalgo"))))))
 
+(deftest a-namespace-may-have-an-alias-of-several-parts
+  (let [ev (fn [in] (swap! e/state assoc :stack []) (e/eval-input in))]
+  (swap! e/state assoc :stack [])
+  (testing "an alias of dotted parts, 'rhythmic.pattern 'r.p reqalgo, names its words r.p/euclid"
+    (is (re-find #"musics\.algo\.rhythmic\.pattern as r\.p/" (with-out-str (ev "'rhythmic.pattern 'r.p reqalgo"))))
+    (is (= "'[1 0 0 1 0 0 1 0]" (p/show (first (:ok (ev "3 8 r.p/euclid"))))))
+    (is (re-find #"unknown word: pattern/euclid" (:error (ev "3 8 pattern/euclid"))) "the alias replaces the last name"))
+  (testing "the words are in the list under that alias, and a word of it can be defined on"
+    (is (re-find #"r\.p/ \(\d+\)" (with-out-str (ev "words"))))
+    (ev ": riff ( $n -- l ) $n 8 r.p/euclid ;")
+    (is (= "'[1 0 0 0 0 0 0 0]" (p/show (first (:ok (ev "1 riff")))))))
+  (testing "a longer alias, and one a namespace has already, is refused as a plain one is"
+    (is (re-find #"musics\.algo\.rhythmic\.sieve as r\.s\.x/" (with-out-str (ev "'rhythmic.sieve 'r.s.x reqalgo"))))
+    (is (re-find #"'r\.p is a namespace already" (:error (ev "'rhythmic.sieve 'r.p reqalgo")))))
+  (testing "an alias is parts of letters, digits, - and _ joined by single dots"
+    (doseq [bad ["'r..p" "'.p" "'p." "'1p" "'r.1p"]]
+      (is (:error (ev (str "'rhythmic.pattern " bad " reqalgo"))) bad)))
+  (testing "a quoted name of several parts alone is the namespace, unless a name is below it (then it is its alias)"
+    (swap! e/state assoc :stack [5])
+    (is (nil? (:error (e/eval-input "'numeric.rng reqalgo"))) "not taken for an alias of the 5 below it")
+    (is (= [5] (:stack @e/state))))
+  (testing "it reloads under the same alias, and require takes one too"
+    (is (re-find #"as r\.p/" (with-out-str (ev "'rhythmic.pattern 'r.p reqalgo"))))
+    (is (re-find #"as n\.r/" (with-out-str (ev "'musics.algo.numeric.rng 'n.r require")))))))
+
 ;; ---- a voice that is a function of onset ($onset in the word's stack effect) ----
 
 (defn- top-of [input] (p/show (peek (:ok (run input)))))
@@ -831,6 +854,117 @@
     (is (re-find #"is not in the tctx" (:error (run ":steps T_"))) "erasing what is not there says so")
     (is (re-find #"the key is a keyword" (:error (run "8 'steps T_"))))
     (finally (clear-tctx!))))
+
+(deftest a-key-written-with-a-voice-before-the-slash-is-in-that-voices-scope
+  (try
+    (run "8 :steps T!")
+    (run "5 :bass/steps T!")
+    (testing "it is stored under the qualified keyword, beside the shared one"
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0))))
+    (testing "T@ gives the voice's value, else the shared one"
+      (is (= "5" (str/trim (top-of ":bass/steps T@"))))
+      (is (= "8" (str/trim (top-of ":lead/steps T@"))) "a voice with none of its own reads the shared one"))
+    (testing "T@@ reads through the voice's scope, and a computed key asks the voice's chain"
+      (run "'( :steps 2 * ) :twice T!")
+      (is (= "5" (str/trim (top-of ":bass/steps T@@"))))
+      (is (= "10" (str/trim (top-of ":bass/twice T@@"))) "the shared :twice, from the bass's :steps")
+      (is (= "16" (str/trim (top-of ":lead/twice T@@"))))
+      (is (= "16" (str/trim (top-of ":twice T@@"))) "the shared reading is unchanged"))
+    (testing "a computed key can be written in a scope"
+      (run "'( :steps 3 + ) :bass/more T!")
+      (is (= "8" (str/trim (top-of ":bass/more T@@"))))
+      (is (re-find #"is not in the tctx" (:error (run ":lead/more T@")))))
+    (testing "T_ takes it out of the scope, and the voice reads the shared one again"
+      (run ":bass/steps T_")
+      (is (= "8" (str/trim (top-of ":bass/steps T@@"))))
+      (is (re-find #"is not in the tctx" (:error (run ":bass/steps T_")))))
+    (finally (clear-tctx!))))
+
+(deftest a-voice-named-with-dots-reads-the-group-it-is-in
+  (try
+    (run "8 :steps T!")
+    (run "4 :drums/steps T!")
+    (run "5 :drums.kick/steps T!")
+    (run "'( :steps 3 + ) :drums/more T!")
+    (testing "the key is stored as written, a Clojure keyword with dots in its namespace"
+      (is (= 5 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= ":drums.kick/steps" (str/trim (top-of ":drums.kick/steps")))))
+    (testing "T@ gives the voice's own, else its group's, else the shared one"
+      (is (= "5" (str/trim (top-of ":drums.kick/steps T@"))))
+      (is (= "4" (str/trim (top-of ":drums.snare/steps T@"))) "a voice of the group with none of its own")
+      (is (= "8" (str/trim (top-of ":other/steps T@")))))
+    (testing "T@@ runs through the voice and its groups: the group's computed key sees the voice's :steps"
+      (is (= "8" (str/trim (top-of ":drums.kick/more T@@"))) "5 + 3")
+      (is (= "7" (str/trim (top-of ":drums.snare/more T@@"))) "4 + 3, the group's own :steps")
+      (is (re-find #"is not in the tctx" (:error (run ":other/more T@@"))) ":more is the group's, not the shared tctx's"))
+    (testing "a group is read and taken out as a block with its voices nested"
+      (is (= "@{ :more '( :steps 3 + ) :steps 4 :kick @{ :steps 5 } }" (str/trim (top-of ":drums T@"))))
+      (run ":drums.kick/steps T_")
+      (is (= "4" (str/trim (top-of ":drums.kick/steps T@@"))) "taken out, the group answers"))
+    (finally (clear-tctx!))))
+
+(deftest a-scope-is-written-out-in-the-tctx-literal-and-reads-back
+  (try
+    (testing "a voice's keys written nested are stored as its keys, and printed back nested"
+      (run "@{ :steps 8 :bass @{ :steps 5 :density 3 } :lead @{ :density 2 } } :tctx R!")
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0)))
+      (is (= 2 (c/ctx-value-chain [live/tctx] :lead/density 0)))
+      (is (= "@{ :steps 8 :bass @{ :density 3 :steps 5 } :lead @{ :density 2 } }" (str/trim (top-of ":tctx R@")))))
+    (testing "the flat spelling reads as the same thing"
+      (run "@{ :steps 8 :bass/steps 5 :bass/density 3 :lead/density 2 } :tctx R!")
+      (is (= "@{ :steps 8 :bass @{ :density 3 :steps 5 } :lead @{ :density 2 } }" (str/trim (top-of ":tctx R@")))))
+    (testing "a group nests with dots: :drums.kick is the voice :kick of the group :drums"
+      (run "@{ :drums @{ :steps 4 :kick @{ :steps 8 } } } :tctx R!")
+      (is (= 8 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= "@{ :drums @{ :steps 4 :kick @{ :steps 8 } } }" (str/trim (top-of ":tctx R@")))))
+    (testing "a key written twice, nested or not, is refused"
+      (is (re-find #"is written twice" (:error (run "@{ :bass @{ :steps 1 } :bass/steps 2 } :tctx R!")))))
+    (finally (clear-tctx!))))
+
+(deftest a-block-of-settings-is-written-for-a-voice-and-read-and-cleared-as-one
+  (try
+    (run "8 :steps T!")
+    (run "7 :bass/keep T!")
+    (testing "@{ … } :bass T! writes every entry under the voice and leaves its other keys"
+      (run "@{ :steps 5 :density 3 :more '( :steps 3 + ) } :bass T!")
+      (is (= [5 3 7] (mapv #(c/ctx-value-chain [live/tctx] % 0) [:bass/steps :bass/density :bass/keep])))
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)) "the shared one is as it was")
+      (is (= "8" (str/trim (top-of ":bass/more T@@"))) "a quotation is a computed key"))
+    (testing ":bass T@ is everything the tctx holds for the bass, as an @{ }"
+      (is (= "@{ :density 3 :keep 7 :more '( :steps 3 + ) :steps 5 }" (str/trim (top-of ":bass T@")))))
+    (testing "a group inside the block nests under the voice"
+      (run "@{ :steps 4 :kick @{ :steps 8 } } :drums T!")
+      (is (= 8 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= "@{ :steps 4 :kick @{ :steps 8 } }" (str/trim (top-of ":drums T@")))))
+    (testing "a block is for a voice, not a key of one"
+      (is (re-find #"a block of settings is written for a voice" (:error (run "@{ :a 1 } :bass/steps T!")))))
+    (testing ":bass T_ takes out everything the bass has, the others are left"
+      (run ":bass T_")
+      (is (nil? (c/ctx-value-chain [live/tctx] :bass/steps 0)))
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
+      (is (= 4 (c/ctx-value-chain [live/tctx] :drums/steps 0)))
+      (is (re-find #"is not in the tctx" (:error (run ":bass T_"))) "and there is then nothing to take out")
+      (is (re-find #"is not in the tctx" (:error (run ":bass T@")))))
+    (testing "a shared key called like a voice is the key, as before"
+      (run "3 :bass T!")
+      (run "5 :bass/steps T!")
+      (is (= "3" (str/trim (top-of ":bass T@"))))
+      (run ":bass T_")
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0)) "T_ took out the shared key, not the voice"))
+    (finally (clear-tctx!))))
+
+(deftest a-block-is-refused-whole-when-one-entry-breaks-a-range
+  (try
+    (inputs/set-inputs! :w [["onsets" 3] ["pulses" 8]] {:onsets {:type :int :min 0 :max 32}})
+    (run "@{ :onsets 5 } :w T!")
+    (is (= 5 (inputs/value :w "onsets")) "an input in its range is stored")
+    (testing "none of a refused block is written, whichever entry comes first"
+      (is (re-find #"onsets: 99 should be at most 32" (:error (run "@{ :pulses 9 :extra 1 :onsets 99 } :w T!"))))
+      (is (= 5 (inputs/value :w "onsets")))
+      (is (= 8 (inputs/value :w "pulses")) "the entry before the bad one was not written either")
+      (is (nil? (c/ctx-value-chain [live/tctx] :w/extra 0))))
+    (finally (inputs/clear! :w) (clear-tctx!))))
 
 (deftest an-at-brace-literal-writes-a-tctx-and-tctx-R!-makes-it-the-sessions
   (try
@@ -870,7 +1004,7 @@
       (let [f (#'live/onset-source "tick" :v ["onset" "base"])
             at (fn [onset base]
                  (inputs/set-inputs! :v [["base" base]])
-                 (-> (f onset (c/getter [live/tctx] onset)) :pitches first))]
+                 (-> (f onset (c/getter [(live/tctx-scope :v) live/tctx] onset)) :pitches first))]
         (is (= [60 62 64] [(at 0 60) (at 1/2 60) (at 1 60)]) "a function of the onset")
         (is (= 70 (at 0 70)) "and of an input, read at each leaf")))
     (testing "a keyword argument the tctx holds is its value, at the leaf's onset"
@@ -922,6 +1056,22 @@
         (is (re-find #"goes with -> or ->\+" (:error (run "60 'tick 1/8 later :v -|>"))))
         (is (= "1/8 later" (top-of "1/8 later")))))
     (finally (inputs/clear! :v))))
+
+(deftest an-input-of-an-onset-voice-is-read-through-its-scope-and-may-be-a-function-of-time
+  (try
+    (run ": tick ( $onset $base -- note ) | '[1/4] '[1] $base * zip ;")
+    (inputs/set-inputs! :v [["base" 60]])
+    (let [f  (#'live/onset-source "tick" :v ["onset" "base"])
+          at (fn [onset] (-> (f onset (c/getter [(live/tctx-scope :v) live/tctx] onset)) :pitches first))]
+      (is (= [60 60] [(at 0) (at 1)]) "the entry the start wrote")
+      (testing "an input can be computed from the onset, as any key of the tctx"
+        (run "'( :onset 4 * int 60 + ) :v/base T!")
+        (is (= [60 62 64] [(at 0) (at 1/2) (at 1)])))
+      (testing "without an entry of its own the voice reads the shared tctx"
+        (c/tctx-forget live/tctx :v/base)
+        (run "70 :base T!")
+        (is (= 70 (at 0)))))
+    (finally (inputs/clear! :v) (reset! (:envelopes-atom live/tctx) {}))))
 
 (deftest a-word-that-leaves-an-empty-seq-has-finished
   (try

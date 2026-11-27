@@ -101,4 +101,5 @@
 
 (deftest the-banner-says-how-to-see-the-stack
   (is (str/includes? (mu/header) "'.s' shows the stack") "a value stays on the stack until it is shown")
-  (is (str/includes? (mu/header) "says ok")))
+  (is (str/includes? (mu/header) "says ok"))
+  (is (re-find #"seed     -?\d+, this session's" (mu/header)) "the seed of the session is shown, so a take can be written back"))

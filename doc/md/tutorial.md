@@ -298,8 +298,92 @@ settings are looked up at that onset, so nothing is precomputed:
 The whole table can also be written out, `@{ :steps 8 :twice '( :steps 2 * ) }`, and made the session's with
 `:tctx R!` (it replaces what was there); `:tctx R@` writes it back in that form.
 
+### A voice's own settings
+
+A key written with a voice's name before the slash is that voice's own, and the voice reads it
+instead of the shared one:
+
+```
+8 :steps T!                          the shared :steps
+5 :bass/steps T!                     the bass's own :steps
+:bass/steps T@                       → 5
+:lead/steps T@                       → 8, a voice with none of its own reads the shared one
+:bass/twice T@@                      → 10, :twice is computed from the bass's :steps
+:bass/steps T_                       the bass reads the shared :steps again
+```
+
+A voice that reads `:steps` finds its own first. A computed key such as `:twice`, written once for
+everyone, is worked out from each voice's own values. The values of a voice are kept by its
+name, so they can be written before the voice starts and are there when it is started again, and a
+saved session keeps them.
+
+A voice's keys can be written once, as a block, instead of one by one:
+
+```
+@{ :steps 5 :density 3 } :bass T!    writes :bass/steps 5 and :bass/density 3
+:bass T@                             → @{ :density 3 :steps 5 }, all the tctx holds for the bass
+:bass T_                             takes all of it out
+```
+
+The block adds or changes those keys and leaves the voice's others; if one entry is refused (an input
+of a word voice outside its range) none is written. The whole table is written the same way, a voice's
+keys nested under its name, and `:tctx R@` prints it back like that:
+
+```
+@{ :steps 8
+   :bass @{ :steps 5 :density 3 }
+   :lead @{ :density 2 } } :tctx R!
+```
+
+Nesting is the path: `:bass @{ :steps 5 }` is `:bass/steps 5`, and `@{ :steps 8 :bass/steps 5 }`, written
+flat, reads as the same thing. A shared key that is called like a voice is the key: `:bass T@` gives it.
+
+### Groups of voices
+
+A voice's name may have parts joined by dots, `:drums.kick`, and then it is in the group `:drums`. A
+voice reads its own keys first, then its group's, then the shared ones:
+
+```
+8 :steps T!                          shared
+4 :drums/steps T!                    every voice of the group :drums
+5 :drums.kick/steps T!               the kick's own
+:drums.kick/steps T@                 → 5
+:drums.snare/steps T@                → 4, the group's
+:bass/steps T@                       → 8, a voice outside it
+5 8 'riff :drums.kick ->             a voice with a dotted name, its inputs :drums.kick/onsets and so on
+```
+
+Written nested, a group nests: `@{ :steps 8 :drums @{ :steps 4 :kick @{ :steps 5 } } }` is the same table,
+printed back that way by `:tctx R@`. `:drums T@` is everything the tctx holds for the group and its voices,
+`:drums T_` takes it all out. A group may be deeper, `:orchestra.strings.violin1`: each level is looked at
+on the way from the voice to the shared keys.
+
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.
+
+### Random keys and seeds
+
+A computed key that draws, `'( 0 100 random/rand-int ) :r T!`, can repeat. What it draws is worked out
+from a **seed**, the key and the beat it is computed at, so the same beat gives the same number, and no
+voice's reading disturbs another's. The seed is a key called `seed`:
+
+```
+7 :seed T!                the piece's seed: every random key repeats
+8 :bass/seed T!           the bass's own, for the keys written in the bass's scope
+:none :seed T!            nothing repeats: a draw from the clock each time
+:seed T_                  no seed written: the session's
+:seed T@                  the seed in force, 7 or the session's
+```
+
+With none written the session's seed is used, drawn from the clock when mu starts and shown in the
+banner, so a piece with random keys sounds the same when it is played again in a session and differs
+between sessions. `7 rng/seed` sets that session seed; `7 :seed T!` is for the keys, and wins over it. To
+keep a take you liked, write its seed down and set it again.
+
+Where a random key is written decides who shares it. Written at the shared level it takes the shared
+seed, and every voice draws the same at a beat, which is how two voices follow one random decision.
+Written in a voice's scope (`'( … ) :bass/r T!`) it is the bass's own draw. A voice named in a group
+reads its seed the same way as its keys: `:drums.kick/seed`, then `:drums/seed`, then `:seed`.
 
 ## Files
 
@@ -333,7 +417,10 @@ stored part and the buttons that open the other windows:
 - **Settings...**: the session's tctx (`8 :steps T!`) as controls: a slider for each number, with `z`
   and `Z` beside it (a setting has no range, so the first is its own, symmetrical around the value and
   including zero, and `Z` widens it), a text field for a list, and a computed setting shown, not edited.
-  A change is heard on the next note, and `T!` moves the control. `:tctx gui` opens it from mu.
+  A change is heard on the next note, and `T!` moves the control. `:tctx gui` opens it from mu. It has a section for each voice that has keys of its
+  own (`5 :bass/steps T!`, and the inputs of a word voice): the voice's keys without its name, an input in
+  its range, and a `reset` button to take a key out of the scope, so the voice reads the shared one
+  again. `:bass gui` opens the same window at the bass's section.
 - **Conductor...**: actions on the cues a voice passes, at a section, a
   bar or a bar line.
 - **Wall...**: every live voice's settings as controls.

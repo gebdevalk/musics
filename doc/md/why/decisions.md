@@ -3910,3 +3910,107 @@ With `transpose` and the row forms on `[ ]`, the tuplet was the one command left
 It takes the same `OpBody` now, so every command that changes a part of a line has a `[ ]` body, `Scope` is
 gone, and `( )` in the notation is the group `[a ( d e ) f]`, the slur glued onto a note, and `!name:( … )`.
 Printing writes it back the same way: `[3:2[C4/8 D4 E4]]`. The LilyPond importer emits `n:m[ … ]`.
+
+## 2026-11-26 -- a voice's scope in the tctx: `:bass/steps`
+
+A voice fed by a function of onset can have settings of its own: a key written with the voice before the
+slash, `5 :bass/steps T!`, a qualified keyword in the one table of the session's tctx. The voice reads
+`[scope tctx]` (`context/tctx-scope`, a view over the entries of that voice under their own name), so its
+value comes before the shared one and a computed key written once for everyone is worked out from each
+asking voice's own values. Chosen over a Context per voice (a second table to save, to show in the GUI and
+to keep in step) and over a prefixed key written by hand into each word. Checked first on two voices read in
+step: scopes do not leak, a change of the shared table reaches the voice with none of its own, and the
+memoized lookup is per leaf and per voice (`doc/md/why/scoped-tctx.md`, sections 2 and 8). `:voice/name`
+reads as the `Ref` of an input when the voice has one by that name, else as the qualified keyword; the
+inputs and their `@` and `!` go in the next step. Seeding of random keys (section 10 of the note) is not
+built.
+
+## 2026-11-26 -- the `$` inputs of a live word are entries of the voice's scope
+
+`5 8 'riff :bass ->` writes `:bass/onsets` 5 and `:bass/pulses` 8 into the tctx; the word reads
+`$onsets` through the voice's chain, so a voice with no entry of its own reads the shared one and an
+input can be a function of time or a computed key. `T@` and `T!` are the words to read and store one (a
+store is checked against the input's spec as before). `musics.mu.inputs` keeps the order of the names and
+the specs, and watches the tctx to run a plain word voice again when an input changes; its own atom of
+values, `ref-of` and the `Ref` it made are gone, and `:bass/onsets` always reads as the qualified keyword.
+`Ref` and `@`/`!` on it stay for Forth's `variable`, a different thing. The values now stay when the voice
+stops, by name, so `:bass ->` starts it as it was tuned and a value can be written before the voice
+starts; a saved session keeps them with the rest of the tctx. Lost: the error that named the inputs a voice
+has when one was mistyped (`:bass/pulse` is a key of the scope now).
+
+## 2026-11-27 -- a voice's keys written once: `:bass @{ … }` and `@{ … } :bass T!`
+
+Writing `5 :bass/steps T!`, `3 :bass/density T!` … for each key of each voice made the multi-voice
+tctx long to write and to read. In an `@{ }` a voice now nests, `:bass @{ :steps 5 :density 3 }`, read
+as the flat keys `:bass/steps`, `:bass/density` (the flat spelling still reads, the two are one thing)
+and printed back grouped, shared keys first, then each voice; a group nests with dots, `:drums @{ :kick
+@{ :steps 8 } }` is `:drums.kick/steps` (a Clojure keyword with dots in its namespace, which round-trips;
+more than one slash would not, and the grammar takes one). `T!` with an `@{ }` and a voice writes the block
+(value first, as everywhere in mu), refusing the whole of it when one input is out of its range; `T@` on a
+voice gives its block, `T_` takes it all out. A shared key called like a voice stays the key. The ranges
+themselves are not written in the tctx: they come from what reads a key, see `scoped-tctx.md`.
+
+## 2026-11-27 -- an input's range comes from the algos its word calls, and may be tied to another input
+
+The range of a `$` input was the widest of every loaded algo that reads a parameter of that name, so
+`onsets` was 0..32 from `euclid` and 0..16 from `necklaces`, and `lo` the widest of sixteen
+different things. `live/called-algos` finds the functions of `musics.algo` a word runs, following the
+words it defines; an input is read as those read it, and only when none of them reads the name does the
+old rule apply. The knowledge stays where the algo is, in its `:algo :params`; nothing is written in the
+tctx. A param may name another it must not pass (`:max-key`, `onsets` at most `pulses`) or fall below
+(`:min-key`): a write that breaks the tie is refused, a block of writes is checked as it will be, and the
+window's slider follows the other input. Chosen over a central registry keyed by name (the overlap of
+names is real, 24 of 63 shared names differ in range, and which meaning a name has depends on what reads
+it), and over namespaces for quantity domains (`pitch/lo`: the slash already means a voice or a library).
+
+## 2026-11-27 -- the alias of a namespace may have dots: `'rhythmic.pattern 'r.p reqalgo`
+
+An alias is a plain name, so a short alias had to be invented for each library and `pattern/` could clash.
+Now it may be several parts joined by dots, `r.p/euclid`, with the one slash a Clojure symbol allows (a
+dotted namespace and a single slash read and print back as written). The check in `require`/`reqalgo`
+(`short-name?`), the lookup of `ns/word` (`eval/lookup`) and `WordName` in `mu.ebnf` take dotted parts; the
+words are registered under the alias as before, and a saved session writes it as it is spelled. A quoted
+name of several parts alone, `'numeric.rng reqalgo`, used to be known as the namespace because a dot was
+not a short name; with dots allowed the choice between one and two arguments is made by `alias-arity`
+(an alias with dots only when a name is below it). An alias is just a string: nothing makes `r` exist for
+`r.p`. Aliasing a whole branch, `'rhythmic 'r reqalgo` for `r.pattern/euclid`, is left for later.
+
+## 2026-11-27 -- voices in groups: `:drums.kick` reads `:drums`, then the shared keys
+
+A voice's name may have dots, `:drums.kick`: it is in the group `:drums`, and its chain is
+`[drums.kick drums tctx …]`, so a key written once for `:drums` reaches every voice of the group, and one
+for the kick overrides it. The namespace of the key is the path (a Clojure keyword with dots in the
+namespace and one slash, which round-trips); `IdName` takes the dotted id, `tctx-scopes` makes a view for
+each level, `T@`, the inputs of a word voice and their watch fall back through the groups, and the
+settings window has a section for the group and one for each of its voices. Writing a group nested in an
+`@{ }` was already stored this way. Nothing about a voice's id changes for the engine: `:drums.kick` is a
+keyword like `:bass`.
+
+## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
+
+`:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one
+window: the shared keys first, then a section for each voice that has keys of its own (its inputs in
+the order of the word, then the rest by name), a key shown without the voice's name. An input is a slider
+in the range of its spec (a store is checked, a refusal shown); another key a free slider with the zoom
+buttons; a `reset` button on a key that is not an input takes it out of the scope (`T_`), so the voice
+reads the shared one again (an input has none: the word needs a value). `:bass gui` opens the window
+scrolled to that voice's section. `musics.gui.params` and its algo grouping are gone; the algo is no
+longer named in the window.
+
+## 2026-11-27 -- seeds for random keys: `:seed`, `:bass/seed`, `:none`, and the session's
+
+The random words drew from one global stream, so a voice's values depended on how many draws another
+voice had made and on the order the sender thread read them: a seed did not repeat a piece with two voices
+(`scoped-tctx.md`, section 8). A computed key now draws from an RNG of its own, seeded from the seed in
+force, the key it is stored under and the beat (`musics.mu.seeding`, bound as `rng/*rng*` around the
+function of the key), so a draw is a function of those and nothing else. A key written at the shared level
+is the same draw for every voice at a beat (the key has no voice in it); one written in a voice's scope
+(`:bass/r`) has the voice in its name, so it is the voice's own. The seed is a tctx key: `:seed`,
+`:bass/seed`, `:drums/seed` for a group, nearest first; a number, or `:none` for the clock. With none
+written the session's seed is used, the shared RNG's, drawn from the clock at start and shown in the
+banner; `N rng/seed` sets it. Chosen over modes (`:piece`, `:voice`, `:key`, `:voice-key`): once a draw is a
+function of the beat there is no stream to share, and who shares a key is where it is written. Left as
+they were: the random words outside a key (the shared stream), and the notation's shuffle, choose and
+alternate, which use the session seed and not `:seed`. `N rng/seed` and `:seed` are two ways to set a
+seed (the session's and the keys'), not one: `rng/seed` is a word of the algo namespace and cannot reach
+the tctx; `:seed` wins for the keys.

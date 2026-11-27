@@ -242,3 +242,38 @@
         (is (= 1 (get :x)))
         (is (= [3 2] [((c/getter [tctx] 0) :y) ((c/getter [tctx] 0) :x)]) "the next leaf sees the change")))))
 
+
+(deftest a-tctx-scope-is-a-view-of-the-keys-written-with-its-voice
+  (let [tctx  (-> (c/context) (c/tctx! :steps 8) (c/tctx! :bass/steps 5) (c/tctx! :lead/steps 3))
+        bass  (c/tctx-scope tctx :bass)]
+    (is (= 5 (c/ctx-value-chain [bass tctx] :steps 0)) "the voice's own value is nearest")
+    (is (= 8 (c/ctx-value-chain [(c/tctx-scope tctx :other) tctx] :steps 0)) "a voice with none reads the shared one")
+    (is (= 5 (c/ctx-value-chain [bass] :steps 0)))
+    (is (nil? (c/ctx-value-chain [bass] :bass/steps 0)) "it is read under its own name")
+    (c/tctx! tctx :bass/steps 6)
+    (is (= 6 (c/ctx-value-chain [bass tctx] :steps 0)) "a view: what is written later is seen")
+    (c/tctx-forget tctx :bass/steps)
+    (is (= 8 (c/ctx-value-chain [bass tctx] :steps 0)) "taken out, the shared one answers again")
+    (is (= bass (assoc bass :duration nil)) "a plain Context map")))
+
+(deftest a-voice-reads-its-groups-between-itself-and-the-shared-tctx
+  (is (= ["drums.kick" "drums"] (c/voice-paths :drums.kick)) "own path first, then each group")
+  (is (= ["bass"] (c/voice-paths :bass)))
+  (is (= ["a.b.c" "a.b" "a"] (c/voice-paths "a.b.c")))
+  (let [tctx (-> (c/context) (c/tctx! :steps 8) (c/tctx! :drums/steps 4) (c/tctx! (keyword "drums.kick" "steps") 5)
+                 (c/tctx! :drums/lag 3) (c/tctx! :bass/steps 2))
+        at   (fn [voice k] (c/ctx-value-chain (conj (c/tctx-scopes tctx voice) tctx) k 0))]
+    (is (= 3 (count (c/tctx-scopes tctx "drums.kick.x"))) "a scope for the voice and each group it is in")
+    (testing "the nearest wins: the voice, then its group, then the shared key"
+      (is (= 5 (at :drums.kick :steps)))
+      (is (= 4 (at :drums.snare :steps)) "a voice of the group with none of its own")
+      (is (= 8 (at :other :steps)) "a voice outside it")
+      (is (= 2 (at :bass :steps))))
+    (testing "a key only the group has is read by its voices"
+      (is (= 3 (at :drums.kick :lag)))
+      (is (nil? (at :bass :lag))))
+    (testing "what is written later is seen, and taken out the group answers again"
+      (c/tctx! tctx (keyword "drums.kick" "steps") 6)
+      (is (= 6 (at :drums.kick :steps)))
+      (c/tctx-forget tctx (keyword "drums.kick" "steps"))
+      (is (= 4 (at :drums.kick :steps))))))

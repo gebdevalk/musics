@@ -42,7 +42,7 @@
 (defn- voice [word id names inputs]
   (inputs/set-inputs! id inputs)
   (let [f (#'live/onset-source word id names)]
-    (fn [onset] (f onset (c/getter [live/tctx] onset)))))
+    (fn [onset] (f onset (c/getter [(live/tctx-scope id) live/tctx] onset)))))
 
 (defn- sounds? [leaf] (boolean (seq (:pitches leaf))))
 

@@ -9,9 +9,11 @@
             [musics.domain.context :as c]
             [musics.compare :as cmp]
             [musics.mu.eval :as e :refer [word! need]]
+            [musics.mu.inputs :as inputs]
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
+            [musics.mu.seeding :as seeding]
             [musics.mu.value :as v]))
 
 ;; -- stack ------------------------------------------------------------
@@ -238,7 +240,7 @@
 
 ;; -- places ---------------------------------------------------------------
 
-(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (7 bass/onsets !)"
+(word! "kernel" "!" "( x n y -- x' ) or ( y ref -- )  put y at n, or store y in a reference (a place made by variable: 3 five !)"
        (fn [s]
          (need s 2 "!")
          (if (v/ref? (peek s))
@@ -299,41 +301,99 @@
 
 ;; -- the tctx of the voices that are a function of onset --------------------------------
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of onset reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the onset of the leaf asking (q runs with :onset and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid"
+;; a key called seed (:seed, :bass/seed) holds a seed: a whole number, or :none (musics.mu.seeding)
+(defn- check-seed! [k x]
+  (when (and (= "seed" (name k)) (not (seeding/seed? x)))
+    (e/mu-error "T!:" (pr-str k) "is a seed: a whole number, or :none -- got" (p/show x))))
+
+;; one entry into the tctx: a quotation a computed key, an input of a voice that has a spec for it
+;; through that spec (a value it refuses is an error), any other value as it is
+(defn- write-entry! [k x]
+  (check-seed! k x)
+  (cond
+    (v/quotation? x)
+    (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
+    (and (namespace k) (get (inputs/specs (keyword (namespace k))) (keyword (name k))))
+    (inputs/put! (keyword (namespace k)) (name k) x)
+    :else (c/tctx! (live/tctx-node!) k x)))
+
+;; the key an entry of a block written for voice gets: :bass/steps, or :bass.kick/steps for one written
+;; :kick/steps in the block
+(defn- block-key [voice k]
+  (if (namespace k)
+    (keyword (str (name voice) "." (namespace k)) (name k))
+    (keyword (name voice) (name k))))
+
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of onset reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the onset of the leaf asking (q runs with :onset and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid. :bass/steps is the bass's own :steps, read before the shared one. A key called seed (:seed, :bass/seed) is a seed for the random words of a computed key: a whole number, or :none. With a voice and an @{ … } (the settings of that voice written out) every entry of it is written, none when one is refused: @{ :steps 5 :density 3 } :bass T!"
        (fn [s]
          (need s 2 "T!")
          (let [k (peek s) x (peek (pop s))]
            (when-not (keyword? k) (e/mu-error "T!:" "the key is a keyword, :reps -- got" (p/show k)))
-           (if (v/quotation? x)
-             (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
-             (c/tctx! (live/tctx-node!) k x))
+           (if (v/settings? x)
+             (do (when (namespace k)
+                   (e/mu-error "T!:" "a block of settings is written for a voice, :bass -- got" (p/show k)))
+                 (let [entries (mapv (fn [[ek ex]] [(block-key k ek) ex]) (:entries x))
+                       ;; what each voice's inputs are about to be, so a block that moves two tied
+                       ;; inputs together (:onsets 3 :pulses 4) is checked as a whole
+                       about (reduce (fn [m [ek ex]] (assoc-in m [(namespace ek) (name ek)] ex)) {} entries)]
+                   (doseq [[ek ex] entries]
+                     (check-seed! ek ex)
+                     (when (and (namespace ek) (not (v/quotation? ex)))
+                       (inputs/checked (keyword (namespace ek)) (name ek) ex (get about (namespace ek)))))
+                   (doseq [[ek ex] entries] (write-entry! ek ex))))
+             (write-entry! k x))
            (pop (pop s)))))
 
 ;; take a key out of the tctx
-(word! "play" "T_" "( :key -- )  take :key out of the tctx: a keyword argument no longer finds it, and T@ says it is not there. An error when it was not set"
+(word! "play" "T_" "( :key -- )  take :key out of the tctx: a keyword argument no longer finds it, and T@ says it is not there. An error when it was not set. :bass/steps takes the bass's own out, so the bass reads the shared :steps again; :bass alone, when no shared key is called so, takes out everything the tctx holds for the bass"
        (fn [s]
          (need s 1 "T_")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T_:" "the key is a keyword, :reps -- got" (p/show k)))
-           (try (c/tctx-forget (live/tctx-node!) k)
-                (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex))))
+           (if (and (nil? (namespace k))
+                    (not (contains? @(:envelopes-atom (live/tctx-node!)) k))
+                    (pos? (count (live/own-keys-of k))))
+             (live/forget-scope! k)
+             (try (c/tctx-forget (live/tctx-node!) k)
+                  (catch clojure.lang.ExceptionInfo ex (e/mu-error "T_:" (ex-message ex)))))
            (pop s))))
 
 ;; the tctx value of a key: inside a voice that is a function of onset at the onset of its leaf; outside
-;; one at onset 0 (:onset 0). A computed key is run.
+;; one at onset 0 (:onset 0). A computed key is run. :voice/key is read through the voice's scope
+;; (its own entry, else the shared one), at the onset the voice being read has now, else 0.
 (defn- tctx-value [k]
-  (let [lookup (or e/*lookup*
-                   (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x)))))]
+  (let [voice  (namespace k)
+        lookup (if voice
+                 (let [on (if e/*lookup* (e/*lookup* :onset) 0)
+                       g  (c/getter (live/tctx-chain voice) on)]
+                   (fn [x] (if (= x :onset) on (g (if (= x k) (keyword (name k)) x)))))
+                 (or e/*lookup*
+                     (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x))))))]
     (lookup k)))
 
+;; what the tctx stores for a key: for :voice/key the voice's own entry, else that of the groups it is in
+;; (:drums for :drums.kick), else the shared one
+(defn- tctx-entry [k]
+  (let [m @(:envelopes-atom (live/tctx-node!))]
+    (cond (contains? m k) (get m k)
+          ;; the groups of the voice, nearest first, then the shared key
+          (namespace k)   (let [cands (concat (map #(keyword % (name k)) (rest (c/voice-paths (namespace k))))
+                                              [(keyword (name k))])]
+                            (when-let [found (first (filter #(contains? m %) cands))] (get m found))))))
+
 ;; what the tctx holds for a key, as it was stored: a quotation not run
-(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. An error when it holds nothing for it"
+(word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. :bass/key is the bass's own, else the shared one; :bass alone, with no shared key so called, is everything the tctx holds for the bass, as an @{ … }. An error when it holds nothing for it"
        (fn [s]
          (need s 1 "T@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [entry (get @(:envelopes-atom (live/tctx-node!)) k)]
+           (let [entry (tctx-entry k)]
              (cond
+               ;; a voice with nothing shared called so: everything the tctx holds for it, as an @{ }
+               (and (nil? entry) (nil? (namespace k)) (live/scope->settings k))
+               (conj (pop s) (live/scope->settings k))
+               ;; no seed written: the one in force, the session's
+               (and (nil? entry) (= "seed" (name k))) (conj (pop s) (seeding/effective k))
                (nil? entry) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! it")
                (instance? musics.domain.context.Derived entry)
                (if-let [text (:text entry)]
@@ -342,12 +402,12 @@
                :else (conj (pop s) (tctx-value k)))))))
 
 ;; the value, a computed key run
-(word! "play" "T@@" "( :key -- x )  the tctx's value for :key, a computed key run, at the onset of the leaf a voice that is a function of onset is making (outside one, at onset 0, :onset 0); an error when the tctx holds nothing for it"
+(word! "play" "T@@" "( :key -- x )  the tctx's value for :key (:bass/key through the bass's scope), a computed key run, at the onset of the leaf a voice that is a function of onset is making (outside one, at onset 0, :onset 0); an error when the tctx holds nothing for it"
        (fn [s]
          (need s 1 "T@@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [v (tctx-value k)]
+           (let [v (or (tctx-value k) (when (= "seed" (name k)) (seeding/effective k)))]
              (when (nil? v) (e/mu-error "T@@:" (pr-str k) "is not in the tctx -- T! it"))
              (conj (pop s) v)))))
 

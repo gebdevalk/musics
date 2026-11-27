@@ -241,11 +241,16 @@
   (sample-at [_ _] (throw (ex-info "a derived value needs the chain it is asked through" {})))
   (shift [_ offset] (if (zero? offset) (->Derived f text) (->Derived (fn [t get] (f (- t offset) get)) nil))))
 
+(def ^:dynamic *derived-key*
+  "The key a computed tctx entry is stored under while its function runs, :bass/density for a
+   key written in a voice's scope, whatever name the voice reads it by (:density)."
+  nil)
+
 (defn- derived-value
   "[value] a Derived gives for key at time, or nil when its function answers nil.
    One pull is one state (see lookup): the keys being computed are kept, and a key
    that needs itself, however far round, is an error naming the cycle."
-  [{:keys [f]} key time chain state]
+  [{:keys [f] :as source} key time chain state]
   (let [state  (or state {:cache (atom {}) :active (atom [])})
         active (:active state)]
     (when (some #{key} @active)
@@ -253,7 +258,9 @@
                       {:cycle (conj @active key)})))
     (swap! active conj key)
     (try
-      (when-some [v (f time (fn [k] (lookup chain k time state)))] [v])
+      (when-some [v (binding [*derived-key* (or (:stored-key (meta source)) key)]
+                      (f time (fn [k] (lookup chain k time state))))]
+        [v])
       (finally (swap! active pop)))))
 
 (defn- latest-point-at-or-before
@@ -375,6 +382,51 @@
   (assert (keyword? key) "a tctx key is a Clojure keyword")
   (swap! (:envelopes-atom tctx) assoc key (if (fn? v) (generator v) v))
   tctx)
+
+(defn tctx-scope
+  "A voice's scope of tctx, a Context to put in front of tctx in a chain: its keys are
+   the ones of tctx written with the voice before the slash (:bass/steps), under their
+   own name (:steps), so a lookup of :steps in the chain [scope tctx …] finds the
+   voice's value before the shared one, and a computed key of tctx that asks (get :steps)
+   gets the voice's, whoever is asking through that chain. voice is a keyword or a string.
+   A view, not a copy: it reads tctx when asked, so what is written later is seen, and
+   what is stored (a saved session, the GUI) is the one table of tctx. Write through tctx,
+   with the qualified key (tctx!, tctx-derive, tctx-forget)."
+  [tctx voice]
+  (let [ns-name (name voice)
+        cache   (volatile! nil)]
+    {:envelopes-atom
+     (reify clojure.lang.IDeref
+       (deref [_]
+         (let [m @(:envelopes-atom tctx) c @cache]
+           (if (and c (identical? m (first c)))
+             (second c)
+             (let [view (persistent!
+                          (reduce-kv (fn [acc k v]
+                                       (if (and (keyword? k) (= ns-name (namespace k)))
+                                         ;; a computed key says which key it is stored under
+                                         (assoc! acc (keyword (name k))
+                                                 (if (instance? Derived v) (vary-meta v assoc :stored-key k) v))
+                                         acc))
+                                     (transient {}) m))]
+               (vreset! cache [m view])
+               view)))))
+     :duration nil}))
+
+(defn voice-paths
+  "The paths a voice's settings are looked for under, the voice's own first, then the groups it is in:
+   (voice-paths :drums.kick) is (\"drums.kick\" \"drums\"). A voice's name has parts joined by dots."
+  [voice]
+  (let [parts (str/split (name voice) #"\.")]
+    (for [n (range (count parts) 0 -1)] (str/join "." (take n parts)))))
+
+(defn tctx-scopes
+  "The scopes of voice (a keyword or string) in tctx, to put in front of tctx in a chain, nearest
+   first: the voice's own, then those of the groups it is in. A voice :drums.kick reads
+   :drums.kick/steps, then :drums/steps, then the shared :steps. One scope for a voice with a
+   plain name."
+  [tctx voice]
+  (mapv #(tctx-scope tctx %) (voice-paths voice)))
 
 (defn tctx-forget
   "Take key (a keyword) out of tctx: nobody finds it any more. Throws when tctx

@@ -446,11 +446,11 @@
             [:play "stop"]]}
 
    {:title "A live word, changed while it plays"
-    :text "A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, read with `@` and stored with `!`. Shown, not run: nothing sounds when this page is made."
+    :text "A word with `$` inputs plays as a voice: the quoted name keeps it from running now, the voice runs it again whenever an input changes. `:bass/onsets` is an input, an entry of the voice's scope in the tctx, read with `T@` and stored with `T!`. Shown, not run: nothing sounds when this page is made."
     :lines [[:play "5 8 'riff :bass ->"]
             [:play ":bass settings"]
-            [:play "3 :bass/onsets !"]
-            [:play ":bass/onsets @"]
+            [:play "3 :bass/onsets T!"]
+            [:play ":bass/onsets T@"]
             [:play "stop"]]}
 
    {:title "A transform: reshape any voice's own notes"

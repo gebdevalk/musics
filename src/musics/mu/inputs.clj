@@ -1,55 +1,65 @@
 (ns musics.mu.inputs
-  "The inputs of a live voice: the named, changeable values its word was
-   started with (the `$` locals of 5 8 42 'riff :bass ->). :bass/onsets is a
-   reference (musics.mu.value/Ref) to one: @ reads it, ! stores into it, heard
-   on the voice's next note. A voice has inputs from the moment it starts until
-   it ends. Each input has a spec, {:type :min :max :default :choices :doc
-   :algo :order}, the range its parameter is possible in: a store is checked
-   against it, `settings` and the GUI show it."
+  "The inputs of a live voice: the named, changeable values its word was started with
+   (the `$` locals of 5 8 42 'riff :bass ->). They are entries of the voice's scope in the
+   session's tctx (:bass/onsets, :bass/pulses): T! stores one, T@ reads it, and the voice hears
+   it on its next note; a key the scope lacks is read from the shared tctx. What this namespace
+   keeps beside the entries is what is not in the tctx: the order the word's stack effect names the
+   inputs in, and each input's spec, {:type :min :max :default :choices :doc :algo :order}, the
+   range its parameter is possible in (a store is checked against it; `settings` and the GUI show
+   it). The entries stay when the voice ends: a voice started again by name is as it was tuned."
   (:require [clojure.string :as str]
-            [musics.mu.value :as v]))
+            [musics.domain.context :as c]
+            [musics.registries :as reg]))
 
 (def ^:private voices
-  "Voice id -> {:names [\"onsets\" …] :atom a :specs {:onsets spec …} :watches [k …]}:
-   the order the word's stack effect names the inputs in, an atom holding
-   {\"onsets\" 5 …}, and each input's spec."
+  "Voice id -> {:names [\"onsets\" …] :specs {:onsets spec …} :watches [k …]}: the order the
+   word's stack effect names the inputs in, and each input's spec. The values are in the tctx."
   (atom {}))
 
 (defn- fail [& parts] (throw (ex-info (str/join " " parts) {:mu/error true})))
 
-(def ^:private alive?
-  "A fn of a voice id, true while it plays; set by musics.mu.live (the engine
-   is not this namespace's business). Inputs of a voice that is gone are not
-   reachable."
-  (atom (constantly true)))
+(defn- key-of
+  "The tctx key of input of voice: :bass/onsets."
+  [voice input]
+  (keyword (name voice) (name input)))
 
-(defn alive!
-  "Say how to tell a voice is playing: f of a voice id. The one before is back."
-  [f]
-  (let [old @alive?] (reset! alive? f) old))
+(defn- scope-chain [voice] (conj (c/tctx-scopes reg/tctx voice) reg/tctx))
 
 (defn set-inputs!
   "Give voice (a keyword id) the inputs [[name value] …], in that order, and
-   specs, {:name spec}; the atom that holds the values back."
+   specs, {:name spec}: the values are written into its scope in the tctx, over what
+   it held."
   ([voice pairs] (set-inputs! voice pairs {}))
   ([voice pairs specs]
-   (let [a (atom (into {} (map (fn [[n x]] [(str n) x]) pairs)))]
-     (swap! voices assoc voice {:names (mapv (comp str first) pairs) :atom a :specs specs :watches []})
-     a)))
+   (swap! voices assoc voice {:names (mapv (comp str first) pairs) :specs specs :watches []})
+   (doseq [[n x] pairs] (c/tctx! reg/tctx (key-of voice n) x))
+   voice))
+
+(defn- raw-values
+  "The entries of voice's inputs in an envelopes map m, its own else the shared one."
+  [m voice names]
+  (let [paths (c/voice-paths voice)]
+    (mapv (fn [n] (let [found (first (filter #(contains? m %) (concat (map #(keyword % n) paths) [(keyword n)])))]
+                    (get m found)))
+          names)))
 
 (defn watch!
-  "Call (f old-values new-values) whenever an input of voice changes; the watch
-   goes when the voice's inputs are cleared. key names it."
+  "Call (f old new) whenever an input of voice changes in the tctx (its own entry or the
+   shared one it reads); the watch goes when the voice's inputs are cleared. key names it."
   [voice key f]
-  (when-let [a (:atom (get @voices voice))]
-    (add-watch a [::watch voice key] (fn [_ _ old new] (when (not= old new) (f old new))))
+  (when-let [{:keys [names]} (get @voices voice)]
+    (add-watch (:envelopes-atom reg/tctx) [::watch voice key]
+               (fn [_ _ old new]
+                 (let [o (raw-values old voice names) n (raw-values new voice names)]
+                   (when (not= o n) (f o n)))))
     (swap! voices update voice update :watches conj key)))
 
 (defn clear!
-  "Forget voice's inputs and the watches on them."
+  "Forget voice's inputs (their order and specs) and the watches on them. The entries
+   of its scope stay in the tctx."
   [voice]
-  (when-let [{:keys [atom watches]} (get @voices voice)]
-    (doseq [k watches] (remove-watch atom [::watch voice k])))
+  (when-let [{:keys [watches]} (get @voices voice)]
+    (doseq [k watches] (remove-watch (:envelopes-atom reg/tctx) [::watch voice k])))
   (swap! voices dissoc voice)
   voice)
 
@@ -65,17 +75,23 @@
 (defn nan? [x] (and (number? x) (Double/isNaN (double x))))
 
 (defn values
-  "voice's inputs as {\"name\" value}, the plain map a function of them is given."
+  "voice's inputs as {\"name\" value}, the plain map a function of them is given: each as the
+   voice's scope gives it at onset 0, else the shared tctx."
   [voice]
-  (some-> (get @voices voice) :atom deref))
+  (when-let [{:keys [names]} (get @voices voice)]
+    (let [g (c/getter (scope-chain voice) 0)]
+      (into {} (map (fn [n] [n (g (keyword n))]) names)))))
 
-(defn value [voice input] (some-> (get @voices voice) :atom deref (get (name input))))
+(defn value [voice input]
+  (when (contains? @voices voice)
+    ((c/getter (scope-chain voice) 0) (keyword (name input)))))
 
 (defn params
   "voice's inputs as they are now, {:onsets 5 …}, in the order of its stack effect."
   [voice]
-  (when-let [{:keys [names atom]} (get @voices voice)]
-    (into (array-map) (map (fn [n] [(keyword n) (get @atom n)]) names))))
+  (when-let [{:keys [names]} (get @voices voice)]
+    (let [g (c/getter (scope-chain voice) 0)]
+      (into (array-map) (map (fn [n] [(keyword n) (g (keyword n))]) names)))))
 
 (defn state
   "{:params :specs}: voice's inputs and their specs as a plain value, for a GUI or a printout."
@@ -105,14 +121,49 @@
       (why (str "one of " (str/join ", " (map #(if (keyword? %) (name %) (str %)) choices)))))
     x))
 
+(defn- other-value
+  "The value of the input called other (a keyword) of voice: what overrides (a map of input
+   names to the values about to be written) says, else what its scope and the shared tctx give."
+  [voice other overrides]
+  (if (contains? overrides (name other)) (get overrides (name other)) (value voice other)))
+
+(defn effective-spec
+  "The spec of input of voice with its range narrowed by the input it is tied to: :max-key names
+   an input it may not exceed (onsets at most pulses), :min-key one it may not fall below. The
+   spec as it is when the other input holds no number, or there is no spec."
+  ([voice input] (effective-spec voice input nil))
+  ([voice input overrides]
+   (when-let [spec (get (specs voice) (keyword (name input)))]
+     (let [num (fn [k] (let [o (other-value voice k overrides)] (when (number? o) o)))]
+       (cond-> spec
+         (and (:max-key spec) (num (:max-key spec))) (assoc :max (min (or (:max spec) ##Inf) (num (:max-key spec))))
+         (and (:min-key spec) (num (:min-key spec))) (assoc :min (max (or (:min spec) ##-Inf) (num (:min-key spec)))))))))
+
+(defn checked
+  "x as input of voice (a keyword) takes it, or an error saying what is wrong when its spec
+   refuses it, also against the input it is tied to (onsets: 9 should be at most pulses (8)); x
+   as it is when the voice has no spec for input. overrides, {\"input\" value}, are values about
+   to be written beside it, which the others are checked against."
+  ([voice input x] (checked voice input x nil))
+  ([voice input x overrides]
+   (let [k    (keyword (name input))
+         spec (get (specs voice) k)
+         x    (if spec (coerced k spec x) x)]
+     (when spec
+       (doseq [[kk word cmp] [[:max-key "at most" >] [:min-key "at least" <]]
+               :let [other (get spec kk)]
+               :when other
+               :let [o (other-value voice other overrides)]
+               :when (and (number? o) (number? x) (cmp x o))]
+         (fail (str (name k) ":") (pr-str x) (str "should be " word " " (name other) " (" o ")"))))
+     x)))
+
 (defn put!
-  "Make input of voice hold x, heard on the voice's next note. A value its spec
+  "Make input of voice hold x in its scope, heard on the voice's next note. A value its spec
    refuses is an error and changes nothing. x back."
   [voice input x]
-  (let [k    (keyword (name input))
-        spec (get (specs voice) k)
-        x    (if spec (coerced k spec x) x)]
-    (swap! (:atom (get @voices voice)) assoc (name input) x)
+  (let [x (checked voice input x)]
+    (c/tctx! reg/tctx (key-of voice input) x)
     x))
 
 (defn describe
@@ -125,23 +176,3 @@
                        (pr-str k) (fmt (get params k))
                        (if (and (number? min) (number? max)) (str min ".." max) (if type (name type) ""))
                        (fmt default) (some-> algo name) (or doc ""))))))
-
-(defn ref-of
-  "The reference :voice/input, refused with what there is when voice has no
-   inputs or none called input."
-  [voice input]
-  (let [label (str ":" (name voice) "/" input)]
-    (cond
-      (and (has? voice) (not (@alive? voice)))
-      (do (clear! voice)
-          (fail (str label ":") "the voice" (str ":" (name voice)) "is not playing"))
-      (not (has? voice))
-      (fail (str label ":") "no voice" (str ":" (name voice)) "has inputs --"
-            (if (seq @voices)
-              (str "voices with inputs: " (str/join ", " (map #(str ":" (name %)) (sort (keys @voices)))))
-              "start one: 5 8 'riff :bass ->"))
-      (not (some #{input} (names voice)))
-      (fail (str label ":") (str ":" (name voice)) "has no input" (str input) "--"
-            (str/join ", " (names voice)))
-      :else
-      (v/->Ref label #(value voice input) #(put! voice input %)))))

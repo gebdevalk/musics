@@ -80,16 +80,16 @@
   (testing "start it with its inputs under its name: 3 'pat :w ->"
     (run "3 'pat :w ->")
     (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :w))) "each note the next of what the word gives, a short seq again")
-    (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count @") @e/state)))
+    (is (= [3] (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":w/count T@") @e/state)))
         "the input is :w/count"))
   (testing "a store is heard: the word runs again with the new value"
-    (run "2 :w/count !")
+    (run "2 :w/count T!")
     (is (= [60 62 60 62] (take 4 (pitches "[c c c c c c]" :w)))))
   (testing "the inputs are named in the order of the stack effect"
     (run ": two ( $a $b -- l ) [c d e f g a b] $a take $b + ;")
     (run "5 2 'two :t ->")
-    (is (= [5 2] [(first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/a @") @e/state)))
-                  (first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/b @") @e/state)))]))
+    (is (= [5 2] [(first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/a T@") @e/state)))
+                  (first (:stack (do (swap! e/state assoc :stack []) (e/eval-input ":t/b T@") @e/state)))]))
     (is (= [62 64 66 67 69] (take 5 (pitches "[c c c c c c]" :t))))))
 
 (deftest a-live-word-needs-a-voice-name-and-only-dollar-inputs
@@ -113,23 +113,87 @@
       (is (re-find #":onsets +3 +0\.\.32" o) o)
       (is (re-find #":label +\"x\" +string" o) "an input no algo reads has the type of its value")))
   (testing "set takes a value as before, and a value the spec refuses is an error that changes nothing"
-    (run "2 :w/onsets !")
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 99 should be at most 32" (run "99 :w/onsets !")))
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 2.5 should be an integer" (run "2.5 :w/onsets !")))
+    (run "2 :w/onsets T!")
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 99 should be at most 32" (run "99 :w/onsets T!")))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 2.5 should be an integer" (run "2.5 :w/onsets T!")))
     (is (= 2 (inputs/value :w "onsets")) "still 2")
     (is (= 2 (inputs/value :w "onsets"))))
   (testing ":w -> starts it again with the inputs as they are now"
-    (run "5 :w/onsets !")
+    (run "5 :w/onsets T!")
     (run ":w ->")
-    (is (= 5 (peek (run ":w/onsets @"))))
+    (is (= 5 (peek (run ":w/onsets T@"))))
     (is (= [60 62 64 65 67 60] (take 6 (pitches "[c c c c c c c c]" :w))))))
 
-(deftest inputs-of-a-voice-that-is-gone-are-not-reachable
+(deftest the-inputs-of-a-voice-that-is-gone-stay-in-its-scope
   (run ": pat ( $onsets -- l ) [c d e f g a b] $onsets take ;")
   (run "3 'pat :w ->")
-  (is (= 3 (peek (run ":w/onsets @"))))
+  (is (= 3 (peek (run ":w/onsets T@"))))
   (engine/stop!)
-  (is (thrown-with-msg? clojure.lang.ExceptionInfo #"the voice :w is not playing" (run ":w/onsets @"))))
+  (is (= 3 (peek (run ":w/onsets T@"))) "kept by name, so a voice started again is as it was tuned")
+  (run "4 :w/onsets T!")
+  (is (= 4 (peek (run ":w/onsets T@"))) "and it can be tuned before it starts"))
+
+(deftest an-input-is-read-as-the-algos-the-word-calls-read-it
+  (require 'musics.algo.rhythmic.pattern 'musics.algo.rhythmic.sieve)
+  (run "\"rhythmic.pattern\" reqalgo")
+  (run ": riff ( $onsets $pulses -- l ) $onsets $pulses pattern/euclid drop [c d e f g a b] 4 take ;")
+  (run ": outer ( $onsets $pulses -- l ) $onsets $pulses riff ;")
+  (testing "the algos a word calls, through the words it defines"
+    (is (= ["euclid"] (map (comp name :name meta) (live/called-algos "riff"))))
+    (is (= ["euclid"] (map (comp name :name meta) (live/called-algos "outer"))) "a word that calls a word that calls it")
+    (is (= [] (live/called-algos "dup")) "a word of mu's own calls none"))
+  (testing "its inputs take the range euclid gives them, not the widest of every algo that reads the name"
+    (run "3 8 'riff :w ->")
+    (let [specs (inputs/specs :w)]
+      (is (= [0 32] ((juxt :min :max) (:onsets specs))) "necklaces says 0..16, euclid 0..32")
+      (is (= :euclid (:algo (:onsets specs))) "and the control is under euclid, which alone is read")
+      (is (= :pulses (:max-key (:onsets specs))))
+      (is (= :onsets (:min-key (:pulses specs))))))
+  (inputs/clear! :w)
+  (run "3 8 'outer :v ->")
+  (is (= :euclid (:algo (:onsets (inputs/specs :v)))) "also through another word")
+  (inputs/clear! :v))
+
+(deftest an-input-tied-to-another-is-refused-when-it-would-break-the-tie
+  (require 'musics.algo.rhythmic.pattern)
+  (run "\"rhythmic.pattern\" reqalgo")
+  (run ": riff ( $onsets $pulses -- l ) $onsets $pulses pattern/euclid drop [c d e f g a b] 4 take ;")
+  (run "3 8 'riff :w ->")
+  (try
+    (testing "onsets may not pass pulses, pulses may not fall below onsets"
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 9 should be at most pulses \(8\)" (run "9 :w/onsets T!")))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pulses: 2 should be at least onsets \(3\)" (run "2 :w/pulses T!")))
+      (is (= [3 8] [(inputs/value :w "onsets") (inputs/value :w "pulses")]) "a refused write changes nothing"))
+    (testing "within the tie it is stored, and the tie follows the other value"
+      (run "8 :w/onsets T!")
+      (is (= 8 (inputs/value :w "onsets")))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"pulses: 7 should be at least onsets \(8\)" (run "7 :w/pulses T!"))))
+    (testing "a block that moves both is checked as a whole"
+      (run "@{ :onsets 3 :pulses 4 } :w T!")
+      (is (= [3 4] [(inputs/value :w "onsets") (inputs/value :w "pulses")]))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"onsets: 6 should be at most pulses \(5\)" (run "@{ :onsets 6 :pulses 5 } :w T!")))
+      (is (= [3 4] [(inputs/value :w "onsets") (inputs/value :w "pulses")]) "none of a refused block is written"))
+    (testing "the range the window shows follows the other input"
+      (is (= [0 4] ((juxt :min :max) (inputs/effective-spec :w :onsets))) "onsets from 0 to the pulses it has")
+      (is (= [3 32] ((juxt :min :max) (inputs/effective-spec :w :pulses))) "pulses from the onsets it has"))
+    (finally (inputs/clear! :w))))
+
+(deftest a-word-voice-named-with-dots-reads-its-group-for-an-input-it-has-no-entry-for
+  (run ": pat ( $count -- l ) [c d e f g a b] $count take ;")
+  (run "3 'pat :drums.kick ->")
+  (try
+    (is (= 3 (inputs/value :drums.kick "count")) "the entry the start wrote, :drums.kick/count")
+    (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :drums.kick))))
+    (testing "taken out of the voice, the group's entry is read, and heard as a change"
+      (run ":drums.kick/count T_")
+      (run "2 :drums/count T!")
+      (is (= 2 (inputs/value :drums.kick "count")))
+      (is (= [60 62 60 62] (take 4 (pitches "[c c c c c c]" :drums.kick)))))
+    (testing "and the shared key after the group's"
+      (run ":drums/count T_")
+      (run "4 :count T!")
+      (is (= 4 (inputs/value :drums.kick "count"))))
+    (finally (inputs/clear! :drums.kick))))
 
 (deftest a-word-voice-input-belongs-to-the-algo-that-owns-the-param
   (require 'musics.algo.rhythmic.pattern 'musics.algo.rhythmic.feel 'musics.algo.rhythmic.sieve)

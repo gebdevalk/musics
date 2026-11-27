@@ -9,11 +9,12 @@
    (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
+            [musics.algo.numeric.rng :as rng]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
-            [musics.mu.inputs :as inputs]
             [musics.mu.print :as p]
+            [musics.mu.seeding :as seeding]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
             [musics.registries :as reg]
@@ -99,7 +100,7 @@
   "The entry a name refers to: ns/word directly, else the one in the
    namespaces in use; nil if none, an error if several."
   [st name]
-  (if-let [[_ ns w] (re-matches #"([a-zA-Z_][a-zA-Z0-9_\-?>+]*)/(.+)" name)]
+  (if-let [[_ ns w] (re-matches #"([a-zA-Z_][a-zA-Z0-9_\-?>+]*(?:\.[a-zA-Z_][a-zA-Z0-9_\-?>+]*)*)/(.+)" name)]
     (get-in st [:ns ns w])
     (let [found (keep (fn [ns] (when-let [e (get-in st [:ns ns name])] [ns e])) (:use st))]
       (case (count found)
@@ -314,9 +315,13 @@
    :onset and every key the lookup holds as keyword arguments."
   [q]
   (fn [onset get]
-    (with-lookup (fn [x] (if (= x :onset) onset (get x)))
-      #(let [left (call [] q)]
-         (when (seq left) (peek left))))))
+    (let [run #(with-lookup (fn [x] (if (= x :onset) onset (get x)))
+                 (fn [] (let [left (call [] q)]
+                          (when (seq left) (peek left)))))]
+      ;; what the key draws from is seeded by the seed, the key and the beat (musics.mu.seeding)
+      (if-let [r (seeding/rng-for musics.domain.context/*derived-key* onset)]
+        (binding [rng/*rng* r] (run))
+        (run)))))
 
 (defn call
   "Run a quotation on stack."
@@ -341,8 +346,9 @@
     :Mark      (conj stack (v/->Mark (count (second node))))
     :KeyValue  (conj stack (or (el/parse-key (second node))
                                (mu-error (second node) "names no key -- a tonic (# sharp, & flat) and a scale: D.major, B&.minor, F#.dorian")))
+    ;; :voice/key is the qualified keyword of a voice's scope in the tctx (:bass/steps T! )
     :IdName    (let [[_ id input] node]
-                 (conj stack (if input (inputs/ref-of (keyword id) input) (keyword id))))
+                 (conj stack (if input (keyword id input) (keyword id))))
     :PcSet     (conj stack ((requiring-resolve 'musics.mu.pcset/read-node) node))
     :Local     (let [n (second node)]
                  (if (contains? (:locals env) n)
@@ -385,9 +391,11 @@
                 (let [pairs (mapv vec (partition 2 xs))]
                   (doseq [[k] pairs]
                     (when-not (keyword? k) (mu-error "@{ }: a key is a keyword, :reps -- got" (p/show k))))
+                  ;; :bass @{ :steps 5 } is :bass/steps 5
+                  (let [pairs (v/flatten-settings pairs)]
                   (when-let [d (first (filter #(> (val %) 1) (frequencies (map first pairs))))]
                     (mu-error "@{ }:" (pr-str (key d)) "is written twice"))
-                  (conj stack (v/->Settings pairs))))
+                  (conj stack (v/->Settings pairs)))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")
