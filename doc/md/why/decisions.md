@@ -3986,6 +3986,8 @@ settings window has a section for the group and one for each of its voices. Writ
 `@{ }` was already stored this way. Nothing about a voice's id changes for the engine: `:drums.kick` is a
 keyword like `:bass`.
 
+## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
+
 `:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one
 window: the shared keys first, then a section for each voice that has keys of its own (its inputs in
 the order of the word, then the rest by name), a key shown without the voice's name. An input is a slider
@@ -3994,3 +3996,21 @@ buttons; a `reset` button on a key that is not an input takes it out of the scop
 reads the shared one again (an input has none: the word needs a value). `:bass gui` opens the window
 scrolled to that voice's section. `musics.gui.params` and its algo grouping are gone; the algo is no
 longer named in the window.
+
+## 2026-11-27 -- seeds for random keys: `:seed`, `:bass/seed`, `:none`, and the session's
+
+The random words drew from one global stream, so a voice's values depended on how many draws another
+voice had made and on the order the sender thread read them: a seed did not repeat a piece with two voices
+(`scoped-tctx.md`, section 8). A computed key now draws from an RNG of its own, seeded from the seed in
+force, the key it is stored under and the beat (`musics.mu.seeding`, bound as `rng/*rng*` around the
+function of the key), so a draw is a function of those and nothing else. A key written at the shared level
+is the same draw for every voice at a beat (the key has no voice in it); one written in a voice's scope
+(`:bass/r`) has the voice in its name, so it is the voice's own. The seed is a tctx key: `:seed`,
+`:bass/seed`, `:drums/seed` for a group, nearest first; a number, or `:none` for the clock. With none
+written the session's seed is used, the shared RNG's, drawn from the clock at start and shown in the
+banner; `N rng/seed` sets it. Chosen over modes (`:piece`, `:voice`, `:key`, `:voice-key`): once a draw is a
+function of the beat there is no stream to share, and who shares a key is where it is written. Left as
+they were: the random words outside a key (the shared stream), and the notation's shuffle, choose and
+alternate, which use the session seed and not `:seed`. `N rng/seed` and `:seed` are two ways to set a
+seed (the session's and the keys'), not one: `rng/seed` is a word of the algo namespace and cannot reach
+the tctx; `:seed` wins for the keys.

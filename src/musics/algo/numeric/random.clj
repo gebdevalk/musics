@@ -9,7 +9,7 @@
 
 (ns musics.algo.numeric.random
   (:refer-clojure :exclude [rand-int shuffle])
-  (:require [musics.algo.numeric.rng :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng]]
+  (:require [musics.algo.numeric.rng :refer [rnd-double rnd-int rnd-choose rnd-weighted rnd-markov rnd-shuffle step! default-rng current-rng]]
             [musics.algo.numeric.spec :refer [num-spec pos-spec unit-spec lo hi bias shape scale-p dof sampler]]))
 
 
@@ -18,38 +18,38 @@
 ;; ------------------------------------------------------------
 
 (defn rand-double
-  "Uniform double in [0,1), drawn from an RNG atom (default-rng if omitted)."
-  ([] (rand-double default-rng))
+  "Uniform double in [0,1), drawn from an RNG atom (the default RNG, or the seeded one of a tctx key, if omitted)."
+  ([] (rand-double (current-rng)))
   ([rng-atom] (step! rng-atom rnd-double)))
 
 
 ;; rand-int takes [lo hi], not clojure.core's [n], like every int-* function; it is built on the exact-
 ;; integer rnd-int machinery of numeric.rng.
 (defn rand-int
-  "Uniform integer in [lo,hi), drawn from an RNG atom (default-rng if omitted)."
-  ([lo hi] (rand-int default-rng lo hi))
+  "Uniform integer in [lo,hi), drawn from an RNG atom (the default RNG, or the seeded one of a tctx key, if omitted)."
+  ([lo hi] (rand-int (current-rng) lo hi))
   ([rng-atom lo hi] (+ lo (step! rng-atom rnd-int (- hi lo)))))
 
 
 (defn choose
-  "Choose a random element from coll, drawn from an RNG atom (default-rng if omitted)."
-  ([coll] (choose default-rng coll))
+  "Choose a random element from coll, drawn from an RNG atom (the default RNG, or the seeded one of a tctx key, if omitted)."
+  ([coll] (choose (current-rng) coll))
   ([rng-atom coll] (step! rng-atom rnd-choose (vec coll))))
 
 
 (defn weighted-choose
-  "An element of vals chosen with probability proportional to its weight in weights; weights need not sum to 1 (raw Markov counts work). Also takes one map of val -> weight. Drawn from an RNG atom (default-rng if omitted).
+  "An element of vals chosen with probability proportional to its weight in weights; weights need not sum to 1 (raw Markov counts work). Also takes one map of val -> weight. Drawn from an RNG atom (the default RNG, or the seeded one of a tctx key, if omitted).
      (weighted-choose [1 2 3 4] [3 2 1 1])
      (weighted-choose {1 3, 2 2, 3 1, 4 1})"
   {:mu {:arity (fn [stack] (if (map? (peek stack)) 1 2))}}
   ([val-weight-map] (weighted-choose (keys val-weight-map) (vals val-weight-map)))
-  ([vals weights] (weighted-choose default-rng vals weights))
+  ([vals weights] (weighted-choose (current-rng) vals weights))
   ([rng-atom vals weights] (step! rng-atom rnd-weighted (vec vals) (vec weights))))
 
 
 (defn shuffle
-  "Shuffle coll (Fisher-Yates), drawn from an RNG atom (default-rng if omitted)."
-  ([coll] (shuffle default-rng coll))
+  "Shuffle coll (Fisher-Yates), drawn from an RNG atom (the default RNG, or the seeded one of a tctx key, if omitted)."
+  ([coll] (shuffle (current-rng) coll))
   ([rng-atom coll] (step! rng-atom rnd-shuffle coll)))
 
 
@@ -57,8 +57,8 @@
   "Markov transition: table is {state {next-state prob}}. Single-step --
    caller tracks its own current state across calls (contrast
    markov-chain, below, which tracks state for you). Drawn from an RNG
-   atom (default-rng if omitted)."
-  ([table state] (markov default-rng table state))
+   atom (the default RNG, or the seeded one of a tctx key, if omitted)."
+  ([table state] (markov (current-rng) table state))
   ([rng-atom table state] (step! rng-atom rnd-markov table state)))
 
 

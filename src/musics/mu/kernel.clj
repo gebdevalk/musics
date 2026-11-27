@@ -13,6 +13,7 @@
             [musics.mu.live :as live]
             [musics.mu.material :as mt]
             [musics.mu.print :as p]
+            [musics.mu.seeding :as seeding]
             [musics.mu.value :as v]))
 
 ;; -- stack ------------------------------------------------------------
@@ -300,9 +301,15 @@
 
 ;; -- the tctx of the voices that are a function of onset --------------------------------
 
+;; a key called seed (:seed, :bass/seed) holds a seed: a whole number, or :none (musics.mu.seeding)
+(defn- check-seed! [k x]
+  (when (and (= "seed" (name k)) (not (seeding/seed? x)))
+    (e/mu-error "T!:" (pr-str k) "is a seed: a whole number, or :none -- got" (p/show x))))
+
 ;; one entry into the tctx: a quotation a computed key, an input of a voice that has a spec for it
 ;; through that spec (a value it refuses is an error), any other value as it is
 (defn- write-entry! [k x]
+  (check-seed! k x)
   (cond
     (v/quotation? x)
     (c/tctx-derive (live/tctx-node!) k (e/derived-fn x) (p/show x))
@@ -317,7 +324,7 @@
     (keyword (str (name voice) "." (namespace k)) (name k))
     (keyword (name voice) (name k))))
 
-(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of onset reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the onset of the leaf asking (q runs with :onset and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid. :bass/steps is the bass's own :steps, read before the shared one. With a voice and an @{ … } (the settings of that voice written out) every entry of it is written, none when one is refused: @{ :steps 5 :density 3 } :bass T!"
+(word! "play" "T!" "( x :key -- )  in the tctx a voice that is a function of onset reads, :key is x: a number, a list, any value, or a quotation '( … ), computed when it is asked for, at the onset of the leaf asking (q runs with :onset and every key of the tctx as keyword arguments). A keyword argument of a word such a voice runs, that the tctx holds, is its value: :onsets 8 euclid. :bass/steps is the bass's own :steps, read before the shared one. A key called seed (:seed, :bass/seed) is a seed for the random words of a computed key: a whole number, or :none. With a voice and an @{ … } (the settings of that voice written out) every entry of it is written, none when one is refused: @{ :steps 5 :density 3 } :bass T!"
        (fn [s]
          (need s 2 "T!")
          (let [k (peek s) x (peek (pop s))]
@@ -330,6 +337,7 @@
                        ;; inputs together (:onsets 3 :pulses 4) is checked as a whole
                        about (reduce (fn [m [ek ex]] (assoc-in m [(namespace ek) (name ek)] ex)) {} entries)]
                    (doseq [[ek ex] entries]
+                     (check-seed! ek ex)
                      (when (and (namespace ek) (not (v/quotation? ex)))
                        (inputs/checked (keyword (namespace ek)) (name ek) ex (get about (namespace ek)))))
                    (doseq [[ek ex] entries] (write-entry! ek ex))))
@@ -384,6 +392,8 @@
                ;; a voice with nothing shared called so: everything the tctx holds for it, as an @{ }
                (and (nil? entry) (nil? (namespace k)) (live/scope->settings k))
                (conj (pop s) (live/scope->settings k))
+               ;; no seed written: the one in force, the session's
+               (and (nil? entry) (= "seed" (name k))) (conj (pop s) (seeding/effective k))
                (nil? entry) (e/mu-error "T@:" (pr-str k) "is not in the tctx -- T! it")
                (instance? musics.domain.context.Derived entry)
                (if-let [text (:text entry)]
@@ -397,7 +407,7 @@
          (need s 1 "T@@")
          (let [k (peek s)]
            (when-not (keyword? k) (e/mu-error "T@@:" "the key is a keyword, :reps -- got" (p/show k)))
-           (let [v (tctx-value k)]
+           (let [v (or (tctx-value k) (when (= "seed" (name k)) (seeding/effective k)))]
              (when (nil? v) (e/mu-error "T@@:" (pr-str k) "is not in the tctx -- T! it"))
              (conj (pop s) v)))))
 

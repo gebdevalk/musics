@@ -631,7 +631,7 @@ argument names: `( onsets pulses -- euclid )`.
   quotation is also a function of what it is given, so it can be a fitness
   function (`'( sum 5 - abs negate ) process/genetic`); `( '( … ) '( … ) )`
   gathers quotations into a list (the constraints of `melody/constrained`).
-- **A shared seed**: `7 rng/seed` makes the random words after it repeat
+- **A shared seed**: `7 rng/seed` makes the random words after it repeat; in a computed tctx key they draw from a seed of the key, the voice and the beat (`7 :seed T!`, `8 :bass/seed T!`, `:none` for the clock), the session's when none is written
   (`"numeric.rng" reqalgo` first).
 - **Live**: a quotation under a play word, or a word written with `$` inputs,
   plays live (see Live in the table above); an input is read and stored as

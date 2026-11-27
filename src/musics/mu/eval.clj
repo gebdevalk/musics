@@ -9,10 +9,12 @@
    (ns/word). An error leaves the stack as it was."
   (:require [clojure.string :as str]
             [instaparse.core :as insta]
+            [musics.algo.numeric.rng :as rng]
             [musics.common.music-elements :as el]
             [musics.input.reader.builder :as builder]
             [musics.mu.grammar :as g]
             [musics.mu.print :as p]
+            [musics.mu.seeding :as seeding]
             [musics.mu.suggest :as suggest]
             [musics.mu.value :as v]
             [musics.registries :as reg]
@@ -313,9 +315,13 @@
    :onset and every key the lookup holds as keyword arguments."
   [q]
   (fn [onset get]
-    (with-lookup (fn [x] (if (= x :onset) onset (get x)))
-      #(let [left (call [] q)]
-         (when (seq left) (peek left))))))
+    (let [run #(with-lookup (fn [x] (if (= x :onset) onset (get x)))
+                 (fn [] (let [left (call [] q)]
+                          (when (seq left) (peek left)))))]
+      ;; what the key draws from is seeded by the seed, the key and the beat (musics.mu.seeding)
+      (if-let [r (seeding/rng-for musics.domain.context/*derived-key* onset)]
+        (binding [rng/*rng* r] (run))
+        (run)))))
 
 (defn call
   "Run a quotation on stack."

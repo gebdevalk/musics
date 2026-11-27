@@ -118,6 +118,17 @@
 (defonce ^{:doc "Default RNG state, used by every fn below when no explicit atom is passed."}
   default-rng (atom (rnd-new (System/currentTimeMillis))))
 
+(def ^:dynamic *rng*
+  "An RNG atom the random words draw from instead of default-rng while it is bound: musics.mu
+   binds one, seeded from the key, the voice and the beat, around a computed tctx key, so what the
+   key draws does not depend on which voice is read first."
+  nil)
+
+(defn current-rng
+  "The RNG atom the random words draw from now: *rng* when bound, else default-rng."
+  []
+  (or *rng* default-rng))
+
 (defn seed!
   "Reset an RNG atom (default-rng if omitted) to a fresh state from seed."
   ([seed] (seed! default-rng seed))

@@ -11,6 +11,7 @@
             [musics.mu.grammar :as g]
             [musics.mu.kernel :as kernel]
             [musics.mu.material :as mt]
+            [musics.mu.seeding :as seeding]
             [musics.mu.tools]
             [musics.mu.complete :as complete]
             [musics.mu.library]
@@ -203,6 +204,7 @@
              "stop     Alt+."
              "pause    Alt+, (again resumes)"
              "echo     prints each note"
+             (str "seed     " (seeding/session-seed) ", this session's: ':seed T@' shows the one in force, '7 :seed T!' or '7 rng/seed' sets it")
              "voices   'voices' or '<<-' lists the playing voices: 1..n low to high, 0 -1 … the drums"
              "         ':id <-' gives what :id plays; :id stop, :id hush, :id solo"
              "gui      opens the GUI beside mu (closing it leaves mu running)"

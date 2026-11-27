@@ -377,7 +377,18 @@ nests a voice (`:bass @{ :steps 5 }`, `value/flatten-settings` makes the keys on
 `live/nest-pairs` groups them on printing, a dotted namespace for a group). A voice's name may have
 dots (`:drums.kick`, `IdName` in `mu.ebnf`): `context/voice-paths` gives it and its groups, nearest
 first, `tctx-scopes` the scope of each, and `live/tctx-chain` the chain a voice reads, `[own group …
-tctx]`; `T@`, `inputs/value` and the input watch fall back through the groups. In mu,
+tctx]`; `T@`, `inputs/value` and the input watch fall back through the groups.
+
+**Seeded random keys.** The random words (`musics.algo.numeric.random`) draw from
+`rng/current-rng`: `rng/*rng*` when bound, else the shared `default-rng`. `context/derived-value`
+binds `context/*derived-key*` to the key a computed entry is stored under (a scope's view marks its
+Derived entries with `:stored-key` metadata, so `:bass/r`, not `:r`), and `eval/derived-fn` binds
+`rng/*rng*` to `musics.mu.seeding/rng-for`: a fresh RNG seeded from the seed in force for that key
+(`:voice/seed`, its groups', `:seed`, else the session's, `default-rng`'s seed, which `N rng/seed` sets;
+`:none` the clock), the key and the beat. So a draw is the same at a beat, for a key written at the
+shared level the same for every voice, and does not depend on read order. T! refuses a `seed` that is
+not an integer or `:none`; `:seed T@` of an unset seed is the one in force. The notation's shuffle,
+choose and alternate (`compose/voice-seed`) use the session seed, not `:seed`. In mu,
 `:voice/name` is the qualified keyword, always (an input of a word voice is such an entry too, see
 "Live voices"). Design and open points: `doc/md/why/scoped-tctx.md`.
 

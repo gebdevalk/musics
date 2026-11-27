@@ -361,6 +361,30 @@ on the way from the voice to the shared keys.
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.
 
+### Random keys and seeds
+
+A computed key that draws, `'( 0 100 random/rand-int ) :r T!`, can repeat. What it draws is worked out
+from a **seed**, the key and the beat it is computed at, so the same beat gives the same number, and no
+voice's reading disturbs another's. The seed is a key called `seed`:
+
+```
+7 :seed T!                the piece's seed: every random key repeats
+8 :bass/seed T!           the bass's own, for the keys written in the bass's scope
+:none :seed T!            nothing repeats: a draw from the clock each time
+:seed T_                  no seed written: the session's
+:seed T@                  the seed in force, 7 or the session's
+```
+
+With none written the session's seed is used, drawn from the clock when mu starts and shown in the
+banner, so a piece with random keys sounds the same when it is played again in a session and differs
+between sessions. `7 rng/seed` sets that session seed; `7 :seed T!` is for the keys, and wins over it. To
+keep a take you liked, write its seed down and set it again.
+
+Where a random key is written decides who shares it. Written at the shared level it takes the shared
+seed, and every voice draws the same at a beat, which is how two voices follow one random decision.
+Written in a voice's scope (`'( … ) :bass/r T!`) it is the bass's own draw. A voice named in a group
+reads its seed the same way as its keys: `:drums.kick/seed`, then `:drums/seed`, then `:seed`.
+
 ## Files
 
 | Word | Does |

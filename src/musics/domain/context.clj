@@ -241,11 +241,16 @@
   (sample-at [_ _] (throw (ex-info "a derived value needs the chain it is asked through" {})))
   (shift [_ offset] (if (zero? offset) (->Derived f text) (->Derived (fn [t get] (f (- t offset) get)) nil))))
 
+(def ^:dynamic *derived-key*
+  "The key a computed tctx entry is stored under while its function runs, :bass/density for a
+   key written in a voice's scope, whatever name the voice reads it by (:density)."
+  nil)
+
 (defn- derived-value
   "[value] a Derived gives for key at time, or nil when its function answers nil.
    One pull is one state (see lookup): the keys being computed are kept, and a key
    that needs itself, however far round, is an error naming the cycle."
-  [{:keys [f]} key time chain state]
+  [{:keys [f] :as source} key time chain state]
   (let [state  (or state {:cache (atom {}) :active (atom [])})
         active (:active state)]
     (when (some #{key} @active)
@@ -253,7 +258,9 @@
                       {:cycle (conj @active key)})))
     (swap! active conj key)
     (try
-      (when-some [v (f time (fn [k] (lookup chain k time state)))] [v])
+      (when-some [v (binding [*derived-key* (or (:stored-key (meta source)) key)]
+                      (f time (fn [k] (lookup chain k time state))))]
+        [v])
       (finally (swap! active pop)))))
 
 (defn- latest-point-at-or-before
@@ -397,7 +404,9 @@
              (let [view (persistent!
                           (reduce-kv (fn [acc k v]
                                        (if (and (keyword? k) (= ns-name (namespace k)))
-                                         (assoc! acc (keyword (name k)) v)
+                                         ;; a computed key says which key it is stored under
+                                         (assoc! acc (keyword (name k))
+                                                 (if (instance? Derived v) (vary-meta v assoc :stored-key k) v))
                                          acc))
                                      (transient {}) m))]
                (vreset! cache [m view])
