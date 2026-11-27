@@ -23,7 +23,7 @@
   [voice input]
   (keyword (name voice) (name input)))
 
-(defn- scope-chain [voice] [(c/tctx-scope reg/tctx voice) reg/tctx])
+(defn- scope-chain [voice] (conj (c/tctx-scopes reg/tctx voice) reg/tctx))
 
 (defn set-inputs!
   "Give voice (a keyword id) the inputs [[name value] …], in that order, and
@@ -38,7 +38,10 @@
 (defn- raw-values
   "The entries of voice's inputs in an envelopes map m, its own else the shared one."
   [m voice names]
-  (mapv (fn [n] (let [q (key-of voice n)] (if (contains? m q) (get m q) (get m (keyword n))))) names))
+  (let [paths (c/voice-paths voice)]
+    (mapv (fn [n] (let [found (first (filter #(contains? m %) (concat (map #(keyword % n) paths) [(keyword n)])))]
+                    (get m found)))
+          names)))
 
 (defn watch!
   "Call (f old new) whenever an input of voice changes in the tctx (its own entry or the

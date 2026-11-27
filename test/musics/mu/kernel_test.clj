@@ -881,6 +881,29 @@
       (is (re-find #"is not in the tctx" (:error (run ":bass/steps T_")))))
     (finally (clear-tctx!))))
 
+(deftest a-voice-named-with-dots-reads-the-group-it-is-in
+  (try
+    (run "8 :steps T!")
+    (run "4 :drums/steps T!")
+    (run "5 :drums.kick/steps T!")
+    (run "'( :steps 3 + ) :drums/more T!")
+    (testing "the key is stored as written, a Clojure keyword with dots in its namespace"
+      (is (= 5 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= ":drums.kick/steps" (str/trim (top-of ":drums.kick/steps")))))
+    (testing "T@ gives the voice's own, else its group's, else the shared one"
+      (is (= "5" (str/trim (top-of ":drums.kick/steps T@"))))
+      (is (= "4" (str/trim (top-of ":drums.snare/steps T@"))) "a voice of the group with none of its own")
+      (is (= "8" (str/trim (top-of ":other/steps T@")))))
+    (testing "T@@ runs through the voice and its groups: the group's computed key sees the voice's :steps"
+      (is (= "8" (str/trim (top-of ":drums.kick/more T@@"))) "5 + 3")
+      (is (= "7" (str/trim (top-of ":drums.snare/more T@@"))) "4 + 3, the group's own :steps")
+      (is (re-find #"is not in the tctx" (:error (run ":other/more T@@"))) ":more is the group's, not the shared tctx's"))
+    (testing "a group is read and taken out as a block with its voices nested"
+      (is (= "@{ :more '( :steps 3 + ) :steps 4 :kick @{ :steps 5 } }" (str/trim (top-of ":drums T@"))))
+      (run ":drums.kick/steps T_")
+      (is (= "4" (str/trim (top-of ":drums.kick/steps T@@"))) "taken out, the group answers"))
+    (finally (clear-tctx!))))
+
 (deftest a-scope-is-written-out-in-the-tctx-literal-and-reads-back
   (try
     (testing "a voice's keys written nested are stored as its keys, and printed back nested"

@@ -120,3 +120,10 @@
     (is (= [:SignedFloat "0.5"] (first (items "0.5"))))
     (is (= :Note (ffirst (items "c4."))) "a dotted note")
     (is (= :Note (ffirst (items "C4/8"))) "an absolute note with a duration")))
+
+(deftest a-voice-may-be-named-with-dots-for-the-group-it-is-in
+  (is (= [[:IdName "drums.kick"]] (items ":drums.kick")))
+  (is (= [[:IdName "drums.kick" "steps"]] (items ":drums.kick/steps")))
+  (is (= [[:IdName "a.b.c" "x"]] (items ":a.b.c/x")))
+  (is (= [[:IdName "bass"]] (items ":bass")) "a plain name is as it was")
+  (is (= [[:IdName "bass" "steps"]] (items ":bass/steps"))))

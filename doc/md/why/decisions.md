@@ -3975,7 +3975,16 @@ not a short name; with dots allowed the choice between one and two arguments is 
 (an alias with dots only when a name is below it). An alias is just a string: nothing makes `r` exist for
 `r.p`. Aliasing a whole branch, `'rhythmic 'r reqalgo` for `r.pattern/euclid`, is left for later.
 
-## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
+## 2026-11-27 -- voices in groups: `:drums.kick` reads `:drums`, then the shared keys
+
+A voice's name may have dots, `:drums.kick`: it is in the group `:drums`, and its chain is
+`[drums.kick drums tctx …]`, so a key written once for `:drums` reaches every voice of the group, and one
+for the kick overrides it. The namespace of the key is the path (a Clojure keyword with dots in the
+namespace and one slash, which round-trips); `IdName` takes the dotted id, `tctx-scopes` makes a view for
+each level, `T@`, the inputs of a word voice and their watch fall back through the groups, and the
+settings window has a section for the group and one for each of its voices. Writing a group nested in an
+`@{ }` was already stored this way. Nothing about a voice's id changes for the engine: `:drums.kick` is a
+keyword like `:bass`.
 
 `:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one
 window: the shared keys first, then a section for each voice that has keys of its own (its inputs in

@@ -336,8 +336,27 @@ keys nested under its name, and `:tctx R@` prints it back like that:
 ```
 
 Nesting is the path: `:bass @{ :steps 5 }` is `:bass/steps 5`, and `@{ :steps 8 :bass/steps 5 }`, written
-flat, reads as the same thing. A group nests further, `:drums @{ :kick @{ :steps 8 } }` is
-`:drums.kick/steps 8`. A shared key that is called like a voice is the key: `:bass T@` gives it.
+flat, reads as the same thing. A shared key that is called like a voice is the key: `:bass T@` gives it.
+
+### Groups of voices
+
+A voice's name may have parts joined by dots, `:drums.kick`, and then it is in the group `:drums`. A
+voice reads its own keys first, then its group's, then the shared ones:
+
+```
+8 :steps T!                          shared
+4 :drums/steps T!                    every voice of the group :drums
+5 :drums.kick/steps T!               the kick's own
+:drums.kick/steps T@                 → 5
+:drums.snare/steps T@                → 4, the group's
+:bass/steps T@                       → 8, a voice outside it
+5 8 'riff :drums.kick ->             a voice with a dotted name, its inputs :drums.kick/onsets and so on
+```
+
+Written nested, a group nests: `@{ :steps 8 :drums @{ :steps 4 :kick @{ :steps 5 } } }` is the same table,
+printed back that way by `:tctx R@`. `:drums T@` is everything the tctx holds for the group and its voices,
+`:drums T_` takes it all out. A group may be deeper, `:orchestra.strings.violin1`: each level is looked at
+on the way from the voice to the shared keys.
 
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.

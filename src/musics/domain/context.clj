@@ -404,6 +404,21 @@
                view)))))
      :duration nil}))
 
+(defn voice-paths
+  "The paths a voice's settings are looked for under, the voice's own first, then the groups it is in:
+   (voice-paths :drums.kick) is (\"drums.kick\" \"drums\"). A voice's name has parts joined by dots."
+  [voice]
+  (let [parts (str/split (name voice) #"\.")]
+    (for [n (range (count parts) 0 -1)] (str/join "." (take n parts)))))
+
+(defn tctx-scopes
+  "The scopes of voice (a keyword or string) in tctx, to put in front of tctx in a chain, nearest
+   first: the voice's own, then those of the groups it is in. A voice :drums.kick reads
+   :drums.kick/steps, then :drums/steps, then the shared :steps. One scope for a voice with a
+   plain name."
+  [tctx voice]
+  (mapv #(tctx-scope tctx %) (voice-paths voice)))
+
 (defn tctx-forget
   "Take key (a keyword) out of tctx: nobody finds it any more. Throws when tctx
    holds nothing under it. Returns tctx."

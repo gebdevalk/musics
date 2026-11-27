@@ -357,17 +357,21 @@
   (let [voice  (namespace k)
         lookup (if voice
                  (let [on (if e/*lookup* (e/*lookup* :onset) 0)
-                       g  (c/getter [(live/tctx-scope voice) (live/tctx-node!)] on)]
+                       g  (c/getter (live/tctx-chain voice) on)]
                    (fn [x] (if (= x :onset) on (g (if (= x k) (keyword (name k)) x)))))
                  (or e/*lookup*
                      (let [g (c/getter [(live/tctx-node!)] 0)] (fn [x] (if (= x :onset) 0 (g x))))))]
     (lookup k)))
 
-;; what the tctx stores for a key: for :voice/key the voice's own entry, else the shared one
+;; what the tctx stores for a key: for :voice/key the voice's own entry, else that of the groups it is in
+;; (:drums for :drums.kick), else the shared one
 (defn- tctx-entry [k]
   (let [m @(:envelopes-atom (live/tctx-node!))]
     (cond (contains? m k) (get m k)
-          (namespace k)   (get m (keyword (name k))))))
+          ;; the groups of the voice, nearest first, then the shared key
+          (namespace k)   (let [cands (concat (map #(keyword % (name k)) (rest (c/voice-paths (namespace k))))
+                                              [(keyword (name k))])]
+                            (when-let [found (first (filter #(contains? m %) cands))] (get m found))))))
 
 ;; what the tctx holds for a key, as it was stored: a quotation not run
 (word! "play" "T@" "( :key -- x )  what the tctx holds under :key, as it was stored: the quotation '( … ) of a computed key, not run (T@@ runs it), else its value. :bass/key is the bass's own, else the shared one; :bass alone, with no shared key so called, is everything the tctx holds for the bass, as an @{ … }. An error when it holds nothing for it"

@@ -170,6 +170,12 @@
   [voice]
   (c/tctx-scope (tctx-node!) voice))
 
+(defn tctx-chain
+  "The chain a voice reads the tctx through: the scope of the voice, those of the groups it is in
+   (:drums for :drums.kick), then the tctx."
+  [voice]
+  (conj (c/tctx-scopes (tctx-node!) voice) (tctx-node!)))
+
 (defn set-tctx!
   "Make settings (a mu Settings, @{ … }) the tctx's entries, all at once: a key it
    does not write is gone, a quotation is a computed key. Voices holding the tctx
@@ -303,11 +309,11 @@
     (inputs/set-inputs! voice (map vector names values) specs)
     (let [f (onset-source word voice all-names)]
       ;; ask once now, at the start, so a word that fails is refused here, not heard
-      (try (f 0 (c/getter [(tctx-scope voice) (tctx-node!)] 0))
+      (try (f 0 (c/getter (tctx-chain voice) 0))
            (catch Throwable t (inputs/clear! voice) (throw t)))
       (swap! word-voices assoc voice word)
       (swap! sources dissoc voice)
-      (mt/play-source! (compose/source f [(tctx-scope voice) (tctx-node!)]) (mt/read-text "repeat ~ [r8]") voice ctx
+      (mt/play-source! (compose/source f (tctx-chain voice)) (mt/read-text "repeat ~ [r8]") voice ctx
                        (start-origin ctx delay)))
     voice))
 

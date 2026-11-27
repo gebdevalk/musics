@@ -178,6 +178,23 @@
       (is (= [3 32] ((juxt :min :max) (inputs/effective-spec :w :pulses))) "pulses from the onsets it has"))
     (finally (inputs/clear! :w))))
 
+(deftest a-word-voice-named-with-dots-reads-its-group-for-an-input-it-has-no-entry-for
+  (run ": pat ( $count -- l ) [c d e f g a b] $count take ;")
+  (run "3 'pat :drums.kick ->")
+  (try
+    (is (= 3 (inputs/value :drums.kick "count")) "the entry the start wrote, :drums.kick/count")
+    (is (= [60 62 64 60 62] (take 5 (pitches "[c c c c c c]" :drums.kick))))
+    (testing "taken out of the voice, the group's entry is read, and heard as a change"
+      (run ":drums.kick/count T_")
+      (run "2 :drums/count T!")
+      (is (= 2 (inputs/value :drums.kick "count")))
+      (is (= [60 62 60 62] (take 4 (pitches "[c c c c c c]" :drums.kick)))))
+    (testing "and the shared key after the group's"
+      (run ":drums/count T_")
+      (run "4 :count T!")
+      (is (= 4 (inputs/value :drums.kick "count"))))
+    (finally (inputs/clear! :drums.kick))))
+
 (deftest a-word-voice-input-belongs-to-the-algo-that-owns-the-param
   (require 'musics.algo.rhythmic.pattern 'musics.algo.rhythmic.feel 'musics.algo.rhythmic.sieve)
   (run ": thin ( $similarity $label -- l ) [c d e f g a b] 4 take ;")

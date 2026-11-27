@@ -67,6 +67,10 @@
          (is (not (s/scope? :lead)) "a voice with no key of its own")
          (is (not (s/scope? :steps)) "a shared key is no voice"))))
 
+(deftest a-group-and-its-voices-are-sections-in-path-order
+  (with-tctx [[:steps 8] [:drums/steps 4] [(keyword "drums.kick" "steps") 5] [(keyword "drums.snare" "steps") 6] [:bass/steps 2]]
+    #(is (= [nil "bass" "drums" "drums.kick" "drums.snare"] (map :scope (s/sections))))))
+
 (deftest the-window-scrolls-to-a-voices-section
   (let [secs [{:scope nil :rows [1 2]} {:scope "bass" :rows [1 2 3]} {:scope "lead" :rows [1]}]]
     (is (= 0.0 (s/scroll-fraction secs nil)))
