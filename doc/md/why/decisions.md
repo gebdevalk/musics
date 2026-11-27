@@ -3950,6 +3950,19 @@ more than one slash would not, and the grammar takes one). `T!` with an `@{ }` a
 voice gives its block, `T_` takes it all out. A shared key called like a voice stays the key. The ranges
 themselves are not written in the tctx: they come from what reads a key, see `scoped-tctx.md`.
 
+## 2026-11-27 -- an input's range comes from the algos its word calls, and may be tied to another input
+
+The range of a `$` input was the widest of every loaded algo that reads a parameter of that name, so
+`onsets` was 0..32 from `euclid` and 0..16 from `necklaces`, and `lo` the widest of sixteen
+different things. `live/called-algos` finds the functions of `musics.algo` a word runs, following the
+words it defines; an input is read as those read it, and only when none of them reads the name does the
+old rule apply. The knowledge stays where the algo is, in its `:algo :params`; nothing is written in the
+tctx. A param may name another it must not pass (`:max-key`, `onsets` at most `pulses`) or fall below
+(`:min-key`): a write that breaks the tie is refused, a block of writes is checked as it will be, and the
+window's slider follows the other input. Chosen over a central registry keyed by name (the overlap of
+names is real, 24 of 63 shared names differ in range, and which meaning a name has depends on what reads
+it), and over namespaces for quantity domains (`pitch/lo`: the slash already means a voice or a library).
+
 ## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
 
 `:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one

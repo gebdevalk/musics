@@ -1235,8 +1235,14 @@ stop
 `settings` and the sliders take an input's range from the algo parameter of
 the same name: `onsets` is `0..32`, `pulses` `1..32`, once the namespace that
 reads them is loaded. A value outside it is refused (`99 :bass/onsets T!`:
-`onsets: 99 should be at most 32`). Where several algos read a name with different
-ranges the widest is used. An input no algo reads (`$label`) has no range, so it is
+`onsets: 99 should be at most 32`). A word's inputs are read as the algos it calls read them,
+through the words it defines: a word that calls `pattern/euclid` has `onsets` in `0..32`, whatever
+another algo says. Where it calls none that reads a name, or several read it with different ranges,
+the widest of those that are loaded, or of those it calls, is used. An input can be tied to another:
+`euclid` says `onsets` is at most `pulses`, so `9 :bass/onsets T!` is refused while `:bass/pulses`
+is 8 (`onsets: 9 should be at most pulses (8)`), and `2 :bass/pulses T!` while the onsets are 3; the
+slider of `onsets` ends where `pulses` is. A block that moves both, `@{ :onsets 3 :pulses 4 } :bass T!`,
+is checked as it will be. An input no algo reads (`$label`) has no range, so it is
 a text field. The window files each control under the algo that owns the
 parameter. Two voices may have inputs of the same name: `:bass/onsets` and
 `:lead/onsets` are different places.

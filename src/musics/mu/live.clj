@@ -73,32 +73,67 @@
       (mt/stage! form ctx (first staged) join? name name)
       (mt/play! form ctx join? name name))))
 
+(defn- algo-params
+  "[algo-name param-name spec] of each parameter in the :algo metadata of the functions of vars."
+  [vars]
+  (for [var vars
+        :let [params (get-in (meta var) [:algo :params])]
+        :when (map? params)
+        [pname spec] params]
+    [(keyword (name (:name (meta var)))) (name pname) spec]))
+
 (defn- param-owner-algos
   "Every parameter of the algorithms loaded now, [algo-name param-name spec]: each
    public function of a musics.algo namespace whose :algo metadata lists :params."
   []
-  (for [ns (all-ns)
-        :when (re-find #"^musics\.algo\." (str (ns-name ns)))
-        [sym var] (ns-publics ns)
-        :let [params (get-in (meta var) [:algo :params])]
-        :when (map? params)
-        [pname spec] params]
-    [(keyword (name sym)) (name pname) spec]))
+  (algo-params (for [ns (all-ns)
+                     :when (re-find #"^musics\.algo\." (str (ns-name ns)))
+                     [_ var] (ns-publics ns)]
+                 var)))
+
+(defn- word-names
+  "The names of the words a body (parse nodes) runs, at any depth: a quotation's too."
+  [body]
+  (->> body
+       (mapcat #(tree-seq (fn [n] (and (vector? n) (keyword? (first n)))) rest %))
+       (filter #(and (vector? %) (= :Word (first %))))
+       (map (fn [node] (let [x (second node)] (if (vector? x) (second x) x))))
+       distinct))
+
+(defn called-algos
+  "The functions of musics.algo the word called name runs, following the words it defines: the
+   vars of those with :algo :params. The algos a word is made of, so an input of it is read as
+   they read it."
+  ([name] (called-algos name #{}))
+  ([name seen]
+   (if (seen name)
+     []
+     (let [entry (try (e/lookup @e/state name) (catch Exception _ nil))]
+       (cond
+         (:var entry)  (let [v (:var entry)]
+                         (if (and (re-find #"^musics\.algo\." (str (ns-name (:ns (meta v)))))
+                                  (map? (get-in (meta v) [:algo :params])))
+                           [v] []))
+         (:body entry) (vec (distinct (mapcat #(called-algos % (conj seen name)) (word-names (:body entry)))))
+         :else         [])))))
 
 (defn- param-spec
   "One spec for the algo params called input: when several algos read a param
    by that name, the most common type, its range the widest of them (so no
    value any of them takes is refused), the rest from the first by name. The
-   spec names its owner, :algo, only when one algo reads that name."
-  [input]
-  (let [found (filter #(= input (second %)) (param-owner-algos))]
+   spec names its owner, :algo, only when one algo reads that name. The algos are
+   those word calls (see called-algos) when any of them reads the name, else all
+   that are loaded."
+  [input word]
+  (let [mine  (filter #(= input (second %)) (algo-params (called-algos word)))
+        found (if (seq mine) mine (filter #(= input (second %)) (param-owner-algos)))]
     (when (seq found)
       (let [type   (key (apply max-key val (frequencies (map (comp :type #(nth % 2)) found))))
             same   (map #(nth % 2) (filter #(= type (:type (nth % 2))) found))
             lo     (keep :min same)
             hi     (keep :max same)
             owners (distinct (map first found))]
-        (cond-> (select-keys (first same) [:type :default :doc :choices])
+        (cond-> (select-keys (first same) [:type :default :doc :choices :min-key :max-key])
           (seq lo) (assoc :min (apply min lo))
           (seq hi) (assoc :max (apply max hi))
           (= 1 (count owners)) (assoc :algo (first owners)))))))
@@ -108,7 +143,7 @@
    range, default and doc), else one made from the value it starts with. It
    belongs to the algo that owns the param, else to the word."
   [word order input value]
-  (let [base (or (param-spec input)
+  (let [base (or (param-spec input word)
                  {:type (cond (integer? value) :int (float? value) :double (string? value) :string
                               (keyword? value) :keyword (boolean? value) :bool :else :any)
                   :default value :doc ""})]

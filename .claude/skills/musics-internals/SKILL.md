@@ -293,7 +293,8 @@ quotation is a Clojure function (`Quotation` implements `IFn`), so it can be a
 fitness function; a `( … )` group of quotations is a list of them (the
 constraints of `melody/constrained`); a list in a list is `'[ '[0 1] '[2] ]`.
 `N rng/seed` makes the random words after it repeat. Each function's
-`:algo {:params …}` metadata (type, range, default, choices, doc) is what the
+`:algo {:params …}` metadata (type, range, default, choices, doc; `:max-key`/`:min-key` name another
+param it may not pass or fall below, `euclid`'s onsets/pulses) is what the
 GUI reads for a control (below); `:in`/`:out` types and `:arity` ride along.
 
 **Live voices follow a function of their inputs** (`musics.mu.voice`,

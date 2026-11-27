@@ -50,7 +50,7 @@
   "A row of the window: {:key :entry :kind :spec :label :input?}. voice is nil for a shared key."
   [voice [k e]]
   (let [nm (keyword (name k))
-        sp (when voice (get (inputs/specs (keyword voice)) nm))]
+        sp (when voice (inputs/effective-spec (keyword voice) nm))]
     {:key k :entry e :kind (kind-of e) :spec sp :label (name k)
      :input? (boolean (and voice (some #{(name k)} (inputs/names (keyword voice)))))}))
 

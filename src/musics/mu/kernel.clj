@@ -325,10 +325,13 @@
            (if (v/settings? x)
              (do (when (namespace k)
                    (e/mu-error "T!:" "a block of settings is written for a voice, :bass -- got" (p/show k)))
-                 (let [entries (mapv (fn [[ek ex]] [(block-key k ek) ex]) (:entries x))]
+                 (let [entries (mapv (fn [[ek ex]] [(block-key k ek) ex]) (:entries x))
+                       ;; what each voice's inputs are about to be, so a block that moves two tied
+                       ;; inputs together (:onsets 3 :pulses 4) is checked as a whole
+                       about (reduce (fn [m [ek ex]] (assoc-in m [(namespace ek) (name ek)] ex)) {} entries)]
                    (doseq [[ek ex] entries]
                      (when (and (namespace ek) (not (v/quotation? ex)))
-                       (inputs/checked (keyword (namespace ek)) (name ek) ex)))
+                       (inputs/checked (keyword (namespace ek)) (name ek) ex (get about (namespace ek)))))
                    (doseq [[ek ex] entries] (write-entry! ek ex))))
              (write-entry! k x))
            (pop (pop s)))))

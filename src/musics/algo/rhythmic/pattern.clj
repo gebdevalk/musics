@@ -16,8 +16,8 @@
      (euclid 2 5) ;=> [1 0 1 0 0]
      (euclid 5 8) ;=> [1 0 1 1 0 1 1 0]"
   {:algo {:in [] :out :pulse
-          :params {:onsets {:type :int :min 0 :max 32 :default 3 :doc "beats to place"}
-                   :pulses {:type :int :min 1 :max 32 :default 8 :doc "the grid they are spread over"}}}}
+          :params {:onsets {:type :int :min 0 :max 32 :max-key :pulses :default 3 :doc "beats to place"}
+                   :pulses {:type :int :min 1 :max 32 :min-key :onsets :default 8 :doc "the grid they are spread over"}}}}
   [onsets pulses]
   {:pre [(<= onsets pulses) (>= onsets 0) (pos? pulses)]}
   (if (zero? onsets)

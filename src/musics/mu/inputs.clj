@@ -118,13 +118,42 @@
       (why (str "one of " (str/join ", " (map #(if (keyword? %) (name %) (str %)) choices)))))
     x))
 
+(defn- other-value
+  "The value of the input called other (a keyword) of voice: what overrides (a map of input
+   names to the values about to be written) says, else what its scope and the shared tctx give."
+  [voice other overrides]
+  (if (contains? overrides (name other)) (get overrides (name other)) (value voice other)))
+
+(defn effective-spec
+  "The spec of input of voice with its range narrowed by the input it is tied to: :max-key names
+   an input it may not exceed (onsets at most pulses), :min-key one it may not fall below. The
+   spec as it is when the other input holds no number, or there is no spec."
+  ([voice input] (effective-spec voice input nil))
+  ([voice input overrides]
+   (when-let [spec (get (specs voice) (keyword (name input)))]
+     (let [num (fn [k] (let [o (other-value voice k overrides)] (when (number? o) o)))]
+       (cond-> spec
+         (and (:max-key spec) (num (:max-key spec))) (assoc :max (min (or (:max spec) ##Inf) (num (:max-key spec))))
+         (and (:min-key spec) (num (:min-key spec))) (assoc :min (max (or (:min spec) ##-Inf) (num (:min-key spec)))))))))
+
 (defn checked
   "x as input of voice (a keyword) takes it, or an error saying what is wrong when its spec
-   refuses it; x as it is when the voice has no spec for input."
-  [voice input x]
-  (let [k    (keyword (name input))
-        spec (get (specs voice) k)]
-    (if spec (coerced k spec x) x)))
+   refuses it, also against the input it is tied to (onsets: 9 should be at most pulses (8)); x
+   as it is when the voice has no spec for input. overrides, {\"input\" value}, are values about
+   to be written beside it, which the others are checked against."
+  ([voice input x] (checked voice input x nil))
+  ([voice input x overrides]
+   (let [k    (keyword (name input))
+         spec (get (specs voice) k)
+         x    (if spec (coerced k spec x) x)]
+     (when spec
+       (doseq [[kk word cmp] [[:max-key "at most" >] [:min-key "at least" <]]
+               :let [other (get spec kk)]
+               :when other
+               :let [o (other-value voice other overrides)]
+               :when (and (number? o) (number? x) (cmp x o))]
+         (fail (str (name k) ":") (pr-str x) (str "should be " word " " (name other) " (" o ")"))))
+     x)))
 
 (defn put!
   "Make input of voice hold x in its scope, heard on the voice's next note. A value its spec
