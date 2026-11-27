@@ -165,8 +165,8 @@ lein verify             # lint, then the full test suite (CI runs it: .github/wo
 lein test musics.input.reader.command-walk-test         # run a single test namespace
 lein test :only musics.input.reader.command-walk-test/duration-ratio-scales-and-is-inherited   # single test var
 scripts/docs.sh         # render README + doc/md/*.md + CLAUDE.md to styled
-                         # HTML in doc/html/ and PDF in doc/pdf/ (both
-                         # git-ignored; the .md stays the source)
+                         # HTML in doc/html/ (git-ignored; the .md stays
+                         # the source)
                          # -- open doc/html/index.html
 lein run -m clojure.main scripts/algo-cookbook.clj  # the algo cookbook: doc/md/algo-cookbook.md, every recipe run
 lein test :parsing      # just one architectural layer -- :parsing/:domain/
@@ -331,8 +331,8 @@ Loaded only when it is needed, so a session that never touches it never pays for
   `pull-voice.md`.
 - **`doc/md/why/`**: the technical files about implementation choices: `decisions.md` (why things are
   as they are; check it before re-proposing), `audits/`, the design notes (`core-logic.md`,
-  `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`, `scoped-tctx.md` (a proposal for a
-  tctx with a scope for each voice), `postfix-notation.md` (the prefix/postfix analysis and its outcome: structure is a literal, an operation is a word)).
+  `assist-with-logic.md`, `algo-audit.md`, `other-libs.md`, `ideas.md`, `scoped-tctx.md` (the tctx with a scope for each voice, the
+  design and what was built), `postfix-notation.md` (the prefix/postfix analysis and its outcome: structure is a literal, an operation is a word)).
 
 ## Gotchas by module
 

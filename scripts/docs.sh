@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
 # Render the human-facing Markdown docs (doc/md/, plus README and
-# CLAUDE.md) to HTML in doc/html/ and PDF in doc/pdf/, both git-ignored: the
-# .md files stay the source, GitHub renders them too.
+# CLAUDE.md) to HTML in doc/html/, git-ignored: the .md files stay the
+# source, GitHub renders them too.
 #
-#   scripts/docs.sh           HTML + PDF
-#   scripts/docs.sh --html    HTML only (fast)
+#   scripts/docs.sh
 #
-# Then open doc/html/index.html (the README) in a browser, or the PDFs
-# in doc/pdf/. Needs pandoc; PDFs need google-chrome (or chromium).
+# Then open doc/html/index.html (the README) in a browser. Needs pandoc.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 out=doc/html
-pdf=doc/pdf
-mkdir -p "$out" "$pdf"
+mkdir -p "$out"
 # what a run writes is rebuilt whole: a page whose source is gone goes too
 find "$out" -maxdepth 1 -name '*.html' -delete
-find "$pdf" -maxdepth 1 -name '*.pdf' -delete
 cp scripts/docs/docs.css "$out/"
 
 # source .md -> page name
@@ -75,11 +71,3 @@ for src in "${!pages[@]}"; do
     --output "$out/$name.html"
 done
 echo "HTML: $out/index.html (${#pages[@]} pages)"
-
-[[ "${1:-}" == "--html" ]] && exit 0
-chrome=$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)
-if [[ -z "$chrome" ]]; then echo "no Chrome/Chromium: skipping PDFs"; exit 0; fi
-for f in "$out"/*.html; do
-  "$chrome" --headless=new --no-pdf-header-footer --print-to-pdf="$pdf/$(basename "${f%.html}").pdf" "$f" 2>/dev/null
-done
-echo "PDF:  $pdf/"

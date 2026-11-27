@@ -1,9 +1,10 @@
 # Design note: a scoped tctx, for polyphony
 
-Status: proposal, nothing built. Written 2026-11-25 after the audit of ways to do the same thing
-(`decisions.md`, 2026-11-24/25) and a question the tctx had not met: how it holds up with more
-than one voice. 2026-11-26: the two risks of section 8 checked, and a way to seed random keys
-chosen (section 10).
+Status: **built and merged 2026-11-27** (section 11 says what was built and what differs from the
+proposal below; the sections before it are the proposal as written). Written 2026-11-25 after the
+audit of ways to do the same thing (`decisions.md`, 2026-11-24/25) and a question the tctx had not
+met: how it holds up with more than one voice. 2026-11-26: the two risks of section 8 checked, and a
+way to seed random keys chosen (section 10).
 
 ## 1. The problem
 
@@ -255,3 +256,27 @@ voice; it needs a form that does not clash with voice names); pass-number indexi
 
 Settled: `N rng/seed` at the prompt is `:seed` at the shared level. Open: the draw must know whether its key was written at the shared level or in a scope; the
 lookup should know which context answered, not checked.
+
+## 11. What was built (2026-11-27)
+
+| Proposal | Built |
+|---|---|
+| A scope in front of the shared tctx | `[scope tctx …]`, the scope a *view* (`context/tctx-scope`) over the one table, where a voice's keys are qualified keywords (`:bass/steps`): a saved session and the GUI needed no change |
+| `T!` `T@` `T@@` `T_` take `:bass/steps` | yes; `T@` falls back to the shared value |
+| The `$` inputs become scope entries | yes (`musics.mu.inputs` keeps the order of the names, the specs and a watch; `Ref` stays for Forth's `variable`); the values stay when the voice stops |
+| One window reads a scope and the shared table | `musics.gui.settings`: the shared keys, then a section for each voice and group; `:bass gui` scrolls to it; `musics.gui.params` is gone |
+| `@{ :steps 8 :bass/steps 5 }` | also nested, `:bass @{ :steps 5 }`, printed back grouped; and a block, `@{ … } :bass T!`, read `:bass T@`, taken out `:bass T_` |
+| Ranges beside the entry | not in the tctx: a word's input is read as the algos it calls read it (`live/called-algos`), `:max-key`/`:min-key` tie `onsets` to `pulses`, a write that breaks the tie is refused (no central registry, no namespaces for quantity domains) |
+| Open point 5, the voice's name as a key | not needed; the voice is part of a key's name |
+| Seeds, section 10 | built as designed, `musics.mu.seeding`; `N rng/seed` stays the session seed and `:seed` wins for the keys |
+
+Added beyond the proposal: a voice's name may have dots, `:drums.kick`, and then reads its own keys,
+its group's (`:drums`), then the shared ones; a namespace alias may have dots, `'rhythmic.pattern 'r.p
+reqalgo`.
+
+Not built: a change at a bar or a mark (section 4, way 2); a seed for one key of one voice
+(`:bass/density/seed`, which needs a second slash) and a key-only seed; aliases for keys and voices and
+for a branch of libraries (`'rhythmic 'r reqalgo`); a check of a write made before the voice starts (the
+specs exist once it does); the notation's shuffle, choose and alternate do not read `:seed`. The reasons
+are in `decisions.md`, 2026-11-26/27.
+

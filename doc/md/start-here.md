@@ -48,6 +48,6 @@ have what you need.
 - The text is the same everywhere: a `.mus` file, the GUI editor and the
   mu prompt read alike. Comments are `//` and `/* */`.
 - There is no Clojure API to learn; the program is mu and the GUI.
-- `doc/md/` is the source; `scripts/docs.sh` renders it to HTML and PDF.
+- `doc/md/` is the source; `scripts/docs.sh` renders it to HTML.
 - The cookbook's recipes are each run when it is generated; the
   tutorial's examples are being re-checked as it is rewritten.

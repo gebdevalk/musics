@@ -21,7 +21,7 @@ Type these once. `reqalgo` loads a Clojure namespace of `musics.algo`, named wit
 
 ```
 mu> 'numeric.rng reqalgo
-musics.algo.numeric.rng as rng/ (9 words)
+musics.algo.numeric.rng as rng/ (10 words)
 mu> 'rhythmic.pattern reqalgo
 musics.algo.rhythmic.pattern as pattern/ (12 words)
 mu> 'rhythmic.sieve reqalgo
@@ -313,7 +313,7 @@ mu> 7 :seed T! 0 9 range :vals T! '[3 3] :subdivisions T! 1.0 :adherence T!
 mu> '( :seed rng/seed :vals :subdivisions indispensability/indisp :adherence indispensability/tilt random/weighted-choose ) :choice T!
 
 mu> :choice T@@
-2
+4
 ```
 
 ### Melody generators
@@ -328,7 +328,7 @@ mu> 7 :seed T! 11 :onsets T! 16 :pulses T! '[60 62 64 62 60 67 65 64] :melody T!
 mu> '( :seed rng/seed :onsets :pulses pattern/euclid :pulse bridge/pulses->durations :melody :order melody/markov-train :length melody/markov-gen zip ) :markov T!
 
 mu> :markov T@@
-[E4/8 D4/16 E4/8 D4/16 E4/8 D4/16 E4/8 D4/16 E4/8 D4/16 C4]
+[C4/8 G4/16 F4/8 E4/16 D4/8 C4/16 D4/8 E4/16 D4/8 E4/16 D4]
 ```
 
 #### 21. Slonimsky: insertions below, between, above
@@ -368,11 +368,11 @@ mu> 7 :seed T! '[60 62 64 65 67 69 71 72] :scale T! 12 :length T!
 mu> '( :seed rng/seed :scale :length '[] melody/constrained ) :free_walk T!
 
 mu> :free_walk T@@
-'[72 69 60 65 69 60 71 60 71 60 67 62]
+'[64 60 71 60 62 62 60 62 72 64 67 64]
 mu> '( :seed rng/seed :scale :length ( '( swap last = not ) '( swap last - abs 3 < ) ) melody/constrained ) :constrained_walk T!
 
 mu> :constrained_walk T@@
-'[72 71 69 71 72 71 69 67 65 64 62 64]
+'[60 62 60 62 64 62 60 62 60 62 64 65]
 ```
 
 #### 24. A melody that modulates
@@ -385,7 +385,7 @@ mu> 7 :seed T! '[ '[ '[:C :major] 6] '[ '[:E :minor] 6] ] :segments T! 60 :lift 
 mu> '( :seed rng/seed :segments ( '( swap last = not ) ) melody/modulating :lift + ) :modulating T!
 
 mu> :modulating T@@
-'[60 71 60 64 62 65 60 71 60 64 69 66]
+'[62 69 67 64 65 69 69 62 69 71 66 71]
 ```
 
 #### 25. Two-voice counterpoint
@@ -445,7 +445,7 @@ mu> 7 :seed T! 0.0 :lo T! 1.0 :hi T! 0.5 :mode T! 12 :draws T! 60 :low T! 73 :hi
 mu> '( :seed rng/seed '( :lo :hi :mode random/triangular ) :draws pull :lo :hi :low :high bridge/numbers->pitches ) :triangular T!
 
 mu> :triangular T@@
-'[65 67 62 64 67 65 62 67 71 66 64 70]
+'[66 67 69 73 68 71 66 63 66 67 67 67]
 ```
 
 #### 29. Any numbers, rescaled onto a scale
@@ -458,7 +458,7 @@ mu> 0.0 :mean T! 1.0 :stdev T! 3 :spread T! 4 :centre T!
 mu> '( :seed rng/seed '( :mean :stdev random/normal ) :draws pull :spread * :centre + '( round ) map "C.pentatonic-major" 4 bridge/degrees->pitches ) :normal T!
 
 mu> :normal T@@
-'[69 86 76 57 72 60 62 60 60 67 69 76]
+'[69 76 57 84 60 69 76 62 62 69 76 74]
 ```
 
 #### 30. A random walk, and a biased one
@@ -471,11 +471,11 @@ mu> 16 :draws T! 4.0 :start T! 1.0 :step_bound T! 0.7 :bias T!
 mu> '( :seed rng/seed :start :step_bound walk/walk :draws pull '( round ) map "C.pentatonic-major" 4 bridge/degrees->pitches ) :walking T!
 
 mu> :walking T@@
-'[69 69 67 64 64 64 62 62 64 64 62 64 64 67 67 67]
+'[72 72 74 74 72 72 72 72 72 69 69 69 69 69 72 72]
 mu> '( :seed rng/seed 60.0 :step_bound :bias walk/biased-walk :draws pull ) :leaning T!
 
 mu> :leaning T@@
-'[60.51 60.73 61.08 61.71 61.31 62.17 63.04 63.78 64.45 63.53 63.54 63.66 64.30 64.84 64.06 64.72]
+'[59.20 59.12 58.39 59.29 59.08 59.86 59.27 59.40 59.93 60.01 60.64 60.90 61.57 60.82 61.44 62.08]
 ```
 
 #### 31. Chaos: the logistic map, the Lorenz attractor
@@ -517,7 +517,7 @@ mu> 3.0 :rate T! 4.0 :duration T! 1/4 :unit T! 1/32 :quantum T!
 mu> '( :seed rng/seed :rate :duration process/poisson :unit :quantum bridge/onsets->durations penta zip ) :poisson T!
 
 mu> :poisson T@@
-[C4/16 D4/4 E4/8 G4/16 A4/16. C4/4 D4/32]
+[C4/16. D4/8.. E4/32 G4/16. A4/32 C4/16. D4/32 E4 G4/16 A4 C4 D4/8 E4/32]
 ```
 
 #### 34. Smooth noise as a rhythm
@@ -530,7 +530,7 @@ mu> 6 :n T! 16 :places T!
 mu> '( :seed rng/seed 0 :places range 3 / :n :lo :hi walk/smooth-noise map "median" 1 data/data-rhythm :pulse bridge/pulses->durations penta zip ) :noise T!
 
 mu> :noise T@@
-[r8 D4/16 E4 G4/4.. A4/16 C4 D4 E4 G4]
+[r8 D4/16 E4 G4 A4 C4 16:5[D4/1] E4/16 G4/8.]
 ```
 
 ### Rhythm generators
@@ -626,7 +626,7 @@ mu> 16 :population_size T! 16 :pattern_length T! 20 :generations T!
 mu> '( :seed rng/seed :population_size :pattern_length :generations '( sum 5 - abs negate ) process/genetic :pulse bridge/pulses->durations penta zip ) :genetic T!
 
 mu> :genetic T@@
-[r8. D4 E4/8 G4/16 A4/4 C4/8.]
+[C4/8. D4/16 E4/8 16:9[G4/1] A4/16]
 ```
 
 #### 41. Swing: a grid becomes onset times, then durations
@@ -691,7 +691,7 @@ mu> 5 :onsets T! 16 :pulses T! 0.6 :similarity T! "mirror" :strategy T!
 mu> '( :seed rng/seed :onsets :pulses pattern/euclid :similarity feel/emi :pulse bridge/pulses->durations penta zip ) :emi T!
 
 mu> :emi T@@
-[C4/8. D4 E4 G4 A4/4]
+[C4/8. D4/8 E4 G4 A4/16 C4 D4/4]
 mu> '( 3 8 pattern/euclid :strategy feel/oblique :pulse bridge/pulses->durations penta zip ) :oblique T!
 
 mu> :oblique T@@

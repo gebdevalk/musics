@@ -2,7 +2,7 @@
 ;; functions called by name, with mu's own words. Every
 ;; recipe's mu input is run here and the result shown is exactly what came back.
 ;;
-;; Run from the repo root, then render it (html and pdf, both git-ignored):
+;; Run from the repo root, then render it (html, git-ignored):
 ;;   lein run -m clojure.main scripts/algo-cookbook.clj
 ;;   scripts/docs.sh
 ;;

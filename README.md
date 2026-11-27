@@ -81,7 +81,7 @@ is built on (JavaFX brings native libraries).
 ## Where to go from here
 
 The documents are Markdown in `doc/md/`; `scripts/docs.sh` renders them
-to HTML in `doc/html/` (open `doc/html/index.html`) and PDF in `doc/pdf/`.
+to HTML in `doc/html/` (open `doc/html/index.html`).
 [doc/md/start-here.md](doc/md/start-here.md) says which one fits where you
 are. Read them roughly in this order, stopping when you have what you need.
 
