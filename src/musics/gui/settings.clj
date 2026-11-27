@@ -174,7 +174,7 @@
   {:fx/type :stage
    :showing showing
    :title "Settings — the tctx"
-   :width 460
+   :width 780
    :height 520
    :on-close-request {:event/type ::close}
    :scene
