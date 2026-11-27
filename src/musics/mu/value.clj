@@ -60,6 +60,24 @@
 
 (defn settings? [x] (instance? Settings x))
 
+(defn flatten-settings
+  "The pairs [[:k x] …] of a @{ } with every value that is itself a @{ } written out as keys of the
+   voice (or group) named by its key: :bass @{ :steps 5 } is :bass/steps 5, and a group nests with
+   dots, :drums @{ :kick @{ :steps 8 } } is :drums.kick/steps 8. path is the voice the pairs belong
+   to, nil for the tctx's own (shared) keys, which stay as they are; a key written with a slash
+   (:bass/steps) already names its voice. A key that is none of these under a voice becomes
+   :voice/key; one with a slash under a voice, :voice.ns/key."
+  ([pairs] (flatten-settings nil pairs))
+  ([path pairs]
+   (vec (mapcat (fn [[k x]]
+                  (if (settings? x)
+                    (flatten-settings (if path (str path "." (name k)) (name k)) (:entries x))
+                    [[(cond (nil? path) k
+                            (namespace k) (keyword (str path "." (namespace k)) (name k))
+                            :else (keyword path (name k)))
+                      x]]))
+                pairs))))
+
 (defrecord Later [length])  ; 1/8 later: a start delay in whole notes, taken by a play word like a context or a mark
 (defn later? [x] (instance? Later x))
 

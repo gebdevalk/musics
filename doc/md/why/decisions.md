@@ -3938,6 +3938,18 @@ stops, by name, so `:bass ->` starts it as it was tuned and a value can be writt
 starts; a saved session keeps them with the rest of the tctx. Lost: the error that named the inputs a voice
 has when one was mistyped (`:bass/pulse` is a key of the scope now).
 
+## 2026-11-27 -- a voice's keys written once: `:bass @{ … }` and `@{ … } :bass T!`
+
+Writing `5 :bass/steps T!`, `3 :bass/density T!` … for each key of each voice made the multi-voice
+tctx long to write and to read. In an `@{ }` a voice now nests, `:bass @{ :steps 5 :density 3 }`, read
+as the flat keys `:bass/steps`, `:bass/density` (the flat spelling still reads, the two are one thing)
+and printed back grouped, shared keys first, then each voice; a group nests with dots, `:drums @{ :kick
+@{ :steps 8 } }` is `:drums.kick/steps` (a Clojure keyword with dots in its namespace, which round-trips;
+more than one slash would not, and the grammar takes one). `T!` with an `@{ }` and a voice writes the block
+(value first, as everywhere in mu), refusing the whole of it when one input is out of its range; `T@` on a
+voice gives its block, `T_` takes it all out. A shared key called like a voice stays the key. The ranges
+themselves are not written in the tctx: they come from what reads a key, see `scoped-tctx.md`.
+
 ## 2026-11-26 -- one settings window for the shared tctx and every voice's scope
 
 `:tctx gui` and a word voice's `:bass gui` were two windows over what is now one table. They are one

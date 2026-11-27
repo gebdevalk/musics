@@ -369,7 +369,11 @@ table when asked. A voice that is a function of onset starts with `[scope tctx]`
 `:tctx` (`live/tctx-scope`, `events/walk-source` takes one Context or a vector), so a lookup finds
 the voice's value first, then the shared one, and a computed key written once for all (`:twice`)
 reads what it asks (`(get :steps)`) through the asking voice's chain. `T@` gives the voice's entry,
-else the shared one; `T@@` runs through `[scope tctx]`; `T_` takes out the voice's own. In mu,
+else the shared one; `T@@` runs through `[scope tctx]`; `T_` takes out the voice's own. A voice's keys
+are also written as a block, `@{ … } :bass T!` (every entry checked first, none written when one is
+refused), read `:bass T@` and taken out `:bass T_` (`live/scope->settings`, `forget-scope!`); a `@{ }`
+nests a voice (`:bass @{ :steps 5 }`, `value/flatten-settings` makes the keys on reading,
+`live/nest-pairs` groups them on printing, a dotted namespace for a group). In mu,
 `:voice/name` is the qualified keyword, always (an input of a word voice is such an entry too, see
 "Live voices"). Design and open points: `doc/md/why/scoped-tctx.md`.
 

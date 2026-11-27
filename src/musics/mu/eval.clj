@@ -385,9 +385,11 @@
                 (let [pairs (mapv vec (partition 2 xs))]
                   (doseq [[k] pairs]
                     (when-not (keyword? k) (mu-error "@{ }: a key is a keyword, :reps -- got" (p/show k))))
+                  ;; :bass @{ :steps 5 } is :bass/steps 5
+                  (let [pairs (v/flatten-settings pairs)]
                   (when-let [d (first (filter #(> (val %) 1) (frequencies (map first pairs))))]
                     (mu-error "@{ }:" (pr-str (key d)) "is written twice"))
-                  (conj stack (v/->Settings pairs))))
+                  (conj stack (v/->Settings pairs)))))
     :Word (run-word stack (node-name node))
     :Retrograde (run-word stack "[R]")
     :Measures   (run-word stack "[[]]")

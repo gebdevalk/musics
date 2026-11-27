@@ -313,9 +313,31 @@ instead of the shared one:
 ```
 
 A voice that reads `:steps` finds its own first. A computed key such as `:twice`, written once for
-everyone, is worked out from each voice's own values. `:bass/steps` is written like any other key in
-`@{ :steps 8 :bass/steps 5 }`, and a saved session keeps it. The values of a voice are kept by its
-name, so they can be written before the voice starts and are there when it is started again.
+everyone, is worked out from each voice's own values. The values of a voice are kept by its
+name, so they can be written before the voice starts and are there when it is started again, and a
+saved session keeps them.
+
+A voice's keys can be written once, as a block, instead of one by one:
+
+```
+@{ :steps 5 :density 3 } :bass T!    writes :bass/steps 5 and :bass/density 3
+:bass T@                             → @{ :density 3 :steps 5 }, all the tctx holds for the bass
+:bass T_                             takes all of it out
+```
+
+The block adds or changes those keys and leaves the voice's others; if one entry is refused (an input
+of a word voice outside its range) none is written. The whole table is written the same way, a voice's
+keys nested under its name, and `:tctx R@` prints it back like that:
+
+```
+@{ :steps 8
+   :bass @{ :steps 5 :density 3 }
+   :lead @{ :density 2 } } :tctx R!
+```
+
+Nesting is the path: `:bass @{ :steps 5 }` is `:bass/steps 5`, and `@{ :steps 8 :bass/steps 5 }`, written
+flat, reads as the same thing. A group nests further, `:drums @{ :kick @{ :steps 8 } }` is
+`:drums.kick/steps 8`. A shared key that is called like a voice is the key: `:bass T@` gives it.
 
 `doc/md/pull-voice.md` and `doc/md/hoketus-dynamic.md` give the design.
 Stored settings are saved with `save-session`.

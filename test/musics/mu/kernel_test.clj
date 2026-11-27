@@ -858,11 +858,65 @@
 
 (deftest a-scope-is-written-out-in-the-tctx-literal-and-reads-back
   (try
-    (let [text "@{ :steps 8 :bass/steps 5 :lead/density 2 }"]
-      (run (str text " :tctx R!"))
+    (testing "a voice's keys written nested are stored as its keys, and printed back nested"
+      (run "@{ :steps 8 :bass @{ :steps 5 :density 3 } :lead @{ :density 2 } } :tctx R!")
       (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0)))
-      (is (= text (str/trim (top-of ":tctx R@")))))
+      (is (= 2 (c/ctx-value-chain [live/tctx] :lead/density 0)))
+      (is (= "@{ :steps 8 :bass @{ :density 3 :steps 5 } :lead @{ :density 2 } }" (str/trim (top-of ":tctx R@")))))
+    (testing "the flat spelling reads as the same thing"
+      (run "@{ :steps 8 :bass/steps 5 :bass/density 3 :lead/density 2 } :tctx R!")
+      (is (= "@{ :steps 8 :bass @{ :density 3 :steps 5 } :lead @{ :density 2 } }" (str/trim (top-of ":tctx R@")))))
+    (testing "a group nests with dots: :drums.kick is the voice :kick of the group :drums"
+      (run "@{ :drums @{ :steps 4 :kick @{ :steps 8 } } } :tctx R!")
+      (is (= 8 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= "@{ :drums @{ :steps 4 :kick @{ :steps 8 } } }" (str/trim (top-of ":tctx R@")))))
+    (testing "a key written twice, nested or not, is refused"
+      (is (re-find #"is written twice" (:error (run "@{ :bass @{ :steps 1 } :bass/steps 2 } :tctx R!")))))
     (finally (clear-tctx!))))
+
+(deftest a-block-of-settings-is-written-for-a-voice-and-read-and-cleared-as-one
+  (try
+    (run "8 :steps T!")
+    (run "7 :bass/keep T!")
+    (testing "@{ … } :bass T! writes every entry under the voice and leaves its other keys"
+      (run "@{ :steps 5 :density 3 :more '( :steps 3 + ) } :bass T!")
+      (is (= [5 3 7] (mapv #(c/ctx-value-chain [live/tctx] % 0) [:bass/steps :bass/density :bass/keep])))
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)) "the shared one is as it was")
+      (is (= "8" (str/trim (top-of ":bass/more T@@"))) "a quotation is a computed key"))
+    (testing ":bass T@ is everything the tctx holds for the bass, as an @{ }"
+      (is (= "@{ :density 3 :keep 7 :more '( :steps 3 + ) :steps 5 }" (str/trim (top-of ":bass T@")))))
+    (testing "a group inside the block nests under the voice"
+      (run "@{ :steps 4 :kick @{ :steps 8 } } :drums T!")
+      (is (= 8 (c/ctx-value-chain [live/tctx] (keyword "drums.kick" "steps") 0)))
+      (is (= "@{ :steps 4 :kick @{ :steps 8 } }" (str/trim (top-of ":drums T@")))))
+    (testing "a block is for a voice, not a key of one"
+      (is (re-find #"a block of settings is written for a voice" (:error (run "@{ :a 1 } :bass/steps T!")))))
+    (testing ":bass T_ takes out everything the bass has, the others are left"
+      (run ":bass T_")
+      (is (nil? (c/ctx-value-chain [live/tctx] :bass/steps 0)))
+      (is (= 8 (c/ctx-value-chain [live/tctx] :steps 0)))
+      (is (= 4 (c/ctx-value-chain [live/tctx] :drums/steps 0)))
+      (is (re-find #"is not in the tctx" (:error (run ":bass T_"))) "and there is then nothing to take out")
+      (is (re-find #"is not in the tctx" (:error (run ":bass T@")))))
+    (testing "a shared key called like a voice is the key, as before"
+      (run "3 :bass T!")
+      (run "5 :bass/steps T!")
+      (is (= "3" (str/trim (top-of ":bass T@"))))
+      (run ":bass T_")
+      (is (= 5 (c/ctx-value-chain [live/tctx] :bass/steps 0)) "T_ took out the shared key, not the voice"))
+    (finally (clear-tctx!))))
+
+(deftest a-block-is-refused-whole-when-one-entry-breaks-a-range
+  (try
+    (inputs/set-inputs! :w [["onsets" 3] ["pulses" 8]] {:onsets {:type :int :min 0 :max 32}})
+    (run "@{ :onsets 5 } :w T!")
+    (is (= 5 (inputs/value :w "onsets")) "an input in its range is stored")
+    (testing "none of a refused block is written, whichever entry comes first"
+      (is (re-find #"onsets: 99 should be at most 32" (:error (run "@{ :pulses 9 :extra 1 :onsets 99 } :w T!"))))
+      (is (= 5 (inputs/value :w "onsets")))
+      (is (= 8 (inputs/value :w "pulses")) "the entry before the bad one was not written either")
+      (is (nil? (c/ctx-value-chain [live/tctx] :w/extra 0))))
+    (finally (inputs/clear! :w) (clear-tctx!))))
 
 (deftest an-at-brace-literal-writes-a-tctx-and-tctx-R!-makes-it-the-sessions
   (try

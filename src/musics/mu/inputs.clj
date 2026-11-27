@@ -118,13 +118,19 @@
       (why (str "one of " (str/join ", " (map #(if (keyword? %) (name %) (str %)) choices)))))
     x))
 
+(defn checked
+  "x as input of voice (a keyword) takes it, or an error saying what is wrong when its spec
+   refuses it; x as it is when the voice has no spec for input."
+  [voice input x]
+  (let [k    (keyword (name input))
+        spec (get (specs voice) k)]
+    (if spec (coerced k spec x) x)))
+
 (defn put!
   "Make input of voice hold x in its scope, heard on the voice's next note. A value its spec
    refuses is an error and changes nothing. x back."
   [voice input x]
-  (let [k    (keyword (name input))
-        spec (get (specs voice) k)
-        x    (if spec (coerced k spec x) x)]
+  (let [x (checked voice input x)]
     (c/tctx! reg/tctx (key-of voice input) x)
     x))
 

@@ -149,20 +149,73 @@
     (reset! (:envelopes-atom node) @(:envelopes-atom tmp))
     node))
 
+(defn- settings-value
+  "What a tctx entry is in a @{ }: a quotation for a computed key, the value itself, nil when
+   there is no text to give (a function of time, a computed entry from no quotation)."
+  [entry]
+  (cond
+    (instance? musics.domain.context.Derived entry)
+    (when-let [text (:text entry)] (peek (e/run-text [] text)))
+    (instance? musics.domain.context.Generator entry) nil
+    :else entry))
+
+(defn- nest-pairs
+  "pairs [[k x] …] with a key written for a voice (:bass/steps) gathered under the voice,
+   :bass @{ :steps 5 }, a dotted voice (:drums.kick/steps) nested, :drums @{ :kick @{ :steps 8 } };
+   the keys of the tctx itself first, by name, then the voices in order."
+  [pairs]
+  (let [plain  (remove (comp namespace first) pairs)
+        scoped (filter (comp namespace first) pairs)
+        groups (group-by (fn [[k _]] (first (clojure.string/split (namespace k) #"\."))) scoped)]
+    (into (vec (sort-by (comp name first) plain))
+          (for [seg (sort (keys groups))]
+            [(keyword seg)
+             (v/->Settings
+              (nest-pairs (for [[k x] (groups seg)
+                                :let [more (rest (clojure.string/split (namespace k) #"\."))]]
+                            [(if (seq more) (keyword (clojure.string/join "." more) (name k)) (keyword (name k))) x])))]))))
+
+(defn- own-keys
+  "The entries of the tctx written for voice, that voice's own and those of the voices nested
+   in it (:drums.kick for :drums)."
+  [voice]
+  (let [n (name voice)]
+    (filter (fn [[k _]] (when-let [ns (namespace k)] (or (= ns n) (clojure.string/starts-with? ns (str n "."))))) 
+            @(:envelopes-atom (tctx-node!)))))
+
 (defn tctx->settings
-  "The tctx as a mu Settings, the shared keys first, in key order, then the scopes by voice: a computed key as its quotation. An
-   entry made in Clojure, with no text to give (a function of time, a computed
-   entry from no quotation), is left out."
+  "The tctx as a mu Settings, the shared keys first, in key order, then the voices, each
+   as :bass @{ … }: a computed key as its quotation. An entry made in Clojure, with no text
+   to give (a function of time, a computed entry from no quotation), is left out."
   []
   (v/->Settings
-   (vec (for [[k entry] (sort-by (fn [[k _]] [(some? (namespace k)) (or (namespace k) "") (name k)]) @(:envelopes-atom (tctx-node!)))
-              :let [x (cond
-                        (instance? musics.domain.context.Derived entry)
-                        (when-let [text (:text entry)] (peek (e/run-text [] text)))
-                        (instance? musics.domain.context.Generator entry) nil
-                        :else entry)]
-              :when (some? x)]
-          [k x]))))
+   (nest-pairs (for [[k entry] @(:envelopes-atom (tctx-node!))
+                     :let [x (settings-value entry)] :when (some? x)]
+                 [k x]))))
+
+(defn scope->settings
+  "What the tctx holds for voice as a mu Settings, its keys without its name, or nil when
+   it holds nothing for it."
+  [voice]
+  (let [n (name voice)
+        pairs (for [[k entry] (own-keys voice)
+                    :let [x (settings-value entry)] :when (some? x)
+                    :let [ns (namespace k)
+                          rest-ns (when (not= ns n) (subs ns (inc (count n))))]]
+                [(if rest-ns (keyword rest-ns (name k)) (keyword (name k))) x])]
+    (when (seq pairs) (v/->Settings (nest-pairs pairs)))))
+
+(defn own-keys-of
+  "The keys the tctx holds for voice (a keyword), as a seq; empty for none."
+  [voice]
+  (map first (own-keys voice)))
+
+(defn forget-scope!
+  "Take everything the tctx holds for voice out of it. The number of entries taken out."
+  [voice]
+  (let [ks (map first (own-keys voice))]
+    (swap! (:envelopes-atom (tctx-node!)) #(apply dissoc % ks))
+    (count ks)))
 
 (defn- onset-word?
   "Does word take the onset as an input -- $onset in its stack effect? Then the
