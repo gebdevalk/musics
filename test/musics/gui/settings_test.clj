@@ -60,6 +60,13 @@
              (is (= ["onsets" "pulses" "steps"] (map :label (:rows (second secs))))))
            (is (= 6 (count (s/entries secs))) "every row, for the slider ranges")))))
 
+(deftest a-voice-has-a-scope-when-the-tctx-holds-a-key-written-with-its-name
+  (with-tctx [[:steps 8] [:bass/steps 5]]
+    #(do (is (s/scope? :bass))
+         (is (s/scope? "bass"))
+         (is (not (s/scope? :lead)) "a voice with no key of its own")
+         (is (not (s/scope? :steps)) "a shared key is no voice"))))
+
 (deftest the-window-scrolls-to-a-voices-section
   (let [secs [{:scope nil :rows [1 2]} {:scope "bass" :rows [1 2 3]} {:scope "lead" :rows [1]}]]
     (is (= 0.0 (s/scroll-fraction secs nil)))

@@ -69,6 +69,12 @@
                       idx   (fn [[k _]] (let [i (.indexOf order (name k))] (if (neg? i) (count order) i)))]]
             {:scope v :rows (mapv #(row-of v %) (sort-by (juxt idx (comp name key)) own))}))))
 
+(defn scope?
+  "Does the tctx hold keys written with voice (a keyword or string) before the slash?"
+  [voice]
+  (let [n (name voice)]
+    (boolean (some #(= n (namespace %)) (keys @(:envelopes-atom reg/tctx))))))
+
 (defn entries
   "[[key entry kind] …] of every row of sections, what the slider ranges are kept for."
   [sections]
@@ -168,7 +174,7 @@
   {:fx/type :stage
    :showing showing
    :title "Settings — the tctx"
-   :width 620
+   :width 460
    :height 520
    :on-close-request {:event/type ::close}
    :scene
